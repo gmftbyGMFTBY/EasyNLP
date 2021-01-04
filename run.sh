@@ -1,0 +1,60 @@
+#!/bin/bash
+
+# ========== How to run this script ========== #
+# ./run.sh <train/test> <dataset_name> <model_name> <cuda_ids>
+# for example: ./run/sh train train_generative gpt2 0,1,2,3
+
+mode=$1
+dataset=$2
+model=$3
+cuda=$4 
+
+if [ $mode = 'init' ]; then
+    models=(bert-ft)
+    datasets=(ecommerce douban)
+    mkdir bak ckpt rest
+    for m in ${models[@]}
+    do
+        for d in ${datasets[@]}
+        do
+            mkdir -p ckpt/$d/$m
+            mkdir -p rest/$d/$m
+            mkdir -p bak/$d/$m
+        done
+    done
+elif [ $mode = 'backup' ]; then
+    cp ckpt/$dataset/$model/param.txt bak/$dataset/$model/
+    cp ckpt/$dataset/$model/best.pt bak/$dataset/$model/
+    cp rest/$dataset/$model/rest.txt bak/$dataset/$model/
+    cp rest/$dataset/$model/events* bak/$dataset/$model/
+elif [ $mode = 'train' ]; then
+    ./run.sh backup $dataset $model
+    rm ckpt/$dataset/$model/*
+    rm rest/$dataset/$model/events*    # clear the tensorboard cache
+    
+    gpu_ids=(${cuda//,/ })
+    CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 29400 main.py \
+        --dataset $dataset \
+        --model $model \
+        --mode train \
+        --batch_size 16 \
+        --epoch 10 \
+        --seed 50 \
+        --src_len_size 256 \
+        --tgt_len_size 50 \
+        --multi_gpu $cuda \
+        --lang zh
+elif [ $mode = 'test' ]; then
+    CUDA_VISIBLE_DEVICES=$cuda python main.py \
+        --dataset $dataset \
+        --model $model \
+        --mode test \
+        --batch_size $batch_size \
+        --src_len_size 256 \
+        --tgt_len_size 50 \
+        --seed 50 \
+        --multi_gpu $cuda \
+        --lang zh
+else
+    echo "[!] mode needs to be train/test/eval, but got $mode"
+fi
