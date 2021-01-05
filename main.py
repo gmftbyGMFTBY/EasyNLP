@@ -1,6 +1,5 @@
 from header import *
 from dataloader import *
-from utils import *
 from model import *
 
 def parser_args():
@@ -11,11 +10,11 @@ def parser_args():
     parser.add_argument('--mode', type=str, default='train')
     parser.add_argument('--epoch', type=int, default=10)
     parser.add_argument('--seed', type=float, default=30)
-    parser.add_argument('--src_len_size', type=int, default=300)
-    parser.add_argument('--tgt_len_size', type=int, default=50)
+    parser.add_argument('--max_len', type=int, default=256)
     parser.add_argument('--multi_gpu', type=str, default=None)
     parser.add_argument('--lang', type=str, default='zh')
     parser.add_argument('--local_rank', type=int)
+    parser.add_argument('--warmup_ratio', type=float, default=0.1)
     return parser.parse_args()
 
 def main(**args):
@@ -23,7 +22,11 @@ def main(**args):
         torch.cuda.set_device(args['local_rank'])
         torch.distributed.init_process_group(backend='nccl', init_method='env://')
         
-        train_iter = load_dataset(args)
+        train_data, train_iter = load_bertft_dataset(args)
+        
+        # total step
+        args['total_step'] = len(train_data) * args['epoch'] // args['batch_size']
+        args['warmup_step'] = int(0.1 * args['total_step'] / (args['multi_gpu'].count(',') + 1))
         agent = load_model(args)
         
         sum_writer = SummaryWriter(log_dir=f'rest/{args["dataset"]}/{args["model"]}')

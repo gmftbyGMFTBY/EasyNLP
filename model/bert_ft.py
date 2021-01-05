@@ -1,4 +1,5 @@
 from .header import *
+from .base import *
 
 '''Cross-Attention BertRetrieval'''
 
@@ -21,21 +22,23 @@ class BERTRetrieval(nn.Module):
     
 class BERTFTAgent(RetrievalBaseAgent):
 
-    def __init__(self, multi_gpu, run_mode='train', lang='zh', local_rank=0):
+    def __init__(self, multi_gpu, total_step, warmup_step, run_mode='train', lang='zh', local_rank=0):
         super(BERTFTAgent, self).__init__()
         try:
             self.gpu_ids = list(range(len(multi_gpu.split(',')))) 
         except:
             raise Exception(f'[!] multi gpu ids are needed, but got: {multi_gpu}')
         self.args = {
-            'lr': 2e-5,
-            'grad_clip': 1.0,
+            'lr': 3e-5,
+            'grad_clip': 5.0,
             'multi_gpu': self.gpu_ids,
             'max_len': 256,
             'model': 'bert-base-chinese',
             'amp_level': 'O2',
             'local_rank': local_rank,
             'lang': lang,
+            'total_step': total_step,
+            'warmup_step': warmup_step,
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
         self.model = BERTRetrieval(self.args['model'])
@@ -51,6 +54,11 @@ class BERTFTAgent(RetrievalBaseAgent):
                 self.model, 
                 self.optimizer, 
                 opt_level=self.args['amp_level']
+            )
+            self.scheduler = transformers.get_linear_schedule_with_warmup(
+                self.optimizer, 
+                num_warmup_steps=warmup_step, 
+                num_training_steps=total_step,
             )
             self.model = nn.parallel.DistributedDataParallel(
                 self.model, device_ids=[local_rank], output_device=local_rank,
@@ -75,6 +83,7 @@ class BERTFTAgent(RetrievalBaseAgent):
                 scaled_loss.backward()
             clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
             self.optimizer.step()
+            self.scheduler.step()
 
             total_loss += loss.item()
             batch_num += 1

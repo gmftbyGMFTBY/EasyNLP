@@ -37,21 +37,20 @@ elif [ $mode = 'train' ]; then
         --dataset $dataset \
         --model $model \
         --mode train \
-        --batch_size 16 \
-        --epoch 10 \
+        --batch_size 48 \
+        --epoch 5 \
         --seed 50 \
-        --src_len_size 256 \
-        --tgt_len_size 50 \
+        --max_len 256 \
         --multi_gpu $cuda \
-        --lang zh
+        --lang zh \
+        --warmup_ratio 0.1
 elif [ $mode = 'test' ]; then
     CUDA_VISIBLE_DEVICES=$cuda python main.py \
         --dataset $dataset \
         --model $model \
         --mode test \
         --batch_size $batch_size \
-        --src_len_size 256 \
-        --tgt_len_size 50 \
+        --max_len 256 \
         --seed 50 \
         --multi_gpu $cuda \
         --lang zh

@@ -1,5 +1,4 @@
 from header import *
-from utils import *
 
 def read_text_data(path):
     with open(path) as f:
@@ -113,7 +112,7 @@ def load_bertft_dataset(args):
         iter_ = DataLoader(data, shuffle=False, batch_size=args['batch_size'], collate_fn=data.collate)
     if not os.path.exists(data.pp_path):
         data.save()
-    return iter_
+    return data, iter_
 
 if __name__ == "__main__":
     # ========== BERTFTDataset ========== #
