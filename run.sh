@@ -10,7 +10,7 @@ model=$3
 cuda=$4 
 
 if [ $mode = 'init' ]; then
-    models=(bert-ft)
+    models=(bert-adapt bert-ft bert-gen)
     datasets=(ecommerce douban)
     mkdir bak ckpt rest
     for m in ${models[@]}
@@ -37,7 +37,7 @@ elif [ $mode = 'train' ]; then
         --dataset $dataset \
         --model $model \
         --mode train \
-        --batch_size 48 \
+        --batch_size 16 \
         --epoch 5 \
         --seed 50 \
         --max_len 256 \
@@ -49,7 +49,7 @@ elif [ $mode = 'test' ]; then
         --dataset $dataset \
         --model $model \
         --mode test \
-        --batch_size 10 \
+        --batch_size 1 \
         --max_len 256 \
         --seed 50 \
         --multi_gpu $cuda \

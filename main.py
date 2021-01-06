@@ -22,7 +22,7 @@ def main(**args):
         torch.cuda.set_device(args['local_rank'])
         torch.distributed.init_process_group(backend='nccl', init_method='env://')
         
-        train_data, train_iter = load_bertft_dataset(args)
+        train_data, train_iter = load_dataset(args)
         
         # total step
         args['total_step'] = len(train_data) * args['epoch'] // args['batch_size']
@@ -42,7 +42,7 @@ def main(**args):
                 agent.save_model(f'ckpt/{args["dataset"]}/{args["model"]}/best.pt')
         sum_writer.close()
     else:
-        test_data, test_iter = load_bertft_dataset(args)
+        test_data, test_iter = load_dataset(args)
         args['total_step'], args['warmup_step'] = 0, 0
         agent = load_model(args)
         agent.load_model(f'ckpt/{args["dataset"]}/{args["model"]}/best.pt')
