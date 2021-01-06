@@ -49,7 +49,7 @@ elif [ $mode = 'test' ]; then
         --dataset $dataset \
         --model $model \
         --mode test \
-        --batch_size $batch_size \
+        --batch_size 10 \
         --max_len 256 \
         --seed 50 \
         --multi_gpu $cuda \

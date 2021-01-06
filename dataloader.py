@@ -39,7 +39,7 @@ class BERTFTDataset(Dataset):
                     'tids': tids,
                 })
         else:
-            for i in tqdn(range(0, len(data), 10)):
+            for i in tqdm(range(0, len(data), 10)):
                 batch = data[i:i+10]
                 item = self.vocab.batch_encode_plus([[b[1], b[2]] for b in batch])
                 ids = item['input_ids']
@@ -67,7 +67,9 @@ class BERTFTDataset(Dataset):
             label = bundle['label']
             return ids, tids, label
         else:
-            return bundle['ids'], bundle['tids'], bundle['label']
+            ids = [torch.LongTensor(i) for i in bundle['ids']]
+            tids = [torch.LongTensor(i) for i in bundle['tids']]
+            return ids, tids, bundle['label']
 
     def save(self):
         data = torch.save(self.data, self.pp_path)
@@ -87,9 +89,9 @@ class BERTFTDataset(Dataset):
             # batch size is batch_size * 10
             ids, tids, label = [], [], []
             for b in batch:
-                ids.extend(b[1])
-                tids.extend(b[2])
-                label.extend(b[0])
+                ids.extend(b[0])
+                tids.extend(b[1])
+                label.extend(b[2])
         ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
         tids = pad_sequence(tids, batch_first=True, padding_value=self.pad)
         mask = self.generate_mask(ids)

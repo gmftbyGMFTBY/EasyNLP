@@ -109,16 +109,16 @@ class BERTFTAgent(RetrievalBaseAgent):
         r1, r2, r5, counter, mrr = 0, 0, 0, 0, []
         pbar = tqdm(test_iter)
         with open(recoder, 'w') as f:
-            for idx, batch in tqdm(list(enumerate(pbar))):                
+            for idx, batch in enumerate(pbar):
                 ids, tids, mask, label = batch
                 batch_size = len(ids)
                 assert batch_size % 10 == 0, f'[!] {batch_size} cannot mode 10'
-                scores = self.model(ids, tids, mask)    # [B, 2]
+                scores = self.model(ids, tids, mask).cpu()    # [B, 2]
                 scores = scores[:, 1]     # [B]
                 for i in range(0, len(label), 10):
                     scores_, label_ = scores[i:i+10], label[i:i+10]
                     ids_ = ids[i:i+10]
-                    label_true_ = set(label_.nonzero().squeeze().tolist())
+                    label_true_ = set(label_.nonzero().squeeze(-1).tolist())
                     r1 += min(1, len(set(torch.topk(scores_, 1, dim=-1)[1].tolist()) & label_true_))
                     r2 += min(1, len(set(torch.topk(scores_, 2, dim=-1)[1].tolist()) & label_true_))
                     r5 += min(1, len(set(torch.topk(scores_, 5, dim=-1)[1].tolist()) & label_true_))

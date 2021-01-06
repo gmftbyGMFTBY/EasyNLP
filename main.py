@@ -42,7 +42,8 @@ def main(**args):
                 agent.save_model(f'ckpt/{args["dataset"]}/{args["model"]}/best.pt')
         sum_writer.close()
     else:
-        test_iter = load_dataset(args)
+        test_data, test_iter = load_bertft_dataset(args)
+        args['total_step'], args['warmup_step'] = 0, 0
         agent = load_model(args)
         agent.load_model(f'ckpt/{args["dataset"]}/{args["model"]}/best.pt')
         rest_path = f'rest/{args["dataset"]}/{args["model"]}/rest.txt'
