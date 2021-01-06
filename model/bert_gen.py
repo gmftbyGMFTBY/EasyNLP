@@ -184,4 +184,4 @@ class BERTGenAgent(RetrievalBaseAgent):
                 f.write(f'CTX: {ctx}\n')
                 f.write(f'REF: {ref}\n')
                 f.write(f'TGT: {text}\n\n')
-        print(f'[!] translate test dataset over, write into {path}')
+        print(f'[!] translate test dataset over, write into {recoder}')

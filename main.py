@@ -24,9 +24,9 @@ def main(**args):
         
         train_data, train_iter = load_dataset(args)
         
-        # total step
-        args['total_step'] = len(train_data) * args['epoch'] // args['batch_size']
-        args['warmup_step'] = int(0.1 * args['total_step'] / (args['multi_gpu'].count(',') + 1))
+        # total step on each GPU process
+        args['total_step'] = len(train_data) * args['epoch'] // args['batch_size'] // (args['multi_gpu'].count(',') + 1)
+        args['warmup_step'] = int(0.1 * args['total_step'])
         agent = load_model(args)
         
         sum_writer = SummaryWriter(log_dir=f'rest/{args["dataset"]}/{args["model"]}')
