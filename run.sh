@@ -10,7 +10,7 @@ model=$3
 cuda=$4 
 
 if [ $mode = 'init' ]; then
-    models=(bert-adapt bert-ft bert-gen)
+    models=(bert-adapt bert-ft bert-gen bert-gen-ft)
     datasets=(ecommerce douban)
     mkdir bak ckpt rest
     for m in ${models[@]}
@@ -37,23 +37,21 @@ elif [ $mode = 'train' ]; then
         --dataset $dataset \
         --model $model \
         --mode train \
-        --batch_size 48 \
+        --batch_size 16 \
         --epoch 5 \
         --seed 50 \
         --max_len 256 \
         --multi_gpu $cuda \
         --lang zh \
         --warmup_ratio 0.1
-elif [ $mode = 'test' ]; then
+else
     CUDA_VISIBLE_DEVICES=$cuda python main.py \
         --dataset $dataset \
         --model $model \
-        --mode test \
-        --batch_size 1 \
+        --mode $mode \
+        --batch_size 5 \
         --max_len 256 \
         --seed 50 \
         --multi_gpu $cuda \
         --lang zh
-else
-    echo "[!] mode needs to be train/test/eval, but got $mode"
 fi

@@ -1,5 +1,6 @@
 from .header import *
 from .base import *
+from .utils import *
 
 '''Cross-Attention BertRetrieval'''
 
@@ -22,7 +23,7 @@ class BERTRetrieval(nn.Module):
     
 class BERTFTAgent(RetrievalBaseAgent):
 
-    def __init__(self, multi_gpu, total_step, warmup_step, run_mode='train', lang='zh', local_rank=0):
+    def __init__(self, multi_gpu, total_step, warmup_step, run_mode='train', lang='zh', local_rank=0, dataset_name='ecommerce'):
         super(BERTFTAgent, self).__init__()
         try:
             self.gpu_ids = list(range(len(multi_gpu.split(',')))) 
@@ -39,6 +40,7 @@ class BERTFTAgent(RetrievalBaseAgent):
             'lang': lang,
             'total_step': total_step,
             'warmup_step': warmup_step,
+            'dataset': dataset_name,
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
         self.model = BERTRetrieval(self.args['model'])
@@ -102,40 +104,41 @@ class BERTFTAgent(RetrievalBaseAgent):
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/Acc', correct/s, idx_)
         return round(total_loss / batch_num, 4)
-
+    
     @torch.no_grad()
     def test_model(self, test_iter, recoder=None):
         self.model.eval()
-        r1, r2, r5, counter, mrr = 0, 0, 0, 0, []
         pbar = tqdm(test_iter)
-        with open(recoder, 'w') as f:
-            for idx, batch in enumerate(pbar):
-                ids, tids, mask, label = batch
-                batch_size = len(ids)
-                assert batch_size % 10 == 0, f'[!] {batch_size} cannot mode 10'
-                scores = self.model(ids, tids, mask).cpu()    # [B, 2]
-                scores = scores[:, 1]     # [B]
-                for i in range(0, len(label), 10):
-                    scores_, label_ = scores[i:i+10], label[i:i+10]
-                    ids_ = ids[i:i+10]
-                    label_true_ = set(label_.nonzero().squeeze(-1).tolist())
-                    r1 += min(1, len(set(torch.topk(scores_, 1, dim=-1)[1].tolist()) & label_true_))
-                    r2 += min(1, len(set(torch.topk(scores_, 2, dim=-1)[1].tolist()) & label_true_))
-                    r5 += min(1, len(set(torch.topk(scores_, 5, dim=-1)[1].tolist()) & label_true_))
-                    # mrr
-                    scores_ = scores_.numpy()
-                    y_true = np.zeros(len(scores_))
-                    for item in label_true_:
-                        y_true[item] = 1
-                    mrr.append(label_ranking_average_precision_score([y_true], [scores_]))
-                    counter += 1
-
-                    # write the response selection results
-                    for s, text in zip(scores_, ids_):
-                        text = self.vocab.decode(text).replace('[PAD]', '')
-                        f.write(f'[{s}]\t{text}\n')
-                    f.write('\n')
+        total_mrr, total_prec_at_one, total_map = 0, 0, 0
+        total_examples, total_correct = 0, 0
+        k_list = [1, 2, 5, 10]
+        for idx, batch in enumerate(pbar):
+            ids, tids, mask, label = batch
+            batch_size = len(ids)
+            assert batch_size % 10 == 0, f'[!] {batch_size} cannot mode 10'
+            scores = self.model(ids, tids, mask)[:, 1].cpu().tolist()    # [B]
             
-        r1, r2, r5, mrr = round(r1/counter, 4), round(r2/counter, 4), round(r5/counter, 4), round(np.mean(mrr), 4)
-        print(f'r1@10: {r1}; r2@10: {r2}; r5@10: {r5}; mrr: {mrr}')
-        print(f'[!] results are saved into {recoder}')
+            rank_by_pred, pos_index, stack_scores = \
+          calculate_candidates_ranking(
+                np.array(scores), 
+                np.array(label.cpu().tolist()),
+                10)
+            num_correct = logits_recall_at_k(pos_index, k_list)
+            if self.args['dataset'] in ["douban"]:
+                total_prec_at_one += precision_at_one(rank_by_pred)
+                total_map += mean_average_precision(pos_index)
+                for pred in rank_by_pred:
+                    if sum(pred) == 0:
+                        total_examples -= 1
+            total_mrr += logits_mrr(pos_index)
+            total_correct = np.add(total_correct, num_correct)
+            total_examples += math.ceil(label.size()[0] / 10)
+        avg_mrr = float(total_mrr / total_examples)
+        avg_prec_at_one = float(total_prec_at_one / total_examples)
+        avg_map = float(total_map / total_examples)
+        
+        for i in range(len(k_list)):
+            print(f"R10@{k_list[i]}: {round(((total_correct[i] / total_examples) * 100), 2)}")
+        print(f"MRR: {round(avg_mrr, 4)}")
+        print(f"P@1: {round(avg_prec_at_one, 4)}")
+        print(f"MAP: {round(avg_map, 4)}")

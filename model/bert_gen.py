@@ -145,8 +145,8 @@ class BERTGenAgent(RetrievalBaseAgent):
             
             recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
             recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/TokenAcc', accuracy, idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/RunTokenAcc', total_acc/s, idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/RunTokenAcc', accuracy, idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/TokenAcc', total_acc/s, idx)
             lr = self.optimizer.param_groups[0]['lr']
             recoder.add_scalar(f'train-epoch-{idx_}/lr', lr, idx)
             
