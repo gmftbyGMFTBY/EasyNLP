@@ -28,7 +28,7 @@ def make(dataset):
 
 if __name__ == "__main__":
     random.seed(50)
-    datasets = ['douban', 'ecommerce']
+    datasets = ['ubuntu', 'douban', 'ecommerce']
     for d in datasets:
         read_path = f'{d}/test.txt'
         write_path = f'{d}/test_adv.txt'

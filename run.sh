@@ -9,9 +9,16 @@ dataset=$2
 model=$3
 cuda=$4 
 
+chinese_datasets=(douban ecommerce)
+if [[ ${chinese_datasets[@]} =~ dataset ]]; then
+    lang=zh
+else
+    lang=en
+fi
+
 if [ $mode = 'init' ]; then
     models=(bert-adapt bert-ft bert-gen bert-gen-ft)
-    datasets=(ecommerce douban)
+    datasets=(ecommerce douban ubuntu)
     mkdir bak ckpt rest
     for m in ${models[@]}
     do
@@ -42,7 +49,7 @@ elif [ $mode = 'train' ]; then
         --seed 50 \
         --max_len 512 \
         --multi_gpu $cuda \
-        --lang zh \
+        --lang $lang \
         --warmup_ratio 0.1
 else
     CUDA_VISIBLE_DEVICES=$cuda python main.py \
@@ -53,5 +60,5 @@ else
         --max_len 256 \
         --seed 50 \
         --multi_gpu $cuda \
-        --lang zh
+        --lang $lang
 fi

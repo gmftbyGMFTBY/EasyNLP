@@ -4,6 +4,8 @@ Parameters reference: [TODO](https://github.com/taesunwhang/UMS-ResSel/blob/635e
 
 ### 1. E-Commerce Dataset
 
+256 length is better than 512 length
+
 | Original      | R10@1 | R10@2 | R10@5 | MRR   |
 | ------------- | ----- | ----- | ----- | ----- |
 | BERT-FT       | 62.3  | 84.2  | 98    | 77.59 |

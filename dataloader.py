@@ -342,9 +342,10 @@ def load_dataset(args):
         'bert-ft': BERTFTDataset,
         'bert-gen-ft': BERTGenFTDataset,
     }
+    model = 'bert-base-chinese' if args['lang'] == 'zh' else 'bert-base-uncased'
     path = f'data/{args["dataset"]}/{args["mode"]}.txt'
     if args['mode'] == 'train':
-        data = DATASET_MAP[args['model']](path, mode=args['mode'], max_len=args['max_len'])
+        data = DATASET_MAP[args['model']](path, mode=args['mode'], max_len=args['max_len'], model=model)
         train_sampler = torch.utils.data.distributed.DistributedSampler(data)
         iter_ = DataLoader(data, shuffle=False, batch_size=args['batch_size'], collate_fn=data.collate, sampler=train_sampler)
     else:
@@ -357,16 +358,16 @@ def load_dataset(args):
 
 if __name__ == "__main__":
     # ========== BERTFTDataset ========== #
-    # train_data = BERTFTDataset('data/ecommerce/train.txt', mode='train')
-    # train_iter = DataLoader(train_data, shuffle=True, batch_size=10, collate_fn=train_data.collate)
+    train_data = BERTFTDataset('data/ubuntu/train.txt', mode='train')
+    train_iter = DataLoader(train_data, shuffle=True, batch_size=10, collate_fn=train_data.collate)
     # ========== BERTFTDataset ========== #
     # ========== BERTGenDataset ========== #
     # train_data = BERTGenDataset('data/ecommerce/train.txt', mode='train')
     # train_iter = DataLoader(train_data, shuffle=True, batch_size=10, collate_fn=train_data.collate)
     # ========== BERTGenDataset ========== #
     # ========== BERTGenFTDataset ========== #
-    train_data = BERTGenFTDataset('data/ecommerce/train.txt', mode='train')
-    train_iter = DataLoader(train_data, shuffle=True, batch_size=10, collate_fn=train_data.collate)
+    # train_data = BERTGenFTDataset('data/ubuntu/train.txt', mode='train')
+    # train_iter = DataLoader(train_data, shuffle=True, batch_size=10, collate_fn=train_data.collate)
     # ========== BERTGenFTDataset ========== #
     train_data.save()
     for batch in tqdm(train_iter):
