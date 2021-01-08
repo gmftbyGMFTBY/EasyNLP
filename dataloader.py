@@ -342,7 +342,7 @@ def load_dataset(args):
         'bert-ft': BERTFTDataset,
         'bert-gen-ft': BERTGenFTDataset,
     }
-    model = 'bert-base-chinese' if args['lang'] == 'zh' else 'bert-base-uncased'
+    model = 'hfl/chinese-bert-wwm' if args['lang'] == 'zh' else 'bert-base-uncased'
     path = f'data/{args["dataset"]}/{args["mode"]}.txt'
     if args['mode'] == 'train':
         data = DATASET_MAP[args['model']](path, mode=args['mode'], max_len=args['max_len'], model=model)

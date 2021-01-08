@@ -44,10 +44,10 @@ elif [ $mode = 'train' ]; then
         --dataset $dataset \
         --model $model \
         --mode train \
-        --batch_size 16 \
+        --batch_size 48 \
         --epoch 5 \
         --seed 50 \
-        --max_len 512 \
+        --max_len 256 \
         --multi_gpu $cuda \
         --lang $lang \
         --warmup_ratio 0.1
