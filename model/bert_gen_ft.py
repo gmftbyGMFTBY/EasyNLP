@@ -26,7 +26,7 @@ class BERTGenFT(nn.Module):
         # collect
         embedding = []
         for idx, item in enumerate(token_type_ids):
-            index = item.nonzero().squeeze().tolist()
+            index = item.nonzero().squeeze(-1).tolist()
             # NOTE:
             x, y = index[0] - 1, index[-1]
             v = output[idx][x:y, :]     # [S_, 768]

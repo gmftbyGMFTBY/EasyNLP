@@ -40,7 +40,7 @@ elif [ $mode = 'train' ]; then
         --batch_size 16 \
         --epoch 5 \
         --seed 50 \
-        --max_len 256 \
+        --max_len 512 \
         --multi_gpu $cuda \
         --lang zh \
         --warmup_ratio 0.1
