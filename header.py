@@ -27,7 +27,6 @@ import hashlib
 import logging
 from copy import deepcopy
 import ipdb
-from transformers.modeling_gpt2 import GPT2Config, GPT2LMHeadModel
 from transformers import BertTokenizer
 import pickle
 import argparse

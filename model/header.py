@@ -22,10 +22,8 @@ from torch.optim import lr_scheduler
 from collections import Counter, OrderedDict
 from torch.nn.utils import clip_grad_norm_
 import random
-from transformers.modeling_gpt2 import GPT2Model, GPT2Config, GPT2LMHeadModel
 from transformers import BertTokenizer
-from transformers import BertForSequenceClassification, BertModel, BertForMultipleChoice
-from transformers import AutoModelWithLMHead, AutoTokenizer, OpenAIGPTLMHeadModel
+from transformers import BertForSequenceClassification, BertModel
 import transformers
 from apex import amp
 from apex.parallel import DistributedDataParallel as DDP

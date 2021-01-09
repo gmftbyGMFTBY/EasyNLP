@@ -10,14 +10,14 @@ model=$3
 cuda=$4 
 
 chinese_datasets=(douban ecommerce)
-if [[ ${chinese_datasets[@]} =~ dataset ]]; then
+if [[ ${chinese_datasets[@]} =~ $dataset ]]; then
     lang=zh
 else
     lang=en
 fi
 
 if [ $mode = 'init' ]; then
-    models=(bert-adapt bert-ft bert-gen bert-gen-ft)
+    models=(bert-adapt bert-ft bert-gen bert-gen-ft bert-post)
     datasets=(ecommerce douban ubuntu)
     mkdir bak ckpt rest
     for m in ${models[@]}

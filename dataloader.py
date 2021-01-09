@@ -349,7 +349,7 @@ def load_dataset(args):
         train_sampler = torch.utils.data.distributed.DistributedSampler(data)
         iter_ = DataLoader(data, shuffle=False, batch_size=args['batch_size'], collate_fn=data.collate, sampler=train_sampler)
     else:
-        data = DATASET_MAP[args['model']](path, mode=args['mode'], max_len=args['max_len'])
+        data = DATASET_MAP[args['model']](path, mode=args['mode'], max_len=args['max_len'], model=model)
         iter_ = DataLoader(data, shuffle=False, batch_size=args['batch_size'], collate_fn=data.collate)
     if not os.path.exists(data.pp_path):
         data.save()
