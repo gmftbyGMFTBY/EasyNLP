@@ -34,7 +34,7 @@ class BERTFTAgent(RetrievalBaseAgent):
             'grad_clip': 5.0,
             'multi_gpu': self.gpu_ids,
             'max_len': 256,
-            'model': 'hfl/chinese-bert-wwm' if lang == 'zh' else 'bert-base-uncased',
+            'model': lang,
             'amp_level': 'O2',
             'local_rank': local_rank,
             'lang': lang,
