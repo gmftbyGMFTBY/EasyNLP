@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# ./create_post_train_dataset.sh <dataset_name>
+dataset=$1
+chinese_datasets=(douban ecommerce)
+if [[ ${chinese_datasets[@]} =~ $dataset ]]; then
+    ckpt=bert-base-chinese
+else
+    ckpt=bert-base-uncased
+fi
+python create_post_training_data.py \
+    --input_file $dataset/train_post.txt \
+    --output_file $dataset/train_post.hdf5 \
+    --bert_pretrained $ckpt \
+    --dupe_factor 10

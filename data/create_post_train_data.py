@@ -1,7 +1,3 @@
-'''
-Create line-by-line post train data for BERT
-'''
-
 def read(path):
     with open(path) as f:
         lines = []
@@ -10,14 +6,16 @@ def read(path):
             label, utterances = line[0], line[1:]
             if label == '1':
                 utterances = [''.join(u.split()) for u in utterances]
-                lines.append(' '.join(utterances))
+                lines.append(utterances)
     print(f'[!] collect {len(lines)} samples from {path}')
     return lines
 
 def write(path, datasets):
     with open(path, 'w') as f:
         for item in datasets:
-            f.write(f'{item}\n')
+            for u in item:
+                f.write(f'{u}\n')
+            f.write('\n')
 
 
 if __name__ == "__main__":
