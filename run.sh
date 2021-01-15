@@ -11,9 +11,9 @@ cuda=$4
 
 chinese_datasets=(douban ecommerce)
 if [[ ${chinese_datasets[@]} =~ $dataset ]]; then
-    lang=zh
+    lang=bert-base-chinese
 else
-    lang=en
+    lang=bert-base-uncased
 fi
 
 if [ $mode = 'init' ]; then

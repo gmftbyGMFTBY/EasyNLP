@@ -342,10 +342,9 @@ def load_dataset(args):
         'bert-ft': BERTFTDataset,
         'bert-gen-ft': BERTGenFTDataset,
     }
-    model = 'hfl/chinese-bert-wwm' if args['lang'] == 'zh' else 'bert-base-uncased'
     path = f'data/{args["dataset"]}/{args["mode"]}.txt'
     if args['mode'] == 'train':
-        data = DATASET_MAP[args['model']](path, mode=args['mode'], max_len=args['max_len'], model=model)
+        data = DATASET_MAP[args['model']](path, mode=args['mode'], max_len=args['max_len'], model=args['lang'])
         train_sampler = torch.utils.data.distributed.DistributedSampler(data)
         iter_ = DataLoader(data, shuffle=False, batch_size=args['batch_size'], collate_fn=data.collate, sampler=train_sampler)
     else:
