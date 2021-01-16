@@ -1,28 +1,23 @@
 import os
 import h5py
 import numpy as np
-
 import torch
 from torch.utils.data import Dataset
 
 
 class BertPostTrainingDataset(Dataset):
-    """
-    A full representation of VisDial v1.0 (train/val/test) dataset. According
-    to the appropriate split, it returns dictionary of question, image,
-    history, ground truth answer, answer options, dense annotations etc.
-    """
     
-    def __init__(self, hparams, split: str = ""):
+    def __init__(self, path, mode: str = ""):
         super().__init__()
 
-        self.hparams = hparams
-        self.split = split
+        self.path = path
+        self.mode = mode
 
-        with h5py.File(os.path.join(self.hparams.data_dir, "%s_post_training.hdf5" % self.hparams.task_name), "r") as features_hdf:
+        # data/<dataset_name>/train_post.hdf5
+        with h5py.File(path, "r") as features_hdf:
             self.feature_keys = list(features_hdf.keys())
             self.num_instances = np.array(features_hdf.get("next_sentence_labels")).shape[0]
-        print("total %s examples : %d" % (split, self.num_instances))
+        print(f"total {mode} examples: {self.num_instances}")
 
     def __len__(self):
         return self.num_instances
@@ -46,7 +41,7 @@ class BertPostTrainingDataset(Dataset):
 
     def _read_hdf_features(self, index):
         features = {}
-        with h5py.File(os.path.join(self.hparams.data_dir, "%s_post_training.hdf5" % self.hparams.task_name), "r") as features_hdf:
+        with h5py.File(self.path, "r") as features_hdf:
             for f_key in self.feature_keys:
                 features[f_key] = features_hdf[f_key][index]
 
@@ -54,7 +49,8 @@ class BertPostTrainingDataset(Dataset):
 
     def _anno_mask_inputs(self, masked_lm_ids, masked_lm_positions, max_seq_len=512):
         # masked_lm_ids -> labels
-        anno_masked_lm_labels = [-1] * max_seq_len
+        # BertForPreTraning need -100 as the mask
+        anno_masked_lm_labels = [-100] * max_seq_len
 
         for pos, label in zip(masked_lm_positions, masked_lm_ids):
             if pos == 0: 

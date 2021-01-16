@@ -117,6 +117,7 @@ venv.bak/
 *.ann
 *.gen
 *.tar.gz
+*.hdf5
 .ipynb_checkpoints
 tblogs
 # events.out.tfevents*

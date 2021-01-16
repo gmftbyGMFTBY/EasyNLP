@@ -31,7 +31,7 @@ class RetrievalBaseAgent:
         add the `module.` before the state_dict keys if the error are raised,
         which means that the DataParallel(self.model) are used to load the model
         '''
-        state_dict = torch.load(path)
+        state_dict = torch.load(path, map_location=torch.device('cpu'))
         self.model.load_state_dict(state_dict)
         print(f'[!] load model from {path}')
 

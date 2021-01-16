@@ -1,163 +1,146 @@
-import os
-import logging
-
 from datetime import datetime
 from tqdm import tqdm
-
+import ipdb
 import torch
+import torch.nn as nn
 from torch import nn, optim
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-
+from torch.nn.utils import clip_grad_norm_
+import argparse
+import random
+from apex import amp
+from apex.parallel import DistributedDataParallel as DDP
+from apex.parallel import convert_syncbn_model
 from dataset import BertPostTrainingDataset
-from pretrained_dpt import BertDPT
-from checkpointing import CheckpointManager, load_checkpoint
+from pretrained_dpt import BertNSPMLM, BertMLM
 
 
-class PostTraining(object):
-    def __init__(self, hparams):
-        self.hparams = hparams
-        self._logger = logging.getLogger(__name__)
+def parse_args():
+    arg_parser = argparse.ArgumentParser()
+    arg_parser.add_argument("--dataset", type=str, default="ecommerce")
+    arg_parser.add_argument("--data_path", type=str, required=True)
+    arg_parser.add_argument("--bert_pretrained", type=str, default="bert-base-uncased")
+    arg_parser.add_argument("--save_path", type=str)
+    arg_parser.add_argument('--local_rank', type=int)
+    arg_parser.add_argument('--batch_size', type=int, default=128)
+    arg_parser.add_argument('--lr', type=float, default=3e-5)
+    arg_parser.add_argument('--epoch', type=int, default=2)
+    arg_parser.add_argument('--seed', type=float, default=50)
+    arg_parser.add_argument('--warmup_ratio', type=float, default=0.1)
+    arg_parser.add_argument('--amp_level', type=str, default='O2')
+    arg_parser.add_argument('--grad_clip', type=float, default=5.0)
+    arg_parser.add_argument('--model', type=str, default='nspmlm')
+    return arg_parser.parse_args()
+
+
+class PostTraining:
+    
+    def __init__(self, args):
+        self.args = args
+        self.recoder = SummaryWriter(self.args['save_path'])
+        if self.args['model'] == 'nspmlm':
+            print(f'[!] Loss contains MLM and NSP')
+        elif self.args['model'] == 'mlm':
+            print(f'[!] Loss only contains MLM')
+        else:
+            print(f'[!] Wrong model: {self.args["model"]}')
+        
+    def save_model(self, path):
+        try:
+            state_dict = self.model.module.state_dict()
+        except:
+            state_dict = self.model.state_dict()
+        torch.save(state_dict, path)
+        print(f'[!] save model into {path}')
+        
+    def load_model(self, path):
+        state_dict = torch.load(path, map_location=torch.device('cpu'))
+        self.model.load_state_dict(state_dict)
+        print(f'[!] load model from {path}')
 
     def _build_dataloader(self):
-        # =============================================================================
-        #   SETUP DATASET, DATALOADER
-        # =============================================================================
-        self.train_dataset = BertPostTrainingDataset(self.hparams, split="train")
+        self.train_dataset = BertPostTrainingDataset(self.args['data_path'], mode="train")
+        train_sampler = torch.utils.data.distributed.DistributedSampler(self.train_dataset)
         self.train_dataloader = DataLoader(
             self.train_dataset,
-            batch_size=self.hparams.train_batch_size,
-            num_workers=self.hparams.cpu_workers,
+            sampler=train_sampler,
+            batch_size=self.args['batch_size'],
             shuffle=False,
-            drop_last=True,
         )
-
         print("[!] Dataloader Finish")
 
     def _build_model(self):
-        self.model = BertDPT(self.hparams)
-        self.model = self.model.to(self.device)
+        if self.args['model'] == 'nspmlm':
+            self.model = BertNSPMLM(self.args)
+        elif self.args['model'] == 'mlm':
+            self.model = BertMLM(self.args)
+        if torch.cuda.is_available():
+            self.model.cuda()
 
-        # Use Multi-GPUs
-        if -1 not in self.hparams.gpu_ids and len(self.hparams.gpu_ids) > 1:
-            self.model = nn.DataParallel(self.model, self.hparams.gpu_ids)
-
-        self.optimizer = optim.Adam(self.model.parameters(), lr=self.hparams.learning_rate)
-        self.iterations = len(self.train_dataset) // self.hparams.virtual_batch_size
-
+        self.optimizer = optim.Adam(self.model.parameters(), lr=self.args['lr'])
+        self.model, self.optimizer = amp.initialize(
+            self.model, 
+            self.optimizer, 
+            opt_level=self.args['amp_level']
+        )
+        self.model = nn.parallel.DistributedDataParallel(
+            self.model, 
+            device_ids=[self.args['local_rank']],
+            output_device=self.args['local_rank'],
+        )
         print(" [!] Building Model Finished")
 
-    def _setup_training(self):
-        if self.hparams.save_dirpath == 'checkpoints/':
-            self.save_dirpath = os.path.join(self.hparams.root_dir, self.hparams.save_dirpath)
-        self.summary_writer = SummaryWriter(self.save_dirpath)
-        self.checkpoint_manager = CheckpointManager(self.model, self.optimizer, self.save_dirpath, hparams=self.hparams)
-
-        # If loading from checkpoint, adjust start epoch and load parameters.
-        if self.hparams.load_pthpath == "":
-            self.start_epoch = 1
-        else:
-            # "path/to/checkpoint_xx.pth" -> xx
-            self.start_epoch = int(self.hparams.load_pthpath.split("_")[-1][:-4])
-            self.start_epoch += 1
-            model_state_dict, optimizer_state_dict = load_checkpoint(self.hparams.load_pthpath)
-            if isinstance(self.model, nn.DataParallel):
-                self.model.module.load_state_dict(model_state_dict)
-            else:
-                self.model.load_state_dict(model_state_dict)
-            self.optimizer.load_state_dict(optimizer_state_dict)
-            self.previous_model_path = self.hparams.load_pthpath
-            print("Loaded model from {}".format(self.hparams.load_pthpath))
-
-        print("[!] Setup Training Finished")
-
     def train(self):
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    
         self._build_dataloader()
         self._build_model()
-        self._setup_training()
 
-        start_time = datetime.now().strftime('%H:%M:%S')
-        self._logger.info("Start train model at %s" % start_time)
-
-        train_begin = datetime.utcnow()  # New
-        global_iteration_step = 0
-        accu_mlm_loss, accu_nsp_loss = 0, 0
-        accumulate_batch, accu_count = 0, 0
-
-        for epoch in range(self.start_epoch, self.hparams.num_epochs):
+        accu_loss, accu_count = 0, 0
+        for epoch in tqdm(range(self.args['epoch'])):
             self.model.train()
-
             tqdm_batch_iterator = tqdm(self.train_dataloader)
             for batch_idx, batch in enumerate(tqdm_batch_iterator):
                 buffer_batch = batch.copy()
-                for key in batch:
-                    buffer_batch[key] = buffer_batch[key].to(self.device)
+                if torch.cuda.is_available():
+                    for key in batch:
+                        # ipdb.set_trace()
+                        buffer_batch[key] = buffer_batch[key].cuda()
 
-                losses = self.model(buffer_batch)
-                _, mlm_loss, nsp_loss = losses
-
-                if mlm_loss is not None:
-                    mlm_loss = mlm_loss.mean()
-                    accu_mlm_loss += mlm_loss.item()
-
-                if nsp_loss is not None:
-                    nsp_loss = nsp_loss.mean()
-                    accu_nsp_loss += nsp_loss.item()
-
-                loss = None
-                for task_tensor_loss in [mlm_loss, nsp_loss]:
-                    if task_tensor_loss is not None:
-                        loss = loss + task_tensor_loss if loss is not None else task_tensor_loss
-
-                loss.backward()
+                self.optimizer.zero_grad()
+                
+                loss = self.model(buffer_batch)
+                accu_loss += loss.item()
                 accu_count += 1
 
-                # TODO: virtual batch implementation
-                accumulate_batch += buffer_batch["input_ids"].shape[0]
-                if self.hparams.virtual_batch_size == accumulate_batch \
-                    or batch_idx == (len(self.train_dataset) // self.hparams.train_batch_size):  # last batch
+                with amp.scale_loss(loss, self.optimizer) as scaled_loss:
+                    scaled_loss.backward()
+                clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
+                
+                self.optimizer.step()
 
-                    self.optimizer.step()
+                description = f"[Epoch: {epoch}][Loss: {round((accu_loss / accu_count), 4)}]"
+                tqdm_batch_iterator.set_description(description)
+                
+                # tensorboard
+                self.recoder.add_scalar(f'train-epoch/RunLoss', loss.item(), batch_idx)
+                self.recoder.add_scalar(f'train-epoch/Loss', accu_loss/accu_count, batch_idx)
 
-                    nn.utils.clip_grad_norm_(self.model.parameters(), self.hparams.max_gradient_norm)
-                    self.optimizer.zero_grad()
-
-                    global_iteration_step += 1
-                    description = "[{}][Epoch: {:3d}][Iter: {:6d}][MLM_Loss: {:6f}][NSP_Loss: {:6f}][lr: {:7f}]".format(
-                        datetime.utcnow() - train_begin,
-                        epoch,
-                        global_iteration_step,
-                        (accu_mlm_loss / accu_count), (accu_nsp_loss / accu_count),
-                        self.optimizer.param_groups[0]['lr'])
-                    tqdm_batch_iterator.set_description(description)
-
-                    # tensorboard
-                    if global_iteration_step % self.hparams.tensorboard_step == 0:
-                        description = "[{}][Epoch: {:3d}][Iter: {:6d}][MLM_Loss: {:6f}][NSP_Loss: {:6f}][lr: {:7f}]".format(
-                            datetime.utcnow() - train_begin,
-                            epoch,
-                            global_iteration_step,
-                            (accu_mlm_loss / accu_count), (accu_nsp_loss / accu_count),
-                            self.optimizer.param_groups[0]['lr'],
-                        )
-                        self._logger.info(description)
-
-                    accumulate_batch, accu_count = 0, 0
-                    accu_mlm_loss, accu_nsp_loss = 0, 0
-
-                    if global_iteration_step % self.hparams.checkpoint_save_step == 0:
-                        # -------------------------------------------------------------------------
-                        #   ON EPOCH END  (checkpointing and validation)
-                        # -------------------------------------------------------------------------
-                        self.checkpoint_manager.step(global_iteration_step)
-                        self.previous_model_path = os.path.join(
-                            self.checkpoint_manager.ckpt_dirpath,
-                            "checkpoint_%d.pth" % (global_iteration_step)
-                        )
-                        self._logger.info(self.previous_model_path)
+            if self.args['local_rank'] == 0:
+                self.save_model(self.args['save_path'])
+                print(f'[!] save model into {self.args["save_path"]}')
 
 if __name__ == "__main__":
-    model = PostTraining(hparams)
+    args = parse_args()
+    args = vars(args)
+    print('[!] parameters:')
+    print(args)
+    
+    random.seed(args['seed'])
+    torch.manual_seed(args['seed'])
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args['seed'])
+                                         
+    torch.cuda.set_device(args['local_rank'])
+    torch.distributed.init_process_group(backend='nccl', init_method='env://')
+    model = PostTraining(args)
     model.train()

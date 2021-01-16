@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Create masked LM/next sentence masked_lm TF examples for BERT."""
+"""Create masked LM/next sentence masked_lm examples for BERT."""
 
 from __future__ import absolute_import
 from __future__ import division
@@ -20,6 +20,7 @@ from __future__ import print_function
 
 import sys
 import os
+import ipdb
 
 sys.path.append(os.getcwd())
 import collections
@@ -49,21 +50,7 @@ MaskedLmInstance = collections.namedtuple("MaskedLmInstance", ["index", "label"]
 class CreateBertPretrainingData(object):
     def __init__(self, args):
         self.args = args
-        # self._bert_tokenizer_init(args.special_tok, args.bert_pretrained)
         self._bert_tokenizer = BertTokenizer.from_pretrained(args.bert_pretrained)
-    
-    # def _bert_tokenizer_init(self, special_tok, bert_pretrained):
-    #     bert_pretrained_dir = os.path.join("./resources", bert_pretrained)
-    #     vocab_file_path = "%s-vocab.txt" % bert_pretrained
-    # 
-    #     self._bert_tokenizer = BertTokenizer(args.bert_pretrained)
-    #     self._bert_tokenizer.add_tokens([special_tok])
-    # 
-    #     print("BERT tokenizer init completes")
-
-    # def _add_special_tokens(self, tokens, special_tok="[EOT]"):
-    #     tokens = tokens + [special_tok]
-    #     return tokens
     
     def create_training_instances(self, input_file, max_seq_length,
                                   dupe_factor, short_seq_prob, masked_lm_prob,
@@ -87,12 +74,9 @@ class CreateBertPretrainingData(object):
                     all_documents.append([])
                     document_cnt += 1
                     if document_cnt % 50000 == 0:
-                        print("%d documents have been tokenized!" % document_cnt)
+                        print(f"{document_cnt} samples have been tokenized!")
 
                 tokens = self._bert_tokenizer.tokenize(line)
-                # if special_tok and len(tokens) > 0:
-                #     tokens = self._add_special_tokens(tokens, special_tok)  # special tok per sentence
-
                 if tokens:
                     all_documents[-1].append(tokens)
         # Remove empty documents
