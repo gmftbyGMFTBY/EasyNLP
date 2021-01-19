@@ -7,19 +7,15 @@ Parameters reference: [TODO](https://github.com/taesunwhang/UMS-ResSel/blob/635e
 1. create data for post training
 
 ```bash
-# get into data folder
 # dataset saved in data/ecommerce/train_post.hdf5
-cd data;
-./create_post_train_dataset.sh ecommerce
+./data/create_post_train_dataset.sh ecommerce
 ```
 
 2. post train
 
 ```bash
-# get into post_train folder and train the domain adaptive model
 # checkpoint are saved in ckpt/ecommerce/bert-post/*
-cd post_train;
-./post-train.sh ecommerce <nspmlm/mlm/nsp> <gpu_ids>
+./post_train/post-train.sh ecommerce <nspmlm/mlm/nsp> <gpu_ids>
 ```
 
 3. load post train checkpoint and fine-tuning on response selection corpus

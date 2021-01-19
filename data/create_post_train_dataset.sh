@@ -9,7 +9,7 @@ else
     ckpt=bert-base-uncased
 fi
 python create_post_training_data.py \
-    --input_file $dataset/train_post.txt \
-    --output_file $dataset/train_post.hdf5 \
+    --input_file ./data/$dataset/train_post.txt \
+    --output_file ./data/$dataset/train_post.hdf5 \
     --bert_pretrained $ckpt \
     --dupe_factor 10
