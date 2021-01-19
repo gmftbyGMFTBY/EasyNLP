@@ -13,7 +13,7 @@ from apex import amp
 from apex.parallel import DistributedDataParallel as DDP
 from apex.parallel import convert_syncbn_model
 from dataset import BertPostTrainingDataset
-from pretrained_dpt import BertNSPMLM, BertMLM
+from pretrained_dpt import BertNSPMLM, BertMLM, BertNSP
 
 
 def parse_args():
