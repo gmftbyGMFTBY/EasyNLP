@@ -7,7 +7,9 @@ Parameters reference: [TODO](https://github.com/taesunwhang/UMS-ResSel/blob/635e
 1. create data for post training
 
 ```bash
+# get into data folder
 # dataset saved in data/ecommerce/train_post.hdf5
+cd data;
 ./create_post_train_dataset.sh ecommerce
 ```
 
