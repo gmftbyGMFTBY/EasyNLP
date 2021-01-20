@@ -10,6 +10,11 @@ seed=50
 warmup_ratio=0.1
 epoch=5
 bsz=16
+post_bsz=48
+post_epoch=2
+post_max_len=512
+models=(bert-ft bert-gen bert-gen-ft bert-post dual-bert dual-bert-poly)
+ONE_BATCH_SIZE_MODEL=(dual-bert dual-bert-poly)
 # ========== metadata ========== #
 
 mode=$1
@@ -25,7 +30,6 @@ else
 fi
 
 if [ $mode = 'init' ]; then
-    models=(bert-ft bert-gen bert-gen-ft bert-post dual-bert)
     datasets=(ecommerce douban ubuntu)
     mkdir bak ckpt rest
     for m in ${models[@]}
@@ -70,17 +74,16 @@ elif [ $mode = 'train-post' ]; then
         --dataset $dataset \
         --model $model \
         --mode train \
-        --batch_size $bsz \
-        --epoch $epoch \
+        --batch_size $post_bsz \
+        --epoch $post_epoch \
         --seed $seed \
-        --max_len $max_len \
+        --max_len $post_max_len \
         --multi_gpu $cuda \
         --pretrained_model $pretrained_model \
         --warmup_ratio $warmup_ratio \
         --pretrained_model_path rest/$dataset/bert-post/best_nspmlm.pt
 else
     # test
-    ONE_BATCH_SIZE_MODEL=(dual-bert)
     if [[ ${ONE_BATCH_SIZE_MODEL[@]} =~ $model ]]; then
         bsz=1
     fi
@@ -92,5 +95,5 @@ else
         --max_len $max_len \
         --seed $seed \
         --multi_gpu $cuda \
-        --lang $lang
+        --pretrained_model $pretrained_model
 fi

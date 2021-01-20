@@ -143,7 +143,7 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         
     @torch.no_grad()
     def test_model(self, test_iter, recoder=None):
-        sself.model.eval()
+        self.model.eval()
         pbar = tqdm(test_iter)
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
         total_examples, total_correct = 0, 0
@@ -152,7 +152,7 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             cid, rids, rids_mask, label = batch
             batch_size = len(rids)
             assert batch_size == 10, f'[!] {batch_size} isnot equal to 10'
-            scores = self.model.predict(cid, rids, ids_mask, rids_mask).cpu().tolist()    # [B]
+            scores = self.model.predict(cid, rids, rids_mask).cpu().tolist()    # [B]
             
             rank_by_pred, pos_index, stack_scores = \
           calculate_candidates_ranking(

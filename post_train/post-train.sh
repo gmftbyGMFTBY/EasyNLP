@@ -30,7 +30,7 @@ rm -rf ckpt/$dataset/bert-post/*
 echo "[!] clear the checkpoint and logs"
 
 gpu_ids=(${cuda//,/ })
-CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 29400 post_training.py \
+CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 29400 post_train/post_training.py \
     --dataset $dataset \
     --bert_pretrained $ckpt \
     --data_path data/$dataset/train_post.hdf5 \

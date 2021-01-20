@@ -45,16 +45,17 @@ Parameters reference: [TODO](https://github.com/taesunwhang/UMS-ResSel/blob/635e
 
 _Note:_
 * Bi-Encoder and Poly-Encoder use in-batch negative approach during training procedure, and the number of negative samples is equal to the bsz (default 16) minus 1.
+* sequence length is 256
 
-| Original       | R10@1 | R10@2 | R10@5 | MRR   |
-| -------------- | ----- | ----- | ----- | ----- |
-| Bi-Encoder     |       |       |       |       |
-| Poly-Encoder   |       |       |       |       |
-| BERT-FT        | 62.3  | 84.2  | 98    | 77.59 |
-| BERT-FT+MLM+NSP|       |       |       |       |
-| BERT-FT+MLM    |       |       |       |       |
-| BERT-FT+NSP    |       |       |       |       |
-| BERT-Gen-FT    | 63.3  | 83.5  | 97.1  | 77.71 |
+| Original       | R10@1 | R10@2 | R10@5 | MRR    |
+| -------------- | ----- | ----- | ----- | ------ |
+| Bi-Encoder     | 80.6  | 90.6  | 98.3  | 88.01  |
+| Poly-Encoder   | 80.0  | 90.3  | 97.9  | 87.69  |
+| BERT-FT        | 62.3  | 84.2  | 98    | 77.59  |
+| BERT-FT+MLM+NSP|       |       |       |        |
+| BERT-FT+MLM    |       |       |       |        |
+| BERT-FT+NSP    |       |       |       |        |
+| BERT-Gen-FT    | 63.3  | 83.5  | 97.1  | 77.71  |
 | BERT-Gen-FT w/o Gen | | | | |
 
 <!--

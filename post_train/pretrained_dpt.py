@@ -19,7 +19,7 @@ class BertNSPMLM(nn.Module):
             input_ids=batch["input_ids"],
             token_type_ids=batch["token_type_ids"],
             attention_mask=batch["attention_mask"],
-            masked_lm_labels=batch["masked_lm_labels"],
+            labels=batch["masked_lm_labels"],
             next_sentence_label=batch["next_sentence_labels"].squeeze(-1),    # [B]
         )
         total_loss = bert_outputs[0]
@@ -42,7 +42,7 @@ class BertMLM(nn.Module):
             input_ids=batch["input_ids"],
             token_type_ids=batch["token_type_ids"],
             attention_mask=batch["attention_mask"],
-            masked_lm_labels=batch["masked_lm_labels"],
+            labels=batch["masked_lm_labels"],
         )
         total_loss = bert_outputs[0]
         return total_loss

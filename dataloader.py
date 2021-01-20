@@ -1,5 +1,6 @@
 from header import *
 
+
 def read_text_data(path):
     with open(path) as f:
         dataset = []
@@ -70,7 +71,7 @@ class BERTDualDataset(Dataset):
             rids = torch.LongTensor(bundle['rids'])
             return ids, rids
         else:
-            ids = [torch.LongTensor(i) for i in bundle['ids']]
+            ids = torch.LongTensor(bundle['ids'])
             rids = [torch.LongTensor(i) for i in bundle['rids']]
             return ids, rids, bundle['label']
 
@@ -451,7 +452,7 @@ def load_dataset(args):
     else:
         if args['model'] in ONE_BATCH_TEST_MODEL:
             assert args['batch_size'] == 1, f'{args["model"]} is the ONE BATCH TEST MODEL, please set batch size as 1 for test mode'
-        data = DATASET_MAP[args['model']](path, mode=args['mode'], max_len=args['max_len'], model=model)
+        data = DATASET_MAP[args['model']](path, mode=args['mode'], max_len=args['max_len'], model=args['pretrained_model'])
         iter_ = DataLoader(data, shuffle=False, batch_size=args['batch_size'], collate_fn=data.collate)
     if not os.path.exists(data.pp_path):
         data.save()
