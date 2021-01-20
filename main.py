@@ -12,9 +12,10 @@ def parser_args():
     parser.add_argument('--seed', type=float, default=30)
     parser.add_argument('--max_len', type=int, default=256)
     parser.add_argument('--multi_gpu', type=str, default=None)
-    parser.add_argument('--lang', type=str, default='zh')
+    parser.add_argument('--pretrained_model', type=str, default='zh')
     parser.add_argument('--local_rank', type=int)
     parser.add_argument('--warmup_ratio', type=float, default=0.1)
+    parser.add_argument('--pretrained_model_path', type=str, default='')
     return parser.parse_args()
 
 def main(**args):

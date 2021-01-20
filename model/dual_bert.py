@@ -2,47 +2,84 @@ from .header import *
 from .base import *
 from .utils import *
 
-'''Cross-Attention BertRetrieval'''
 
-class BERTRetrieval(nn.Module):
-
-    def __init__(self, model='bert-base-chinese'):
-        super(BERTRetrieval, self).__init__()
-        self.model = BertModel.from_pretrained(model)
-        self.head = nn.Linear(768, 2)
-
-    def forward(self, inpt, token_type_ids, attn_mask):
-        output = self.model(
-            input_ids=inpt,
-            attention_mask=attn_mask,
-            token_type_ids=token_type_ids,
-        )[0]    # [B, S, E]
-        logits = self.head(output[:, 0, :])    # [B, H] -> [B, 2]
-        return logits
+class BertEmbedding(nn.Module):
     
-class BERTFTAgent(RetrievalBaseAgent):
+    def __init__(self, model='bert-base-chinese'):
+        super(BertEmbedding, self).__init__()
+        self.model = BertModel.from_pretrained(model)
 
-    def __init__(self, multi_gpu, total_step, warmup_step, run_mode='train', pretrained_model='bert-base-chinese', local_rank=0, dataset_name='ecommerce', pretrained_model_path=None):
-        super(BERTFTAgent, self).__init__()
+    def forward(self, ids, attn_mask):
+        embd = self.model(ids, attention_mask=attn_mask)[0]    # [B, S, 768]
+        return embd[:, 0, :]
+    
+    def load_bert_model(self, path):
+        state_dict = torch.load(path, map_location=torch.device('cpu'))
+        self.model.load_state_dict(state_dict)
+        print(f'[!] load pretrained BERT model from {path}')
+    
+
+class BERTDualEncoder(nn.Module):
+    
+    def __init__(self, model='bert-base-chinese'):
+        super(BERTDualEncoder, self).__init__()
+        self.ctx_encoder = BertEmbedding(model=model)
+        self.can_encoder = BertEmbedding(model=model)
+        
+    def _encode(self, cid, rid, cid_mask, rid_mask):
+        cid_rep = self.ctx_encoder(cid, cid_mask)
+        rid_rep = self.can_encoder(rid, rid_mask)
+        return cid_rep, rid_rep
+    
+    @torch.no_grad()
+    def predict(self, cid, rid, rid_mask):
+        batch_size = rid.shape[0]
+        cid_rep, rid_rep = self._encode(cid.unsqueeze(0), rid, None, rid_mask)
+        cid_rep = cid_rep.squeeze(0)    # [768]
+        # cid_rep/rid_rep: [768], [B, 768]
+        dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B]
+        return dot_product
+        
+    def forward(self, cid, rid, cid_mask, rid_mask):
+        batch_size = cid.shape[0]
+        assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
+        cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
+        # cid_rep/rid_rep: [B, 768]
+        dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
+        # use half for supporting the apex
+        mask = torch.eye(batch_size).cuda().half()    # [B, B]
+        # calculate accuracy
+        acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
+        acc = acc_num / batch_size
+        # calculate the loss
+        loss = F.log_softmax(dot_product, dim=-1) * mask
+        loss = (-loss.sum(dim=1)).mean()
+        return loss, acc
+    
+    
+class BERTDualEncoderAgent(RetrievalBaseAgent):
+    
+    def __init__(self, multi_gpu, total_step, warmup_step, run_mode='train', local_rank=0, dataset_name='ecommerce', pretrained_model='bert-base-chinese', pretrained_model_path=None):
+        super(BERTDualEncoderAgent, self).__init__()
         try:
             self.gpu_ids = list(range(len(multi_gpu.split(',')))) 
         except:
             raise Exception(f'[!] multi gpu ids are needed, but got: {multi_gpu}')
         self.args = {
-            'lr': 3e-5,
-            'grad_clip': 5.0,
+            'lr': 5e-5,
+            'grad_clip': 1.0,
             'multi_gpu': self.gpu_ids,
-            'max_len': 256,
             'model': pretrained_model,
             'amp_level': 'O2',
             'local_rank': local_rank,
+            'warmup_steps': warmup_step,
             'total_step': total_step,
-            'warmup_step': warmup_step,
+            'max_len': 256,
             'dataset': dataset_name,
             'pretrained_model_path': pretrained_model_path,
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
-        self.model = BERTRetrieval(self.args['model'])
+        self.model = BERTDualEncoder(model=self.args['model'])
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)
         if torch.cuda.is_available():
@@ -50,13 +87,13 @@ class BERTFTAgent(RetrievalBaseAgent):
         self.optimizer = transformers.AdamW(
             self.model.parameters(), 
             lr=self.args['lr'],
+        
         )
-        self.criterion = nn.CrossEntropyLoss()
         if run_mode == 'train':
             self.model, self.optimizer = amp.initialize(
                 self.model, 
-                self.optimizer, 
-                opt_level=self.args['amp_level']
+                self.optimizer,
+                opt_level=self.args['amp_level'],
             )
             self.scheduler = transformers.get_linear_schedule_with_warmup(
                 self.optimizer, 
@@ -71,23 +108,19 @@ class BERTFTAgent(RetrievalBaseAgent):
         
     def load_bert_model(self, path):
         state_dict = torch.load(path, map_location=torch.device('cpu'))
-        self.model.model.load_state_dict(state_dict)
+        self.model.ctx_encoder.load_bert_model(state_dict)
+        self.model.can_encoder.load_bert_model(state_dict)
         print(f'[!] load pretrained BERT model from {path}')
-
+        
     def train_model(self, train_iter, mode='train', recoder=None, idx_=0):
         self.model.train()
-        total_loss, batch_num, correct, s = 0, 0, 0, 0
+        total_loss, total_acc, batch_num = 0, 0, 0
         pbar = tqdm(train_iter)
         correct, s = 0, 0
         for idx, batch in enumerate(pbar):
-            ids, tids, mask, label = batch
             self.optimizer.zero_grad()
-            output = self.model(ids, tids, mask)    # [B, 2]
-            loss = self.criterion(
-                output, 
-                label.view(-1),
-            )
-            
+            cid, rid, cid_mask, rid_mask = batch
+            loss, acc = self.model(cid, rid, cid_mask, rid_mask)
             with amp.scale_loss(loss, self.optimizer) as scaled_loss:
                 scaled_loss.backward()
             clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
@@ -95,35 +128,31 @@ class BERTFTAgent(RetrievalBaseAgent):
             self.scheduler.step()
 
             total_loss += loss.item()
+            total_acc += acc
             batch_num += 1
-            
-            now_correct = torch.max(F.softmax(output, dim=-1), dim=-1)[1]    # [batch]
-            now_correct = torch.sum(now_correct == label).item()
-            correct += now_correct
-            s += len(label)
             
             recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
             recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/Acc', correct/s, idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', now_correct/len(label), idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
 
-            pbar.set_description(f'[!] train loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(now_correct/len(label), 4)}|{round(correct/s, 4)}')
+            pbar.set_description(f'[!] loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
-        recoder.add_scalar(f'train-whole/Acc', correct/s, idx_)
+        recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
         return round(total_loss / batch_num, 4)
-    
+        
     @torch.no_grad()
     def test_model(self, test_iter, recoder=None):
-        self.model.eval()
+        sself.model.eval()
         pbar = tqdm(test_iter)
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
         total_examples, total_correct = 0, 0
         k_list = [1, 2, 5, 10]
-        for idx, batch in enumerate(pbar):
-            ids, tids, mask, label = batch
-            batch_size = len(ids)
-            assert batch_size % 10 == 0, f'[!] {batch_size} cannot mode 10'
-            scores = self.model(ids, tids, mask)[:, 1].cpu().tolist()    # [B]
+        for idx, batch in tqdm(list(enumerate(pbar))):                
+            cid, rids, rids_mask, label = batch
+            batch_size = len(rids)
+            assert batch_size == 10, f'[!] {batch_size} isnot equal to 10'
+            scores = self.model.predict(cid, rids, ids_mask, rids_mask).cpu().tolist()    # [B]
             
             rank_by_pred, pos_index, stack_scores = \
           calculate_candidates_ranking(
@@ -149,3 +178,5 @@ class BERTFTAgent(RetrievalBaseAgent):
         print(f"MRR: {round(avg_mrr, 4)}")
         print(f"P@1: {round(avg_prec_at_one, 4)}")
         print(f"MAP: {round(avg_map, 4)}")
+        
+        
