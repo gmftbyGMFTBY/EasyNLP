@@ -5,7 +5,7 @@ dataset=$1
 model=$2
 cuda=$3
 
-chinese_datasets=(douban ecommerce)
+chinese_datasets=(douban ecommerce ubuntu)
 if [[ ${chinese_datasets[@]} =~ $dataset ]]; then
     ckpt=bert-base-chinese
 else
