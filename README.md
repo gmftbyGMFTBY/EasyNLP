@@ -4,21 +4,28 @@ Parameters reference: [TODO](https://github.com/taesunwhang/UMS-ResSel/blob/635e
 
 ## How to Use
 
-1. create data for post training
+1. create post data from the orignial dataset
+
+```bash
+cd data;
+python create_post_data.py
+```
+
+2. create data for post training
 
 ```bash
 # dataset saved in data/ecommerce/train_post.hdf5
 ./data/create_post_train_dataset.sh ecommerce
 ```
 
-2. post train
+3. post train
 
 ```bash
 # checkpoint are saved in ckpt/ecommerce/bert-post/*
 ./post_train/post-train.sh ecommerce <nspmlm/mlm/nsp> <gpu_ids>
 ```
 
-3. load post train checkpoint and fine-tuning on response selection corpus
+4. load post train checkpoint and fine-tuning on response selection corpus
 
 ```bash
 ./run.sh train-post ecommerce bert-ft <gpu_ids>
