@@ -38,7 +38,7 @@ class PostTraining:
     
     def __init__(self, args):
         self.args = args
-        self.recoder = SummaryWriter(f'rest/{dataset}/bert-post')
+        self.recoder = SummaryWriter(f'rest/{args["dataset"]}/bert-post')
         if self.args['model'] == 'nspmlm':
             print(f'[!] Loss contains MLM and NSP')
         elif self.args['model'] == 'mlm':
