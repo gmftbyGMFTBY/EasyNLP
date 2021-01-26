@@ -19,12 +19,31 @@ class BertEmbedding(nn.Module):
         print(f'[!] load pretrained BERT model from {path}')
     
 
-class BERTDualEncoder(nn.Module):
+class BERTDualEncoderCL(nn.Module):
     
-    def __init__(self, model='bert-base-chinese'):
-        super(BERTDualEncoder, self).__init__()
+    def __init__(self, model='bert-base-chinese', dupl=10):
+        super(BERTDualEncoderCL, self).__init__()
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
+
+        self.h_to_mu = nn.Linear(768, 768)
+        self.h_to_logvar = nn.Sequential(
+            nn.Linear(768, 768),
+            nn.Sigmoid(),
+        )
+
+        self.dupl = dupl
+
+    def reparametrize(self, cand, ctx):
+        '''z_mu: [B, 768] is the original representation of the candidate;
+        z_logvar: [B, 768] is the representation of the conversation context'''
+        z_mu = self.h_to_mu(cand)
+        std = self.h_to_logvar(ctx)
+        # std = torch.sqrt(torch.exp(z_logvar))     # [B, 768]
+        # for apex
+        eps = torch.FloatTensor(std.size()).normal_().half().cuda()    # [B, 768]
+        z = eps.mul(std).add_(z_mu)
+        return z
         
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
@@ -40,10 +59,7 @@ class BERTDualEncoder(nn.Module):
         dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B]
         return dot_product
         
-    def forward(self, cid, rid, cid_mask, rid_mask):
-        batch_size = cid.shape[0]
-        assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
-        cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
+    def forward_(self, cid_rep, rid_rep):
         # cid_rep/rid_rep: [B, 768]
         dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
         # use half for supporting the apex
@@ -55,12 +71,27 @@ class BERTDualEncoder(nn.Module):
         loss = F.log_softmax(dot_product, dim=-1) * mask
         loss = (-loss.sum(dim=1)).mean()
         return loss, acc
+
+    def forward(self, cid, rid, cid_mask, rid_mask):
+        batch_size = cid.shape[0]
+        cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
+
+        loss, acc = self.forward_(cid_rep, rid_rep)
+
+        for _ in range(self.dupl):
+            rid_rep_ = self.reparametrize(rid_rep, cid_rep)
+            loss_, acc_ = self.forward_(cid_rep, rid_rep_)
+            loss += loss_
+            acc += acc_
+        loss = loss / (self.dupl + 1)
+        acc = acc / (self.dupl + 1)
+        return loss, acc
     
     
-class BERTDualEncoderAgent(RetrievalBaseAgent):
+class BERTDualEncoderCLAgent(RetrievalBaseAgent):
     
     def __init__(self, multi_gpu, total_step, warmup_step, run_mode='train', local_rank=0, dataset_name='ecommerce', pretrained_model='bert-base-chinese', pretrained_model_path=None):
-        super(BERTDualEncoderAgent, self).__init__()
+        super(BERTDualEncoderCLAgent, self).__init__()
         try:
             self.gpu_ids = list(range(len(multi_gpu.split(',')))) 
         except:
@@ -77,9 +108,10 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             'max_len': 256,
             'dataset': dataset_name,
             'pretrained_model_path': pretrained_model_path,
+            'cl_dupl': 10,
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
-        self.model = BERTDualEncoder(model=self.args['model'])
+        self.model = BERTDualEncoderCL(model=self.args['model'], dupl=self.args['cl_dupl'])
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)
         if torch.cuda.is_available():
@@ -87,7 +119,6 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         self.optimizer = transformers.AdamW(
             self.model.parameters(), 
             lr=self.args['lr'],
-        
         )
         if run_mode == 'train':
             self.model, self.optimizer = amp.initialize(

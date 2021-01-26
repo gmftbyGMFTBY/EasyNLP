@@ -31,6 +31,8 @@ from transformers import BertTokenizer
 import pickle
 import argparse
 from torch.nn.utils.rnn import pad_sequence
+import faiss
+import joblib
 
 logging.getLogger("transformers").setLevel(logging.WARNING)
 logging.getLogger("transformers.tokenization_utils").setLevel(logging.ERROR)

@@ -3,6 +3,7 @@ from .bert_gen import *
 from .bert_gen_ft import *
 from .dual_bert import *
 from .dual_bert_poly import *
+from .searcher import *
 
 def load_model(args):
     if args['model'] == 'bert-ft':

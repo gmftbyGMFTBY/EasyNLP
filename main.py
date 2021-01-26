@@ -42,13 +42,23 @@ def main(**args):
             if args['local_rank'] == 0:
                 agent.save_model(f'ckpt/{args["dataset"]}/{args["model"]}/best.pt')
         sum_writer.close()
-    else:
+    elif args['mode'] == 'test':
         test_data, test_iter = load_dataset(args)
         args['total_step'], args['warmup_step'] = 0, 0
         agent = load_model(args)
         agent.load_model(f'ckpt/{args["dataset"]}/{args["model"]}/best.pt')
         rest_path = f'rest/{args["dataset"]}/{args["model"]}/rest.txt'
         test_loss = agent.test_model(test_iter, rest_path)
+    elif args['mode'] == 'inference':
+        # inference the dataset and generate the vector for each sample
+        test_data, test_iter = load_dataset(args)
+        args['total_step'], args['warmup_step'] = 0, 0
+        agent = load_model(args)
+        agent.load_model(f'ckpt/{args["dataset"]}/{args["model"]}/best.pt')
+        dataset = agent.inference(test_iter)
+        searcher = Searcher()
+        searcher._build(dataset)
+        searcher.save(f'data/{args["dataset"]}/faiss.ckpt', f'data/{args["dataset"]}/corpus.ckpt')
 
 if __name__ == "__main__":
     args = parser_args()
