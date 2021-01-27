@@ -441,6 +441,7 @@ def load_dataset(args):
         'bert-gen-ft': BERTGenFTDataset,
         'dual-bert': BERTDualDataset,
         'dual-bert-poly': BERTDualDataset,
+        'dual-bert-cl': BERTDualDataset,
     }
     ONE_BATCH_TEST_MODEL = ['dual-bert', 'dual-bert-poly']
     

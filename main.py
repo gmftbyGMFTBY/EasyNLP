@@ -18,16 +18,20 @@ def parser_args():
     parser.add_argument('--pretrained_model_path', type=str, default='')
     return parser.parse_args()
 
+
+def obtain_steps_parameters(train_data, args):
+    args['total_step'] = len(train_data) * args['epoch'] // args['batch_size'] // (args['multi_gpu'].count(',') + 1)
+    args['warmup_step'] = int(0.1 * args['total_step'])
+
+
 def main(**args):
     if args['mode'] == 'train':
         torch.cuda.set_device(args['local_rank'])
         torch.distributed.init_process_group(backend='nccl', init_method='env://')
         
         train_data, train_iter = load_dataset(args)
-        
-        # total step on each GPU process
-        args['total_step'] = len(train_data) * args['epoch'] // args['batch_size'] // (args['multi_gpu'].count(',') + 1)
-        args['warmup_step'] = int(0.1 * args['total_step'])
+
+        obtain_steps_parameters(train_data, args)
         agent = load_model(args)
         
         sum_writer = SummaryWriter(log_dir=f'rest/{args["dataset"]}/{args["model"]}')

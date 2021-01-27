@@ -61,6 +61,7 @@ class BERTDualEncoderCL(nn.Module):
         
     def forward_(self, cid_rep, rid_rep):
         # cid_rep/rid_rep: [B, 768]
+        batch_size = cid_rep.shape[0]
         dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
         # use half for supporting the apex
         mask = torch.eye(batch_size).cuda().half()    # [B, B]
@@ -73,11 +74,8 @@ class BERTDualEncoderCL(nn.Module):
         return loss, acc
 
     def forward(self, cid, rid, cid_mask, rid_mask):
-        batch_size = cid.shape[0]
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
-
         loss, acc = self.forward_(cid_rep, rid_rep)
-
         for _ in range(self.dupl):
             rid_rep_ = self.reparametrize(rid_rep, cid_rep)
             loss_, acc_ = self.forward_(cid_rep, rid_rep_)

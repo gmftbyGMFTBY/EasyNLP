@@ -13,8 +13,8 @@ bsz=16
 post_bsz=48
 post_epoch=2
 post_max_len=512
-models=(bert-ft bert-gen bert-gen-ft bert-post dual-bert dual-bert-poly)
-ONE_BATCH_SIZE_MODEL=(dual-bert dual-bert-poly)
+models=(bert-ft bert-gen bert-gen-ft bert-post dual-bert dual-bert-poly dual-bert-cl)
+ONE_BATCH_SIZE_MODEL=(dual-bert dual-bert-poly dual-bert-cl)
 # ========== metadata ========== #
 
 mode=$1
