@@ -21,7 +21,7 @@ class BertEmbedding(nn.Module):
 
 class BERTDualEncoderVAE(nn.Module):
     
-    def __init__(self, model='bert-base-chinese', times=10):
+    def __init__(self, model='bert-base-chinese', times=10, p=0.1):
         super(BERTDualEncoderVAE, self).__init__()
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
@@ -30,6 +30,13 @@ class BERTDualEncoderVAE(nn.Module):
         self.h_to_logvar = nn.Sequential(
             nn.Linear(768, 768),
             nn.Sigmoid(),
+        )
+
+        self.decoder = nn.Sequential(
+            nn.Linear(768, 768),
+            nn.LeakyReLU(),
+            nn.Dropout(p=p),
+            nn.Linear(768, 768)
         )
 
         self.inference_times = times
@@ -65,6 +72,12 @@ class BERTDualEncoderVAE(nn.Module):
         assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
         cid_rep = self.reparametrize(cid_rep)
+
+        # preserved loss: cid_rep/cid_rep_recons: [B, 768]
+        cid_rep_recons = self.decoder(cid_rep)
+        preserved_loss = torch.norm(cid_rep_recons - cid_rep, p=2, dim=1).mean()
+
+        # similarity loss
         # cid_rep/rid_rep: [B, 768]
         dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
         # use half for supporting the apex
@@ -75,7 +88,7 @@ class BERTDualEncoderVAE(nn.Module):
         # calculate the loss
         loss = F.log_softmax(dot_product, dim=-1) * mask
         loss = (-loss.sum(dim=1)).mean()
-        return loss, acc
+        return loss, preserved_loss, acc
     
     
 class BERTDualEncoderVAEAgent(RetrievalBaseAgent):
@@ -99,9 +112,10 @@ class BERTDualEncoderVAEAgent(RetrievalBaseAgent):
             'dataset': dataset_name,
             'pretrained_model_path': pretrained_model_path,
             'times': 5,
+            'dropout': 0.1,
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
-        self.model = BERTDualEncoderVAE(model=self.args['model'], times=self.args['times'])
+        self.model = BERTDualEncoderVAE(model=self.args['model'], times=self.args['times'], p=self.args['dropout'])
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)
         if torch.cuda.is_available():
@@ -136,32 +150,39 @@ class BERTDualEncoderVAEAgent(RetrievalBaseAgent):
         
     def train_model(self, train_iter, mode='train', recoder=None, idx_=0):
         self.model.train()
-        total_loss, total_acc, batch_num = 0, 0, 0
+        total_loss, total_acc, batch_num, total_sim_loss, total_pre_loss = 0, 0, 0, 0, 0
         pbar = tqdm(train_iter)
         correct, s = 0, 0
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
             cid, rid, cid_mask, rid_mask = batch
-            loss, acc = self.model(cid, rid, cid_mask, rid_mask)
-            with amp.scale_loss(loss, self.optimizer) as scaled_loss:
+            sim_loss, preserved_loss, acc = self.model(cid, rid, cid_mask, rid_mask)
+            tloss = sim_loss + preserved_loss
+            with amp.scale_loss(tloss, self.optimizer) as scaled_loss:
                 scaled_loss.backward()
             clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
             self.optimizer.step()
             self.scheduler.step()
 
-            total_loss += loss.item()
+            total_loss += tloss.item()
+            total_sim_loss += sim_loss.item()
+            total_pre_loss += preserved_loss.item()
             total_acc += acc
             batch_num += 1
             
             recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', tloss.item(), idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/SimLoss', total_sim_loss/batch_num, idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/RunSimLoss', sim_loss.item(), idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/PreLoss', total_pre_loss/batch_num, idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/RunPreLoss', preserved_loss.item(), idx)
             recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
             recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
 
-            pbar.set_description(f'[!] loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
+            pbar.set_description(f'[!] loss: {round(tloss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
-        return round(total_loss / batch_num, 4)
+        return round(total_loss/batch_num, 4)
         
     @torch.no_grad()
     def test_model(self, test_iter, recoder=None):
