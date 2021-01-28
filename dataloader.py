@@ -442,8 +442,9 @@ def load_dataset(args):
         'dual-bert': BERTDualDataset,
         'dual-bert-poly': BERTDualDataset,
         'dual-bert-cl': BERTDualDataset,
+        'dual-bert-vae': BERTDualDataset,
+        'dual-bert-vae2': BERTDualDataset,
     }
-    ONE_BATCH_TEST_MODEL = ['dual-bert', 'dual-bert-poly']
     
     path = f'data/{args["dataset"]}/{args["mode"]}.txt'
     if args['mode'] == 'train':
@@ -451,8 +452,6 @@ def load_dataset(args):
         train_sampler = torch.utils.data.distributed.DistributedSampler(data)
         iter_ = DataLoader(data, shuffle=False, batch_size=args['batch_size'], collate_fn=data.collate, sampler=train_sampler)
     else:
-        if args['model'] in ONE_BATCH_TEST_MODEL:
-            assert args['batch_size'] == 1, f'{args["model"]} is the ONE BATCH TEST MODEL, please set batch size as 1 for test mode'
         data = DATASET_MAP[args['model']](path, mode=args['mode'], max_len=args['max_len'], model=args['pretrained_model'])
         iter_ = DataLoader(data, shuffle=False, batch_size=args['batch_size'], collate_fn=data.collate)
     if not os.path.exists(data.pp_path):

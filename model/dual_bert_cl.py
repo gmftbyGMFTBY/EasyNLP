@@ -41,6 +41,9 @@ class BERTDualEncoderCL(nn.Module):
         std = self.h_to_logvar(ctx)
         # std = torch.sqrt(torch.exp(z_logvar))     # [B, 768]
         # for apex
+        if ctx.shape[0] == 1:
+            # test mode
+            std = std.repeat(cand.shape[0], 1)
         eps = torch.FloatTensor(std.size()).normal_().half().cuda()    # [B, 768]
         z = eps.mul(std).add_(z_mu)
         return z
@@ -52,8 +55,10 @@ class BERTDualEncoderCL(nn.Module):
     
     @torch.no_grad()
     def predict(self, cid, rid, rid_mask):
+        '''TODO: refer to dual-bert-vae, running reparamtrize multiple times'''
         batch_size = rid.shape[0]
         cid_rep, rid_rep = self._encode(cid.unsqueeze(0), rid, None, rid_mask)
+        rid_rep = self.reparametrize(rid_rep, cid_rep)
         cid_rep = cid_rep.squeeze(0)    # [768]
         # cid_rep/rid_rep: [768], [B, 768]
         dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B]
@@ -75,7 +80,8 @@ class BERTDualEncoderCL(nn.Module):
 
     def forward(self, cid, rid, cid_mask, rid_mask):
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
-        loss, acc = self.forward_(cid_rep, rid_rep)
+        # loss, acc = self.forward_(cid_rep, rid_rep)
+        loss, acc = 0, 0
         for _ in range(self.dupl):
             rid_rep_ = self.reparametrize(rid_rep, cid_rep)
             loss_, acc_ = self.forward_(cid_rep, rid_rep_)

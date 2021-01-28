@@ -5,71 +5,68 @@ from .utils import *
 
 class BertEmbedding(nn.Module):
     
-    def __init__(self, m=0, model='bert-base-chinese'):
+    def __init__(self, model='bert-base-chinese'):
         super(BertEmbedding, self).__init__()
         self.model = BertModel.from_pretrained(model)
-        self.m = m
 
     def forward(self, ids, attn_mask):
-        '''convert ids to embedding tensor; Return: [B, 768]'''
         embd = self.model(ids, attention_mask=attn_mask)[0]    # [B, S, 768]
-        if self.m == 0:
-            rest = embd[:, 0, :]    # [B, 768]
-        else:
-            rest = embd[:, :self.m, :]    # [B, M, 768]
-        return rest
+        return embd[:, 0, :]
     
     def load_bert_model(self, path):
         state_dict = torch.load(path, map_location=torch.device('cpu'))
         self.model.load_state_dict(state_dict)
         print(f'[!] load pretrained BERT model from {path}')
-
-
-class PolyEncoder(nn.Module):
     
-    def __init__(self, m=16, model='bert-base-chinese'):
-        super(PolyEncoder, self).__init__()
-        self.ctx_encoder = BertEmbedding(m=m, model=model)
-        self.can_encoder = BertEmbedding(m=0, model=model)
+
+class BERTDualEncoderVAE(nn.Module):
+    
+    def __init__(self, model='bert-base-chinese', times=10):
+        super(BERTDualEncoderVAE, self).__init__()
+        self.ctx_encoder = BertEmbedding(model=model)
+        self.can_encoder = BertEmbedding(model=model)
+
+        self.h_to_mu = nn.Linear(768, 768)
+        self.h_to_logvar = nn.Sequential(
+            nn.Linear(768, 768),
+            nn.Sigmoid(),
+        )
+
+        self.inference_times = times
         
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
         rid_rep = self.can_encoder(rid, rid_mask)
-        # cid_rep: [B, M, E]; rid_rep: [B, E]
         return cid_rep, rid_rep
-        
+
+    def reparametrize(self, rep):
+        z_mu = self.h_to_mu(rep)
+        std = self.h_to_logvar(rep)
+        eps = torch.FloatTensor(std.size()).normal_().half().cuda()
+        z = eps.mul(std).add_(z_mu)
+        return z
+    
     @torch.no_grad()
     def predict(self, cid, rid, rid_mask):
         batch_size = rid.shape[0]
+        scores = []
         cid_rep, rid_rep = self._encode(cid.unsqueeze(0), rid, None, rid_mask)
-        cid_rep = cid_rep.squeeze(0)    # [M, E]
-        # cid_rep/rid_rep: [M, E], [B, E]
-        
-        # POLY ENCODER ATTENTION
-        # [M, E] X [E, S] -> [M, S] -> [S, M]
-        weights = F.softmax(
-            torch.matmul(cid_rep, rid_rep.t()).transpose(0, 1),
-            dim=-1,
-        )
-        # [S, M] X [M, E] -> [S, E]
-        cid_rep = torch.matmul(weights, cid_rep)
-        dot_product = (cid_rep * rid_rep).sum(-1)    # [S]
-        return dot_product
+        for _ in range(self.inference_times):
+            cid_rep_ = self.reparametrize(cid_rep)
+            cid_rep_ = cid_rep_.squeeze(0)    # [768]
+            # cid_rep/rid_rep: [768], [B, 768]
+            dot_product = torch.matmul(cid_rep_, rid_rep.t())  # [B]
+            scores.append(dot_product)
+        scores = torch.stack(scores).max(dim=0)[0]
+        return scores
         
     def forward(self, cid, rid, cid_mask, rid_mask):
         batch_size = cid.shape[0]
+        assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
-        # cid_rep/rid_rep: [B, M, E]; [B, E]
-        
-        # POLY ENCODER ATTENTION
-        # [B, M, E] X [E, S] -> [B, M, S] -> [B, S, M]
-        weights = F.softmax(
-            torch.matmul(cid_rep, rid_rep.t()).permute(0, 2, 1),    # [B, M, S] -> [B, S, M]
-            dim=-1,
-        )
-        cid_rep = torch.bmm(weights, cid_rep)    # [B, S, M] X [B, M, E] -> [B, S, E]
-        # [B, S, E] x [B, S, E] -> [B, S]
-        dot_product = (cid_rep * rid_rep.unsqueeze(0).expand(batch_size, -1, -1)).sum(-1)
+        cid_rep = self.reparametrize(cid_rep)
+        # cid_rep/rid_rep: [B, 768]
+        dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
         # use half for supporting the apex
         mask = torch.eye(batch_size).cuda().half()    # [B, B]
         # calculate accuracy
@@ -79,12 +76,12 @@ class PolyEncoder(nn.Module):
         loss = F.log_softmax(dot_product, dim=-1) * mask
         loss = (-loss.sum(dim=1)).mean()
         return loss, acc
-
     
-class BERTPolyEncoderAgent(RetrievalBaseAgent):
+    
+class BERTDualEncoderVAEAgent(RetrievalBaseAgent):
     
     def __init__(self, multi_gpu, total_step, warmup_step, run_mode='train', local_rank=0, dataset_name='ecommerce', pretrained_model='bert-base-chinese', pretrained_model_path=None):
-        super(BERTPolyEncoderAgent, self).__init__()
+        super(BERTDualEncoderVAEAgent, self).__init__()
         try:
             self.gpu_ids = list(range(len(multi_gpu.split(',')))) 
         except:
@@ -101,10 +98,10 @@ class BERTPolyEncoderAgent(RetrievalBaseAgent):
             'max_len': 256,
             'dataset': dataset_name,
             'pretrained_model_path': pretrained_model_path,
-            'm': 16,
+            'times': 5,
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
-        self.model = PolyEncoder(m=self.args['m'], model=self.args['model'])
+        self.model = BERTDualEncoderVAE(model=self.args['model'], times=self.args['times'])
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)
         if torch.cuda.is_available():
@@ -112,6 +109,7 @@ class BERTPolyEncoderAgent(RetrievalBaseAgent):
         self.optimizer = transformers.AdamW(
             self.model.parameters(), 
             lr=self.args['lr'],
+        
         )
         if run_mode == 'train':
             self.model, self.optimizer = amp.initialize(
@@ -172,7 +170,7 @@ class BERTPolyEncoderAgent(RetrievalBaseAgent):
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
         total_examples, total_correct = 0, 0
         k_list = [1, 2, 5, 10]
-        for idx, batch in tqdm(list(enumerate(pbar))):                
+        for idx, batch in enumerate(pbar):                
             cid, rids, rids_mask, label = batch
             batch_size = len(rids)
             assert batch_size == 10, f'[!] {batch_size} isnot equal to 10'
@@ -202,5 +200,16 @@ class BERTPolyEncoderAgent(RetrievalBaseAgent):
         print(f"MRR: {round(avg_mrr, 4)}")
         print(f"P@1: {round(avg_prec_at_one, 4)}")
         print(f"MAP: {round(avg_map, 4)}")
-        
-        
+
+    @torch.no_grad()
+    def inference(self, test_iter):
+        self.model.eval()
+        pbar = tqdm(test_iter)
+        matrix, corpus = [], []
+        for batch in pbar:
+            ids, mask, text = batch
+            vec = self.model.get_cand(ids, mask)    # [B, H]
+            matrix.append(vec)
+            corpus.extend(text)
+        matrix = torch.stack(matrix)
+        return matrix, corpus
