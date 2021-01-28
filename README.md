@@ -72,6 +72,7 @@ _Note:_
 | Bi-Encoder-VAE(Max/3)  | 80.1  | 92.2  | 97.8  | 88.11  |
 | Bi-Encoder-VAE(Max/4)  | 80.6  | 92.3  | 97.9  | 88.4   |-->
 | Bi-Encoder-VAE(Max/5)  | 80.7  | 92.4  | 97.9  | 88.43  |
+| Bi-Encoder-VAE2(Max/5)  | 77.7  | 89.2  | 97.5  | 86.21  |
 <!--| Bi-Encoder-VAE(Max/6)  | 80.2  | 92.0  | 97.9  | 88.15  |
 | Bi-Encoder-VAE(Max/7)  | 80.2  | 92.1  | 97.8  | 88.14  |
 | Bi-Encoder-VAE(Max/8)  | 80.3  | 92.2  | 98.1  | 88.22  |
