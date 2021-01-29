@@ -81,7 +81,7 @@ elif [ $mode = 'train-post' ]; then
         --multi_gpu $cuda \
         --pretrained_model $pretrained_model \
         --warmup_ratio $warmup_ratio \
-        --pretrained_model_path rest/$dataset/bert-post/best_nspmlm.pt
+        --pretrained_model_path ckpt/$dataset/bert-post/best_nspmlm.pt
 else
     # test
     if [[ ${ONE_BATCH_SIZE_MODEL[@]} =~ $model ]]; then
