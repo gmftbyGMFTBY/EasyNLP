@@ -56,30 +56,15 @@ _Note:_
 * for Bi-Encoder-VAE, max strategy is better than mean
 * sequence length is 256
 * Compared with Bi-Encoder-CL, Bi-Encoder-CL2 fully leverage the variant response represeantion
+* more negative samples, better performance
 
 | Original       | R10@1 | R10@2 | R10@5 | MRR    |
 | -------------- | ----- | ----- | ----- | ------ |
 | SOTA           | 77.6  | 91.9  | 99.1  | -      |
-| Bi-Encoder     | 80.6  | 90.6  | 98.3  | 88.01  |
-<!--| Bi-Encoder-CL  | 78.9  | 89.8  | 98.0  | 86.95  |-->
+| Bi-Encoder(bsz=16) | 80.6  | 90.6  | 98.3  | 88.01  |
+| Bi-Encoder(bsz=64) | 83.7  | 92.4  | 98.5  | 90.02  |
 | Bi-Encoder-CL2 | 80.6  | 91.1  | 98.2  | 88.16  |
-<!--| Bi-Encoder-VAE(Mean/1) | 80.6  | 92.2  | 97.9  | 88.38  |
-| Bi-Encoder-VAE(Mean/5) | 80.4  | 92.2  | 98.0  | 88.27  |
-| Bi-Encoder-VAE(Mean/10) | 80.2  | 92.3  | 97.9  | 88.18  |
-| Bi-Encoder-VAE(Mean/20) | 80.2  | 92.3  | 98.0  | 88.19  |
-| Bi-Encoder-VAE(Max/1)  | 80.6  | 92.2  | 97.9  | 88.38  |
-| Bi-Encoder-VAE(Max/2)  | 80.5  | 92.3  | 98.0  | 88.34  |
-| Bi-Encoder-VAE(Max/3)  | 80.1  | 92.2  | 97.8  | 88.11  |
-| Bi-Encoder-VAE(Max/4)  | 80.6  | 92.3  | 97.9  | 88.4   |-->
 | Bi-Encoder-VAE(Max/5)  | 80.7  | 92.4  | 97.9  | 88.43  |
-<!--| Bi-Encoder-VAE(Max/6)  | 80.2  | 92.0  | 97.9  | 88.15  |
-| Bi-Encoder-VAE(Max/7)  | 80.2  | 92.1  | 97.8  | 88.14  |
-| Bi-Encoder-VAE(Max/8)  | 80.3  | 92.2  | 98.1  | 88.22  |
-| Bi-Encoder-VAE(Max/9)  | 80.4  | 92.2  | 97.8  | 88.26  |
-| Bi-Encoder-VAE(Max/10) | 80.0  | 91.9  | 97.8  | 88.00  |
-| Bi-Encoder-VAE2(Max/2) | 79.5  | 90.2  | 97.8  | 87.30  |
-| Bi-Encoder-VAE2(Max/5) | 79.3  | 90.3  | 97.6  | 87.20  |-->
-| Bi-Encoder-VAE2(Max/10)| 79.7  | 89.8  | 97.8  | 87.34  |
 | Poly-Encoder   | 80.0  | 90.3  | 97.9  | 87.69  |
 | BERT-FT        | 62.3  | 84.2  | 98    | 77.59  |
 | BERT-FT+MLM+NSP|       |       |       |        |
@@ -88,12 +73,11 @@ _Note:_
 | BERT-Gen-FT    | 63.3  | 83.5  | 97.1  | 77.71  |
 | BERT-Gen-FT w/o Gen | | | | |
 
-<!--
 | Adversarial   | R10@1 | R10@2 | R10@5 | MRR    |
 | ------------- | ----- | ----- | ----- | ------ |
 | BERT-FT       | 37.4  | 73.4  | 97.6  | 62.84  |
 | BERT-Gen-FT   | 44.1  | 74.8  | 96.1  | 66.23  |
-| BERT-Gen-FT w/o Gen | | | | |-->
+| BERT-Gen-FT w/o Gen | | | | |
 
 ### 2. Douban Dataset
 
@@ -108,9 +92,8 @@ _Note:_
 | BERT-Gen-FT    |       |       |       |       |       |       |
 | BERT-Gen-FT w/o Gen |      |      |      |      |     |     |
 
-<!--
 | Adversarial   | R10@1 | R10@2 | R10@5 | MRR    |  P@1  | MAP  |
 | ------------- | ----- | ----- | ----- | ------ | ----- | ---- |
 | BERT-FT       |  |  |  |  |       |      |
 | BERT-Gen-FT   |  |  |  |  |       |      |
-| BERT-Gen-FT w/o Gen | | | | |-->
+| BERT-Gen-FT w/o Gen | | | | |

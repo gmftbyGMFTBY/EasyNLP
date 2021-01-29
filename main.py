@@ -45,6 +45,8 @@ def main(**args):
             # only one process save the checkpoint
             if args['local_rank'] == 0:
                 agent.save_model(f'ckpt/{args["dataset"]}/{args["model"]}/best.pt')
+            # avoid OOM
+            torch.cuda.empty_cache()
         sum_writer.close()
     elif args['mode'] == 'test':
         test_data, test_iter = load_dataset(args)

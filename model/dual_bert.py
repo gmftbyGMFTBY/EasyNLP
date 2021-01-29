@@ -48,6 +48,7 @@ class BERTDualEncoder(nn.Module):
         dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
         # use half for supporting the apex
         mask = torch.eye(batch_size).cuda().half()    # [B, B]
+        # mask = torch.eye(batch_size).cuda()    # [B, B]
         # calculate accuracy
         acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
         acc = acc_num / batch_size
