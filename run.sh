@@ -9,12 +9,13 @@ max_len=256
 seed=50
 warmup_ratio=0.1
 epoch=5
-bsz=60
-post_bsz=48
+bsz=48
+inf_bsz=64
+post_bsz=64
 post_epoch=2
 post_max_len=512
-models=(bert-ft bert-gen bert-gen-ft bert-post dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2)
-ONE_BATCH_SIZE_MODEL=(dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2)
+models=(bert-ft bert-gen bert-gen-ft bert-post dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many)
+ONE_BATCH_SIZE_MODEL=(dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many)
 # ========== metadata ========== #
 
 mode=$1
@@ -63,6 +64,24 @@ elif [ $mode = 'train' ]; then
         --multi_gpu $cuda \
         --pretrained_model $pretrained_model \
         --warmup_ratio $warmup_ratio
+elif [ $mode = 'inference' ]; then
+    gpu_ids=(${cuda//,/ })
+    CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 29400 main.py \
+        --dataset $dataset \
+        --model $model \
+        --mode inference \
+        --batch_size $inf_bsz \
+        --seed $seed \
+        --max_len $max_len \
+        --multi_gpu $cuda \
+        --pretrained_model $pretrained_model \
+        --warmup_ratio $warmup_ratio
+    # reconstruct
+    python model/searcher.py \
+        --dataset $dataset \
+        --nums ${#gpu_ids[@]} \
+        --inner_bsz 128 \
+        --topk 10
 elif [ $mode = 'train-post' ]; then
     # load model parameters from post train checkpoint and fine tuning
     ./run.sh backup $dataset $model

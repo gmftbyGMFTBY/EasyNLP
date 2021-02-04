@@ -32,7 +32,10 @@ class RetrievalBaseAgent:
         which means that the DataParallel(self.model) are used to load the model
         '''
         state_dict = torch.load(path, map_location=torch.device('cpu'))
-        self.model.load_state_dict(state_dict)
+        try:
+            self.model.module.load_state_dict(state_dict)
+        except:
+            self.model.load_state_dict(state_dict)
         print(f'[!] load model from {path}')
 
     def train_model(self, train_iter, mode='train'):

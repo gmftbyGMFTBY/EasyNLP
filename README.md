@@ -31,6 +31,12 @@ python create_post_data.py
 ./run.sh train-post ecommerce bert-ft <gpu_ids>
 ```
 
+5. inference on the train dataset, save in FAISS index
+
+```bash
+# save the extended train dataset into data/<dataset>/candidates.pt
+./run.sh inference ecommerce dual-bert <gpu_ids>
+```
 
 ## Ready models and datasets
 
@@ -84,7 +90,8 @@ _Note:_
 | Original       | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP  |
 | -------------- | ----- | ----- | ----- | ----- | ----- | ----- |
 | SOTA           | 31.8  | 48.2  | 85.8  | 66.4  | 49.9  | 62.5  |
-| Bi-Encoder     | 28.57 | 47.46 | 81.35 | 63.33 | 45.28 | 59.6  |
+| Bi-Encoder(bsz=16)     | 28.57 | 47.46 | 81.35 | 63.33 | 45.28 | 59.6  |
+| Bi-Encoder(bsz=60)     | 30.24 | 50.32 | 83.09 | 65.33 | 47.98 | 61.38  |
 | BERT-FT        | 25.86 | 44.63 | 83.43 | 61.55 | 42.58 | 57.59 |
 | BERT-FT+MLM+NSP|       |       |       |       |       |       |
 | BERT-FT+MLM    |       |       |       |       |       |       |
@@ -97,3 +104,17 @@ _Note:_
 | BERT-FT       |  |  |  |  |       |      |
 | BERT-Gen-FT   |  |  |  |  |       |      |
 | BERT-Gen-FT w/o Gen | | | | |
+
+### 3. Ubuntu Dataset
+
+* batch size: 48
+* max sequence length: 256
+
+| Original       | R10@1 | R10@2 | R10@5 | R2@1   |
+| -------------- | ----- | ----- | ----- | ------ |
+| SOTA           | 88.4  | 94.6  | 99.0  | 97.5   |
+| Bi-Encoder(bsz=48) | 67.22  | 80.23      | 94.6      |        |
+| BERT-FT        |       |       |       |        |
+| BERT-FT+MLM+NSP|       |       |       |        |
+| BERT-FT+MLM    |       |       |       |        |
+| BERT-FT+NSP    |       |       |       |        |

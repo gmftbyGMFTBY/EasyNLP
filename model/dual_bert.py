@@ -30,6 +30,16 @@ class BERTDualEncoder(nn.Module):
         cid_rep = self.ctx_encoder(cid, cid_mask)
         rid_rep = self.can_encoder(rid, rid_mask)
         return cid_rep, rid_rep
+
+    @torch.no_grad()
+    def get_cand(self, ids, attn_mask):
+        rid_rep = self.can_encoder(ids, attn_mask)
+        return rid_rep
+
+    @torch.no_grad()
+    def get_ctx(self, ids, attn_mask):
+        cid_rep = self.ctx_encoder(ids, attn_mask)
+        return cid_rep
     
     @torch.no_grad()
     def predict(self, cid, rid, rid_mask):
@@ -78,6 +88,7 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             'max_len': 256,
             'dataset': dataset_name,
             'pretrained_model_path': pretrained_model_path,
+            'oom_times': 10,
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
         self.model = BERTDualEncoder(model=self.args['model'])
@@ -105,6 +116,16 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
                 self.model, device_ids=[local_rank], output_device=local_rank,
                 find_unused_parameters=True,
             )
+        elif run_mode == 'inference':
+            # self.model = amp.initialize(
+            #     self.model, 
+            #     opt_level=self.args['amp_level'],
+            # )
+            # self.model = nn.parallel.DistributedDataParallel(
+            #     self.model, device_ids=[local_rank], output_device=local_rank,
+            #     find_unused_parameters=True,
+            # )
+            pass
         self.show_parameters(self.args)
         
     def load_bert_model(self, path):
@@ -114,30 +135,39 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         print(f'[!] load pretrained BERT model from {path}')
         
     def train_model(self, train_iter, mode='train', recoder=None, idx_=0):
+        '''ADD OOM ASSERTION'''
         self.model.train()
         total_loss, total_acc, batch_num = 0, 0, 0
         pbar = tqdm(train_iter)
-        correct, s = 0, 0
+        correct, s, oom_t = 0, 0, 0
         for idx, batch in enumerate(pbar):
-            self.optimizer.zero_grad()
-            cid, rid, cid_mask, rid_mask = batch
-            loss, acc = self.model(cid, rid, cid_mask, rid_mask)
-            with amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                scaled_loss.backward()
-            clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
-            self.optimizer.step()
-            self.scheduler.step()
+            try:
+                self.optimizer.zero_grad()
+                cid, rid, cid_mask, rid_mask = batch
+                loss, acc = self.model(cid, rid, cid_mask, rid_mask)
+                with amp.scale_loss(loss, self.optimizer) as scaled_loss:
+                    scaled_loss.backward()
+                clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
+                self.optimizer.step()
+                self.scheduler.step()
+    
+                total_loss += loss.item()
+                total_acc += acc
+                batch_num += 1
+                
+                recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
+                
+                pbar.set_description(f'[!] OOM: {oom_t}; loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
+            except RuntimeError as exception:
+                if 'out of memory' in str(exception):
+                    oom_t += 1
+                    torch.cuda.empty_cache()
+                if oom_t > self.args['oom_times']:
+                    raise Exception(f'[!] too much OOM errors')
 
-            total_loss += loss.item()
-            total_acc += acc
-            batch_num += 1
-            
-            recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
-
-            pbar.set_description(f'[!] loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
         return round(total_loss / batch_num, 4)
@@ -181,14 +211,29 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         print(f"MAP: {round(avg_map, 4)}")
 
     @torch.no_grad()
-    def inference(self, test_iter):
+    def inference(self, inf_iter, test_iter):
         self.model.eval()
-        pbar = tqdm(test_iter)
-        matrix, corpus = [], []
+        pbar = tqdm(inf_iter)
+        matrix, corpus, queries, q_text, q_order, q_text_r = [], [], [], [], [], []
         for batch in pbar:
             ids, mask, text = batch
-            vec = self.model.get_cand(ids, mask)    # [B, H]
+            vec = self.model.get_cand(ids, mask).cpu()    # [B, H]
             matrix.append(vec)
             corpus.extend(text)
-        matrix = torch.stack(matrix)
-        return matrix, corpus
+        matrix = torch.cat(matrix, dim=0).numpy()    # [Size, H]
+        assert len(matrix) == len(corpus)
+
+        # context response
+        pbar = tqdm(test_iter)
+        for batch in pbar:
+            ids, ids_mask, ctx_text, res_text, order = batch
+            vec = self.model.get_ctx(ids, ids_mask).cpu()
+            queries.append(vec)
+            q_text.extend(ctx_text)
+            q_text_r.extend(res_text)
+            q_order.extend(order)
+        queries = torch.cat(queries, dim=0).numpy()
+        torch.save(
+            (queries, q_text, q_text_r, q_order, matrix, corpus), 
+            f'data/{self.args["dataset"]}/inference_{self.args["local_rank"]}.pt'
+        )
