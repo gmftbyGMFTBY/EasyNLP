@@ -32,6 +32,19 @@ class BERTDualHierarchicalMultiEncoder(nn.Module):
         self.ctx_encoder = BertEmbedding(m=m, model=model)
         self.can_encoder = BertEmbedding(m=0, model=model)
 
+        # encoder_layer = nn.TransformerEncoderLayer(
+        #     768,
+        #     nhead=nhead,
+        #     dim_feedforward=dim_ffd,
+        #     dropout=p
+        # )
+        # encoder_norm = nn.LayerNorm(768)
+        # self.ctx_trs = nn.TransformerEncoder(
+        #     encoder_layer,
+        #     num_encoder_layers,
+        #     encoder_norm,
+        # )
+
         self.ctx_gru = nn.GRU(
             768, 768, layer, batch_first=True,
             dropout=0 if layer == 1 else p,
@@ -143,6 +156,8 @@ class BERTDualHierarchicalMultiEncoder(nn.Module):
     
 
 class BERTDualHierarchicalEncoder(nn.Module):
+
+    '''try the transformers'''
 
     def __init__(self, model='bert-base-chinese', layer=2, inner_bsz=16, p=0.1):
         super(BERTDualHierarchicalEncoder, self).__init__()
