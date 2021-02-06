@@ -192,7 +192,8 @@ class BERTDualOne2ManyDataset(Dataset):
             for (label, context, response), cands in tqdm(list(zip(data, candidates))):
                 if label == 0:
                     continue
-                cands = cands[:self.head-1]
+                # cands = cands[:self.head-1]
+                cands = random.sample(cands, self.head-1)
                 item = self.vocab.batch_encode_plus([context, response] + cands)
                 ids, rids = item['input_ids'][0], item['input_ids'][1:]
                 ids, rids = self._length_limit(ids), [self._length_limit(i) for i in rids]
