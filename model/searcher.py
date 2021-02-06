@@ -61,6 +61,7 @@ if __name__ == "__main__":
     q_text_mapping = [q_text_mapping[i] for i in query_order]
         
     searcher = Searcher()
+    assert len(matrix) == len(corpus)
     searcher._build(matrix, corpus)
     searcher.save(
         f'data/{args["dataset"]}/faiss.ckpt',
@@ -81,9 +82,6 @@ if __name__ == "__main__":
             if item_gt in item_rest:
                 item_rest.remove(item_gt)
             rr.append(item_rest[:args['topk']])
-        # NOTE
-        ipdb.set_trace()
         candidates.extend(rr)
-    assert len(candidates) == len(queries)
     torch.save(candidates, f'data/{args["dataset"]}/candidates.pt')
     print(f'[!] save retrieved candidates into data/{args["dataset"]}/candidates.pt')

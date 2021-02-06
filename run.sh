@@ -9,13 +9,14 @@ max_len=256
 seed=50
 warmup_ratio=0.1
 epoch=5
-bsz=48
+bsz=16
+head_num=5     # hyperparameter of the dual-bert-one2mnay
 inf_bsz=64
 post_bsz=64
 post_epoch=2
 post_max_len=512
-models=(bert-ft bert-gen bert-gen-ft bert-post dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many)
-ONE_BATCH_SIZE_MODEL=(dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many)
+models=(bert-ft bert-gen bert-gen-ft bert-post dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical)
+ONE_BATCH_SIZE_MODEL=(dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical)
 # ========== metadata ========== #
 
 mode=$1
@@ -63,6 +64,7 @@ elif [ $mode = 'train' ]; then
         --max_len $max_len \
         --multi_gpu $cuda \
         --pretrained_model $pretrained_model \
+        --head_num $head_num \
         --warmup_ratio $warmup_ratio
 elif [ $mode = 'inference' ]; then
     gpu_ids=(${cuda//,/ })

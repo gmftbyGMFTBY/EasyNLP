@@ -19,17 +19,53 @@ class BertEmbedding(nn.Module):
         print(f'[!] load pretrained BERT model from {path}')
     
 
-class BERTDualEncoder(nn.Module):
+class BERTDualHierarchicalEncoder(nn.Module):
+
+    '''transformers is faster?'''
     
-    def __init__(self, model='bert-base-chinese'):
-        super(BERTDualEncoder, self).__init__()
+    def __init__(self, model='bert-base-chinese', layer=2, inner_bsz=16):
+        super(BERTDualHierarchicalEncoder, self).__init__()
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
+
+        self.ctx_gru = nn.GRU(768, 768, layer, batch_first=True)
+        self.layer = layer
+        self.inner_bsz = inner_bsz 
         
-    def _encode(self, cid, rid, cid_mask, rid_mask):
+    def _encode(self, cids, rid, cids_mask, rid_mask, recover_mapping):
+        '''resort'''
+        cid_reps = []
+        for cid, cid_mask in zip(cids, cids_mask):
+            cid_rep = self.ctx_encoder(cid, cid_mask)
+            cid_reps.append(cid_rep)
+        cid_reps = torch.cat(cid_reps)    # [B, E]
+        # recover
+        cid_reps = [cid_reps[recover_mapping[idx]] for idx in range(len(cid_reps))]
+        cid_rep = torch.stack(cid_reps)
+        rid_rep = self.can_encoder(rid, rid_mask)
+        return cid_rep, rid_rep
+
+    def _encode_(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
         rid_rep = self.can_encoder(rid, rid_mask)
         return cid_rep, rid_rep
+
+    def reconstruct_tensor(self, cid_rep, cid_turn_length):
+        '''resort and generate the order'''
+        # =========== reconstruct cid ========== #
+        cid_rep = torch.split(cid_rep, cid_turn_length)
+        # =========== padding =========== #
+        max_turn_length = max([len(i) for i in cid_rep])
+        cid_reps = []    # [B, S, E]
+        for ctx in cid_rep:
+            if len(ctx) < max_turn_length:
+                # support apex
+                zero_tensor = torch.zeros(1, 768).half().cuda()
+                padding = [zero_tensor] * (max_turn_length - len(ctx))
+                ctx = torch.cat([ctx] + padding)
+            cid_reps.append(ctx)
+        cid_reps = torch.stack(cid_reps)
+        return cid_reps    # [B, S, E]
 
     @torch.no_grad()
     def get_cand(self, ids, attn_mask):
@@ -42,18 +78,31 @@ class BERTDualEncoder(nn.Module):
         return cid_rep
     
     @torch.no_grad()
-    def predict(self, cid, rid, rid_mask):
+    def predict(self, cid, rid, cid_turn_length, cid_mask, rid_mask):
+        '''batch size is 1'''
         batch_size = rid.shape[0]
-        cid_rep, rid_rep = self._encode(cid.unsqueeze(0), rid, None, rid_mask)
-        cid_rep = cid_rep.squeeze(0)    # [768]
+        cid_rep, rid_rep = self._encode_(cid, rid, cid_mask, rid_mask)    # [k, E]
+        cid_rep = self.reconstruct_tensor(cid_rep, cid_turn_length)
+        _, cid_rep = self.ctx_gru(cid_rep)    # [1, B, 768]
+        cid_rep = cid_rep.squeeze()    # [768]
         # cid_rep/rid_rep: [768], [B, 768]
         dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B]
         return dot_product
         
-    def forward(self, cid, rid, cid_mask, rid_mask):
-        batch_size = cid.shape[0]
-        assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
-        cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
+    def forward(self, cid, rid, cid_turn_length, cid_mask, rid_mask, recover_mapping):
+        '''parameters:
+        cid: [B_k, S]; B_k = B * \sum_{k=1}^B S_k
+        cid_mask: [B_k, S]
+        rid: [B, S];
+        rid_mask: [B_k, S];
+        cid_turn_length: [B]'''
+        batch_size = rid.shape[0]
+        cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask, recover_mapping)
+        cid_rep = self.reconstruct_tensor(cid_rep, cid_turn_length)
+
+        cid_rep = nn.utils.rnn.pack_padded_sequence(cid_rep, cid_turn_length, batch_first=True, enforce_sorted=False)
+        _, cid_rep = self.ctx_gru(cid_rep)    # [B, 768]
+
         # cid_rep/rid_rep: [B, 768]
         dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
         # use half for supporting the apex
@@ -68,10 +117,10 @@ class BERTDualEncoder(nn.Module):
         return loss, acc
     
     
-class BERTDualEncoderAgent(RetrievalBaseAgent):
+class BERTDualHierarchicalEncoderAgent(RetrievalBaseAgent):
     
     def __init__(self, multi_gpu, total_step, warmup_step, run_mode='train', local_rank=0, dataset_name='ecommerce', pretrained_model='bert-base-chinese', pretrained_model_path=None):
-        super(BERTDualEncoderAgent, self).__init__()
+        super(BERTDualHierarchicalEncoderAgent, self).__init__()
         try:
             self.gpu_ids = list(range(len(multi_gpu.split(',')))) 
         except:
@@ -89,9 +138,11 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             'dataset': dataset_name,
             'pretrained_model_path': pretrained_model_path,
             'oom_times': 10,
+            'gru_layer': 1,
+            'inner_bsz': 16,
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
-        self.model = BERTDualEncoder(model=self.args['model'])
+        self.model = BERTDualHierarchicalEncoder(model=self.args['model'], layer=self.args['gru_layer'], inner_bsz=self.args['inner_bsz'])
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)
         if torch.cuda.is_available():
@@ -121,10 +172,11 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             #     self.model, 
             #     opt_level=self.args['amp_level'],
             # )
-            self.model = nn.parallel.DistributedDataParallel(
-                self.model, device_ids=[local_rank], output_device=local_rank,
-                find_unused_parameters=True,
-            )
+            # self.model = nn.parallel.DistributedDataParallel(
+            #     self.model, device_ids=[local_rank], output_device=local_rank,
+            #     find_unused_parameters=True,
+            # )
+            pass
         self.show_parameters(self.args)
         
     def load_bert_model(self, path):
@@ -142,8 +194,8 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         for idx, batch in enumerate(pbar):
             try:
                 self.optimizer.zero_grad()
-                cid, rid, cid_mask, rid_mask = batch
-                loss, acc = self.model(cid, rid, cid_mask, rid_mask)
+                cid, rid, cid_turn_length, cid_mask, rid_mask, recover_mapping = batch
+                loss, acc = self.model(cid, rid, cid_turn_length, cid_mask, rid_mask, recover_mapping)
                 with amp.scale_loss(loss, self.optimizer) as scaled_loss:
                     scaled_loss.backward()
                 clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
@@ -179,10 +231,10 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         total_examples, total_correct = 0, 0
         k_list = [1, 2, 5, 10]
         for idx, batch in enumerate(pbar):                
-            cid, rids, rids_mask, label = batch
+            cid, rids, cid_turn_length, cids_mask, rids_mask, label = batch
             batch_size = len(rids)
             assert batch_size == 10, f'[!] {batch_size} isnot equal to 10'
-            scores = self.model.predict(cid, rids, rids_mask).cpu().tolist()    # [B]
+            scores = self.model.predict(cid, rids, cid_turn_length, cids_mask, rids_mask).cpu().tolist()    # [B]
             
             rank_by_pred, pos_index, stack_scores = \
           calculate_candidates_ranking(
@@ -216,7 +268,7 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         matrix, corpus, queries, q_text, q_order, q_text_r = [], [], [], [], [], []
         for batch in pbar:
             ids, mask, text = batch
-            vec = self.model.module.get_cand(ids, mask).cpu()    # [B, H]
+            vec = self.model.get_cand(ids, mask).cpu()    # [B, H]
             matrix.append(vec)
             corpus.extend(text)
         matrix = torch.cat(matrix, dim=0).numpy()    # [Size, H]
@@ -226,7 +278,7 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         pbar = tqdm(test_iter)
         for batch in pbar:
             ids, ids_mask, ctx_text, res_text, order = batch
-            vec = self.model.module.get_ctx(ids, ids_mask).cpu()
+            vec = self.model.get_ctx(ids, ids_mask).cpu()
             queries.append(vec)
             q_text.extend(ctx_text)
             q_text_r.extend(res_text)

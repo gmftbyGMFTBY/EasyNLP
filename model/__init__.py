@@ -2,6 +2,8 @@ from .bert_ft import *
 from .bert_gen import *
 from .bert_gen_ft import *
 from .dual_bert import *
+from .dual_bert_one2many import *
+from .dual_bert_hierarchical import *
 from .dual_bert_poly import *
 from .dual_bert_cl import *
 from .dual_bert_vae import *
@@ -42,6 +44,29 @@ def load_model(args):
         )
     elif args['model'] == 'dual-bert':
         model = BERTDualEncoderAgent(
+            args['multi_gpu'], 
+            args['total_step'], 
+            args['warmup_step'], 
+            run_mode=args['mode'], 
+            pretrained_model=args['pretrained_model'],
+            local_rank=args['local_rank'], 
+            dataset_name=args['dataset'],
+            pretrained_model_path=args['pretrained_model_path']
+        )
+    elif args['model'] == 'dual-bert-one2many':
+        model = BERTDualOne2ManyEncoderAgent(
+            args['multi_gpu'], 
+            args['total_step'], 
+            args['warmup_step'], 
+            run_mode=args['mode'], 
+            pretrained_model=args['pretrained_model'],
+            local_rank=args['local_rank'], 
+            dataset_name=args['dataset'],
+            pretrained_model_path=args['pretrained_model_path'],
+            head=args['head_num']
+        )
+    elif args['model'] == 'dual-bert-hierarchical':
+        model = BERTDualHierarchicalEncoderAgent(
             args['multi_gpu'], 
             args['total_step'], 
             args['warmup_step'], 
