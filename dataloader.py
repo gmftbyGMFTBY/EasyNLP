@@ -14,6 +14,21 @@ def read_text_data(path):
     return dataset
 
 
+def read_text_data_one2many(path):
+    with open(path) as f:
+        dataset = []
+        for line in f.readlines():
+            line = line.strip().split('\t')
+            label, utterances = int(line[0]), line[1:]
+            if label == 0:
+                continue
+            utterances = [''.join(u.split()) for u in utterances]
+            context, response = ' [SEP] '.join(utterances[:-1]), utterances[-1]
+            dataset.append((context, response))
+    print(f'[!] load {len(dataset)} utterances from {path}')
+    return dataset
+
+
 def read_text_data_hier(path):
     with open(path) as f:
         dataset = []
@@ -180,18 +195,16 @@ class BERTDualOne2ManyDataset(Dataset):
         self.head = head
         self.vocab = BertTokenizer.from_pretrained(model)
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
-        self.pp_path = f'{os.path.splitext(path)[0]}_one2many.pt'
+        self.pp_path = f'{os.path.splitext(path)[0]}_dual_one2many.pt'
         if os.path.exists(self.pp_path):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
-        data = read_text_data(path)
+        data = read_text_data_one2many(path)
         candidates = torch.load(f'{os.path.split(path)[0]}/candidates.pt')
         self.data = []
         if mode == 'train':
-            for (label, context, response), cands in tqdm(list(zip(data, candidates))):
-                if label == 0:
-                    continue
+            for (context, response), cands in tqdm(list(zip(data, candidates))):
                 # cands = cands[:self.head-1]
                 cands = random.sample(cands, self.head-1)
                 item = self.vocab.batch_encode_plus([context, response] + cands)
