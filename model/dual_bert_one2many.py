@@ -26,19 +26,32 @@ class BERTDualOne2ManyEncoder(nn.Module):
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
 
-        self.header = nn.ModuleList([
-            nn.Sequential(
-                nn.Linear(768, 768),
-                nn.Dropout(p=p),
-                nn.ReLU(),
-                nn.Linear(768, 768)
-            ) for _ in range(head)
-        ])
+        # self.header = nn.ModuleList([
+        #     nn.Sequential(
+        #         nn.Linear(768, 768),
+        #         nn.Dropout(p=p),
+        #         nn.ReLU(),
+        #         nn.Linear(768, 768)
+        #     ) for _ in range(head)
+        # ])
+        self.h_to_mu = nn.Linear(768, 768)
+        self.h_to_logvar = nn.Sequential(
+            nn.Linear(768, 768),
+            nn.Sigmoid(),
+        )
         self.head_num = head
+
+    def reparametrize(self, rep):
+        z_mu = self.h_to_mu(rep)
+        std = self.h_to_logvar(rep)
+        # eps = torch.FloatTensor(std.size()).normal_().half().cuda()
+        eps = torch.FloatTensor(std.size()).normal_().cuda()
+        z = eps.mul(std).add_(z_mu)
+        return z
         
     def _encode(self, cid, rids, cid_mask, rids_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
-        cid_reps = [self.header[i](cid_rep) for i in range(self.head_num)]
+        cid_reps = [self.reparametrize(cid_rep) for _ in range(self.head_num)]
         rid_reps = []
         for rid, rid_mask in zip(rids, rids_mask):
             rid_rep = self.can_encoder(rid, rid_mask)
@@ -47,9 +60,9 @@ class BERTDualOne2ManyEncoder(nn.Module):
         return cid_reps, rid_reps
 
     @torch.no_grad()
-    def _encode_(self, cid, rid, rid_mask):
+    def _encode_(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
-        cid_reps = [self.header[i](cid_rep) for i in range(self.head_num)]
+        cid_reps = [self.reparametrize(cid_rep) for _ in range(self.head_num)]
         rid_rep = self.can_encoder(rid, rid_mask)
         return cid_reps, rid_rep
 
@@ -73,7 +86,9 @@ class BERTDualOne2ManyEncoder(nn.Module):
             cid_rep = cid_rep.squeeze(0)    # [768]
             dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B]
             dot_products.append(dot_product)
-        dot_products = torch.stack(dot_products).max(dim=0)    # [K, B] -> [B]
+        dot_products = torch.stack(dot_products)
+        # pooling strategy
+        dot_products = F.softmax(dot_products, dim=1).mean(dim=0)[0]
         return dot_product
         
     def forward(self, cid, rids, cid_mask, rids_mask):
@@ -84,8 +99,8 @@ class BERTDualOne2ManyEncoder(nn.Module):
         # ========== K matrixes =========== #
         # cid_rep/rid_rep: [B, 768]
         # use half for supporting the apex
-        mask = torch.eye(batch_size).cuda().half()    # [B, B]
-        # mask = torch.eye(batch_size).cuda()    # [B, B]
+        # mask = torch.eye(batch_size).cuda().half()    # [B, B]
+        mask = torch.eye(batch_size).cuda()    # [B, B]
         # calculate accuracy
         acc, loss = 0, 0
         for cid_rep, rid_rep in zip(cid_reps, rid_reps):
@@ -138,11 +153,11 @@ class BERTDualOne2ManyEncoderAgent(RetrievalBaseAgent):
             lr=self.args['lr'],
         )
         if run_mode == 'train':
-            self.model, self.optimizer = amp.initialize(
-                self.model, 
-                self.optimizer,
-                opt_level=self.args['amp_level'],
-            )
+            # self.model, self.optimizer = amp.initialize(
+            #     self.model, 
+            #     self.optimizer,
+            #     opt_level=self.args['amp_level'],
+            # )
             self.scheduler = transformers.get_linear_schedule_with_warmup(
                 self.optimizer, 
                 num_warmup_steps=warmup_step, 
@@ -153,10 +168,6 @@ class BERTDualOne2ManyEncoderAgent(RetrievalBaseAgent):
                 find_unused_parameters=True,
             )
         elif run_mode == 'inference':
-            # self.model = amp.initialize(
-            #     self.model, 
-            #     opt_level=self.args['amp_level'],
-            # )
             self.model = nn.parallel.DistributedDataParallel(
                 self.model, device_ids=[local_rank], output_device=local_rank,
                 find_unused_parameters=True,
@@ -180,9 +191,11 @@ class BERTDualOne2ManyEncoderAgent(RetrievalBaseAgent):
                 self.optimizer.zero_grad()
                 cid, rid, cid_mask, rid_mask = batch
                 loss, acc = self.model(cid, rid, cid_mask, rid_mask)
-                with amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                    scaled_loss.backward()
-                clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
+                # with amp.scale_loss(loss, self.optimizer) as scaled_loss:
+                #     scaled_loss.backward()
+                loss.backward()
+                # clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
+                clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
                 self.optimizer.step()
                 self.scheduler.step()
     

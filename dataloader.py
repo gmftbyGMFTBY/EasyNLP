@@ -81,7 +81,7 @@ class BERTDualHierarchicalDataset(Dataset):
     
     def __init__(self, path, mode='train', max_len=300, model='bert-base-chinese'):
         self.mode, self.max_len = mode, max_len
-        self.inner_bsz = 16
+        self.inner_bsz = 32 
         self.vocab = BertTokenizer.from_pretrained(model)
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.pp_path = f'{os.path.splitext(path)[0]}_dual_hier.pt'
@@ -200,10 +200,10 @@ class BERTDualOne2ManyDataset(Dataset):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
-        data = read_text_data_one2many(path)
         candidates = torch.load(f'{os.path.split(path)[0]}/candidates.pt')
         self.data = []
         if mode == 'train':
+            data = read_text_data_one2many(path)
             for (context, response), cands in tqdm(list(zip(data, candidates))):
                 # cands = cands[:self.head-1]
                 cands = random.sample(cands, self.head-1)
@@ -215,6 +215,7 @@ class BERTDualOne2ManyDataset(Dataset):
                     'rids': rids,
                 })
         else:
+            data = read_text_data(path)
             for i in tqdm(range(0, len(data), 10)):
                 batch = data[i:i+10]
                 rids = []
@@ -288,6 +289,7 @@ class BERTDualOne2ManyDataset(Dataset):
             label = torch.LongTensor(label)
             if torch.cuda.is_available():
                 ids, rids, rids_mask, label = ids.cuda(), rids.cuda(), rids_mask.cuda(), label.cuda()
+            return ids, rids, rids_mask, label
 
 
 # ========== DUAL BERT INFERENCE CONTEXT Dataset ========== #
