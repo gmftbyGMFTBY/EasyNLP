@@ -116,12 +116,21 @@ class BERTDualHierarchicalMultiEncoder(nn.Module):
         max_turn_length = max(turn_length_collector)
         for ctx in cid_reps:
             # ctx: [L, E]
-            if len(ctx) < max_turn_length:
-                # support apex
-                # zero_tensor = torch.zeros(1, 768).half().cuda()
-                zero_tensor = torch.zeros(1, 768).cuda()
-                padding = [zero_tensor] * (max_turn_length - len(ctx))
-                ctx = torch.cat([ctx] + padding)    # [L, E]
+            if max_turn_length > 512:
+                # 512 is the max_length
+                if len(ctx) > 512:
+                    ctx = ctx[-512:, :]
+                else:
+                    zero_tensor = torch.zeros(1, 768).cuda()
+                    padding = [zero_tensor] * (512 - len(ctx))
+                    ctx = torch.cat([ctx] + padding)    # [L, E]
+            else:
+                if len(ctx) < max_turn_length:
+                    # support apex
+                    # zero_tensor = torch.zeros(1, 768).half().cuda()
+                    zero_tensor = torch.zeros(1, 768).cuda()
+                    padding = [zero_tensor] * (max_turn_length - len(ctx))
+                    ctx = torch.cat([ctx] + padding)    # [L, E]
             cid_reps_.append(ctx)
         # mask: [B, L], True ignored
         cid_reps = torch.stack(cid_reps_)    # [B, L, E]
