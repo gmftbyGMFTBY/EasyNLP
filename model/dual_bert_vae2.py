@@ -66,29 +66,35 @@ class BERTDualEncoderVAE2(nn.Module):
             cid_rep_ = self.reparametrize(cid_rep, ctx=True)
             cid_rep_ = cid_rep_.squeeze(0)    # [768]
             # cid_rep/rid_rep: [768], [B, 768]
-            for _ in range(self.inference_times):
-                rid_rep_ = self.reparametrize(rid_rep, ctx=False)    # [B, 768]
-                dot_product = torch.matmul(cid_rep_, rid_rep_.t())    # [B]
-                scores.append(dot_product)
+            rid_rep_ = self.reparametrize(rid_rep, ctx=False)    # [B, 768]
+            dot_product = torch.matmul(cid_rep_, rid_rep_.t())    # [B]
+            scores.append(dot_product)
+        # max strategy
         scores = torch.stack(scores).max(dim=0)[0]
+        # scores = torch.stack(scores).mean(dim=0)
         return scores
         
     def forward(self, cid, rid, cid_mask, rid_mask):
         batch_size = cid.shape[0]
         assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
-        cid_rep = self.reparametrize(cid_rep, ctx=True)
-        rid_rep = self.reparametrize(rid_rep, ctx=False)
-        # cid_rep/rid_rep: [B, 768]
-        dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
-        # use half for supporting the apex
-        mask = torch.eye(batch_size).cuda().half()    # [B, B]
-        # calculate accuracy
-        acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
-        acc = acc_num / batch_size
-        # calculate the loss
-        loss = F.log_softmax(dot_product, dim=-1) * mask
-        loss = (-loss.sum(dim=1)).mean()
+
+        loss, acc = 0, 0
+        for _ in range(self.inference_times):
+            cid_rep_ = self.reparametrize(cid_rep, ctx=True)
+            rid_rep_ = self.reparametrize(rid_rep, ctx=False)
+            # cid_rep/rid_rep: [B, 768]
+            dot_product = torch.matmul(cid_rep_, rid_rep_.t())  # [B, B]
+            # use half for supporting the apex
+            mask = torch.eye(batch_size).cuda().half()    # [B, B]
+            # calculate accuracy
+            acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
+            acc += acc_num / batch_size
+            # calculate the loss
+            loss_ = F.log_softmax(dot_product, dim=-1) * mask
+            loss += (-loss_.sum(dim=1)).mean()
+        loss /= self.inference_times
+        acc /= self.inference_times
         return loss, acc
     
     
@@ -112,7 +118,7 @@ class BERTDualEncoderVAE2Agent(RetrievalBaseAgent):
             'max_len': 256,
             'dataset': dataset_name,
             'pretrained_model_path': pretrained_model_path,
-            'times': 10,
+            'times': 5, 
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
         self.model = BERTDualEncoderVAE2(model=self.args['model'], times=self.args['times'])

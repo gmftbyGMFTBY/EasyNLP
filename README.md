@@ -75,6 +75,8 @@ _Note:_
 | Bi-Encoder(bsz=64) | 83.7  | 92.4  | 98.5  | 90.02  |
 | Bi-Encoder-CL2 | 80.6  | 91.1  | 98.2  | 88.16  |
 | Bi-Encoder-VAE(Max/5)  | 80.7  | 92.4  | 97.9  | 88.43  |
+| Bi-Encoder-VAE2(Max/5) | 80.2  | 91.9  | 98.8  | 88.11  |
+| Bi-Encoder-VAE2(Max/10) | 80.4  | 92.0  | 98.7  | 88.22  |
 | Poly-Encoder   | 80.0  | 90.3  | 97.9  | 87.69  |
 | BERT-FT        | 62.3  | 84.2  | 98    | 77.59  |
 | BERT-FT+MLM+NSP|       |       |       |        |
