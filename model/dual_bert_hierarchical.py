@@ -14,12 +14,18 @@ class PositionEmbedding(nn.Module):
 
     def __init__(self, d_model, dropout=0.5, max_len=512):
         super(PositionEmbedding, self).__init__()
-        self.pe = nn.Embedding(512, 768)    # max 512 sequence length
+        self.dropout = nn.Dropout(p=dropout)
+        pe = torch.zeros(max_len, d_model)    # [max_len, d_model]
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)    # [1, max_len]
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
+        pe = pe.unsqueeze(0).transpose(0, 1)
+        self.register_buffer('pe', pe)
 
     def forward(self, x):
-        # x: [B, S]
-        x = self.pe(x)    # [B, S, E]
-        return x.permute(1, 0, 2)    # [S, B, E]
+        x = x + self.pe[:x.size(0), :]
+        return self.dropout(x)
 
 
 class BertEmbedding(nn.Module):
@@ -48,6 +54,8 @@ class BertEmbedding(nn.Module):
 
 
 class BERTDualHierarchicalMultiEncoder(nn.Module):
+    
+    '''switch transformer to one layer GRU'''
 
     def __init__(self, model='bert-base-chinese', layer=2, m=5, p=0.1, nhead=6, dim_ffd=512, num_encoder_layers=4):
         super(BERTDualHierarchicalMultiEncoder, self).__init__()
@@ -89,8 +97,35 @@ class BERTDualHierarchicalMultiEncoder(nn.Module):
 
     @torch.no_grad()
     def _encode_(self, cid, rid, cid_mask, rid_mask):
+        cid_rep = self.ctx_encoder(cid, cid_mask)    # B*[M, E]
         rid_rep = self.can_encoder(rid, rid_mask)
         return cid_rep, rid_rep
+    
+    def reconstruct_tensor_(self, cid_rep):
+        '''resort and generate the order'''
+        # =========== reconstruct cid ========== #
+        # cid_rep: [L, M, E]; L = B*k
+        ctx = cid_rep[:]
+        # ==========
+        p_, pos = [], 0
+        for i in ctx:
+            p_.extend([pos] * i.shape[0])
+            pos += 1
+        pos = p_
+        # ==========
+        ctx = torch.cat(ctx)    # [L, E]
+        # =========== padding =========== #
+        cid_reps_, pos_index_ = [], []    # [B, S, E]; [B, S]
+        # 512 is the max_length
+        if len(ctx) > 512:
+            ctx = ctx[-512:, :]
+            pos = pos[-512:]
+        pos = torch.LongTensor(pos).cuda()
+        assert pos.shape[0] == ctx.shape[0]
+        # mask: [B, L], True ignored
+        cid_reps = ctx.unsqueeze(0)    # [1, L, E]
+        pos_index = pos.unsqueeze(0)    # [1, L]
+        return cid_reps, pos_index    # [1, L, E]; [1, L]
 
     def reconstruct_tensor(self, cid_rep, cid_turn_length):
         '''resort and generate the order'''
@@ -161,12 +196,16 @@ class BERTDualHierarchicalMultiEncoder(nn.Module):
     def predict(self, cid, rid, cid_turn_length, cid_mask, rid_mask):
         '''batch size is 1'''
         batch_size = rid.shape[0]
-        cid_rep, rid_rep = self._encode_(cid, rid, cid_mask, rid_mask)    # [B, M, E]
-        cid_rep = self.reconstruct_tensor(cid_rep, cid_turn_length)
-        _, cid_rep = self.ctx_gru(cid_rep)    # [1, B, 768]
-        cid_rep = cid_rep.permute(1, 0, 2)    # [B, layer, 768]
-        cid_rep = cid_rep.reshape(cid_rep.shape[0], -1)    # [B, layer*768]
-        cid_rep = self.proj(cid_rep)    # [B, 768]
+        cid_rep, rid_rep = self._encode_(cid, rid, cid_mask, rid_mask)    # B*[M, E]
+        cid_rep, pos_index = self.reconstruct_tensor_(cid_rep)
+        cid_rep = cid_rep.permute(1, 0, 2)     # [L, 1, E]
+
+        # hierarchical encode
+        # cid_rep += self.position_embd(pos_index)
+        cid_rep = self.position_embd(cid_rep)
+        cid_rep = self.ctx_trs(cid_rep)    # [L, 1, E]
+        cid_rep = cid_rep.mean(dim=0).squeeze()    # [E], pooling
+        cid_rep = self.proj(cid_rep)    # [768]
         # cid_rep/rid_rep: [768], [B, 768]
         dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B]
         return dot_product
@@ -182,9 +221,10 @@ class BERTDualHierarchicalMultiEncoder(nn.Module):
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask, recover_mapping, cid_turn_length)
         cid_rep, cid_mask, pos_index = self.reconstruct_tensor(cid_rep, cid_turn_length)
         cid_rep = cid_rep.permute(1, 0, 2)     # [L, B, E]
-        cid_rep += self.position_embd(pos_index)
 
         # hierarchical encode
+        # cid_rep += self.position_embd(pos_index)
+        cid_rep = self.position_embd(cid_rep)
         cid_rep = self.ctx_trs(cid_rep, src_key_padding_mask=cid_mask)    # [L, B, E]
         cid_rep = cid_rep.mean(dim=0)    # [B, E], pooling
         cid_rep = self.proj(cid_rep)    # [B, 768]

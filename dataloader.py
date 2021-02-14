@@ -14,6 +14,18 @@ def read_text_data(path):
     return dataset
 
 
+def read_text_data_fast(path):
+    with open(path) as f:
+        dataset = []
+        for line in f.readlines():
+            line = line.strip().split('\t')
+            label, utterances = int(line[0]), line[1:]
+            context, response = ' [SEP] '.join(utterances[:-1]), utterances[-1]
+            dataset.append((label, context, response))
+    print(f'[!] load {len(dataset)} utterances from {path}')
+    return dataset
+
+
 def read_text_data_one2many(path):
     with open(path) as f:
         dataset = []
@@ -421,7 +433,11 @@ class BERTDualDataset(Dataset):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
-        data = read_text_data(path)
+        if 'lccc' in path:
+            data = read_text_data_fast(path)
+            print(f'[!] fast dataloader activate ...')
+        else:
+            data = read_text_data(path)
         self.data = []
         if mode == 'train':
             for label, context, response in tqdm(data):

@@ -17,6 +17,8 @@ post_epoch=2
 post_max_len=512
 models=(bert-ft bert-gen bert-gen-ft bert-post dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical)
 ONE_BATCH_SIZE_MODEL=(dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical)
+datasets=(ecommerce douban ubuntu lccc)
+chinese_datasets=(douban ecommerce lccc)
 # ========== metadata ========== #
 
 mode=$1
@@ -24,7 +26,6 @@ dataset=$2
 model=$3
 cuda=$4 
 
-chinese_datasets=(douban ecommerce)
 if [[ ${chinese_datasets[@]} =~ $dataset ]]; then
     pretrained_model=bert-base-chinese
 else
@@ -32,7 +33,6 @@ else
 fi
 
 if [ $mode = 'init' ]; then
-    datasets=(ecommerce douban ubuntu)
     mkdir bak ckpt rest
     for m in ${models[@]}
     do
