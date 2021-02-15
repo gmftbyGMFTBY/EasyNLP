@@ -25,6 +25,8 @@ class BERTDualEncoder(nn.Module):
         super(BERTDualEncoder, self).__init__()
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
+
+        self.criterion = nn.BCELoss()
         
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
@@ -42,29 +44,41 @@ class BERTDualEncoder(nn.Module):
         return cid_rep
     
     @torch.no_grad()
-    def predict(self, cid, rid, rid_mask):
+    def predict(self, cid, rid, rid_mask, strategy='cosine'):
         batch_size = rid.shape[0]
         cid_rep, rid_rep = self._encode(cid.unsqueeze(0), rid, None, rid_mask)
         cid_rep = cid_rep.squeeze(0)    # [768]
         # cid_rep/rid_rep: [768], [B, 768]
         dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B]
+        if strategy == 'cosine':
+            dot_product = dot_product / torch.norm(cid_rep) / torch.norm(rid_rep, dim=1)
+            dot_product = (dot_product + 1) / 2    # range from 0 to 1
         return dot_product
         
-    def forward(self, cid, rid, cid_mask, rid_mask):
+    def forward(self, cid, rid, cid_mask, rid_mask, strategy='cosine'):
         batch_size = cid.shape[0]
         assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
         # cid_rep/rid_rep: [B, 768]
-        dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
-        # use half for supporting the apex
-        mask = torch.eye(batch_size).cuda().half()    # [B, B]
-        # mask = torch.eye(batch_size).cuda()    # [B, B]
-        # calculate accuracy
-        acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
-        acc = acc_num / batch_size
-        # calculate the loss
-        loss = F.log_softmax(dot_product, dim=-1) * mask
-        loss = (-loss.sum(dim=1)).mean()
+        if strategy == 'dot':
+            dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
+            # use half for supporting the apex
+            mask = torch.eye(batch_size).cuda().half()    # [B, B]
+            # mask = torch.eye(batch_size).cuda()    # [B, B]
+            # calculate accuracy
+            acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
+            acc = acc_num / batch_size
+            # calculate the loss
+            loss = F.log_softmax(dot_product, dim=-1) * mask
+            loss = (-loss.sum(dim=1)).mean()
+        elif strategy == 'cosine':
+            dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
+            dot_product = dot_product / torch.norm(cid_rep, dim=1).unsqueeze(1) / torch.norm(rid_rep, dim=1).unsqueeze(0)
+            dot_product = (dot_product + 1) / 2    # range from 0 to 1
+            label = torch.eye(batch_size).cuda().half()
+            acc_num = (dot_product.max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
+            acc = acc_num / batch_size
+            loss = self.criterion(dot_product.view(-1), label.view(-1))
         return loss, acc
     
     
@@ -77,7 +91,7 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         except:
             raise Exception(f'[!] multi gpu ids are needed, but got: {multi_gpu}')
         self.args = {
-            'lr': 5e-5,
+            'lr': 5e-5,     # dot production: 5e-5, cosine similairty: 1e-4
             'grad_clip': 1.0,
             'multi_gpu': self.gpu_ids,
             'model': pretrained_model,

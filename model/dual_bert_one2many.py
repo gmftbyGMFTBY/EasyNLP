@@ -21,10 +21,12 @@ class BertEmbedding(nn.Module):
 
 class BERTDualOne2ManyEncoder(nn.Module):
     
-    def __init__(self, model='bert-base-chinese', head=5, p=0.1):
+    def __init__(self, model='bert-base-chinese', head=5, p=0.1, margin=0.1):
         super(BERTDualOne2ManyEncoder, self).__init__()
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
+        self.margin = margin
+        self.criterion = nn.MarginRankingLoss(margin=self.margin)
 
         # self.header = nn.ModuleList([
         #     nn.Sequential(
@@ -85,6 +87,7 @@ class BERTDualOne2ManyEncoder(nn.Module):
         for cid_rep in cid_reps:
             cid_rep = cid_rep.squeeze(0)    # [768]
             dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B]
+            dot_product = dot_product / torch.norm(cid_rep, dim=1) / torch.norm(rid_rep, dim=1)
             dot_products.append(dot_product)
         dot_products = torch.stack(dot_products)
         # pooling strategy
@@ -102,9 +105,10 @@ class BERTDualOne2ManyEncoder(nn.Module):
         # mask = torch.eye(batch_size).cuda().half()    # [B, B]
         mask = torch.eye(batch_size).cuda()    # [B, B]
         # calculate accuracy
-        acc, loss = 0, 0
+        acc, loss, additional_matrix = 0, 0, []
         for cid_rep, rid_rep in zip(cid_reps, rid_reps):
             dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
+            dot_product = dot_product / torch.norm(cid_rep, dim=1).unsqueeze(1) / torch.norm(rid_rep, dim=1).unsqueeze(0)
             # calculate the loss
             loss_ = F.log_softmax(dot_product, dim=-1) * mask
             loss_ = (-loss_.sum(dim=1)).mean()
@@ -113,8 +117,20 @@ class BERTDualOne2ManyEncoder(nn.Module):
             # calculate the acc
             acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
             acc += acc_num / batch_size
+            # .append [B]
+            additional_matrix.append(dot_product[range(batch_size), range(batch_size)])
+        # groundtruth is better than retrieved samples
+        additional_matrix = torch.stack(additional_matrix).transpose(0, 1)    # [K, B] -> [B, K]
+        additional_matrix_avg = additional_matrix[:, 1:].mean(dim=1)    # [B]
+        additional_matrix_achor = additional_matrix_achor[:, 0]    # [B]
+        additional_loss = self.criterion(
+            additional_matrix_achor,
+            additional_matrix_avg, 
+            torch.ones(batch_size).half().cuda(),    # supporting apex
+        )
         acc /= self.head_num
         loss /= self.head_num
+        loss += additional_loss
         return loss, acc
     
     
@@ -141,9 +157,10 @@ class BERTDualOne2ManyEncoderAgent(RetrievalBaseAgent):
             'oom_times': 10,
             'head_num': head,
             'dropout': 0.1,
+            'margin': 0.1,
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
-        self.model = BERTDualOne2ManyEncoder(model=self.args['model'], head=self.args['head_num'], p=self.args['dropout'])
+        self.model = BERTDualOne2ManyEncoder(model=self.args['model'], head=self.args['head_num'], p=self.args['dropout'], margin=self.args['margin'])
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)
         if torch.cuda.is_available():

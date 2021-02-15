@@ -69,6 +69,7 @@ _Note:_
 | -------------- | ----- | ----- | ----- | ------ |
 | SOTA           | 77.6  | 91.9  | 99.1  | -      |
 | Bi-Encoder(bsz=16) | 80.6  | 90.6  | 98.3  | 88.01  |
+| Bi-Encoder-cosine(bsz=16) |       |       |      |       |
 | Bi-Encoder-one2many(bsz=16) | 80.6  | 90.6  | 98.3  | 88.01  |
 | Bi-Encoder-hier(bsz=16) | 80.5  | 91.1  | 98.5  | 88.14  |
 | Bi-Encoder-hier-multi(bsz=16,m=5) | 80.6  | 91.6  | 98.6  | 88.01  |
