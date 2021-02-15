@@ -26,8 +26,6 @@ class BERTDualEncoder(nn.Module):
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
 
-        self.criterion = nn.BCELoss()
-        
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
         rid_rep = self.can_encoder(rid, rid_mask)
@@ -44,9 +42,11 @@ class BERTDualEncoder(nn.Module):
         return cid_rep
     
     @torch.no_grad()
-    def predict(self, cid, rid, rid_mask, strategy='cosine'):
+    def predict(self, cid, rid, rid_mask, strategy='dot'):
         batch_size = rid.shape[0]
         cid_rep, rid_rep = self._encode(cid.unsqueeze(0), rid, None, rid_mask)
+        cid_rep = torch.div(cid_rep, torch.norm(cid_rep, dim=1, p=2, keepdim=True))
+        rid_rep = torch.div(rid_rep, torch.norm(rid_rep, dim=1, p=2, keepdim=True))
         cid_rep = cid_rep.squeeze(0)    # [768]
         # cid_rep/rid_rep: [768], [B, 768]
         dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B]
@@ -55,12 +55,14 @@ class BERTDualEncoder(nn.Module):
             dot_product = (dot_product + 1) / 2    # range from 0 to 1
         return dot_product
         
-    def forward(self, cid, rid, cid_mask, rid_mask, strategy='cosine'):
+    def forward(self, cid, rid, cid_mask, rid_mask, strategy='dot'):
         batch_size = cid.shape[0]
         assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
         # cid_rep/rid_rep: [B, 768]
         if strategy == 'dot':
+            cid_rep = torch.div(cid_rep, torch.norm(cid_rep, dim=1, p=2, keepdim=True))
+            rid_rep = torch.div(rid_rep, torch.norm(rid_rep, dim=1, p=2, keepdim=True))
             dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
             # use half for supporting the apex
             mask = torch.eye(batch_size).cuda().half()    # [B, B]
@@ -75,10 +77,13 @@ class BERTDualEncoder(nn.Module):
             dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
             dot_product = dot_product / torch.norm(cid_rep, dim=1).unsqueeze(1) / torch.norm(rid_rep, dim=1).unsqueeze(0)
             dot_product = (dot_product + 1) / 2    # range from 0 to 1
+            mask = torch.eye(batch_size).cuda().half()    # [B, B]
+            dot_product = F.log_softmax(dot_product, dim=-1)
             label = torch.eye(batch_size).cuda().half()
-            acc_num = (dot_product.max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
+            acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
             acc = acc_num / batch_size
-            loss = self.criterion(dot_product.view(-1), label.view(-1))
+            loss = F.log_softmax(dot_product, dim=-1) * mask
+            loss = (-loss.sum(dim=1)).mean()
         return loss, acc
     
     
@@ -178,8 +183,10 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
                 if 'out of memory' in str(exception):
                     oom_t += 1
                     torch.cuda.empty_cache()
-                if oom_t > self.args['oom_times']:
-                    raise Exception(f'[!] too much OOM errors')
+                    if oom_t > self.args['oom_times']:
+                        raise Exception(f'[!] too much OOM errors')
+                else:
+                    raise Exception(str(exception))
 
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
