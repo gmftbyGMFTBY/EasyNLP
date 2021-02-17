@@ -116,5 +116,6 @@ else
         --max_len $max_len \
         --seed $seed \
         --multi_gpu $cuda \
+        --head_num $head_num \
         --pretrained_model $pretrained_model
 fi

@@ -64,13 +64,14 @@ _Note:_
 * Compared with Bi-Encoder-CL, Bi-Encoder-CL2 fully leverage the variant response represeantion
 * more negative samples, better performance
 * google position embedding is better than absolute position embedding
+* max strategy is equal to mean strategy
 
 | Original       | R10@1 | R10@2 | R10@5 | MRR    |
 | -------------- | ----- | ----- | ----- | ------ |
 | SOTA           | 77.6  | 91.9  | 99.1  | -      |
 | Bi-Encoder(bsz=16) | 80.6  | 90.6  | 98.3  | 88.01  |
-| Bi-Encoder-cosine(bsz=16) |       |       |      |       |
-| Bi-Encoder-one2many(bsz=16) | 80.6  | 90.6  | 98.3  | 88.01  |
+| Bi-Encoder-one2many(bsz=16,head=5,mean) | 88.2  | 94.7  | 99.2  | 92.85  |
+| Bi-Encoder-one2many(bsz=16,head=5,max) | 88.2  | 94.7  | 99.2  | 92.85  |
 | Bi-Encoder-hier(bsz=16) | 80.5  | 91.1  | 98.5  | 88.14  |
 | Bi-Encoder-hier-multi(bsz=16,m=5) | 80.6  | 91.6  | 98.6  | 88.01  |
 | Bi-Encoder(bsz=64) | 83.7  | 92.4  | 98.5  | 90.02  |
