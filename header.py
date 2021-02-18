@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import torch.distributed as dist
 from torch.utils.data import Dataset, DataLoader
 from torch.nn.utils import clip_grad_norm_
 from torch.nn import DataParallel

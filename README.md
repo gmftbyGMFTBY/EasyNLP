@@ -69,7 +69,7 @@ _Note:_
 | Original       | R10@1 | R10@2 | R10@5 | MRR    |
 | -------------- | ----- | ----- | ----- | ------ |
 | SOTA           | 77.6  | 91.9  | 99.1  | -      |
-| Bi-Encoder(bsz=16) | 80.6  | 90.6  | 98.3  | 88.01  |
+| Bi-Encoder(bsz=16) | 79.7  | 90.8  | 98.3  | 87.63  |
 | Bi-Encoder-one2many(bsz=16,head=5,mean) | 88.2  | 94.7  | 99.2  | 92.85  |
 | Bi-Encoder-one2many(bsz=16,head=5,max) | 88.2  | 94.7  | 99.2  | 92.85  |
 | Bi-Encoder-hier(bsz=16) | 80.5  | 91.1  | 98.5  | 88.14  |

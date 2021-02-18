@@ -44,8 +44,8 @@ class BERTDualOne2ManyEncoder(nn.Module):
     def reparametrize(self, rep):
         z_mu = self.h_to_mu(rep)
         std = self.h_to_logvar(rep)
-        # eps = torch.FloatTensor(std.size()).normal_().half().cuda()
-        eps = torch.FloatTensor(std.size()).normal_().cuda()
+        eps = torch.FloatTensor(std.size()).normal_().half().cuda()
+        # eps = torch.FloatTensor(std.size()).normal_().cuda()
         z = eps.mul(std).add_(z_mu)
         return z
         
@@ -102,8 +102,8 @@ class BERTDualOne2ManyEncoder(nn.Module):
         # ========== K matrixes =========== #
         # cid_rep/rid_rep: [B, 768]
         # use half for supporting the apex
-        # mask = torch.eye(batch_size).cuda().half()    # [B, B]
-        mask = torch.eye(batch_size).cuda()    # [B, B]
+        mask = torch.eye(batch_size).cuda().half()    # [B, B]
+        # mask = torch.eye(batch_size).cuda()    # [B, B]
         # calculate accuracy
         acc, loss, additional_matrix = 0, 0, []
         counter = 0
@@ -126,8 +126,8 @@ class BERTDualOne2ManyEncoder(nn.Module):
         loss /= self.head_num
         # groundtruth is better than retrieved samples
         additional_matrix = torch.stack(additional_matrix).transpose(0, 1)    # [K, B] -> [B, K]
-        # mask_ = torch.zeros_like(additional_matrix).half().cuda()
-        mask_ = torch.zeros_like(additional_matrix).cuda()
+        mask_ = torch.zeros_like(additional_matrix).half().cuda()
+        # mask_ = torch.zeros_like(additional_matrix).cuda()
         mask_[:, 0] = 1
         additional_loss = F.log_softmax(additional_matrix, dim=-1) * mask_
         additional_loss = (-additional_loss.sum(dim=1)).mean()
@@ -171,11 +171,11 @@ class BERTDualOne2ManyEncoderAgent(RetrievalBaseAgent):
             lr=self.args['lr'],
         )
         if run_mode == 'train':
-            # self.model, self.optimizer = amp.initialize(
-            #     self.model, 
-            #     self.optimizer,
-            #     opt_level=self.args['amp_level'],
-            # )
+            self.model, self.optimizer = amp.initialize(
+                self.model, 
+                self.optimizer,
+                opt_level=self.args['amp_level'],
+            )
             self.scheduler = transformers.get_linear_schedule_with_warmup(
                 self.optimizer, 
                 num_warmup_steps=warmup_step, 
@@ -209,11 +209,11 @@ class BERTDualOne2ManyEncoderAgent(RetrievalBaseAgent):
                 self.optimizer.zero_grad()
                 cid, rid, cid_mask, rid_mask = batch
                 loss, acc = self.model(cid, rid, cid_mask, rid_mask)
-                # with amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                #     scaled_loss.backward()
-                loss.backward()
-                # clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
-                clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+                with amp.scale_loss(loss, self.optimizer) as scaled_loss:
+                    scaled_loss.backward()
+                # loss.backward()
+                clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
+                # clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
                 self.optimizer.step()
                 self.scheduler.step()
     
