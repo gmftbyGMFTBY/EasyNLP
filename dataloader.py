@@ -866,28 +866,31 @@ def load_dataset(args):
     
     path = f'data/{args["dataset"]}/{args["mode"]}.txt'
     if args['mode'] == 'train':
-        if args['model'] == 'dual-bert-on2many':
+        if args['model'] == 'dual-bert-one2many':
             data = DATASET_MAP[args['model']](path, mode=args['mode'], max_len=args['max_len'], model=args['pretrained_model'], head=args['head_num'])
             train_sampler = torch.utils.data.distributed.DistributedSampler(data)
-            iter_ = DataLoader(data, shuffle=False, batch_size=args['batch_size'], collate_fn=data.collate, sampler=train_sampler)
+            iter_ = DataLoader(data, batch_size=args['batch_size'], collate_fn=data.collate, sampler=train_sampler)
         else:
             data = DATASET_MAP[args['model']](path, mode=args['mode'], max_len=args['max_len'], model=args['pretrained_model'])
             train_sampler = torch.utils.data.distributed.DistributedSampler(data)
-            iter_ = DataLoader(data, shuffle=False, batch_size=args['batch_size'], collate_fn=data.collate, sampler=train_sampler)
+            iter_ = DataLoader(data, batch_size=args['batch_size'], collate_fn=data.collate, sampler=train_sampler)
     elif args['mode'] == 'inference':
         # only inference train dataset
         path = f'data/{args["dataset"]}/train.txt'
         data_res = INFERENCE_DATASET_MAP[args['model']][0](path, mode=args['mode'], max_len=args['max_len'], model=args['pretrained_model'])
         data_ctx = INFERENCE_DATASET_MAP[args['model']][1](path, mode=args['mode'], max_len=args['max_len'], model=args['pretrained_model'])
+
         res_sampler = torch.utils.data.distributed.DistributedSampler(data_res)
-        iter_res = DataLoader(data_res, shuffle=False, batch_size=args['batch_size'], collate_fn=data_res.collate, sampler=res_sampler)
+        iter_res = DataLoader(data_res, batch_size=args['batch_size'], collate_fn=data_res.collate, sampler=res_sampler)
+
         ctx_sampler = torch.utils.data.distributed.DistributedSampler(data_ctx)
-        iter_ctx = DataLoader(data_ctx, shuffle=False, batch_size=args['batch_size'], collate_fn=data_ctx.collate, sampler=ctx_sampler)
+        iter_ctx = DataLoader(data_ctx, batch_size=args['batch_size'], collate_fn=data_ctx.collate, sampler=ctx_sampler)
+
         iter_ = (iter_res, iter_ctx)
         data = (data_res, data_ctx)
     else:
         data = DATASET_MAP[args['model']](path, mode=args['mode'], max_len=args['max_len'], model=args['pretrained_model'])
-        iter_ = DataLoader(data, shuffle=False, batch_size=args['batch_size'], collate_fn=data.collate)
+        iter_ = DataLoader(data, batch_size=args['batch_size'], collate_fn=data.collate)
     if args['mode'] == 'inference':
         if not os.path.exists(data_ctx.pp_path):
             data_ctx.save()
@@ -902,15 +905,15 @@ def load_dataset(args):
 if __name__ == "__main__":
     # ========== BERTFTDataset ========== #
     train_data = BERTFTDataset('data/ubuntu/train.txt', mode='train')
-    train_iter = DataLoader(train_data, shuffle=True, batch_size=10, collate_fn=train_data.collate)
+    train_iter = DataLoader(train_data, batch_size=10, collate_fn=train_data.collate)
     # ========== BERTFTDataset ========== #
     # ========== BERTGenDataset ========== #
     # train_data = BERTGenDataset('data/ecommerce/train.txt', mode='train')
-    # train_iter = DataLoader(train_data, shuffle=True, batch_size=10, collate_fn=train_data.collate)
+    # train_iter = DataLoader(train_data, batch_size=10, collate_fn=train_data.collate)
     # ========== BERTGenDataset ========== #
     # ========== BERTGenFTDataset ========== #
     # train_data = BERTGenFTDataset('data/ubuntu/train.txt', mode='train')
-    # train_iter = DataLoader(train_data, shuffle=True, batch_size=10, collate_fn=train_data.collate)
+    # train_iter = DataLoader(train_data, batch_size=10, collate_fn=train_data.collate)
     # ========== BERTGenFTDataset ========== #
     train_data.save()
     for batch in tqdm(train_iter):
