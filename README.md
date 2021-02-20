@@ -87,31 +87,25 @@ _Note:_
 | BERT-Gen-FT    | 63.3  | 83.5  | 97.1  | 77.71  |
 | BERT-Gen-FT w/o Gen | | | | |
 
-| Adversarial   | R10@1 | R10@2 | R10@5 | MRR    |
-| ------------- | ----- | ----- | ----- | ------ |
-| BERT-FT       | 37.4  | 73.4  | 97.6  | 62.84  |
-| BERT-Gen-FT   | 44.1  | 74.8  | 96.1  | 66.23  |
-| BERT-Gen-FT w/o Gen | | | | |
-
 ### 2. Douban Dataset
 
-| Original       | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP  |
-| -------------- | ----- | ----- | ----- | ----- | ----- | ----- |
-| SOTA           | 31.8  | 48.2  | 85.8  | 66.4  | 49.9  | 62.5  |
-| Bi-Encoder(bsz=16)     | 28.57 | 47.46 | 81.35 | 63.33 | 45.28 | 59.6  |
-| Bi-Encoder(bsz=60)     | 30.24 | 50.32 | 83.09 | 65.33 | 47.98 | 61.38  |
+* one2many performance is worse than dual-bert on douban corpus, which is very different from the ecommerce corpus. The reason maybe: the dual-bert performance is worse than that on ecommerce corpus, which lead to bad candidate samples for dual-bert-one2many model, e.g., the quality of the candidates matter!
+* SOLUTION1: separate the head, reduce the side effect of the bad candidates
+* SOLUTION2: improve the coarse retrieved candidates quality
+* SOLUTION3: MoE (Mixture of the Experts)?
+
+| Original           | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   |
+| ------------------ | ----- | ----- | ----- | ----- | ----- | ------ |
+| SOTA               | 31.8  | 48.2  | 85.8  | 66.4  | 49.9  | 62.5   |
+| Bi-Encoder(bsz=16) | 28.16 | 48.5  | 80.87 | 63.64 | 46.18 | 59.38  |
+| Bi-Encoder(bsz=16,head=5,max) | 28.32 | 46.64  | 81.32 | 62.83 | 44.98 | 58.74  |
+| Bi-Encoder(bsz=60) | 30.24 | 50.32 | 83.09 | 65.33 | 47.98 | 61.38  |
 | BERT-FT        | 25.86 | 44.63 | 83.43 | 61.55 | 42.58 | 57.59 |
 | BERT-FT+MLM+NSP|       |       |       |       |       |       |
 | BERT-FT+MLM    |       |       |       |       |       |       |
 | BERT-FT+NSP    |       |       |       |       |       |       |
 | BERT-Gen-FT    |       |       |       |       |       |       |
 | BERT-Gen-FT w/o Gen |      |      |      |      |     |     |
-
-| Adversarial   | R10@1 | R10@2 | R10@5 | MRR    |  P@1  | MAP  |
-| ------------- | ----- | ----- | ----- | ------ | ----- | ---- |
-| BERT-FT       |  |  |  |  |       |      |
-| BERT-Gen-FT   |  |  |  |  |       |      |
-| BERT-Gen-FT w/o Gen | | | | |
 
 ### 3. Ubuntu Dataset
 

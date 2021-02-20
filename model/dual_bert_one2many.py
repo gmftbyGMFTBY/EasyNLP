@@ -56,7 +56,6 @@ class BERTDualOne2ManyEncoder(nn.Module):
         for rid, rid_mask in zip(rids, rids_mask):
             rid_rep = self.can_encoder(rid, rid_mask)
             rid_reps.append(rid_rep)
-        ipdb.set_trace()
         assert len(cid_reps) == len(rid_reps)
         return cid_reps, rid_reps
 
