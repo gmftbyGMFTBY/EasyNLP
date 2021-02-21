@@ -207,7 +207,7 @@ class BERTDualOne2ManyDataset(Dataset):
         self.head = head
         self.vocab = BertTokenizer.from_pretrained(model)
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
-        self.pp_path = f'{os.path.splitext(path)[0]}_dual_one2many.pt'
+        self.pp_path = f'{os.path.splitext(path)[0]}_dual_one2many_{head}.pt'
         if os.path.exists(self.pp_path):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')

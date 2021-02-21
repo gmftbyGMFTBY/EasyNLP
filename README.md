@@ -65,13 +65,26 @@ _Note:_
 * more negative samples, better performance
 * google position embedding is better than absolute position embedding
 * max strategy is equal to mean strategy
+* worse quality (bi-encoder-one2many-bad) of the candidates could bring better performance (test whether the number of the negative samples matter, rather than the quality)
+
+| Original       | R10@1 | R10@2 | R10@5 | MRR    |
+| -------------- | ----- | ----- | ----- | ------ |
+| SOTA           | 77.6  | 91.9  | 99.1  | -      |
+| Bi-Encoder(bsz=16) | 79.7  | 90.8  | 98.3  | 87.63  |
+| Bi-Encoder(bsz=64) | 83.7  | 92.4  | 98.5  | 90.02  |
+| Bi-Encoder-one2many-bad(bsz=16,head=5,max,pre-extract=50) | 91.0  | 95.5  | 99.3  | 94.46  |
+| Bi-Encoder-one2many(bsz=16,head=5,mean) | 88.2  | 94.7  | 99.2  | 92.85  |
+| Bi-Encoder-one2many-ivfpq(bsz=16,head=5,max) | 86.1  | 92.9  | 98.5  | 91.3  |
+| Bi-Encoder-one2many-lsh(bsz=16,head=5,max) | 88.2  | 94.7  | 99.2  | 92.85  |
 
 | Original       | R10@1 | R10@2 | R10@5 | MRR    |
 | -------------- | ----- | ----- | ----- | ------ |
 | SOTA           | 77.6  | 91.9  | 99.1  | -      |
 | Bi-Encoder(bsz=16) | 79.7  | 90.8  | 98.3  | 87.63  |
 | Bi-Encoder-one2many(bsz=16,head=5,mean) | 88.2  | 94.7  | 99.2  | 92.85  |
-| Bi-Encoder-one2many(bsz=16,head=5,max) | 88.2  | 94.7  | 99.2  | 92.85  |
+| Bi-Encoder-one2many-bad(bsz=16,head=5,max) | 91.0  | 95.5  | 99.3  | 94.46  |
+| Bi-Encoder-one2many-ivfpq(bsz=16,head=5,max) | 86.1  | 92.9  | 98.5  | 91.3  |
+| Bi-Encoder-one2many-lsh(bsz=16,head=5,max) | 88.2  | 94.7  | 99.2  | 92.85  |
 | Bi-Encoder-hier(bsz=16) | 80.5  | 91.1  | 98.5  | 88.14  |
 | Bi-Encoder-hier-multi(bsz=16,m=5) | 80.6  | 91.6  | 98.6  | 88.01  |
 | Bi-Encoder(bsz=64) | 83.7  | 92.4  | 98.5  | 90.02  |

@@ -93,7 +93,7 @@ class BERTDualOne2ManyEncoder(nn.Module):
         dot_products = F.softmax(dot_products, dim=1).max(dim=0)[0]
         return dot_products
         
-    def forward(self, cid, rids, cid_mask, rids_mask):
+    def forward_(self, cid, rids, cid_mask, rids_mask):
         batch_size = cid.shape[0]
         assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
         cid_reps, rid_reps = self._encode(cid, rids, cid_mask, rids_mask)
@@ -131,6 +131,32 @@ class BERTDualOne2ManyEncoder(nn.Module):
         additional_loss = F.log_softmax(additional_matrix, dim=-1) * mask_
         additional_loss = (-additional_loss.sum(dim=1)).mean()
         loss += additional_loss
+        return loss, acc
+    
+    def forward(self, cid, rids, cid_mask, rids_mask):
+        batch_size = cid.shape[0]
+        assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
+        cid_reps, rid_reps = self._encode(cid, rids, cid_mask, rids_mask)
+
+        # ========== K matrixes =========== #
+        # cid_rep/rid_rep: [B, 768]
+        # use half for supporting the apex
+        mask = torch.eye(batch_size).cuda().half()    # [B, B]
+        mask = torch.cat([mask, torch.zeros(batch_size, batch_size*(len(cid_reps)-1)).half().cuda()], dim=-1)    # [B, B*K]
+        # mask = torch.eye(batch_size).cuda()    # [B, B]
+        # calculate accuracy
+        acc, loss, additional_matrix = 0, 0, []
+        counter = 0
+        dot_products = []
+        for cid_rep, rid_rep in zip(cid_reps, rid_reps):
+            dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
+            dot_products.append(dot_product)
+        dot_products = torch.cat(dot_products, dim=-1)    # [B, B*K]
+        # calculate the loss
+        loss_ = F.log_softmax(dot_products, dim=-1) * mask
+        loss = (-loss_.sum(dim=1)).mean()
+        acc_num = (F.softmax(dot_products, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
+        acc = acc_num / batch_size
         return loss, acc
     
     

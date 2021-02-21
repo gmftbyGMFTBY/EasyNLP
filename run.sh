@@ -11,6 +11,7 @@ warmup_ratio=0.1
 epoch=5
 bsz=16
 head_num=5     # hyperparameter of the dual-bert-one2mnay: 11 heads means there are 1 groundtruths and 10 retrieved candidates
+pre_extract=50
 inf_bsz=64
 post_bsz=64
 post_epoch=2
@@ -83,6 +84,7 @@ elif [ $mode = 'inference' ]; then
         --dataset $dataset \
         --nums ${#gpu_ids[@]} \
         --inner_bsz 128 \
+        --pre_extract $pre_extract \
         --topk 10
 elif [ $mode = 'train-post' ]; then
     # load model parameters from post train checkpoint and fine tuning

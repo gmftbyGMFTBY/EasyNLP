@@ -6,6 +6,7 @@ def parser_args():
     parser.add_argument('--nums', default=4, type=int)
     parser.add_argument('--inner_bsz', default=128, type=int)
     parser.add_argument('--topk', default=20, type=int)
+    parser.add_argument('--pre_extract', default=50, type=int)
     return parser.parse_args()
 
 class Searcher:
@@ -78,16 +79,18 @@ if __name__ == "__main__":
     # ========== Search ========== #
     print(f'[!] begin to search the candidates')
     candidates = []
+    assert args['pre_extract'] > args['topk'], f'pre extracted samples must bigger than topk'
     for idx in tqdm(range(0, len(queries), args['inner_bsz'])):
         q_matrix = queries[idx:idx+args['inner_bsz']]
         q_text_mapping_rest = q_text_mapping[idx:idx+args['inner_bsz']]
-        rest = searcher._search(q_matrix, topk=args['topk']+1)
+        # rest = searcher._search(q_matrix, topk=args['topk']+1)
+        rest = searcher._search(q_matrix, topk=args['pre_extract'])
         # reconstruct
         rr = []
         for item_gt, item_rest in zip(q_text_mapping_rest, rest):
             if item_gt in item_rest:
                 item_rest.remove(item_gt)
-            rr.append(item_rest[:args['topk']])
+            rr.append(item_rest[-args['topk']:])
         candidates.extend(rr)
     torch.save(candidates, f'data/{args["dataset"]}/candidates.pt')
     print(f'[!] save retrieved candidates into data/{args["dataset"]}/candidates.pt')
