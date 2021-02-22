@@ -189,7 +189,7 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             batch_size = len(rids)
             assert batch_size == 10, f'[!] {batch_size} isnot equal to 10'
             scores = self.model.predict(cid, rids, rids_mask).cpu().tolist()    # [B]
-            
+
             rank_by_pred, pos_index, stack_scores = \
           calculate_candidates_ranking(
                 np.array(scores), 
@@ -204,7 +204,8 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
                         total_examples -= 1
             total_mrr += logits_mrr(pos_index)
             total_correct = np.add(total_correct, num_correct)
-            total_examples += math.ceil(label.size()[0] / 10)
+            # total_examples += math.ceil(label.size()[0] / 10)
+            total_examples += 1
         avg_mrr = float(total_mrr / total_examples)
         avg_prec_at_one = float(total_prec_at_one / total_examples)
         avg_map = float(total_map / total_examples)
