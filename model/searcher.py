@@ -90,7 +90,8 @@ if __name__ == "__main__":
         for item_gt, item_rest in zip(q_text_mapping_rest, rest):
             if item_gt in item_rest:
                 item_rest.remove(item_gt)
-            rr.append(item_rest[-args['topk']:])
+            # rr.append(item_rest[-args['topk']:])
+            rr.append(random.sample(item_rest, args['topk']))
         candidates.extend(rr)
     torch.save(candidates, f'data/{args["dataset"]}/candidates.pt')
     print(f'[!] save retrieved candidates into data/{args["dataset"]}/candidates.pt')

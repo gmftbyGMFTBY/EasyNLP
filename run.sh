@@ -29,6 +29,7 @@ cuda=$4
 
 if [[ ${chinese_datasets[@]} =~ $dataset ]]; then
     pretrained_model=bert-base-chinese
+    # pretrained_model=hfl/chinese-bert-wwm
 else
     pretrained_model=bert-base-uncased
 fi

@@ -165,8 +165,8 @@ class BERTDualHierarchicalMultiEncoder(nn.Module):
             else:
                 if len(ctx) < max_turn_length:
                     # support apex
-                    # zero_tensor = torch.zeros(1, 768).half().cuda()
-                    zero_tensor = torch.zeros(1, 768).cuda()
+                    zero_tensor = torch.zeros(1, 768).half().cuda()
+                    # zero_tensor = torch.zeros(1, 768).cuda()
                     padding = [zero_tensor] * (max_turn_length - len(ctx))
                     ctx = torch.cat([ctx] + padding)    # [L, E]
                     pos += [pos[-1] + 1] * (max_turn_length - len(pos))
@@ -232,8 +232,8 @@ class BERTDualHierarchicalMultiEncoder(nn.Module):
         # cid_rep/rid_rep: [B, 768]
         dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
         # use half for supporting the apex
-        # mask = torch.eye(batch_size).cuda().half()    # [B, B]
-        mask = torch.eye(batch_size).cuda()    # [B, B]
+        mask = torch.eye(batch_size).cuda().half()    # [B, B]
+        # mask = torch.eye(batch_size).cuda()    # [B, B]
         # mask = torch.eye(batch_size).cuda()    # [B, B]
         # calculate accuracy
         acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
@@ -385,8 +385,8 @@ class BERTDualHierarchicalEncoderAgent(RetrievalBaseAgent):
             'nhead': 6,
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
-        self.model = BERTDualHierarchicalMultiEncoder(model=self.args['model'], num_encoder_layers=self.args['num_encoder_layers'], dim_ffd=self.args['dim_ffd'], nhead=self.args['nhead'], m=self.args['m'])
-        # self.model = BERTDualHierarchicalEncoder(model=self.args['model'], layer=self.args['gru_layer'], p=self.args['dropout'])
+        # self.model = BERTDualHierarchicalMultiEncoder(model=self.args['model'], num_encoder_layers=self.args['num_encoder_layers'], dim_ffd=self.args['dim_ffd'], nhead=self.args['nhead'], m=self.args['m'])
+        self.model = BERTDualHierarchicalEncoder(model=self.args['model'], layer=self.args['gru_layer'], p=self.args['dropout'])
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)
         if torch.cuda.is_available():
@@ -396,11 +396,11 @@ class BERTDualHierarchicalEncoderAgent(RetrievalBaseAgent):
             lr=self.args['lr'],
         )
         if run_mode == 'train':
-            # self.model, self.optimizer = amp.initialize(
-            #     self.model, 
-            #     self.optimizer,
-            #     opt_level=self.args['amp_level'],
-            # )
+            self.model, self.optimizer = amp.initialize(
+                self.model, 
+                self.optimizer,
+                opt_level=self.args['amp_level'],
+            )
             self.scheduler = transformers.get_linear_schedule_with_warmup(
                 self.optimizer, 
                 num_warmup_steps=warmup_step, 
@@ -439,11 +439,11 @@ class BERTDualHierarchicalEncoderAgent(RetrievalBaseAgent):
                 self.optimizer.zero_grad()
                 cid, rid, cid_turn_length, cid_mask, rid_mask, recover_mapping = batch
                 loss, acc = self.model(cid, rid, cid_turn_length, cid_mask, rid_mask, recover_mapping)
-                # with amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                #     scaled_loss.backward()
-                loss.backward()
-                # clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
-                clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+                with amp.scale_loss(loss, self.optimizer) as scaled_loss:
+                    scaled_loss.backward()
+                # loss.backward()
+                clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
+                # clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
                 self.optimizer.step()
                 self.scheduler.step()
     

@@ -93,7 +93,7 @@ class BERTDualOne2ManyEncoder(nn.Module):
         dot_products = F.softmax(dot_products, dim=1).max(dim=0)[0]
         return dot_products
         
-    def forward_(self, cid, rids, cid_mask, rids_mask):
+    def forward(self, cid, rids, cid_mask, rids_mask):
         batch_size = cid.shape[0]
         assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
         cid_reps, rid_reps = self._encode(cid, rids, cid_mask, rids_mask)
@@ -133,7 +133,7 @@ class BERTDualOne2ManyEncoder(nn.Module):
         loss += additional_loss
         return loss, acc
     
-    def forward(self, cid, rids, cid_mask, rids_mask):
+    def forward_(self, cid, rids, cid_mask, rids_mask):
         batch_size = cid.shape[0]
         assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
         cid_reps, rid_reps = self._encode(cid, rids, cid_mask, rids_mask)

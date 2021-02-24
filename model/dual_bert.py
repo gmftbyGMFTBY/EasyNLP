@@ -187,9 +187,11 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         for idx, batch in enumerate(pbar):                
             cid, rids, rids_mask, label = batch
             batch_size = len(rids)
-            assert batch_size == 10, f'[!] {batch_size} isnot equal to 10'
+            assert batch_size == 10, f'[!] {batch_size} is not equal to 10'
             scores = self.model.predict(cid, rids, rids_mask).cpu().tolist()    # [B]
 
+            # if sum(label) > 1:
+            #     ipdb.set_trace()
             rank_by_pred, pos_index, stack_scores = \
           calculate_candidates_ranking(
                 np.array(scores), 

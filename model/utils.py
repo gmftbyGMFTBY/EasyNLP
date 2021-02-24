@@ -53,6 +53,7 @@ def logits_recall_at_k(pos_index, k_list=[1, 2, 5, 10]):
                     else:
                         all_recall_at_k.append(0)
                 num_correct[i][j] += np.mean(all_recall_at_k)
+                # num_correct[i][j] += np.max(all_recall_at_k)
 
     return np.sum(num_correct, axis=0)
 
