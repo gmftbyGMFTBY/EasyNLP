@@ -73,9 +73,10 @@ _Note:_
 | SOTA           | 77.6  | 91.9  | 99.1  | -      |
 | Bi-Encoder(bsz=16) | 79.7  | 90.8  | 98.3  | 87.63  |
 | Bi-Encoder(bsz=64) | 83.7  | 92.4  | 98.5  | 90.02  |
+| Bi-Encoder-one2many(bsz=16,head=5,max,pre-extract=50) | 91.0  | 95.5  | 99.3  | 94.46  |
 | Bi-Encoder-one2many-concat(bsz=16,head=5,max,pre-extract=50) | 89.5  | 94.4  | 98.8  | 93.42  |
-| Bi-Encoder-one2many-bad(bsz=16,head=5,max,pre-extract=50) | 91.0  | 95.5  | 99.3  | 94.46  |
-| Bi-Encoder-one2many(bsz=16,head=5,mean) | 88.2  | 94.7  | 99.2  | 92.85  |
+| Bi-Encoder-one2many-no-additional-loss(bsz=16,head=5,max) | 75.5  | 89.1  | 98.2  | 85.28  |
+| Bi-Encoder-one2many(bsz=16,head=5,mean,pre-extract=10) | 88.2  | 94.7  | 99.2  | 92.85  |
 | Bi-Encoder-one2many-ivfpq(bsz=16,head=5,max) | 86.1  | 92.9  | 98.5  | 91.3  |
 | Bi-Encoder-one2many-lsh(bsz=16,head=5,max) | 88.2  | 94.7  | 99.2  | 92.85  |
 
@@ -115,11 +116,12 @@ _Note:_
 | SOTA               | 31.8  | 48.2  | 85.8  | 66.4  | 49.9  | 62.5   |
 | Bi-Encoder(max-len=512,bsz=16) | 28.1 | 47.85  | 83.05 | 64.45 | 46.63 | 59.36  |
 | Bi-Encoder(bsz=16) | 28.16 | 48.5  | 80.87 | 63.64 | 46.18 | 59.38  |
-| Bi-Encoder-one2many-concat(bsz=16,pre-extract=200) | 27.2 | 46.04  | 80.46 | 61.83 | 43.63 | 58.33|
 | Bi-Encoder(chinese-bert-wwm,bsz=16) | 28.14 | 46.89  | 81.92 | 63.19 | 45.43 | 59.11  |
-| Bi-Encoder-ivfpq(bsz=16,head=5,max) | 22.53 | 39.03  | 77.26 | 55.92 | 34.93 | 52.71  |
-| Bi-Encoder-lsh(bsz=16,head=5,max) | 28.32 | 46.64  | 81.32 | 62.83 | 44.98 | 58.74  |
 | Bi-Encoder(bsz=60) | 30.24 | 50.32 | 83.09 | 65.33 | 47.98 | 61.38  |
+| Bi-Encoder-one2many-no-additional-loss(bsz=16) | 28.89 | 48.39 | 81.13 | 63.4 | 45.28 | 59.63 |
+| Bi-Encoder-one2many-concat(bsz=16,pre-extract=200) | 27.2 | 46.04  | 80.46 | 61.83 | 43.63 | 58.33|
+| Bi-Encoder-one2many-ivfpq(bsz=16,head=5,max) | 22.53 | 39.03  | 77.26 | 55.92 | 34.93 | 52.71  |
+| Bi-Encoder-one2many-lsh(bsz=16,head=5,max) | 28.32 | 46.64  | 81.32 | 62.83 | 44.98 | 58.74  |
 | BERT-FT        | 25.86 | 44.63 | 83.43 | 61.55 | 42.58 | 57.59 |
 | BERT-FT+MLM+NSP|       |       |       |       |       |       |
 | BERT-FT+MLM    |       |       |       |       |       |       |

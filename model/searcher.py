@@ -88,6 +88,7 @@ if __name__ == "__main__":
         # reconstruct
         rr = []
         for item_gt, item_rest in zip(q_text_mapping_rest, rest):
+            # ipdb.set_trace()
             if item_gt in item_rest:
                 item_rest.remove(item_gt)
             # rr.append(item_rest[-args['topk']:])
