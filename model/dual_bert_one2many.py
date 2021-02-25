@@ -21,7 +21,7 @@ class BertEmbedding(nn.Module):
 
 class BERTDualOne2ManyEncoder(nn.Module):
     
-    def __init__(self, model='bert-base-chinese', head=5, p=0.1, margin=0.1):
+    def __init__(self, model='bert-base-chinese', head=5, p=0.1, margin=0.1, pseudo=0.7):
         super(BERTDualOne2ManyEncoder, self).__init__()
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
@@ -40,6 +40,8 @@ class BERTDualOne2ManyEncoder(nn.Module):
             nn.Sigmoid(),
         )
         self.head_num = head
+        # the candidates that have higher matching degrees have `pseudo_ratio` possibility for being treated as the positive samples
+        self.pseudo_ratio = pseudo
 
     def reparametrize(self, rep):
         z_mu = self.h_to_mu(rep)
@@ -92,8 +94,53 @@ class BERTDualOne2ManyEncoder(nn.Module):
         # dot_products = F.softmax(dot_products, dim=1).mean(dim=0)
         dot_products = F.softmax(dot_products, dim=1).max(dim=0)[0]
         return dot_products
-        
+    
     def forward(self, cid, rids, cid_mask, rids_mask):
+        batch_size = cid.shape[0]
+        assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
+        cid_reps, rid_reps = self._encode(cid, rids, cid_mask, rids_mask)
+
+        # ========== K matrixes =========== #
+        # cid_rep/rid_rep: [B, 768]
+        # use half for supporting the apex
+        mask = torch.eye(batch_size).cuda().half()    # [B, B]
+        # mask = torch.eye(batch_size).cuda()    # [B, B]
+        # calculate accuracy
+        acc, loss, additional_loss, counter = 0, 0, 0, 0
+        for cid_rep, rid_rep in zip(cid_reps, rid_reps):
+            dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
+            # dot_product = dot_product / torch.norm(cid_rep, dim=1).unsqueeze(1) / torch.norm(rid_rep, dim=1).unsqueeze(0)
+            # calculate the loss
+            loss_ = F.log_softmax(dot_product, dim=-1) * mask
+            loss_ = (-loss_.sum(dim=1)).mean()
+            loss += loss_
+
+            # calculate the acc
+            acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
+            if counter == 0:
+                acc = acc_num / batch_size
+            # .append [B]
+            additional_candidates = dot_product[range(batch_size), range(batch_size)]
+            additional_label = additional_candidates > additional_candidates[0]
+            additional_set = []
+            ipdb.set_trace()
+            for label, item in zip(additional_label, additional_candidates):
+                if label:
+                    if random.random() <= self.pseudo_ratio:
+                        additional_set.append(item)
+                else:
+                    additional_set.append(item)
+            additional_set = torch.stack(additional_set)
+            mask_ = torch.zeros_like(addition_set).half().cuda()
+            mask_[0] = 1
+            additional_loss = F.log_softmax(additional_set, dim=-1) * mask_
+            additional_loss = -additional_loss.sum(dim=1)
+            loss += additional_loss
+            counter += 1
+        loss /= self.head_num
+        return loss, acc
+        
+    def forward_(self, cid, rids, cid_mask, rids_mask):
         batch_size = cid.shape[0]
         assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
         cid_reps, rid_reps = self._encode(cid, rids, cid_mask, rids_mask)
@@ -119,19 +166,19 @@ class BERTDualOne2ManyEncoder(nn.Module):
             if counter == 0:
                 acc = acc_num / batch_size
             # .append [B]
-            # additional_matrix.append(dot_product[range(batch_size), range(batch_size)])
+            additional_matrix.append(dot_product[range(batch_size), range(batch_size)])
             counter += 1
         # acc /= self.head_num
         loss /= self.head_num
 
         # groundtruth is better than retrieved samples
-        # additional_matrix = torch.stack(additional_matrix).transpose(0, 1)    # [K, B] -> [B, K]
-        # mask_ = torch.zeros_like(additional_matrix).half().cuda()
+        additional_matrix = torch.stack(additional_matrix).transpose(0, 1)    # [K, B] -> [B, K]
+        mask_ = torch.zeros_like(additional_matrix).half().cuda()
         # mask_ = torch.zeros_like(additional_matrix).cuda()
-        # mask_[:, 0] = 1
-        # additional_loss = F.log_softmax(additional_matrix, dim=-1) * mask_
-        # additional_loss = (-additional_loss.sum(dim=1)).mean()
-        # loss += additional_loss
+        mask_[:, 0] = 1
+        additional_loss = F.log_softmax(additional_matrix, dim=-1) * mask_
+        additional_loss = (-additional_loss.sum(dim=1)).mean()
+        loss += additional_loss
         return loss, acc
     
     def forward_(self, cid, rids, cid_mask, rids_mask):
@@ -185,9 +232,10 @@ class BERTDualOne2ManyEncoderAgent(RetrievalBaseAgent):
             'head_num': head,
             'dropout': 0.1,
             'margin': 0.1,
+            'pseudo_ratio': 0.7,
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
-        self.model = BERTDualOne2ManyEncoder(model=self.args['model'], head=self.args['head_num'], p=self.args['dropout'], margin=self.args['margin'])
+        self.model = BERTDualOne2ManyEncoder(model=self.args['model'], head=self.args['head_num'], p=self.args['dropout'], margin=self.args['margin'], pseudo=self.args['pseudo_ratio'])
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)
         if torch.cuda.is_available():
