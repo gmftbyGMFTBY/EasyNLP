@@ -106,7 +106,8 @@ class BERTDualOne2ManyEncoder(nn.Module):
         mask = torch.eye(batch_size).cuda().half()    # [B, B]
         # mask = torch.eye(batch_size).cuda()    # [B, B]
         # calculate accuracy
-        acc, loss, additional_loss, counter = 0, 0, 0, 0
+        acc, loss, additional_loss, counter, additional_counter = 0, 0, 0, 0, 0
+        additional_matrix = []
         for cid_rep, rid_rep in zip(cid_reps, rid_reps):
             dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
             # dot_product = dot_product / torch.norm(cid_rep, dim=1).unsqueeze(1) / torch.norm(rid_rep, dim=1).unsqueeze(0)
@@ -120,24 +121,30 @@ class BERTDualOne2ManyEncoder(nn.Module):
             if counter == 0:
                 acc = acc_num / batch_size
             # .append [B]
-            additional_candidates = dot_product[range(batch_size), range(batch_size)]
-            additional_label = additional_candidates > additional_candidates[0]
+            additional_matrix.append(dot_product[range(batch_size), range(batch_size)])
+            counter += 1
+        loss /= self.head_num
+        additional_matrix = torch.stack(additional_matrix).transpose(0, 1)    # [K, B] -> [B, K]
+        for additional_candidates in additional_matrix:
+            additional_label = additional_candidates > additional_candidates[0]    # [K]
             additional_set = []
-            ipdb.set_trace()
             for label, item in zip(additional_label, additional_candidates):
                 if label:
                     if random.random() <= self.pseudo_ratio:
                         additional_set.append(item)
                 else:
                     additional_set.append(item)
-            additional_set = torch.stack(additional_set)
-            mask_ = torch.zeros_like(addition_set).half().cuda()
-            mask_[0] = 1
-            additional_loss = F.log_softmax(additional_set, dim=-1) * mask_
-            additional_loss = -additional_loss.sum(dim=1)
-            loss += additional_loss
-            counter += 1
-        loss /= self.head_num
+            additional_set = torch.stack(additional_set)     # [K_]
+            if len(additional_set) == 1:
+                # all better than ground-truth
+                continue
+            else:
+                additional_counter += 1
+                mask_ = torch.zeros_like(additional_set).half().cuda()
+                mask_[0] = 1
+                additional_loss_ = F.log_softmax(additional_set, dim=-1) * mask_
+                additional_loss += -additional_loss_.sum()
+        loss += additional_loss / additional_counter
         return loss, acc
         
     def forward_(self, cid, rids, cid_mask, rids_mask):
