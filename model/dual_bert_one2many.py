@@ -9,9 +9,14 @@ class BertEmbedding(nn.Module):
         super(BertEmbedding, self).__init__()
         self.model = BertModel.from_pretrained(model)
 
-    def forward(self, ids, attn_mask):
+    def forward(self, ids, attn_mask, m=0):
         embd = self.model(ids, attention_mask=attn_mask)[0]    # [B, S, 768]
-        return embd[:, 0, :]
+        if m == 0:
+            return embd[:, 0, :]
+        else:
+            x = embd[:, :m, :].reshape(embd.shape[0], -1)    # [B, M, 768] -> [B, M*768]
+            return x
+
     
     def load_bert_model(self, path):
         state_dict = torch.load(path, map_location=torch.device('cpu'))
@@ -21,25 +26,26 @@ class BertEmbedding(nn.Module):
 
 class BERTDualOne2ManyEncoder(nn.Module):
     
-    def __init__(self, model='bert-base-chinese', head=5, p=0.1, margin=0.1, pseudo=0.7):
+    def __init__(self, model='bert-base-chinese', head=5, p=0.1, margin=0.1, pseudo=0.7, m=5):
         super(BERTDualOne2ManyEncoder, self).__init__()
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
 
-        # self.header = nn.ModuleList([
-        #     nn.Sequential(
-        #         nn.Linear(768, 768),
-        #         nn.Dropout(p=p),
-        #         nn.ReLU(),
-        #         nn.Linear(768, 768)
-        #     ) for _ in range(head)
-        # ])
-        self.h_to_mu = nn.Linear(768, 768)
-        self.h_to_logvar = nn.Sequential(
-            nn.Linear(768, 768),
-            nn.Sigmoid(),
-        )
+        self.header = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(m*768, 768),
+                nn.Dropout(p=p),
+                nn.ReLU(),
+                nn.Linear(768, 768)
+            ) for _ in range(head)
+        ])
+        # self.h_to_mu = nn.Linear(768, 768)
+        # self.h_to_logvar = nn.Sequential(
+        #     nn.Linear(768, 768),
+        #     nn.Sigmoid(),
+        # )
         self.head_num = head
+        self.m = m
         # the candidates that have higher matching degrees have `pseudo_ratio` possibility for being treated as the positive samples
         self.pseudo_ratio = pseudo
 
@@ -52,8 +58,9 @@ class BERTDualOne2ManyEncoder(nn.Module):
         return z
         
     def _encode(self, cid, rids, cid_mask, rids_mask):
-        cid_rep = self.ctx_encoder(cid, cid_mask)
-        cid_reps = [self.reparametrize(cid_rep) for _ in range(self.head_num)]
+        cid_rep = self.ctx_encoder(cid, cid_mask, m=self.m)
+        # cid_reps = [self.reparametrize(cid_rep) for _ in range(self.head_num)]
+        cid_reps = [self.header[i](cid_rep) for i in range(self.head_num)]
         rid_reps = []
         for rid, rid_mask in zip(rids, rids_mask):
             rid_rep = self.can_encoder(rid, rid_mask)
@@ -64,7 +71,8 @@ class BERTDualOne2ManyEncoder(nn.Module):
     @torch.no_grad()
     def _encode_(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
-        cid_reps = [self.reparametrize(cid_rep) for _ in range(self.head_num)]
+        # cid_reps = [self.reparametrize(cid_rep) for _ in range(self.head_num)]
+        cid_reps = [self.header[i](cid_rep) for i in range(self.head_num)]
         rid_rep = self.can_encoder(rid, rid_mask)
         return cid_reps, rid_rep
 
@@ -95,7 +103,7 @@ class BERTDualOne2ManyEncoder(nn.Module):
         dot_products = F.softmax(dot_products, dim=1).max(dim=0)[0]
         return dot_products
     
-    def forward(self, cid, rids, cid_mask, rids_mask):
+    def forward_(self, cid, rids, cid_mask, rids_mask):
         batch_size = cid.shape[0]
         assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
         cid_reps, rid_reps = self._encode(cid, rids, cid_mask, rids_mask)
@@ -147,7 +155,7 @@ class BERTDualOne2ManyEncoder(nn.Module):
         loss += additional_loss / additional_counter
         return loss, acc
         
-    def forward_(self, cid, rids, cid_mask, rids_mask):
+    def forward(self, cid, rids, cid_mask, rids_mask):
         batch_size = cid.shape[0]
         assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
         cid_reps, rid_reps = self._encode(cid, rids, cid_mask, rids_mask)
@@ -240,9 +248,10 @@ class BERTDualOne2ManyEncoderAgent(RetrievalBaseAgent):
             'dropout': 0.1,
             'margin': 0.1,
             'pseudo_ratio': 0.7,
+            'm': 5,
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
-        self.model = BERTDualOne2ManyEncoder(model=self.args['model'], head=self.args['head_num'], p=self.args['dropout'], margin=self.args['margin'], pseudo=self.args['pseudo_ratio'])
+        self.model = BERTDualOne2ManyEncoder(model=self.args['model'], head=self.args['head_num'], p=self.args['dropout'], margin=self.args['margin'], pseudo=self.args['pseudo_ratio'], m=self.args['m'])
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)
         if torch.cuda.is_available():
