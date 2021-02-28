@@ -31,19 +31,19 @@ class BERTDualOne2ManyEncoder(nn.Module):
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
 
-        self.header = nn.ModuleList([
-            nn.Sequential(
-                nn.Linear(m*768, 768),
-                nn.Dropout(p=p),
-                nn.ReLU(),
-                nn.Linear(768, 768)
-            ) for _ in range(head)
-        ])
-        # self.h_to_mu = nn.Linear(768, 768)
-        # self.h_to_logvar = nn.Sequential(
-        #     nn.Linear(768, 768),
-        #     nn.Sigmoid(),
-        # )
+        # self.header = nn.ModuleList([
+        #     nn.Sequential(
+        #         nn.Linear(m*768, 768),
+        #         nn.Dropout(p=p),
+        #         nn.ReLU(),
+        #         nn.Linear(768, 768)
+        #     ) for _ in range(head)
+        # ])
+        self.h_to_mu = nn.Linear(768, 768)
+        self.h_to_logvar = nn.Sequential(
+            nn.Linear(768, 768),
+            nn.Sigmoid(),
+        )
         self.head_num = head
         self.m = m
         # the candidates that have higher matching degrees have `pseudo_ratio` possibility for being treated as the positive samples
@@ -58,9 +58,9 @@ class BERTDualOne2ManyEncoder(nn.Module):
         return z
         
     def _encode(self, cid, rids, cid_mask, rids_mask):
-        cid_rep = self.ctx_encoder(cid, cid_mask, m=self.m)
-        # cid_reps = [self.reparametrize(cid_rep) for _ in range(self.head_num)]
-        cid_reps = [self.header[i](cid_rep) for i in range(self.head_num)]
+        cid_rep = self.ctx_encoder(cid, cid_mask)
+        cid_reps = [self.reparametrize(cid_rep) for _ in range(self.head_num)]
+        # cid_reps = [self.header[i](cid_rep) for i in range(self.head_num)]
         rid_reps = []
         for rid, rid_mask in zip(rids, rids_mask):
             rid_rep = self.can_encoder(rid, rid_mask)
@@ -71,8 +71,8 @@ class BERTDualOne2ManyEncoder(nn.Module):
     @torch.no_grad()
     def _encode_(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
-        # cid_reps = [self.reparametrize(cid_rep) for _ in range(self.head_num)]
-        cid_reps = [self.header[i](cid_rep) for i in range(self.head_num)]
+        cid_reps = [self.reparametrize(cid_rep) for _ in range(self.head_num)]
+        # cid_reps = [self.header[i](cid_rep) for i in range(self.head_num)]
         rid_rep = self.can_encoder(rid, rid_mask)
         return cid_reps, rid_rep
 
@@ -367,6 +367,7 @@ class BERTDualOne2ManyEncoderAgent(RetrievalBaseAgent):
         print(f"MRR: {round(avg_mrr, 4)}")
         print(f"P@1: {round(avg_prec_at_one, 4)}")
         print(f"MAP: {round(avg_map, 4)}")
+        print(f'ERRORs: {errors}')
 
     @torch.no_grad()
     def inference(self, inf_iter, test_iter):
