@@ -129,15 +129,15 @@ _Note:_
 | BERT-FT+MLM    |       |       |       |       |       |       |
 | BERT-FT+NSP    |       |       |       |       |       |       |
 
-### 3. Ubuntu Dataset
+### 3. LCCC Dataset
 
 * batch size: 48
 * max sequence length: 256
 
 | Original       | R10@1 | R10@2 | R10@5 | R2@1   |
 | -------------- | ----- | ----- | ----- | ------ |
-| SOTA           | 88.4  | 94.6  | 99.0  | 97.5   |
-| Bi-Encoder(bsz=48) | 67.22  | 80.23      | 94.6      |        |
+| SOTA           | -     | -     | -     | -      |
+| Bi-Encoder(bsz=16) | 21.5  | 31.2      | 47.1   | 36.65   |
 | BERT-FT        |       |       |       |        |
 | BERT-FT+MLM+NSP|       |       |       |        |
 | BERT-FT+MLM    |       |       |       |        |

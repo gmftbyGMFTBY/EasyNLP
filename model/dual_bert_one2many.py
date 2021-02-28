@@ -16,7 +16,6 @@ class BertEmbedding(nn.Module):
         else:
             x = embd[:, :m, :].reshape(embd.shape[0], -1)    # [B, M, 768] -> [B, M*768]
             return x
-
     
     def load_bert_model(self, path):
         state_dict = torch.load(path, map_location=torch.device('cpu'))
@@ -184,7 +183,7 @@ class BERTDualOne2ManyEncoder(nn.Module):
             additional_matrix.append(dot_product[range(batch_size), range(batch_size)])
             counter += 1
         # acc /= self.head_num
-        loss /= self.head_num
+        # loss /= self.head_num
 
         # groundtruth is better than retrieved samples
         additional_matrix = torch.stack(additional_matrix).transpose(0, 1)    # [K, B] -> [B, K]

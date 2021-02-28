@@ -7,7 +7,7 @@ import sys
 import pickle
 from collections import Counter
 from gensim.summarization import bm25
-from elasticsearch import Elasticsearch
+from elasticsearch import Elasticsearch, helpers
 import argparse
 
 
@@ -26,7 +26,7 @@ def parse_args():
 class ESUtils:
 
     def __init__(self, index_name, create_index=False):
-        self.es = Elasticsearch()
+        self.es = Elasticsearch(hosts=['localhost:9200'], http_auth=('elastic', 'elastic123'))
         self.index = index_name
         if create_index:
             mapping = {
@@ -43,19 +43,24 @@ class ESUtils:
             rest = self.es.indices.create(index=self.index)
             rest = self.es.indices.put_mapping(body=mapping, index=self.index)
 
-    def insert_pairs(self, pairs):
+    def insert(self, pairs):
         count = self.es.count(index=self.index)['count']
         print(f'[!] begin of the idx: {count}')
-        for qa in tqdm(pairs):
-            data = {'response': qa}
-            self.es.index(index=self.index, body=data)
-        print(f'[!] whole database size: {self.es.count(index=self.index)["count"]}')
+        actions = []
+        for i, qa in enumerate(tqdm(pairs)):
+            actions.append({
+                '_index': self.index,
+                '_id': i + count,
+                'response': qa
+            })
+        helpers.bulk(self.es, actions)
+        print(f'[!] database size: {self.es.count(index=self.index)["count"]}')
 
 
 class ESChat:
 
     def __init__(self, index_name):
-        self.es = Elasticsearch()
+        self.es = Elasticsearch(hosts=['localhost:9200'], http_auth=('elastic', 'elastic123'))
         self.index = index_name
 
     def search(self, query, samples=10):
@@ -87,13 +92,13 @@ def write_file(dialogs, mode='train', samples=10):
             error_counter = 0
             responses = [i[1] for i in dialogs]
             for context, response in tqdm(dialogs):
-                rest = [i['response'] for i in chatbot.search(context, samples=samples+1)]
+                rest = [i['response'] for i in chatbot.search(context, samples=samples)]
                 if response in rest:
                     rest.remove(response)
                 if len(rest) >= samples:
-                    rest = rest[:samples]
+                    rest = rest[:samples-1]
                 else:
-                    rest.extend(random.sample(responses, samples-len(rest)))
+                    rest.extend(random.sample(responses, samples-1-len(rest)))
                 f.write(f'1\t{context}\t{response}\n')
                 for i in rest:
                     f.write(f'0\t{context}\t{i}\n')
@@ -125,7 +130,7 @@ if __name__ == "__main__":
         esutils = ESUtils(args['name'], create_index=True)
         train_data_ = random.sample(train_data, args['database_size'])
         responses = [i[1] for i in train_data_]
-        esutils.insert_pair(responses)
+        esutils.insert(responses)
     elif args['mode'] == 'retrieval':
         test_data = read_file('LCCC-base_test.json', mode='test')
         test_data = random.sample(test_data, args['test_size'])
