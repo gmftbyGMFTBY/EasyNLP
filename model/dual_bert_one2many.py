@@ -188,7 +188,6 @@ class BERTDualOne2ManyEncoder(nn.Module):
         # groundtruth is better than retrieved samples
         additional_matrix = torch.stack(additional_matrix).transpose(0, 1)    # [K, B] -> [B, K]
         mask_ = torch.zeros_like(additional_matrix).half().cuda()
-        # mask_ = torch.zeros_like(additional_matrix).cuda()
         mask_[:, 0] = 1
         additional_loss = F.log_softmax(additional_matrix, dim=-1) * mask_
         additional_loss = (-additional_loss.sum(dim=1)).mean()
@@ -336,11 +335,22 @@ class BERTDualOne2ManyEncoderAgent(RetrievalBaseAgent):
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
         total_examples, total_correct = 0, 0
         k_list = [1, 2, 5, 10]
+        # f = open('rest/douban/dual-bert-one2many/log.txt', 'w')
         for idx, batch in enumerate(pbar):                
             cid, rids, rids_mask, label = batch
             batch_size = len(rids)
             assert batch_size == 10, f'[!] {batch_size} isnot equal to 10'
             scores = self.model.predict(cid, rids, rids_mask).cpu().tolist()    # [B]
+            
+            # NOTE
+            # cid_ = ''.join(self.vocab.decode(cid).split())
+            # f.write(f'{cid_}\n')
+            # for s, r, l in zip(scores, rids, label):
+            #     r_ = ''.join(self.vocab.decode(r).split()).replace('[PAD]', '')
+            #     f.write(f'{l}\t{s}\t{r_}\n')
+            # f.write('\n')
+            if sum(label) > 1:
+                continue
             
             rank_by_pred, pos_index, stack_scores = \
           calculate_candidates_ranking(
@@ -366,7 +376,6 @@ class BERTDualOne2ManyEncoderAgent(RetrievalBaseAgent):
         print(f"MRR: {round(avg_mrr, 4)}")
         print(f"P@1: {round(avg_prec_at_one, 4)}")
         print(f"MAP: {round(avg_map, 4)}")
-        print(f'ERRORs: {errors}')
 
     @torch.no_grad()
     def inference(self, inf_iter, test_iter):

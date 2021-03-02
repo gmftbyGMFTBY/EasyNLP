@@ -73,6 +73,7 @@ _Note:_
 | SOTA           | 77.6  | 91.9  | 99.1  | -      |
 | Bi-Encoder(bsz=16) | 79.7  | 90.8  | 98.3  | 87.63  |
 | Bi-Encoder(bsz=64) | 83.7  | 92.4  | 98.5  | 90.02  |
+| Bi-Encoder-one2many(bsz=16) | 90.4  | 95.6  | 98.9  | 94.16  |
 | Bi-Encoder-one2many-bad(bsz=16,head=5,max,pre-extract=50) | 91.0  | 95.5  | 99.3  | 94.46  |
 | Bi-Encoder-one2many-pseudo(bsz=16,head=5,max,pre-extract=50) | 89.4  | 95.2  | 99.2  | 93.5  |
 | Bi-Encoder-one2many-concat(bsz=16,head=5,max,pre-extract=50) | 89.5  | 94.4  | 98.8  | 93.42  |
@@ -120,6 +121,7 @@ _Note:_
 | Bi-Encoder(chinese-bert-wwm,bsz=16) | 28.14 | 46.89  | 81.92 | 63.19 | 45.43 | 59.11  |
 | Bi-Encoder(bsz=60) | 30.24 | 50.32 | 83.09 | 65.33 | 47.98 | 61.38  |
 | Bi-Encoder-one2many-pseudo(bsz=16,pre-extract=50) | 23.89 | 42.43 | 79.49 | 57.98 | 37.63 | 55.13 |
+| Bi-Encoder-one2many(bsz=16,pre-extract=50) | 26.39 | 47.1 | 81.56 | 61.77 | 42.48 | 58.19 |
 | Bi-Encoder-one2many-no-additional-loss(bsz=16,pre-extract=50) | 28.89 | 48.39 | 81.13 | 63.4 | 45.28 | 59.63 |
 | Bi-Encoder-one2many-concat(bsz=16,pre-extract=200) | 27.2 | 46.04  | 80.46 | 61.83 | 43.63 | 58.33|
 | Bi-Encoder-one2many-ivfpq(bsz=16,head=5,max) | 22.53 | 39.03  | 77.26 | 55.92 | 34.93 | 52.71  |
@@ -138,6 +140,7 @@ _Note:_
 | -------------- | ----- | ----- | ----- | ------ |
 | SOTA           | -     | -     | -     | -      |
 | Bi-Encoder(bsz=16) | 21.5  | 31.2      | 47.1   | 36.65   |
+| Bi-Encoder-one2many(bsz=16,max,pre-extract=50) | 27.0  | 36.7      | 54.0   | 41.85   |
 | BERT-FT        |       |       |       |        |
 | BERT-FT+MLM+NSP|       |       |       |        |
 | BERT-FT+MLM    |       |       |       |        |
