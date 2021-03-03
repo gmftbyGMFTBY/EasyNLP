@@ -135,12 +135,23 @@ _Note:_
 
 * batch size: 48
 * max sequence length: 256
+* The first table is the LCCC partial dataset, which contains 0.5M samples for training and 1K samples for testing. The second table is the LCCC large dataset.
 
 | Original       | R10@1 | R10@2 | R10@5 | R2@1   |
 | -------------- | ----- | ----- | ----- | ------ |
 | SOTA           | -     | -     | -     | -      |
 | Bi-Encoder(bsz=16) | 21.5  | 31.2      | 47.1   | 36.65   |
 | Bi-Encoder-one2many(bsz=16,max,pre-extract=50) | 27.0  | 36.7      | 54.0   | 41.85   |
+| BERT-FT        |       |       |       |        |
+| BERT-FT+MLM+NSP|       |       |       |        |
+| BERT-FT+MLM    |       |       |       |        |
+| BERT-FT+NSP    |       |       |       |        |
+
+| Original       | R10@1 | R10@2 | R10@5 | R2@1   |
+| -------------- | ----- | ----- | ----- | ------ |
+| SOTA           | -     | -     | -     | -      |
+| Bi-Encoder(bsz=16) | | | | |
+| Bi-Encoder-one2many(bsz=16,max,pre-extract=50) | | | | |
 | BERT-FT        |       |       |       |        |
 | BERT-FT+MLM+NSP|       |       |       |        |
 | BERT-FT+MLM    |       |       |       |        |

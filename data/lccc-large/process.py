@@ -14,9 +14,7 @@ import argparse
 def parse_args():
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('--name', default='lccc', type=str)
-    parser.add_argument('--train_size', default=500000, type=int)
     parser.add_argument('--database_size', default=1000000, type=int)
-    parser.add_argument('--test_size', default=10000, type=int)
     parser.add_argument('--seed', default=50, type=int)
     parser.add_argument('--mode', default='init', type=str)
     parser.add_argument('--samples', default=10, type=int)
@@ -83,7 +81,7 @@ class ESChat:
 
 def write_file(dialogs, mode='train', samples=10):
     if mode == 'train':
-        responses = [i[1] for i in dialogs]
+        responses = [i[-1] for i in dialogs]
         random.shuffle(responses)
         with open('train.txt', 'w') as f:
             for (context, response), r in tqdm(list(zip(dialogs, responses))):
@@ -127,8 +125,7 @@ if __name__ == "__main__":
     random.seed(args['seed'])
     if args['mode'] == 'init':
         train_data = read_file('LCCC-base.json', mode='train')
-        train_data_ = random.sample(train_data, args['train_size'])
-        write_file(train_data_, mode='train')
+        write_file(train_data, mode='train')
 
         esutils = ESUtils(args['name'], create_index=True)
         train_data_ = random.sample(train_data, args['database_size'])
@@ -136,7 +133,6 @@ if __name__ == "__main__":
         esutils.insert(responses)
     elif args['mode'] == 'retrieval':
         test_data = read_file('LCCC-base_test.json', mode='test')
-        test_data = random.sample(test_data, args['test_size'])
         write_file(test_data, mode='test', samples=args['samples'])
     else:
         raise Exception(f'Unknow mode: {args["mode"]}')
