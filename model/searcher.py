@@ -1,5 +1,6 @@
 from header import *
 
+
 def parser_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', type=str, default='ecommerce')
@@ -8,6 +9,32 @@ def parser_args():
     parser.add_argument('--topk', default=20, type=int)
     parser.add_argument('--pre_extract', default=50, type=int)
     return parser.parse_args()
+
+
+class MemoryBank:
+
+    '''attribute:
+    1. response textual corpus; 2. recent response embedding, will be updated by the recent model'''
+
+    def __init__(self, corpus):
+        self.data = {}
+        for idx, text in tqdm(corpus.items()):
+            self.data[idx] = [text, torch.randn(768).half()]
+        print(f'[!] init the Memory Bank over')
+
+    def update(self, ids, embds):
+        for idx, embd in zip(ids, embds):
+            self.data[idx] = embd.cpu().detach()
+
+    def search(self, ids, topk, search_mode='random'):
+        keys = list(set(self.data) - set(ids))
+        keys = random.sample(keys, topk)
+        embds = [self.data[i][1] for i in keys]
+        embds = torch.stack(embds)    # [K, 768]
+        if torch.cuda.is_available():
+            embds = embds.cuda()
+        return embds
+
 
 class Searcher:
 

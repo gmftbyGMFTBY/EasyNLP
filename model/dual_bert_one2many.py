@@ -137,12 +137,13 @@ class BERTDualOne2ManyEncoder(nn.Module):
             additional_label = additional_candidates > additional_candidates[0]    # [K]
             if sum(additional_label) <= self.ratio:
                 mm.append(additional_candidates)
-        mm = torch.stack(mm)    # [B_, K]
-        mask_ = torch.zeros_like(mm).half().cuda()
-        mask_[0] = 1
-        additional_loss = F.log_softmax(mm, dim=-1) * mask_
-        additional_loss = (-additional_loss.sum(dim=-1)).mean()
-        loss += additional_loss
+        if len(mm) > 0:
+            mm = torch.stack(mm)    # [B_, K]
+            mask_ = torch.zeros_like(mm).half().cuda()
+            mask_[0] = 1
+            additional_loss = F.log_softmax(mm, dim=-1) * mask_
+            additional_loss = (-additional_loss.sum(dim=-1)).mean()
+            loss += additional_loss
         return loss, acc
         
     def forward_(self, cid, rids, cid_mask, rids_mask):

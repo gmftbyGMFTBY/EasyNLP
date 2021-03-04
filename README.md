@@ -1,6 +1,6 @@
 ## Cross-encoder models performance
 
-Parameters reference: [TODO](https://github.com/taesunwhang/UMS-ResSel/blob/635e37f5340faf5a37f3b1510a9402be18348c66/config/hparams.py)
+Constrastive Learning for dual-encoder model, leveraging the memory bank to enlarge the number of the negative samples. Besides, the FAISS memory bank can be used to recall better samples, so these better samples can be used as the medium samples (not so good and not so bad).
 
 ## How to Use
 
@@ -45,12 +45,14 @@ python create_post_data.py
 2. BERT-ft-gen
 3. Bi-Encoder
 4. Poly-Encoder
+5. Bi-Encoder+one2many
 
 
 ### 2. Datasets
 1. E-Commerce
 2. Douban
 3. Ubuntu-v1
+4. LCCC
 
 
 ## Experiment Results
@@ -156,3 +158,16 @@ _Note:_
 | BERT-FT+MLM+NSP|       |       |       |        |
 | BERT-FT+MLM    |       |       |       |        |
 | BERT-FT+NSP    |       |       |       |        |
+
+### 4. Ubuntu V1 Dataset
+
+| Original       | R10@1 | R10@2 | R10@5 | R2@1   |
+| -------------- | ----- | ----- | ----- | ------ |
+| SOTA           | 0.884 | 0.946 | 0.990 | 0.975  |
+| Bi-Encoder(bsz=16) |  |      |  |   |
+| Bi-Encoder-one2many(bsz=16,max,pre-extract=50) |  |      |  |  |
+| BERT-FT        |       |       |       |        |
+| BERT-FT+MLM+NSP|       |       |       |        |
+| BERT-FT+MLM    |       |       |       |        |
+| BERT-FT+NSP    |       |       |       |        |
+

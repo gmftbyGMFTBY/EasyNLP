@@ -16,7 +16,7 @@ inf_bsz=64
 post_bsz=64
 post_epoch=2
 post_max_len=512
-models=(bert-ft bert-gen bert-gen-ft bert-post dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical)
+models=(bert-ft bert-gen bert-gen-ft bert-post dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-mb)
 ONE_BATCH_SIZE_MODEL=(dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical)
 datasets=(ecommerce douban ubuntu lccc lccc-large)
 chinese_datasets=(douban ecommerce lccc lccc-large)
@@ -56,7 +56,7 @@ elif [ $mode = 'train' ]; then
     rm rest/$dataset/$model/events*    # clear the tensorboard cache
     
     gpu_ids=(${cuda//,/ })
-    CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 29402 main.py \
+    CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 29403 main.py \
         --dataset $dataset \
         --model $model \
         --mode train \
