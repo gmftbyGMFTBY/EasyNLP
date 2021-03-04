@@ -46,7 +46,7 @@ class BERTDualOne2ManyEncoder(nn.Module):
         self.head_num = head
         self.m = m
         # the candidates that have higher matching degrees have `pseudo_ratio` possibility for being treated as the positive samples
-        self.pseudo_ratio = pseudo
+        self.ratio = pseudo
 
     def reparametrize(self, rep):
         z_mu = self.h_to_mu(rep)
@@ -102,7 +102,7 @@ class BERTDualOne2ManyEncoder(nn.Module):
         dot_products = F.softmax(dot_products, dim=1).max(dim=0)[0]
         return dot_products
     
-    def forward_(self, cid, rids, cid_mask, rids_mask):
+    def forward(self, cid, rids, cid_mask, rids_mask):
         batch_size = cid.shape[0]
         assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
         cid_reps, rid_reps = self._encode(cid, rids, cid_mask, rids_mask)
@@ -113,7 +113,7 @@ class BERTDualOne2ManyEncoder(nn.Module):
         mask = torch.eye(batch_size).cuda().half()    # [B, B]
         # mask = torch.eye(batch_size).cuda()    # [B, B]
         # calculate accuracy
-        acc, loss, additional_loss, counter, additional_counter = 0, 0, 0, 0, 0
+        acc, loss, counter = 0, 0, 0
         additional_matrix = []
         for cid_rep, rid_rep in zip(cid_reps, rid_reps):
             dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
@@ -130,31 +130,22 @@ class BERTDualOne2ManyEncoder(nn.Module):
             # .append [B]
             additional_matrix.append(dot_product[range(batch_size), range(batch_size)])
             counter += 1
-        loss /= self.head_num
+        # loss /= self.head_num
         additional_matrix = torch.stack(additional_matrix).transpose(0, 1)    # [K, B] -> [B, K]
+        mm = []
         for additional_candidates in additional_matrix:
             additional_label = additional_candidates > additional_candidates[0]    # [K]
-            additional_set = []
-            for label, item in zip(additional_label, additional_candidates):
-                if label:
-                    if random.random() <= self.pseudo_ratio:
-                        additional_set.append(item)
-                else:
-                    additional_set.append(item)
-            additional_set = torch.stack(additional_set)     # [K_]
-            if len(additional_set) == 1:
-                # all better than ground-truth
-                continue
-            else:
-                additional_counter += 1
-                mask_ = torch.zeros_like(additional_set).half().cuda()
-                mask_[0] = 1
-                additional_loss_ = F.log_softmax(additional_set, dim=-1) * mask_
-                additional_loss += -additional_loss_.sum()
-        loss += additional_loss / additional_counter
+            if sum(additional_label) <= self.ratio:
+                mm.append(additional_candidates)
+        mm = torch.stack(mm)    # [B_, K]
+        mask_ = torch.zeros_like(mm).half().cuda()
+        mask_[0] = 1
+        additional_loss = F.log_softmax(mm, dim=-1) * mask_
+        additional_loss = (-additional_loss.sum(dim=-1)).mean()
+        loss += additional_loss
         return loss, acc
         
-    def forward(self, cid, rids, cid_mask, rids_mask):
+    def forward_(self, cid, rids, cid_mask, rids_mask):
         batch_size = cid.shape[0]
         assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
         cid_reps, rid_reps = self._encode(cid, rids, cid_mask, rids_mask)
@@ -245,7 +236,7 @@ class BERTDualOne2ManyEncoderAgent(RetrievalBaseAgent):
             'head_num': head,
             'dropout': 0.1,
             'margin': 0.1,
-            'pseudo_ratio': 0.7,
+            'pseudo_ratio': 2,
             'm': 5,
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])

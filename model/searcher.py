@@ -91,7 +91,8 @@ if __name__ == "__main__":
             # ipdb.set_trace()
             if item_gt in item_rest:
                 item_rest.remove(item_gt)
-            rr.append(item_rest[-args['topk']:])
+            # rr.append(item_rest[-args['topk']:])
+            rr.append(item_rest[:args['topk']])
             # rr.append(random.sample(item_rest, args['topk']))
         candidates.extend(rr)
     torch.save(candidates, f'data/{args["dataset"]}/candidates.pt')
