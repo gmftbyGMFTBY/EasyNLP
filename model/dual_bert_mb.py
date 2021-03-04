@@ -61,8 +61,7 @@ class BERTDualMBEncoder(nn.Module):
         # cid_rep/rid_rep: [B, 768]
 
         # Recall from MB
-        mbe = [self.mb.search(idx, self.ext_bsz) for _ in range(batch_size)]    # B*[K, 768]
-        mbe = torch.stack(mbe).permute(0, 2, 1)    # [B, K, 768] -> [B, 768, K]
+        mbe = self.mb.search(idx, self.ext_bsz, batch_size)    # [B, K, 768] -> [B, 768, K]
 
         # Update MB
         self.mb.update(idx, rid_rep)
@@ -106,7 +105,7 @@ class BERTDualMBEncoderAgent(RetrievalBaseAgent):
             'dataset': dataset_name,
             'pretrained_model_path': pretrained_model_path,
             'oom_times': 10,
-            'ext_bsz': 256,
+            'ext_bsz': 512,
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
         mb, _ = torch.load(f'data/{dataset_name}/train_dual_mb.pt')
@@ -161,8 +160,8 @@ class BERTDualMBEncoderAgent(RetrievalBaseAgent):
         for idx, batch in enumerate(pbar):
             try:
                 self.optimizer.zero_grad()
-                idx_, cid, rid, cid_mask, rid_mask = batch
-                loss, acc = self.model(idx_, cid, rid, cid_mask, rid_mask)
+                idx_i, cid, rid, cid_mask, rid_mask = batch
+                loss, acc = self.model(idx_i, cid, rid, cid_mask, rid_mask)
                 with amp.scale_loss(loss, self.optimizer) as scaled_loss:
                     scaled_loss.backward()
                 clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])

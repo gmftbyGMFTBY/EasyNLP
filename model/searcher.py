@@ -14,11 +14,14 @@ def parser_args():
 class MemoryBank:
 
     '''attribute:
-    1. response textual corpus; 2. recent response embedding, will be updated by the recent model'''
+    1. response textual corpus; 
+    2. recent response embedding, will be updated by the recent model
+    '''
 
     def __init__(self, corpus):
         self.data = {}
         for idx, text in tqdm(corpus.items()):
+            # [textual response, embedding, time stamp]
             self.data[idx] = [text, torch.randn(768).half()]
         print(f'[!] init the Memory Bank over')
 
@@ -26,17 +29,21 @@ class MemoryBank:
         for idx, embd in zip(ids, embds):
             self.data[idx][1] = embd.cpu().detach()
 
-    def search(self, ids, topk, search_mode='random'):
-        try:
-            keys = list(set(self.data) - set(ids))
-            keys = random.sample(keys, topk)
-            embds = [self.data[i][1] for i in keys]
+    def search(self, ids, topk, bsz):
+        # return B*[K, 768]
+        keys = list(set(self.data) - set(ids))
+        random.shuffle(keys)
+        rest, counter = [], 0
+        for i in range(bsz):
+            index = keys[counter:counter+topk]
+            counter += topk
+            embds = [self.data[i][1] for i in index]
             embds = torch.stack(embds)    # [K, 768]
-            if torch.cuda.is_available():
-                embds = embds.cuda()
-        except:
-            ipdb.set_trace()
-        return embds
+            rest.append(embds)
+        rest = torch.stack(rest).permute(0, 2, 1)    # [B, 768, K]
+        if torch.cuda.is_available():
+            rest = rest.cuda()
+        return rest
 
 
 class Searcher:
