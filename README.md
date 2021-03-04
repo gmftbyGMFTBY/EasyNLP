@@ -164,7 +164,7 @@ _Note:_
 | Original       | R10@1 | R10@2 | R10@5 | R2@1   |
 | -------------- | ----- | ----- | ----- | ------ |
 | SOTA           | 0.884 | 0.946 | 0.990 | 0.975  |
-| Bi-Encoder(bsz=16) |  |      |  |   |
+| Bi-Encoder(bsz=48) | 67.22 | 80.23     | 94.6 | -  |
 | Bi-Encoder-one2many(bsz=16,max,pre-extract=50) |  |      |  |  |
 | BERT-FT        |       |       |       |        |
 | BERT-FT+MLM+NSP|       |       |       |        |

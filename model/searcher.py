@@ -24,15 +24,18 @@ class MemoryBank:
 
     def update(self, ids, embds):
         for idx, embd in zip(ids, embds):
-            self.data[idx] = embd.cpu().detach()
+            self.data[idx][1] = embd.cpu().detach()
 
     def search(self, ids, topk, search_mode='random'):
-        keys = list(set(self.data) - set(ids))
-        keys = random.sample(keys, topk)
-        embds = [self.data[i][1] for i in keys]
-        embds = torch.stack(embds)    # [K, 768]
-        if torch.cuda.is_available():
-            embds = embds.cuda()
+        try:
+            keys = list(set(self.data) - set(ids))
+            keys = random.sample(keys, topk)
+            embds = [self.data[i][1] for i in keys]
+            embds = torch.stack(embds)    # [K, 768]
+            if torch.cuda.is_available():
+                embds = embds.cuda()
+        except:
+            ipdb.set_trace()
         return embds
 
 

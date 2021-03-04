@@ -161,8 +161,8 @@ class BERTDualMBEncoderAgent(RetrievalBaseAgent):
         for idx, batch in enumerate(pbar):
             try:
                 self.optimizer.zero_grad()
-                idx, cid, rid, cid_mask, rid_mask = batch
-                loss, acc = self.model(idx, cid, rid, cid_mask, rid_mask)
+                idx_, cid, rid, cid_mask, rid_mask = batch
+                loss, acc = self.model(idx_, cid, rid, cid_mask, rid_mask)
                 with amp.scale_loss(loss, self.optimizer) as scaled_loss:
                     scaled_loss.backward()
                 clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
