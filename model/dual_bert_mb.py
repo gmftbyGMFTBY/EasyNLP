@@ -108,7 +108,7 @@ class BERTDualMBEncoderAgent(RetrievalBaseAgent):
             'ext_bsz': 512,
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
-        mb, _ = torch.load(f'data/{dataset_name}/train_dual_mb.pt')
+        mb, _ = torch.load(f'data/{dataset_name}/{run_mode}_dual_mb.pt')
         self.model = BERTDualMBEncoder(mb, self.args['ext_bsz'], model=self.args['model'])
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)

@@ -13,10 +13,14 @@ class BertEmbedding(nn.Module):
         embd = self.model(ids, attention_mask=attn_mask)[0]    # [B, S, 768]
         return embd[:, 0, :]
     
-    def load_bert_model(self, path):
-        state_dict = torch.load(path, map_location=torch.device('cpu'))
-        self.model.load_state_dict(state_dict)
-        print(f'[!] load pretrained BERT model from {path}')
+    def load_bert_model(self, state_dict):
+        new_state_dict = OrderedDict()
+        for k, v in state_dict.items():
+            if k.startswith('_bert_model.cls.'):
+                continue
+            name = k.replace('_bert_model.bert.', '')
+            new_state_dict[name] = v
+        self.model.load_state_dict(new_state_dict)
     
 
 class BERTDualEncoder(nn.Module):
@@ -103,7 +107,6 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         self.optimizer = transformers.AdamW(
             self.model.parameters(), 
             lr=self.args['lr'],
-        
         )
         if run_mode == 'train':
             self.model, self.optimizer = amp.initialize(
@@ -190,8 +193,6 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             assert batch_size == 10, f'[!] {batch_size} is not equal to 10'
             scores = self.model.predict(cid, rids, rids_mask).cpu().tolist()    # [B]
 
-            if sum(label) > 1:
-                continue
             rank_by_pred, pos_index, stack_scores = \
           calculate_candidates_ranking(
                 np.array(scores), 

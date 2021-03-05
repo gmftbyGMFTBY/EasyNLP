@@ -1,4 +1,4 @@
-## Cross-encoder models performance
+## State-of-the-art retrieval-based multi-turn response selection baselines
 
 Constrastive Learning for dual-encoder model, leveraging the memory bank to enlarge the number of the negative samples. Besides, the FAISS memory bank can be used to recall better samples, so these better samples can be used as the medium samples (not so good and not so bad).
 
@@ -111,6 +111,7 @@ _Note:_
 
 * one2many performance is worse than dual-bert on douban corpus, which is very different from the ecommerce corpus. The reason maybe: the dual-bert performance is worse than that on ecommerce corpus, which lead to bad candidate samples for dual-bert-one2many model, e.g., the quality of the candidates matter!
 * max-sequence-length and PLMs (hfl/chinese-bert-wwm is slightly worse than bert-base-chinese) is not the core, but max-sequence-length do improve some metrics
+* good candidates (pre-extract=20, topk=10) provide  better R10@1 and R10@2, hopeful!
 * SOLUTION1: separate the head, reduce the side effect of the bad candidates
 * SOLUTION2: improve the coarse retrieved candidates quality
 * SOLUTION3: MoE (Mixture of the Experts)?
@@ -120,15 +121,18 @@ _Note:_
 | SOTA               | 31.8  | 48.2  | 85.8  | 66.4  | 49.9  | 62.5   |
 | Bi-Encoder(max-len=512,bsz=16) | 28.1 | 47.85  | 83.05 | 64.45 | 46.63 | 59.36  |
 | Bi-Encoder(bsz=16) | 28.16 | 48.5  | 80.87 | 63.64 | 46.18 | 59.38  |
+| Bi-Encoder(bsz=16, bert-post) | 28.9 | 49.51  | 84.7 | 64.62 | 46.63 | 60.98  |
 | Bi-Encoder(chinese-bert-wwm,bsz=16) | 28.14 | 46.89  | 81.92 | 63.19 | 45.43 | 59.11  |
 | Bi-Encoder(bsz=60) | 30.24 | 50.32 | 83.09 | 65.33 | 47.98 | 61.38  |
 | Bi-Encoder-one2many-pseudo(bsz=16,pre-extract=50) | 23.89 | 42.43 | 79.49 | 57.98 | 37.63 | 55.13 |
+| Bi-Encoder-one2many-good(bsz=16,pre-extract=50) | 33.98 | 49.72 | 80.39 | 52.8 | 33.98 | 52.8 |
 | Bi-Encoder-one2many(bsz=16,pre-extract=50) | 26.39 | 47.1 | 81.56 | 61.77 | 42.48 | 58.19 |
 | Bi-Encoder-one2many-no-additional-loss(bsz=16,pre-extract=50) | 28.89 | 48.39 | 81.13 | 63.4 | 45.28 | 59.63 |
 | Bi-Encoder-one2many-concat(bsz=16,pre-extract=200) | 27.2 | 46.04  | 80.46 | 61.83 | 43.63 | 58.33|
 | Bi-Encoder-one2many-ivfpq(bsz=16,head=5,max) | 22.53 | 39.03  | 77.26 | 55.92 | 34.93 | 52.71  |
 | Bi-Encoder-one2many-lsh(bsz=16,head=5,max) | 28.32 | 46.64  | 81.32 | 62.83 | 44.98 | 58.74  |
 | BERT-FT        | 25.86 | 44.63 | 83.43 | 61.55 | 42.58 | 57.59 |
+| BERT-FT(bert-post) | | | | | | |
 | BERT-FT+MLM+NSP|       |       |       |       |       |       |
 | BERT-FT+MLM    |       |       |       |       |       |       |
 | BERT-FT+NSP    |       |       |       |       |       |       |

@@ -13,11 +13,11 @@ bsz=16
 head_num=5     # hyperparameter of the dual-bert-one2mnay: 11 heads means there are 1 groundtruths and 10 retrieved candidates
 pre_extract=50
 inf_bsz=64
-post_bsz=64
-post_epoch=2
-post_max_len=512
+post_bsz=16
+post_epoch=5
+post_max_len=256
 models=(bert-ft bert-gen bert-gen-ft bert-post dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-mb)
-ONE_BATCH_SIZE_MODEL=(dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical)
+ONE_BATCH_SIZE_MODEL=(dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-mb)
 datasets=(ecommerce douban ubuntu lccc lccc-large)
 chinese_datasets=(douban ecommerce lccc lccc-large)
 # ========== metadata ========== #

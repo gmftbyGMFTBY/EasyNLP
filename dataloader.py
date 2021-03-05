@@ -882,6 +882,7 @@ class BERTDualMBDataset(Dataset):
                 counter += 1
             self.mb = MemoryBank(corpus)
         else:
+            self.mb = None
             for i in tqdm(range(0, len(data), 10)):
                 batch = data[i:i+10]
                 rids = []

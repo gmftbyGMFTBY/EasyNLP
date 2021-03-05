@@ -26,7 +26,7 @@ def obtain_steps_parameters(train_data, args):
 
 
 def main(**args):
-    if args['mode'] == 'train':
+    if args['mode'] in ['train', 'train-post']:
         torch.cuda.set_device(args['local_rank'])
         torch.distributed.init_process_group(backend='nccl', init_method='env://')
         

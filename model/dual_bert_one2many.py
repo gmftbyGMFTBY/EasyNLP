@@ -341,8 +341,6 @@ class BERTDualOne2ManyEncoderAgent(RetrievalBaseAgent):
             #     r_ = ''.join(self.vocab.decode(r).split()).replace('[PAD]', '')
             #     f.write(f'{l}\t{s}\t{r_}\n')
             # f.write('\n')
-            if sum(label) > 1:
-                continue
             
             rank_by_pred, pos_index, stack_scores = \
           calculate_candidates_ranking(
