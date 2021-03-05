@@ -17,10 +17,14 @@ class BertEmbedding(nn.Module):
             x = embd[:, :m, :].reshape(embd.shape[0], -1)    # [B, M, 768] -> [B, M*768]
             return x
     
-    def load_bert_model(self, path):
-        state_dict = torch.load(path, map_location=torch.device('cpu'))
-        self.model.load_state_dict(state_dict)
-        print(f'[!] load pretrained BERT model from {path}')
+    def load_bert_model(self, state_dict):
+        new_state_dict = OrderedDict()
+        for k, v in state_dict.items():
+            if k.startswith('_bert_model.cls.'):
+                continue
+            name = k.replace('_bert_model.bert.', '')
+            new_state_dict[name] = v
+        self.model.load_state_dict(new_state_dict)
     
 
 class BERTDualOne2ManyEncoder(nn.Module):
@@ -102,7 +106,7 @@ class BERTDualOne2ManyEncoder(nn.Module):
         dot_products = F.softmax(dot_products, dim=1).max(dim=0)[0]
         return dot_products
     
-    def forward(self, cid, rids, cid_mask, rids_mask):
+    def forward_(self, cid, rids, cid_mask, rids_mask):
         batch_size = cid.shape[0]
         assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
         cid_reps, rid_reps = self._encode(cid, rids, cid_mask, rids_mask)
@@ -146,7 +150,7 @@ class BERTDualOne2ManyEncoder(nn.Module):
             loss += additional_loss
         return loss, acc
         
-    def forward_(self, cid, rids, cid_mask, rids_mask):
+    def forward(self, cid, rids, cid_mask, rids_mask):
         batch_size = cid.shape[0]
         assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
         cid_reps, rid_reps = self._encode(cid, rids, cid_mask, rids_mask)
