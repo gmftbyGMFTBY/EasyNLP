@@ -28,6 +28,10 @@ class BertEmbedding(nn.Module):
     
 
 class BERTDualOne2ManyEncoder(nn.Module):
+
+    '''
+    no reparametrize, no multiple head
+    '''
     
     def __init__(self, model='bert-base-chinese', head=5, p=0.1, margin=0.1, pseudo=0.7, m=5):
         super(BERTDualOne2ManyEncoder, self).__init__()
@@ -36,17 +40,17 @@ class BERTDualOne2ManyEncoder(nn.Module):
 
         # self.header = nn.ModuleList([
         #     nn.Sequential(
-        #         nn.Linear(m*768, 768),
+        #         nn.Linear(768, 768),
         #         nn.Dropout(p=p),
         #         nn.ReLU(),
         #         nn.Linear(768, 768)
         #     ) for _ in range(head)
         # ])
-        self.h_to_mu = nn.Linear(768, 768)
-        self.h_to_logvar = nn.Sequential(
-            nn.Linear(768, 768),
-            nn.Sigmoid(),
-        )
+        # self.h_to_mu = nn.Linear(768, 768)
+        # self.h_to_logvar = nn.Sequential(
+        #     nn.Linear(768, 768),
+        #     nn.Sigmoid(),
+        # )
         self.head_num = head
         self.m = m
         # the candidates that have higher matching degrees have `pseudo_ratio` possibility for being treated as the positive samples
@@ -62,22 +66,22 @@ class BERTDualOne2ManyEncoder(nn.Module):
         
     def _encode(self, cid, rids, cid_mask, rids_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
-        cid_reps = [self.reparametrize(cid_rep) for _ in range(self.head_num)]
+        # cid_reps = [self.reparametrize(cid_rep) for _ in range(self.head_num)]
         # cid_reps = [self.header[i](cid_rep) for i in range(self.head_num)]
         rid_reps = []
         for rid, rid_mask in zip(rids, rids_mask):
             rid_rep = self.can_encoder(rid, rid_mask)
             rid_reps.append(rid_rep)
-        assert len(cid_reps) == len(rid_reps)
-        return cid_reps, rid_reps
+        # assert len(cid_reps) == len(rid_reps)
+        return cid_rep, rid_reps
 
     @torch.no_grad()
     def _encode_(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
-        cid_reps = [self.reparametrize(cid_rep) for _ in range(self.head_num)]
+        # cid_reps = [self.reparametrize(cid_rep) for _ in range(self.head_num)]
         # cid_reps = [self.header[i](cid_rep) for i in range(self.head_num)]
         rid_rep = self.can_encoder(rid, rid_mask)
-        return cid_reps, rid_rep
+        return cid_rep, rid_rep
 
     @torch.no_grad()
     def get_cand(self, ids, attn_mask):
@@ -92,7 +96,16 @@ class BERTDualOne2ManyEncoder(nn.Module):
     @torch.no_grad()
     def predict(self, cid, rid, rid_mask):
         batch_size = rid.shape[0]
-        cid_reps, rid_rep = self._encode_(cid.unsqueeze(0), rid, None, rid_mask)
+        cid_rep, rid_rep = self._encode_(cid.unsqueeze(0), rid, None, rid_mask)
+        # cid_rep/rid_rep: [768], [B, 768]
+        cid_rep = cid_rep.squeeze(0)    # [768]
+        dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B]
+        return dot_products
+    
+    @torch.no_grad()
+    def predict_(self, cid, rid, rid_mask):
+        batch_size = rid.shape[0]
+        cid_rep, rid_rep = self._encode_(cid.unsqueeze(0), rid, None, rid_mask)
         # cid_rep/rid_rep: [768], [B, 768]
         dot_products = []
         for cid_rep in cid_reps:
@@ -153,7 +166,7 @@ class BERTDualOne2ManyEncoder(nn.Module):
     def forward(self, cid, rids, cid_mask, rids_mask):
         batch_size = cid.shape[0]
         assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
-        cid_reps, rid_reps = self._encode(cid, rids, cid_mask, rids_mask)
+        cid_rep, rid_reps = self._encode(cid, rids, cid_mask, rids_mask)
 
         # ========== K matrixes =========== #
         # cid_rep/rid_rep: [B, 768]
@@ -163,7 +176,7 @@ class BERTDualOne2ManyEncoder(nn.Module):
         # calculate accuracy
         acc, loss, additional_matrix = 0, 0, []
         counter = 0
-        for cid_rep, rid_rep in zip(cid_reps, rid_reps):
+        for rid_rep in rid_reps:
             dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
             # dot_product = dot_product / torch.norm(cid_rep, dim=1).unsqueeze(1) / torch.norm(rid_rep, dim=1).unsqueeze(0)
             # calculate the loss

@@ -39,6 +39,6 @@ CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=$
     --seed 50 \
     --grad_clip 5 \
     --batch_size 16 \
-    --epoch 2 \
+    --epoch 3 \
     --lr 3e-5 \
     --model $model

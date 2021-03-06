@@ -105,7 +105,7 @@ class BERTDualMBEncoderAgent(RetrievalBaseAgent):
             'dataset': dataset_name,
             'pretrained_model_path': pretrained_model_path,
             'oom_times': 10,
-            'ext_bsz': 512,
+            'ext_bsz': 4096,
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
         mb, _ = torch.load(f'data/{dataset_name}/{run_mode}_dual_mb.pt')
@@ -117,7 +117,6 @@ class BERTDualMBEncoderAgent(RetrievalBaseAgent):
         self.optimizer = transformers.AdamW(
             self.model.parameters(), 
             lr=self.args['lr'],
-        
         )
         if run_mode == 'train':
             self.model, self.optimizer = amp.initialize(

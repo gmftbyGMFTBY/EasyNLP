@@ -20,25 +20,22 @@ class MemoryBank:
 
     def __init__(self, corpus):
         self.data = {}
-        for idx, text in tqdm(corpus.items()):
-            # [textual response, embedding, time stamp]
-            self.data[idx] = [text, torch.randn(768).half()]
+        for idx, _ in tqdm(corpus.items()):
+            self.data[idx] = torch.randn(768).half()
         print(f'[!] init the Memory Bank over')
 
     def update(self, ids, embds):
+        embds = embds.cpu().detach()
         for idx, embd in zip(ids, embds):
-            self.data[idx][1] = embd.cpu().detach()
+            self.data[idx] = embd
 
     def search(self, ids, topk, bsz):
         # return B*[K, 768]
         keys = list(set(self.data) - set(ids))
-        random.shuffle(keys)
-        rest, counter = [], 0
-        for i in range(bsz):
-            index = keys[counter:counter+topk]
-            counter += topk
-            embds = [self.data[i][1] for i in index]
-            embds = torch.stack(embds)    # [K, 768]
+        rest = []
+        for _ in range(bsz):
+            index = random.sample(keys, topk)
+            embds = torch.stack([self.data[i] for i in index])    # [K, 768]
             rest.append(embds)
         rest = torch.stack(rest).permute(0, 2, 1)    # [B, 768, K]
         if torch.cuda.is_available():
