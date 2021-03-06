@@ -80,7 +80,7 @@ class BERTFTAgent(RetrievalBaseAgent):
         
     def load_bert_model(self, path):
         state_dict = torch.load(path, map_location=torch.device('cpu'))
-        self.model.model.load_state_dict(state_dict)
+        self.model.load_bert_model(state_dict)
         print(f'[!] load pretrained BERT model from {path}')
 
     def train_model(self, train_iter, mode='train', recoder=None, idx_=0):
