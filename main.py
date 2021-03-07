@@ -11,6 +11,7 @@ def parser_args():
     parser.add_argument('--epoch', type=int, default=10)
     parser.add_argument('--seed', type=float, default=30)
     parser.add_argument('--max_len', type=int, default=256)
+    parser.add_argument('--res_max_len', type=int, default=256)
     parser.add_argument('--multi_gpu', type=str, default=None)
     parser.add_argument('--pretrained_model', type=str, default='zh')
     parser.add_argument('--local_rank', type=int)

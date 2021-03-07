@@ -51,10 +51,7 @@ class BERTDualOne2ManyEncoder(nn.Module):
         #     nn.Linear(768, 768),
         #     nn.Sigmoid(),
         # )
-        self.head_num = head
-        self.m = m
-        # the candidates that have higher matching degrees have `pseudo_ratio` possibility for being treated as the positive samples
-        self.ratio = pseudo
+        # self.head_num = head
 
     def reparametrize(self, rep):
         z_mu = self.h_to_mu(rep)
@@ -100,7 +97,7 @@ class BERTDualOne2ManyEncoder(nn.Module):
         # cid_rep/rid_rep: [768], [B, 768]
         cid_rep = cid_rep.squeeze(0)    # [768]
         dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B]
-        return dot_products
+        return dot_product
     
     @torch.no_grad()
     def predict_(self, cid, rid, rid_mask):
@@ -119,50 +116,6 @@ class BERTDualOne2ManyEncoder(nn.Module):
         dot_products = F.softmax(dot_products, dim=1).max(dim=0)[0]
         return dot_products
     
-    def forward_(self, cid, rids, cid_mask, rids_mask):
-        batch_size = cid.shape[0]
-        assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
-        cid_reps, rid_reps = self._encode(cid, rids, cid_mask, rids_mask)
-
-        # ========== K matrixes =========== #
-        # cid_rep/rid_rep: [B, 768]
-        # use half for supporting the apex
-        mask = torch.eye(batch_size).cuda().half()    # [B, B]
-        # mask = torch.eye(batch_size).cuda()    # [B, B]
-        # calculate accuracy
-        acc, loss, counter = 0, 0, 0
-        additional_matrix = []
-        for cid_rep, rid_rep in zip(cid_reps, rid_reps):
-            dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
-            # dot_product = dot_product / torch.norm(cid_rep, dim=1).unsqueeze(1) / torch.norm(rid_rep, dim=1).unsqueeze(0)
-            # calculate the loss
-            loss_ = F.log_softmax(dot_product, dim=-1) * mask
-            loss_ = (-loss_.sum(dim=1)).mean()
-            loss += loss_
-
-            # calculate the acc
-            acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
-            if counter == 0:
-                acc = acc_num / batch_size
-            # .append [B]
-            additional_matrix.append(dot_product[range(batch_size), range(batch_size)])
-            counter += 1
-        # loss /= self.head_num
-        additional_matrix = torch.stack(additional_matrix).transpose(0, 1)    # [K, B] -> [B, K]
-        mm = []
-        for additional_candidates in additional_matrix:
-            additional_label = additional_candidates > additional_candidates[0]    # [K]
-            if sum(additional_label) <= self.ratio:
-                mm.append(additional_candidates)
-        if len(mm) > 0:
-            mm = torch.stack(mm)    # [B_, K]
-            mask_ = torch.zeros_like(mm).half().cuda()
-            mask_[0] = 1
-            additional_loss = F.log_softmax(mm, dim=-1) * mask_
-            additional_loss = (-additional_loss.sum(dim=-1)).mean()
-            loss += additional_loss
-        return loss, acc
-        
     def forward(self, cid, rids, cid_mask, rids_mask):
         batch_size = cid.shape[0]
         assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
@@ -189,18 +142,20 @@ class BERTDualOne2ManyEncoder(nn.Module):
             if counter == 0:
                 acc = acc_num / batch_size
             # .append [B]
-            additional_matrix.append(dot_product[range(batch_size), range(batch_size)])
+            # NOTE:
+            # additional_matrix.append(dot_product[range(batch_size), range(batch_size)])
             counter += 1
         # acc /= self.head_num
         # loss /= self.head_num
 
+        # NOTE:
         # groundtruth is better than retrieved samples
-        additional_matrix = torch.stack(additional_matrix).transpose(0, 1)    # [K, B] -> [B, K]
-        mask_ = torch.zeros_like(additional_matrix).half().cuda()
-        mask_[:, 0] = 1
-        additional_loss = F.log_softmax(additional_matrix, dim=-1) * mask_
-        additional_loss = (-additional_loss.sum(dim=1)).mean()
-        loss += additional_loss
+        # additional_matrix = torch.stack(additional_matrix).transpose(0, 1)    # [K, B] -> [B, K]
+        # mask_ = torch.zeros_like(additional_matrix).half().cuda()
+        # mask_[:, 0] = 1
+        # additional_loss = F.log_softmax(additional_matrix, dim=-1) * mask_
+        # additional_loss = (-additional_loss.sum(dim=1)).mean()
+        # loss += additional_loss
         return loss, acc
     
     def forward_(self, cid, rids, cid_mask, rids_mask):
@@ -344,20 +299,11 @@ class BERTDualOne2ManyEncoderAgent(RetrievalBaseAgent):
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
         total_examples, total_correct = 0, 0
         k_list = [1, 2, 5, 10]
-        # f = open('rest/douban/dual-bert-one2many/log.txt', 'w')
         for idx, batch in enumerate(pbar):                
             cid, rids, rids_mask, label = batch
             batch_size = len(rids)
-            assert batch_size == 10, f'[!] {batch_size} isnot equal to 10'
+            assert batch_size == 10, f'[!] {batch_size} is not equal to 10'
             scores = self.model.predict(cid, rids, rids_mask).cpu().tolist()    # [B]
-            
-            # NOTE
-            # cid_ = ''.join(self.vocab.decode(cid).split())
-            # f.write(f'{cid_}\n')
-            # for s, r, l in zip(scores, rids, label):
-            #     r_ = ''.join(self.vocab.decode(r).split()).replace('[PAD]', '')
-            #     f.write(f'{l}\t{s}\t{r_}\n')
-            # f.write('\n')
             
             rank_by_pred, pos_index, stack_scores = \
           calculate_candidates_ranking(

@@ -6,6 +6,7 @@
 
 # ========== metadata ========== #
 max_len=256
+res_max_len=128
 seed=50
 warmup_ratio=0.1
 epoch=5
@@ -16,6 +17,7 @@ inf_bsz=64
 post_bsz=16
 post_epoch=5
 post_max_len=256
+post_res_max_len=128
 models=(bert-ft bert-gen bert-gen-ft bert-post dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-mb)
 ONE_BATCH_SIZE_MODEL=(dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-mb)
 datasets=(ecommerce douban ubuntu lccc lccc-large)
@@ -64,6 +66,7 @@ elif [ $mode = 'train' ]; then
         --epoch $epoch \
         --seed $seed \
         --max_len $max_len \
+        --res_max_len $res_max_len \
         --multi_gpu $cuda \
         --pretrained_model $pretrained_model \
         --head_num $head_num \
@@ -102,6 +105,7 @@ elif [ $mode = 'train-post' ]; then
         --epoch $post_epoch \
         --seed $seed \
         --max_len $post_max_len \
+        --res_max_len $post_res_max_len \
         --multi_gpu $cuda \
         --pretrained_model $pretrained_model \
         --warmup_ratio $warmup_ratio \
@@ -117,6 +121,7 @@ else
         --mode $mode \
         --batch_size $bsz \
         --max_len $max_len \
+        --res_max_len $res_max_len \
         --seed $seed \
         --multi_gpu $cuda \
         --head_num $head_num \

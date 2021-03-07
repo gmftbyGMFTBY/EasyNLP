@@ -203,8 +203,8 @@ class BERTDualHierarchicalDataset(Dataset):
 # ========== DUAL BERT ONE2MANY Dataset ========== #
 class BERTDualOne2ManyDataset(Dataset):
     
-    def __init__(self, path, mode='train', max_len=300, model='bert-base-chinese', head=5):
-        self.mode, self.max_len = mode, max_len
+    def __init__(self, path, mode='train', max_len=300, model='bert-base-chinese', head=5, res_max_len=128):
+        self.mode, self.max_len, self.res_max_len = mode, max_len, res_max_len
         self.head = head
         self.vocab = BertTokenizer.from_pretrained(model)
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
@@ -222,7 +222,7 @@ class BERTDualOne2ManyDataset(Dataset):
                 cands = random.sample(cands, self.head-1)
                 item = self.vocab.batch_encode_plus([context, response] + cands)
                 ids, rids = item['input_ids'][0], item['input_ids'][1:]
-                ids, rids = self._length_limit(ids), [self._length_limit(i) for i in rids]
+                ids, rids = self._length_limit(ids), [self._length_limit(i, mode='res') for i in rids]
                 self.data.append({
                     'ids': ids,
                     'rids': rids,
@@ -243,9 +243,13 @@ class BERTDualOne2ManyDataset(Dataset):
                     'rids': rids,
                 })    
                 
-    def _length_limit(self, ids):
-        if len(ids) > self.max_len:
-            ids = [ids[0]] + ids[-(self.max_len-1):]
+    def _length_limit(self, ids, mode='ctx'):
+        if mode == 'ctx':
+            if len(ids) > self.max_len:
+                ids = [ids[0]] + ids[-(self.max_len-1):]
+        else:
+            if len(ids) > self.res_max_len:
+                ids = [ids[0]] + ids[-(self.res_max_len-1):]
         return ids
                 
     def __len__(self):
@@ -977,7 +981,7 @@ def load_dataset(args):
     path = f'data/{args["dataset"]}/{args["mode"]}.txt'
     if args['mode'] == 'train':
         if args['model'] == 'dual-bert-one2many':
-            data = DATASET_MAP[args['model']](path, mode=args['mode'], max_len=args['max_len'], model=args['pretrained_model'], head=args['head_num'])
+            data = DATASET_MAP[args['model']](path, mode=args['mode'], max_len=args['max_len'], model=args['pretrained_model'], head=args['head_num'], res_max_len=args['res_max_len'])
             train_sampler = torch.utils.data.distributed.DistributedSampler(
                 data,
                 num_replicas=dist.get_world_size(),
