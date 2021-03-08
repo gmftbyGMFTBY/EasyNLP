@@ -124,6 +124,7 @@ _Note:_
 | Bi-Encoder(max-len=512,bsz=16) | 28.1 | 47.85  | 83.05 | 64.45 | 46.63 | 59.36  |
 | Bi-Encoder(bsz=16) | 28.16 | 48.5  | 80.87 | 63.64 | 46.18 | 59.38  |
 | Bi-Encoder-one2many(bsz=16, bert-post, single-head) | 26.69 | 50.34  | 82.53 | 63.6 | 44.08 | 59.24  |
+| Bi-Encoder-one2many-no-addition-loss(bsz=16, bert-post, single-head) | 28.99 | 50.07  | 84.28 | 64.81 | 46.93 | 60.96  |
 | Bi-Encoder(bsz=16, bert-post) | 28.9 | 49.51  | 84.7 | 64.62 | 46.63 | 60.98  |
 | Bi-Encoder(chinese-bert-wwm,bsz=16) | 28.14 | 46.89  | 81.92 | 63.19 | 45.43 | 59.11  |
 | Bi-Encoder(bsz=60) | 30.24 | 50.32 | 83.09 | 65.33 | 47.98 | 61.38  |
@@ -173,7 +174,7 @@ _Note:_
 | SOTA           | 0.884 | 0.946 | 0.990 | 0.975  |
 | Bi-Encoder(bsz=48) | 67.22 | 80.23     | 94.6 | -  |
 | Bi-Encoder-one2many(bsz=16,max,pre-extract=50) |  |      |  |  |
-| BERT-FT        |       |       |       |        |
+| BERT-FT        | 66.86 | 79.75 |94.15  | -     |
 | BERT-FT+MLM+NSP|       |       |       |        |
 | BERT-FT+MLM    |       |       |       |        |
 | BERT-FT+NSP    |       |       |       |        |
