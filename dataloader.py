@@ -962,6 +962,7 @@ def load_dataset(args):
         'bert-ft': BERTFTDataset,
         'bert-gen-ft': BERTGenFTDataset,
         'dual-bert': BERTDualDataset,
+        'dual-bert-adv': BERTDualDataset,
         'dual-bert-mb': BERTDualMBDataset,
         'dual-bert-poly': BERTDualDataset,
         'dual-bert-cl': BERTDualDataset,
