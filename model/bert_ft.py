@@ -6,10 +6,13 @@ from .utils import *
 
 class BERTRetrieval(nn.Module):
 
-    def __init__(self, model='bert-base-chinese'):
+    def __init__(self, model='bert-base-chinese', p=0.2):
         super(BERTRetrieval, self).__init__()
         self.model = BertModel.from_pretrained(model)
-        self.head = nn.Linear(768, 2)
+        self.head = nn.Sequential(
+            nn.Dropout(p=p),
+            nn.Linear(768, 1)
+        )
 
     def forward(self, inpt, token_type_ids, attn_mask):
         output = self.model(
@@ -17,7 +20,7 @@ class BERTRetrieval(nn.Module):
             attention_mask=attn_mask,
             token_type_ids=token_type_ids,
         )[0]    # [B, S, E]
-        logits = self.head(output[:, 0, :])    # [B, H] -> [B, 2]
+        logits = self.head(output[:, 0, :]).squeeze(-1)    # [B, H] -> [B]
         return logits
 
     def load_bert_model(self, state_dict):
@@ -49,9 +52,10 @@ class BERTFTAgent(RetrievalBaseAgent):
             'warmup_step': warmup_step,
             'dataset': dataset_name,
             'pretrained_model_path': pretrained_model_path,
+            'dropout': 0.2,
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
-        self.model = BERTRetrieval(self.args['model'])
+        self.model = BERTRetrieval(self.args['model'], p=self.args['dropout'])
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)
         if torch.cuda.is_available():
@@ -60,7 +64,8 @@ class BERTFTAgent(RetrievalBaseAgent):
             self.model.parameters(), 
             lr=self.args['lr'],
         )
-        self.criterion = nn.CrossEntropyLoss()
+        # self.criterion = nn.CrossEntropyLoss()
+        self.criterion = nn.BCEWithLogitsLoss()
         if run_mode == 'train':
             self.model, self.optimizer = amp.initialize(
                 self.model, 
@@ -91,11 +96,8 @@ class BERTFTAgent(RetrievalBaseAgent):
         for idx, batch in enumerate(pbar):
             ids, tids, mask, label = batch
             self.optimizer.zero_grad()
-            output = self.model(ids, tids, mask)    # [B, 2]
-            loss = self.criterion(
-                output, 
-                label.view(-1),
-            )
+            output = self.model(ids, tids, mask)    # [B]
+            loss = self.criterion(output, label.to(torch.float))
             
             with amp.scale_loss(loss, self.optimizer) as scaled_loss:
                 scaled_loss.backward()
@@ -106,8 +108,9 @@ class BERTFTAgent(RetrievalBaseAgent):
             total_loss += loss.item()
             batch_num += 1
             
-            now_correct = torch.max(F.softmax(output, dim=-1), dim=-1)[1]    # [batch]
-            now_correct = torch.sum(now_correct == label).item()
+            # now_correct = torch.max(F.softmax(output, dim=-1), dim=-1)[1]    # [batch]
+            output = F.sigmoid(output) > 0.5
+            now_correct = torch.sum(output == label).item()
             correct += now_correct
             s += len(label)
             
@@ -132,7 +135,8 @@ class BERTFTAgent(RetrievalBaseAgent):
             ids, tids, mask, label = batch
             batch_size = len(ids)
             assert batch_size % 10 == 0, f'[!] {batch_size} cannot mode 10'
-            scores = self.model(ids, tids, mask)[:, 1].cpu().tolist()    # [B]
+            # scores = self.model(ids, tids, mask)[:, 1].cpu().tolist()    # [B]
+            scores = F.sigmoid(self.model(ids, tids, mask)).cpu().tolist()    # [B]
             
             rank_by_pred, pos_index, stack_scores = \
           calculate_candidates_ranking(

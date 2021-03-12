@@ -5,9 +5,13 @@ from .utils import *
 
 class BertEmbedding(nn.Module):
     
-    def __init__(self, model='bert-base-chinese'):
+    def __init__(self, model='bert-base-chinese', p=0.2):
         super(BertEmbedding, self).__init__()
         self.model = BertModel.from_pretrained(model)
+        self.head = nn.Sequential(
+            nn.Dropout(p=p),
+            nn.Linear(768, 768)
+        )
 
     def forward(self, ids, attn_mask, m=0):
         embd = self.model(ids, attention_mask=attn_mask)[0]    # [B, S, 768]
@@ -35,8 +39,8 @@ class BERTDualOne2ManyEncoder(nn.Module):
     
     def __init__(self, model='bert-base-chinese', head=5, p=0.1, margin=0.1, pseudo=0.7, m=5):
         super(BERTDualOne2ManyEncoder, self).__init__()
-        self.ctx_encoder = BertEmbedding(model=model)
-        self.can_encoder = BertEmbedding(model=model)
+        self.ctx_encoder = BertEmbedding(model=model, p=p)
+        self.can_encoder = BertEmbedding(model=model, p=p)
 
         # self.header = nn.ModuleList([
         #     nn.Sequential(
@@ -46,12 +50,6 @@ class BERTDualOne2ManyEncoder(nn.Module):
         #         nn.Linear(768, 768)
         #     ) for _ in range(head)
         # ])
-        # self.h_to_mu = nn.Linear(768, 768)
-        # self.h_to_logvar = nn.Sequential(
-        #     nn.Linear(768, 768),
-        #     nn.Sigmoid(),
-        # )
-        # self.head_num = head
 
     def reparametrize(self, rep):
         z_mu = self.h_to_mu(rep)
@@ -207,7 +205,7 @@ class BERTDualOne2ManyEncoderAgent(RetrievalBaseAgent):
             'pretrained_model_path': pretrained_model_path,
             'oom_times': 10,
             'head_num': head,
-            'dropout': 0.1,
+            'dropout': 0.2,
             'margin': 0.1,
             'pseudo_ratio': 2,
             'm': 5,
