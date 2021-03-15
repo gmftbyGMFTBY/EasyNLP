@@ -103,6 +103,7 @@ _Note:_
 | Bi-Encoder-VAE2(Max/10) | 80.4  | 92.0  | 98.7  | 88.22  |
 | Poly-Encoder   | 80.0  | 90.3  | 97.9  | 87.69  |
 | BERT-FT        | 62.3  | 84.2  | 98    | 77.59  |
+| BERT-FT        | 60.8  | 82.8  | 97.2  | 76.33  |
 | BERT-FT+MLM+NSP|       |       |       |        |
 | BERT-FT+MLM    |       |       |       |        |
 | BERT-FT+NSP    |       |       |       |        |

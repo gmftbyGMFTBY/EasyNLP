@@ -46,15 +46,11 @@ class MemoryBank:
 class Searcher:
 
     def __init__(self, dimension=768, nlist=100):
-        # ========== LSH ========== #
-        # self.searcher = faiss.IndexLSH(dimension, 512)
         # ========== IVFPQ ========== #
-        quantizer = faiss.IndexFlatL2(dimension)
+        quantizer = faiss.IndexFlatIP(dimension)
         self.searcher = faiss.IndexIVFPQ(
            quantizer, dimension, 100, int(dimension/8), 8
         )
-        # ========== IndexFlatL2 ========== #
-        # self.searcher = faiss.IndexFlatL2(dimension)
         self.corpus = []
 
     def _build(self, matrix, corpus):

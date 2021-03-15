@@ -1,4 +1,5 @@
 from .bert_ft import *
+from .sa_bert import *
 from .bert_gen import *
 from .bert_gen_ft import *
 from .dual_bert import *
@@ -17,6 +18,17 @@ from .searcher import *
 def load_model(args):
     if args['model'] in ['bert-ft-multi', 'bert-ft']:
         model = BERTFTAgent(
+            args['multi_gpu'], 
+            args['total_step'], 
+            args['warmup_step'], 
+            run_mode=args['mode'], 
+            pretrained_model=args['pretrained_model'],
+            local_rank=args['local_rank'], 
+            dataset_name=args['dataset'], 
+            pretrained_model_path=args['pretrained_model_path']
+        )
+    elif args['model'] == 'sa-bert':
+        model = SABERTFTAgent(
             args['multi_gpu'], 
             args['total_step'], 
             args['warmup_step'], 
