@@ -35,6 +35,9 @@ class ESUtils:
                         'type': 'text',
                         'analyzer': 'ik_max_word',
                         'search_analyzer': 'ik_max_word'
+                    },
+                    'keyword': {
+                        'type': 'keyword'
                     }
                 }
             }
@@ -45,7 +48,6 @@ class ESUtils:
 
     def insert(self, pairs):
         count = self.es.count(index=self.index)['count']
-        print(f'[!] begin of the idx: {count}')
         actions = []
         for i, qa in enumerate(tqdm(pairs)):
             actions.append({
@@ -69,6 +71,9 @@ class ESChat:
                 'match': {
                     'response': query
                 }
+            },
+            'collapse': {
+                'field': 'keyword'
             }
         }
         hits = self.es.search(index=self.index, body=dsl, size=samples)['hits']['hits']

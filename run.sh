@@ -18,8 +18,8 @@ post_bsz=16
 post_epoch=5
 post_max_len=256
 post_res_max_len=128
-models=(bert-ft bert-gen bert-gen-ft bert-post dual-bert-gen dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-mb dual-bert-adv)
-ONE_BATCH_SIZE_MODEL=(dual-bert dual-bert-poly dual-bert-cl dual-bert-gen dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-mb dual-bert-adv)
+models=(bert-ft bert-ft-multi bert-gen bert-gen-ft bert-post dual-bert-gen dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-mb dual-bert-adv dual-bert-jsd)
+ONE_BATCH_SIZE_MODEL=(bert-ft-multi dual-bert dual-bert-poly dual-bert-cl dual-bert-gen dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-mb dual-bert-adv dual-bert-jsd)
 datasets=(ecommerce douban ubuntu lccc lccc-large)
 chinese_datasets=(douban ecommerce lccc lccc-large)
 # ========== metadata ========== #

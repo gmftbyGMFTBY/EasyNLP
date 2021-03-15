@@ -10,9 +10,6 @@ class RetrievalBaseAgent:
         pass
 
     def show_parameters(self, args):
-        print('========== Model ==========')
-        print(self.model)
-        print('========== Model ==========')
         print(f'========== Model Parameters ==========')
         for key, value in args.items():
             print(f'{key}: {value}')

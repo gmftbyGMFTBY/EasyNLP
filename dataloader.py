@@ -2,6 +2,40 @@ from header import *
 from model import MemoryBank
 
 
+class InputExamples:
+    
+    def __init__(self, utterances, response, label, seq_lengths):
+        self.utterances = utterances
+        self.response = response
+        self.label = label
+        self.dialog_len, self.response_len = seq_lengths
+
+
+def read_ums_data(path, vocab):
+    with open(path) as f:
+        data = [line.strip() for line in f if len(line.strip()) > 0]
+    dataset = []
+    for dialog in tqdm(dta):
+        dialog_data = dialog.split('\t')
+        label = dialog_data[0]
+        utterances, dialog_len = [], []
+        for utt in dialog_data[1:-1]:
+            utt_tok = vocab.tokenize(utt)
+            utterances.append(utt_tok)
+            dialog_len.append(len(utt_tok))
+        response = vocab.tokenize(dialog_data[-1])
+        dataset.append(
+            InputExamples(
+                utterances=utterances,
+                response=response,
+                label=int(label),
+                seq_lengths=(dialog_len, len(response))
+            )
+        )
+    print(f'[!] collect {len(dataset)} samples')
+    return dataset
+
+
 def read_text_data(path):
     with open(path) as f:
         dataset = []
@@ -644,6 +678,96 @@ class BERTDualDataset(Dataset):
             return ids, rids, rids_mask, label
 
 
+# ========== BERT FT Multi Dataset ========== # 
+class BERTFTMultiDataset(Dataset):
+    
+    '''segment embedding, token embedding, position embedding (default), mask embedding'''
+    
+    def __init__(self, path, mode='train', max_len=300, model='bert-base-chinese'):
+        self.mode, self.max_len = mode, max_len
+        self.vocab = BertTokenizer.from_pretrained(model)
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.pp_path = f'{os.path.splitext(path)[0]}_multi_ft.pt'
+        if os.path.exists(self.pp_path):
+            self.data = torch.load(self.pp_path)
+            print(f'[!] load preprocessed file from {self.pp_path}')
+            return None
+        data = read_text_data(path)
+        self.data = []
+        if mode == 'train':
+            for label, context, response in tqdm(data):
+                item = self.vocab.batch_encode_plus([[context, response]])
+                ids = item['input_ids'][0]
+                tids = item['token_type_ids'][0]
+                ids, tids = self._length_limit(ids), self._length_limit(tids)
+                self.data.append({
+                    'label': label, 
+                    'ids': ids,
+                    'tids': tids,
+                })
+        else:
+            for i in tqdm(range(0, len(data), 10)):
+                batch = data[i:i+10]
+                item = self.vocab.batch_encode_plus([[b[1], b[2]] for b in batch])
+                ids = item['input_ids']
+                tids = item['token_type_ids']
+                ids, tids = [self._length_limit(ids_) for ids_ in ids], [self._length_limit(tids_) for tids_ in tids]
+                self.data.append({
+                    'label': [b[0] for b in batch],
+                    'ids': ids,
+                    'tids': tids,
+                })    
+                
+    def _length_limit(self, ids):
+        if len(ids) > self.max_len:
+            ids = [ids[0]] + ids[-(self.max_len-1):]
+        return ids
+                
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, i):
+        bundle = self.data[i]
+        if self.mode == 'train':
+            ids = torch.LongTensor(bundle['ids'])
+            tids = torch.LongTensor(bundle['tids'])
+            label = bundle['label']
+            return ids, tids, label
+        else:
+            ids = [torch.LongTensor(i) for i in bundle['ids']]
+            tids = [torch.LongTensor(i) for i in bundle['tids']]
+            return ids, tids, bundle['label']
+
+    def save(self):
+        data = torch.save(self.data, self.pp_path)
+        print(f'[!] save preprocessed dataset into {self.pp_path}')
+        
+    def generate_mask(self, ids):
+        attn_mask_index = ids.nonzero().tolist()   # [PAD] IS 0
+        attn_mask_index_x, attn_mask_index_y = [i[0] for i in attn_mask_index], [i[1] for i in attn_mask_index]
+        attn_mask = torch.zeros_like(ids)
+        attn_mask[attn_mask_index_x, attn_mask_index_y] = 1
+        return attn_mask
+        
+    def collate(self, batch):
+        if self.mode == 'train':
+            ids, tids, label = [i[0] for i in batch], [i[1] for i in batch], [i[2] for i in batch]
+        else:
+            # batch size is batch_size * 10
+            ids, tids, label = [], [], []
+            for b in batch:
+                ids.extend(b[0])
+                tids.extend(b[1])
+                label.extend(b[2])
+        ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+        tids = pad_sequence(tids, batch_first=True, padding_value=self.pad)
+        mask = self.generate_mask(ids)
+        label = torch.LongTensor(label)
+        if torch.cuda.is_available():
+            ids, tids, mask, label = ids.cuda(), tids.cuda(), mask.cuda(), label.cuda()
+        return ids, tids, mask, label
+
+
 # ========== BERT FT Dataset ========== # 
 class BERTFTDataset(Dataset):
     
@@ -1074,15 +1198,414 @@ class BERTDualMBDataset(Dataset):
             if torch.cuda.is_available():
                 ids, rids, rids_mask, label = ids.cuda(), rids.cuda(), rids_mask.cuda(), label.cuda()
             return ids, rids, rids_mask, label
+
+
+class UMSDataset(Dataset):
+
+    def __init__(self, path, mode='train', max_len=512, model='bert-base-chinese'):
+        self.ins, self.del_, self.srch = True, True, True
+        self.mode = mode
+        self.max_len = max_len
+        self.pp_path = f'{os.path.splitext(path)[0]}_ums.pt'
+        if os.path.exists(self.pp_path):
+            self.data = torch.load(self.pp_path)
+            print(f'[!] load preprocessed file from {self.pp_path}')
+            return None
+        self.vocab = BertTokenizer.from_pretrained(model)
+        self.data = read_ums_data(path, self.vocab)
+        self.vocab.add_tokens(["[EOT]"])
+        
+        if self.ins:
+            self.vocab.add_tokens(["[INS]"])
+        if self.del_:
+            self.vocab.add_tokens(["[DEL]"])
+        if self.srch:
+            self.vocab.add_tokens(["[SRCH]"])
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, index):
+        # Get Input Examples
+        """
+        InputExamples
+        self.utterances = utterances
+        self.response = response
+        self.label
+        """
+        curr_example = self.data[index]
+        current_feature = dict()
+        anno_sent, segment_ids, attention_mask, eot_pos = self._annotate_sentence(curr_example)
+        current_feature["res_sel"] = dict()
+        current_feature["res_sel"]["anno_sent"] = torch.tensor(anno_sent).long()
+        current_feature["res_sel"]["segment_ids"] = torch.tensor(segment_ids).long()
+        current_feature["res_sel"]["attention_mask"] = torch.tensor(attention_mask).long()
+        current_feature["res_sel"]["eot_pos"] = torch.tensor(eot_pos).long()
+        current_feature["res_sel"]["label"] = torch.tensor(curr_example.label).float()
+
+        # when the response is the ground truth, append it to utterances.
+        if int(curr_example.label) == 1:
+            curr_example.utterances.append(curr_example.response)
+
+        if len(curr_example.utterances) == 1 and self.split == "train":
+            return self._single_turn_processing(current_feature)
+
+        if self.hparams.do_sent_insertion and self.split == "train":
+            anno_sent, segment_ids, attention_mask, ins_pos, target_idx = self._insertion_annotate_sentence(curr_example)
+            current_feature["ins"] = dict()
+            current_feature["ins"]["anno_sent"] = torch.tensor(anno_sent).long()
+            current_feature["ins"]["segment_ids"] = torch.tensor(segment_ids).long()
+            current_feature["ins"]["attention_mask"] = torch.tensor(attention_mask).long()
+            current_feature["ins"]["ins_pos"] = torch.tensor(ins_pos).long()
+            current_feature["ins"]["label"] = torch.tensor(target_idx).long()
+
+        if self.hparams.do_sent_deletion and self.split == "train":
+            while True:
+                target_idx = random.sample(list(range(self.num_input_examples)), 1)[0]
+                target_example = self.input_examples[target_idx]
+                if target_idx != index and len(target_example.utterances) > 2:
+                    break
+            anno_sent, segment_ids, attention_mask, del_pos, target_idx = self._deletion_annotate_sentence(curr_example,
+                                                                                                     target_example)
+            current_feature["del"] = dict()
+            current_feature["del"]["anno_sent"] = torch.tensor(anno_sent).long()
+            current_feature["del"]["segment_ids"] = torch.tensor(segment_ids).long()
+            current_feature["del"]["attention_mask"] = torch.tensor(attention_mask).long()
+            current_feature["del"]["del_pos"] = torch.tensor(del_pos).long()
+            current_feature["del"]["label"] = torch.tensor(target_idx).long()
+
+        if self.hparams.do_sent_search and self.split == "train":
+            anno_sent, segment_ids, attention_mask, srch_pos, target_idx = self._search_annotate_sentence(curr_example)
+            current_feature["srch"] = dict()
+            current_feature["srch"]["anno_sent"] = torch.tensor(anno_sent).long()
+            current_feature["srch"]["segment_ids"] = torch.tensor(segment_ids).long()
+            current_feature["srch"]["attention_mask"] = torch.tensor(attention_mask).long()
+            current_feature["srch"]["srch_pos"] = torch.tensor(srch_pos).long()
+            current_feature["srch"]["label"] = torch.tensor(target_idx).long()
+
+        return current_feature
+
+    def _single_turn_processing(self, featrue: dict):
+
+        max_seq_len = self.hparams.max_sequence_len
+        if self.hparams.do_sent_insertion:
+            featrue["ins"] = dict()
+            featrue["ins"]["anno_sent"] = torch.tensor([0] * max_seq_len).long()
+            featrue["ins"]["segment_ids"] = torch.tensor([0] * max_seq_len).long()
+            featrue["ins"]["attention_mask"] = torch.tensor([0] * max_seq_len).long()
+            featrue["ins"]["ins_pos"] = torch.tensor([0] * max_seq_len).long()
+            featrue["ins"]["label"] = torch.tensor(-1).long()
+
+        if self.hparams.do_sent_deletion:
+            featrue["del"] = dict()
+            featrue["del"]["anno_sent"] = torch.tensor([0] * max_seq_len).long()
+            featrue["del"]["segment_ids"] = torch.tensor([0] * max_seq_len).long()
+            featrue["del"]["attention_mask"] = torch.tensor([0] * max_seq_len).long()
+            featrue["del"]["del_pos"] = torch.tensor([0] * max_seq_len).long()
+            featrue["del"]["label"] = torch.tensor(-1).long()
+
+        if self.hparams.do_sent_search:
+            featrue["srch"] = dict()
+            featrue["srch"]["anno_sent"] = torch.tensor([0] * max_seq_len).long()
+            featrue["srch"]["segment_ids"] = torch.tensor([0] * max_seq_len).long()
+            featrue["srch"]["attention_mask"] = torch.tensor([0] * max_seq_len).long()
+            featrue["srch"]["srch_pos"] = torch.tensor([0] * max_seq_len).long()
+            featrue["srch"]["label"] = torch.tensor(-1).long()
+
+        return featrue
+
+    def _search_annotate_sentence(self, example):
+        max_utt_len = self.hparams.max_utt_len
+        num_utterances = len(example.utterances)
+        if num_utterances > max_utt_len:
+            max_dialog_len_idx = random.sample(list(range(num_utterances - max_utt_len)), 1)[0]
+            example.utterances = example.utterances[max_dialog_len_idx:max_dialog_len_idx + max_utt_len]
+            num_utterances = len(example.utterances)
+
+        utt_len = 3  # cls sep sep
+        for utt_id, utt in enumerate(example.utterances):
+            if len(utt) > int(self.hparams.max_sequence_len / 4):
+                example.utterances[utt_id] = utt[:int(self.hparams.max_sequence_len / 4)]
+            utt_len += len(utt) + 2  # srch, eot
+            if utt_len > self.hparams.max_sequence_len:
+                example.utterances = example.utterances[:utt_id]
+                num_utterances = len(example.utterances)
+                break
+
+        target = example.utterances.pop() + ["[EOT]"]
+        num_utterances -= 1
+
+        random_utt_idx = list(range(num_utterances))
+        random.shuffle(random_utt_idx)
+
+        dialog_context = []
+        target_idx = 0
+        target_left = 0
+        for i, random_id in enumerate(random_utt_idx):
+            if random_id == num_utterances - 1:
+                target_idx = i
+                target_left = len(dialog_context)
+            dialog_context.extend(["[SRCH]"] + example.utterances[random_id] + ["[EOT]"])
+
+        target_right = len(dialog_context) - target_left
+        dialog_context, target, target_idx = self._insert_max_len_trim_seq(dialog_context, target, target_idx,
+                                                                       (target_left, target_right))
+
+        # dialog context
+        dialog_context = ["[CLS]"] + dialog_context + ["[SEP]"]
+        segment_ids = [0] * len(dialog_context)
+        attention_mask = [1] * len(dialog_context)
+
+        target += ["[SEP]"]
+        segment_ids.extend([1] * len(target))  # same utterance
+        attention_mask.extend([1] * len(target))
+    
+        dialog_target = dialog_context + target
+
+        while len(dialog_target) < self.hparams.max_sequence_len:
+            dialog_target.append("[PAD]")
+            segment_ids.append(0)
+            attention_mask.append(0)
+
+        srch_pos = []
+        srch_cnt = 0
+        for tok_idx, tok in enumerate(dialog_target):
+            if tok == "[SRCH]":
+                srch_pos.append(1)
+                srch_cnt += 1
+            else:
+                srch_pos.append(0)
+
+        assert len(dialog_target) == len(segment_ids) == len(attention_mask)
+        assert len(dialog_target) <= self.hparams.max_sequence_len
+
+        anno_sent = self._bert_tokenizer.convert_tokens_to_ids(dialog_target)
+
+        return anno_sent, segment_ids, attention_mask, srch_pos, target_idx
+
+    def _deletion_annotate_sentence(self, curr_example, target_example):
+        max_utt_len = self.hparams.max_utt_len - 1
+    
+        target_sentence = random.sample(target_example.utterances, 1)[0]
+    
+        # TODO: current example
+        # current example -> deletion is included
+        num_utterances = len(curr_example.utterances)
+        if num_utterances > max_utt_len:
+            max_dialog_len_idx = random.sample(list(range(num_utterances - max_utt_len)), 1)[0]
+            curr_example.utterances = curr_example.utterances[max_dialog_len_idx:max_dialog_len_idx + max_utt_len]
+            num_utterances = max_utt_len
+
+        for utt_i, utt in enumerate(curr_example.utterances):
+            if len(utt) > int(self.hparams.max_sequence_len / 4):
+                curr_example.utterances[utt_i] = utt[:int(self.hparams.max_sequence_len / 4)]
+
+        curr_dialog_context = []
+        delete_idx = random.sample(list(range(num_utterances)), 1)[0]
+    
+        delete_left = 0
+        for utt_i, utt in enumerate(curr_example.utterances):
+            if utt_i == delete_idx:
+                delete_left = len(curr_dialog_context)
+                curr_dialog_context.extend(["[DEL]"] + target_sentence + ["[EOT]"])
+                if len(curr_example.utterances) > max_utt_len:
+                    curr_example.utterances.pop()  # remove the last utterance
+            curr_dialog_context.extend(["[DEL]"] + utt + ["[EOT]"])
+
+        delete_right = len(curr_dialog_context) - delete_left
+
+        target_dialog_context = []
+        dialog_context, target_context, target_idx = \
+      self._delete_max_len_trim_seq(curr_dialog_context, target_dialog_context, delete_idx, (delete_left, delete_right))
+
+        # dialog context
+        dialog_context = ["[CLS]"] + dialog_context + ["[SEP]"]
+        segment_ids = [0] * len(dialog_context)
+        attention_mask = [1] * len(dialog_context)
+    
+        dialog_target = dialog_context
+
+        while len(dialog_target) < self.hparams.max_sequence_len:
+            dialog_target.append("[PAD]")
+            segment_ids.append(0)
+            attention_mask.append(0)
+
+        del_pos = []
+        del_cnt = 0
+        for tok_idx, tok in enumerate(dialog_target):
+            if tok == "[DEL]":
+                del_pos.append(1)
+                del_cnt += 1
+            else:
+                del_pos.append(0)
+
+        assert len(dialog_target) == len(segment_ids) == len(attention_mask)
+        assert len(dialog_target) <= self.hparams.max_sequence_len
+
+        anno_sent = self._bert_tokenizer.convert_tokens_to_ids(dialog_target)
+
+        return anno_sent, segment_ids, attention_mask, del_pos, target_idx
+
+    def _insertion_annotate_sentence(self, example):
+        max_utt_len = self.hparams.max_utt_len
+    
+        num_utterances = len(example.utterances)
+    
+        if num_utterances > max_utt_len:
+            max_dialog_len_idx = random.sample(list(range(num_utterances - max_utt_len)), 1)[0]
+            example.utterances = example.utterances[max_dialog_len_idx:max_dialog_len_idx + max_utt_len]
+            num_utterances = len(example.utterances)
+
+        for utt_i, utt in enumerate(example.utterances):
+            if len(utt) > int(self.hparams.max_sequence_len / 4):
+                example.utterances[utt_i] = utt[:int(self.hparams.max_sequence_len / 4)]
+
+        target = []
+        dialog_context = ["[INS]"]
+        target_idx = random.sample(list(range(num_utterances)), 1)[0]
+
+        target_left, target_right = 0, 0
+        for utt_i, utt in enumerate(example.utterances):
+            if target_idx == utt_i:
+                target_left = len(dialog_context) - 1
+                target = utt + ["[EOT]"]
+                continue
+            dialog_context.extend(utt + ["[EOT]"] + ["[INS]"])
+
+        target_right = len(dialog_context) - target_left
+        dialog_context, target, target_idx = self._insert_max_len_trim_seq(dialog_context, target, target_idx,
+                                                                       (target_left, target_right))
+
+        # dialog context
+        dialog_context = ["[CLS]"] + dialog_context + ["[SEP]"]
+        segment_ids = [0] * len(dialog_context)
+        attention_mask = [1] * len(dialog_context)
+
+        target += ["[SEP]"]
+        segment_ids.extend([1] * len(target))  # same utterance
+        attention_mask.extend([1] * len(target))
+
+        dialog_target = dialog_context + target
+
+        while len(dialog_target) < self.hparams.max_sequence_len:
+            dialog_target.append("[PAD]")
+            segment_ids.append(0)
+            attention_mask.append(0)
+
+        ins_pos = []
+        ins_cnt = 0
+        for tok_idx, tok in enumerate(dialog_target):
+            if tok == "[INS]":
+                ins_pos.append(1)
+                ins_cnt += 1
+            else:
+                ins_pos.append(0)
+        assert len(dialog_target) == len(segment_ids) == len(attention_mask)
+        assert len(dialog_target) <= self.hparams.max_sequence_len
+
+        anno_sent = self._bert_tokenizer.convert_tokens_to_ids(dialog_target)
+
+        return anno_sent, segment_ids, attention_mask, ins_pos, target_idx
+
+    def _annotate_sentence(self, example):
+
+        dialog_context = []
+        if self.hparams.do_eot:
+            for utt in example.utterances:
+                dialog_context.extend(utt + ["[EOT]"])
+        else:
+            for utt in example.utterances:
+                dialog_context.extend(utt)
+        response = example.response + ["[EOT]"]
+        dialog_context, response = self._max_len_trim_seq(dialog_context, response)
+    
+        # dialog context
+        dialog_context = ["[CLS]"] + dialog_context + ["[SEP]"]
+        segment_ids = [0] * len(dialog_context)
+        attention_mask = [1] * len(dialog_context)
+
+        response = response + ["[SEP]"]
+        segment_ids.extend([1] * len(response))
+        attention_mask.extend([1] * len(response))
+
+        dialog_response = dialog_context + response
+
+        while len(dialog_response) < self.hparams.max_sequence_len:
+            dialog_response.append("[PAD]")
+            segment_ids.append(0)
+            attention_mask.append(0)
+
+        eot_pos = []
+        for tok_idx, tok in enumerate(dialog_response):
+            if tok == "[EOT]":
+                eot_pos.append(1)
+            else:
+                eot_pos.append(0)
+
+        assert len(dialog_response) == len(segment_ids) == len(attention_mask)
+        anno_sent = self._bert_tokenizer.convert_tokens_to_ids(dialog_response)
+        assert len(dialog_response) <= self.hparams.max_sequence_len
+
+        return anno_sent, segment_ids, attention_mask, eot_pos
+
+    def _delete_max_len_trim_seq(self, curr_dialog_context, target_dialog_context, target_idx, lengths):
+        delete_left, delete_right = lengths
+
+        while len(curr_dialog_context) + len(target_dialog_context) > self.hparams.max_sequence_len - 3:
+            if len(curr_dialog_context) > len(target_dialog_context):
+                if delete_left > delete_right:
+                    if curr_dialog_context[0] in ["[DEL]"]:
+                        target_idx -= 1
+                    delete_left -= 1
+                    curr_dialog_context.pop(0)  # from the left
+                else:
+                    delete_right -= 1
+                    curr_dialog_context.pop()  # from the right
+            else:
+                target_dialog_context.pop(0)
+
+        return curr_dialog_context, target_dialog_context, target_idx
+
+    def _insert_max_len_trim_seq(self, dialog_context, target, target_idx, lengths):
+
+        target_left, target_right = lengths
+        # [CLS] [SEP] [EOT] [SEP]
+        while len(dialog_context) + len(target) > self.hparams.max_sequence_len - 3:
+            if len(dialog_context) > len(target):
+                if target_left > target_right:
+                    if dialog_context[0] in ["[INS]"]:
+                        target_idx -= 1
+                    target_left -= 1
+                    dialog_context.pop(0)  # from the left
+                else:
+                    target_right -= 1
+                    dialog_context.pop()  # from the right
+            else:
+                target.pop()
+
+        return dialog_context, target, target_idx
+
+    def _max_len_trim_seq(self, dialog_context, response):
+
+        while len(dialog_context) + len(response) > self.hparams.max_sequence_len - 3:
+            if len(dialog_context) > len(response):
+                dialog_context.pop(0)  # from the front
+            else:
+                response.pop()
+
+        return dialog_context, response
     
 
 # =========== load dataset ========== #
 def load_dataset(args):
     DATASET_MAP = {
+        'ums': UMSDataset,
         'bert-gen': BERTGenDataset,
         'bert-ft': BERTFTDataset,
+        'bert-ft-multi': BERTFTMultiDataset,
         'bert-gen-ft': BERTGenFTDataset,
         'dual-bert': BERTDualDataset,
+        'dual-bert-jsd': BERTDualDataset,
         'dual-bert-gen': BERTDualGenDataset,
         'dual-bert-adv': BERTDualDataset,
         'dual-bert-mb': BERTDualMBDataset,
@@ -1100,8 +1623,11 @@ def load_dataset(args):
             BERTDualInferenceContextDataset,
         )
     }
-    
-    path = f'data/{args["dataset"]}/{args["mode"]}.txt'
+
+    if args['model'] == 'bert-ft-multi':
+        path = f'data/{args["dataset"]}/{args["mode"]}_dup.txt'
+    else:
+        path = f'data/{args["dataset"]}/{args["mode"]}.txt'
     if args['mode'] == 'train':
         if args['model'] == 'dual-bert-one2many':
             data = DATASET_MAP[args['model']](path, mode=args['mode'], max_len=args['max_len'], model=args['pretrained_model'], head=args['head_num'], res_max_len=args['res_max_len'])

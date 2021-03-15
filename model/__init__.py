@@ -2,6 +2,7 @@ from .bert_ft import *
 from .bert_gen import *
 from .bert_gen_ft import *
 from .dual_bert import *
+from .dual_bert_jsd import *
 from .dual_bert_gen import *
 from .dual_bert_adv import *
 from .dual_bert_mb import *
@@ -14,7 +15,7 @@ from .dual_bert_vae2 import *
 from .searcher import *
 
 def load_model(args):
-    if args['model'] == 'bert-ft':
+    if args['model'] in ['bert-ft-multi', 'bert-ft']:
         model = BERTFTAgent(
             args['multi_gpu'], 
             args['total_step'], 
@@ -58,6 +59,17 @@ def load_model(args):
         )
     elif args['model'] == 'dual-bert-gen':
         model = BERTDualGenEncoderAgent(
+            args['multi_gpu'], 
+            args['total_step'], 
+            args['warmup_step'], 
+            run_mode=args['mode'], 
+            pretrained_model=args['pretrained_model'],
+            local_rank=args['local_rank'], 
+            dataset_name=args['dataset'],
+            pretrained_model_path=args['pretrained_model_path']
+        )
+    elif args['model'] == 'dual-bert-jsd':
+        model = BERTDualJSDEncoderAgent(
             args['multi_gpu'], 
             args['total_step'], 
             args['warmup_step'], 

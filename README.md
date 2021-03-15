@@ -150,7 +150,7 @@ _Note:_
 | SOTA           | -     | -     | -     | -      |
 | Bi-Encoder(bsz=16) | 21.5  | 31.2      | 47.1   | 36.65   |
 | Bi-Encoder-one2many(bsz=16,max,pre-extract=50) | 27.0 | 36.7 | 54.0 | 41.85 |
-| BERT-FT        |       |       |       |        |
+| BERT-FT        | 23.1  | 72.1  | 94.2  | 54.9   |
 | BERT-FT+MLM+NSP|       |       |       |        |
 | BERT-FT+MLM    |       |       |       |        |
 | BERT-FT+NSP    |       |       |       |        |

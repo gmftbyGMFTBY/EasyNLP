@@ -10,16 +10,12 @@ class BertEmbedding(nn.Module):
         self.model = BertModel.from_pretrained(model)
         self.head = nn.Sequential(
             nn.Dropout(p=p),
-            nn.Linear(768, 768)
+            nn.Linear(768, 768),
         )
 
-    def forward(self, ids, attn_mask, m=0):
+    def forward(self, ids, attn_mask):
         embd = self.model(ids, attention_mask=attn_mask)[0]    # [B, S, 768]
-        if m == 0:
-            return embd[:, 0, :]
-        else:
-            x = embd[:, :m, :].reshape(embd.shape[0], -1)    # [B, M, 768] -> [B, M*768]
-            return x
+        return self.head(embd[:, 0, :])
     
     def load_bert_model(self, state_dict):
         new_state_dict = OrderedDict()
@@ -31,18 +27,16 @@ class BertEmbedding(nn.Module):
         self.model.load_state_dict(new_state_dict)
     
 
-class BERTDualOne2ManyEncoder(nn.Module):
-
-    '''
-    no reparametrize, no multiple head
-    '''
+class BERTDualJSDEncoder(nn.Module):
     
-    def __init__(self, model='bert-base-chinese', head=5, p=0.1, margin=0.1, pseudo=0.7, m=5):
-        super(BERTDualOne2ManyEncoder, self).__init__()
+    # NOTE
+    def __init__(self, model='bert-base-chinese', p=0.2, head=5, alpha=10):
+        super(BERTDualJSDEncoder, self).__init__()
         self.ctx_encoder = BertEmbedding(model=model, p=p)
         self.can_encoder = BertEmbedding(model=model, p=p)
 
-        self.header = nn.ModuleList([
+        # NOTE
+        self.ctx_head = nn.ModuleList([
             nn.Sequential(
                 nn.Linear(768, 768),
                 nn.Dropout(p=p),
@@ -50,23 +44,24 @@ class BERTDualOne2ManyEncoder(nn.Module):
                 nn.Linear(768, 768)
             ) for _ in range(head)
         ])
+        self.res_head = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(768, 768),
+                nn.Dropout(p=p),
+                nn.ReLU(),
+                nn.Linear(768, 768)
+            ) for _ in range(head)
+        ])
+        self.head_num = head
+        self.alpha = alpha
 
-    def _encode(self, cid, rids, cid_mask, rids_mask):
+    def _encode(self, cid, rid, cid_mask, rid_mask):
+        # NOTE
         cid_rep = self.ctx_encoder(cid, cid_mask)
-        cid_reps = [self.header[i](cid_rep) for i in range(self.head_num)]
-        rid_reps = []
-        for rid, rid_mask in zip(rids, rids_mask):
-            rid_rep = self.can_encoder(rid, rid_mask)
-            rid_reps.append(rid_rep)
-        # assert len(cid_reps) == len(rid_reps)
-        return cid_rep, rid_reps
-
-    @torch.no_grad()
-    def _encode_(self, cid, rid, cid_mask, rid_mask):
-        cid_rep = self.ctx_encoder(cid, cid_mask)
-        cid_reps = [self.header[i](cid_rep) for i in range(self.head_num)]
+        cid_reps = [self.ctx_head[i](cid_rep) for i in range(self.head_num)]
         rid_rep = self.can_encoder(rid, rid_mask)
-        return cid_rep, rid_rep
+        rid_reps = [self.res_head[i](rid_rep) for i in range(self.head_num)]
+        return cid_reps, rid_reps
 
     @torch.no_grad()
     def get_cand(self, ids, attn_mask):
@@ -81,107 +76,61 @@ class BERTDualOne2ManyEncoder(nn.Module):
     @torch.no_grad()
     def predict(self, cid, rid, rid_mask):
         batch_size = rid.shape[0]
-        cid_rep, rid_rep = self._encode_(cid.unsqueeze(0), rid, None, rid_mask)
-        # cid_rep/rid_rep: [768], [B, 768]
-        cid_rep = cid_rep.squeeze(0)    # [768]
-        dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B]
+        cid_reps, rid_reps = self._encode(cid.unsqueeze(0), rid, None, rid_mask)
+        dot_product = []
+        for cid, rid in zip(cid_reps, rid_reps):
+            cid = cid.squeeze(0)    # [768]
+            # cid_rep/rid_rep: [768], [B, 768]
+            dot_product.append(torch.matmul(cid, rid.t()))  # [B]
+        dot_product = torch.stack(dot_product)
+        dot_product = dot_product.max(dim=0)[0]
         return dot_product
-    
-    @torch.no_grad()
-    def predict_(self, cid, rid, rid_mask):
-        batch_size = rid.shape[0]
-        cid_rep, rid_rep = self._encode_(cid.unsqueeze(0), rid, None, rid_mask)
-        # cid_rep/rid_rep: [768], [B, 768]
-        dot_products = []
-        for cid_rep in cid_reps:
-            cid_rep = cid_rep.squeeze(0)    # [768]
-            dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B]
-            dot_products.append(dot_product)
-        dot_products = torch.stack(dot_products)    # [H, B]
-        # pooling strategy: mean or max
-        # dot_products = F.softmax(dot_products, dim=1).mean(dim=0)
-        dot_products = F.softmax(dot_products, dim=1).max(dim=0)[0]
-        return dot_products
-    
-    def forward(self, cid, rids, cid_mask, rids_mask):
+
+    def jsd(self, p, q):
+        m = F.softmax(0.5 * (p + q), dim=1)
+        d = 0.5 * F.kl_div(F.log_softmax(p, dim=1), m, reduction='batchmean') + 0.5 * F.kl_div(F.log_softmax(q, dim=1), m, reduction='batchmean')
+        return d
+        
+    def forward(self, cid, rid, cid_mask, rid_mask):
         batch_size = cid.shape[0]
         assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
-        cid_reps, rid_reps = self._encode(cid, rids, cid_mask, rids_mask)
-
-        # ========== K matrixes =========== #
+        cid_reps, rid_reps = self._encode(cid, rid, cid_mask, rid_mask)
         # cid_rep/rid_rep: [B, 768]
-        # use half for supporting the apex
-        mask = torch.eye(batch_size).cuda().half()    # [B, B]
-        # mask = torch.eye(batch_size).cuda()    # [B, B]
-        # calculate accuracy
-        acc, loss, additional_matrix = 0, 0, []
-        counter = 0
-        for cid, rid_rep in zip(cid_reps, rid_reps):
-            dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
-            # calculate the loss
-            loss_ = F.log_softmax(dot_product, dim=-1) * mask
-            loss_ = (-loss_.sum(dim=1)).mean()
-            loss += loss_
-
-            # calculate the acc
-            acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
-            if counter == 0:
-                acc = acc_num / batch_size
-            # .append [B]
-            # NOTE:
-            additional_matrix.append(dot_product[range(batch_size), range(batch_size)])
-            counter += 1
-
-        # acc /= self.head_num
-        # loss /= self.head_num
-
-        # NOTE:
-        # groundtruth is better than retrieved samples
-        additional_matrix = torch.stack(additional_matrix).transpose(0, 1)    # [K, B] -> [B, K]
-        mask_ = torch.zeros_like(additional_matrix).half().cuda()
-        mask_[:, 0] = 1
-        additional_loss = F.log_softmax(additional_matrix, dim=-1) * mask_
-        additional_loss = (-additional_loss.sum(dim=1)).mean()
-        loss += additional_loss
-        return loss, acc
-    
-    def forward_(self, cid, rids, cid_mask, rids_mask):
-        batch_size = cid.shape[0]
-        assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
-        cid_reps, rid_reps = self._encode(cid, rids, cid_mask, rids_mask)
-
-        # ========== K matrixes =========== #
-        # cid_rep/rid_rep: [B, 768]
-        # use half for supporting the apex
-        mask = torch.eye(batch_size).cuda().half()    # [B, B]
-        mask = torch.cat([mask, torch.zeros(batch_size, batch_size*(len(cid_reps)-1)).half().cuda()], dim=-1)    # [B, B*K]
-        # mask = torch.eye(batch_size).cuda()    # [B, B]
-        # calculate accuracy
-        acc, loss, additional_matrix = 0, 0, []
-        counter = 0
-        dot_products = []
+        loss, acc = 0, 0
         for cid_rep, rid_rep in zip(cid_reps, rid_reps):
             dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
-            dot_products.append(dot_product)
-        dot_products = torch.cat(dot_products, dim=-1)    # [B, B*K]
-        # calculate the loss
-        loss_ = F.log_softmax(dot_products, dim=-1) * mask
-        loss = (-loss_.sum(dim=1)).mean()
-        acc_num = (F.softmax(dot_products, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
-        acc = acc_num / batch_size
-        return loss, acc
+            mask = torch.eye(batch_size).cuda().half()    # [B, B]
+            # calculate accuracy
+            acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
+            acc_ = acc_num / batch_size
+            acc += acc_
+            # calculate the loss
+            loss_ = F.log_softmax(dot_product, dim=-1) * mask
+            loss += (-loss_.sum(dim=1)).mean()
+        acc /= self.head_num
+        d_loss, counter = 0, 0
+        # JS-Divergence Diveristy
+        for i in range(self.head_num):
+            for j in range(self.head_num):
+                if i != j:
+                    d_loss -= self.alpha * self.jsd(cid_reps[i], cid_reps[j])
+                    d_loss -= self.alpha * self.jsd(rid_reps[i], rid_reps[j])
+                    counter += 2
+        # d_loss /= counter
+        loss += d_loss
+        return loss, -d_loss, acc
     
     
-class BERTDualOne2ManyEncoderAgent(RetrievalBaseAgent):
+class BERTDualJSDEncoderAgent(RetrievalBaseAgent):
     
-    def __init__(self, multi_gpu, total_step, warmup_step, run_mode='train', local_rank=0, dataset_name='ecommerce', pretrained_model='bert-base-chinese', pretrained_model_path=None, head=10):
-        super(BERTDualOne2ManyEncoderAgent, self).__init__()
+    def __init__(self, multi_gpu, total_step, warmup_step, run_mode='train', local_rank=0, dataset_name='ecommerce', pretrained_model='bert-base-chinese', pretrained_model_path=None):
+        super(BERTDualJSDEncoderAgent, self).__init__()
         try:
             self.gpu_ids = list(range(len(multi_gpu.split(',')))) 
         except:
             raise Exception(f'[!] multi gpu ids are needed, but got: {multi_gpu}')
         self.args = {
-            'lr': 5e-5,
+            'lr': 5e-5,     # dot production: 5e-5, cosine similairty: 1e-4
             'grad_clip': 1.0,
             'multi_gpu': self.gpu_ids,
             'model': pretrained_model,
@@ -193,14 +142,12 @@ class BERTDualOne2ManyEncoderAgent(RetrievalBaseAgent):
             'dataset': dataset_name,
             'pretrained_model_path': pretrained_model_path,
             'oom_times': 10,
-            'head_num': head,
             'dropout': 0.2,
-            'margin': 0.1,
-            'pseudo_ratio': 2,
-            'm': 5,
+            'head_num': 5,
+            'alpha': 1,
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
-        self.model = BERTDualOne2ManyEncoder(model=self.args['model'], head=self.args['head_num'], p=self.args['dropout'], margin=self.args['margin'], pseudo=self.args['pseudo_ratio'], m=self.args['m'])
+        self.model = BERTDualJSDEncoder(model=self.args['model'], p=self.args['dropout'], head=self.args['head_num'], alpha=self.args['alpha'])
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)
         if torch.cuda.is_available():
@@ -240,32 +187,33 @@ class BERTDualOne2ManyEncoderAgent(RetrievalBaseAgent):
     def train_model(self, train_iter, mode='train', recoder=None, idx_=0):
         '''ADD OOM ASSERTION'''
         self.model.train()
-        total_loss, total_acc, batch_num = 0, 0, 0
+        total_loss, total_acc, batch_num, total_jsd_loss = 0, 0, 0, 0
         pbar = tqdm(train_iter)
         correct, s, oom_t = 0, 0, 0
         for idx, batch in enumerate(pbar):
             try:
                 self.optimizer.zero_grad()
                 cid, rid, cid_mask, rid_mask = batch
-                loss, acc = self.model(cid, rid, cid_mask, rid_mask)
+                loss, jsd_loss, acc = self.model(cid, rid, cid_mask, rid_mask)
                 with amp.scale_loss(loss, self.optimizer) as scaled_loss:
                     scaled_loss.backward()
-                # loss.backward()
                 clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
-                # clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
                 self.optimizer.step()
                 self.scheduler.step()
     
                 total_loss += loss.item()
+                total_jsd_loss += jsd_loss.item()
                 total_acc += acc
                 batch_num += 1
                 
+                recoder.add_scalar(f'train-epoch-{idx_}/JSDLoss', total_jsd_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunJSDLoss', jsd_loss.item(), idx)
                 recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
                 recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
                 recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
                 recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
                 
-                pbar.set_description(f'[!] OOM: {oom_t}; loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
+                pbar.set_description(f'[!] OOM: {oom_t}; loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; jsd_loss: {round(jsd_loss.item(), 4)}|{round(total_jsd_loss/batch_num, 4)} acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
             except RuntimeError as exception:
                 if 'out of memory' in str(exception):
                     oom_t += 1
@@ -276,6 +224,7 @@ class BERTDualOne2ManyEncoderAgent(RetrievalBaseAgent):
                     raise Exception(str(exception))
 
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
+        recoder.add_scalar(f'train-whole/JSDLoss', total_jsd_loss/batch_num, idx)
         recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
         return round(total_loss / batch_num, 4)
         
@@ -291,7 +240,7 @@ class BERTDualOne2ManyEncoderAgent(RetrievalBaseAgent):
             batch_size = len(rids)
             assert batch_size == 10, f'[!] {batch_size} is not equal to 10'
             scores = self.model.predict(cid, rids, rids_mask).cpu().tolist()    # [B]
-            
+
             rank_by_pred, pos_index, stack_scores = \
           calculate_candidates_ranking(
                 np.array(scores), 
@@ -306,7 +255,8 @@ class BERTDualOne2ManyEncoderAgent(RetrievalBaseAgent):
                         total_examples -= 1
             total_mrr += logits_mrr(pos_index)
             total_correct = np.add(total_correct, num_correct)
-            total_examples += math.ceil(label.size()[0] / 10)
+            # total_examples += math.ceil(label.size()[0] / 10)
+            total_examples += 1
         avg_mrr = float(total_mrr / total_examples)
         avg_prec_at_one = float(total_prec_at_one / total_examples)
         avg_map = float(total_map / total_examples)
