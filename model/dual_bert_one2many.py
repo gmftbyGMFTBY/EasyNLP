@@ -15,11 +15,7 @@ class BertEmbedding(nn.Module):
 
     def forward(self, ids, attn_mask, m=0):
         embd = self.model(ids, attention_mask=attn_mask)[0]    # [B, S, 768]
-        if m == 0:
-            return embd[:, 0, :]
-        else:
-            x = embd[:, :m, :].reshape(embd.shape[0], -1)    # [B, M, 768] -> [B, M*768]
-            return x
+        return self.head(embd[:, 0, :])
     
     def load_bert_model(self, state_dict):
         new_state_dict = OrderedDict()
@@ -41,30 +37,19 @@ class BERTDualOne2ManyEncoder(nn.Module):
         super(BERTDualOne2ManyEncoder, self).__init__()
         self.ctx_encoder = BertEmbedding(model=model, p=p)
         self.can_encoder = BertEmbedding(model=model, p=p)
-
-        self.header = nn.ModuleList([
-            nn.Sequential(
-                nn.Linear(768, 768),
-                nn.Dropout(p=p),
-                nn.ReLU(),
-                nn.Linear(768, 768)
-            ) for _ in range(head)
-        ])
+        self.head_num = head
 
     def _encode(self, cid, rids, cid_mask, rids_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
-        cid_reps = [self.header[i](cid_rep) for i in range(self.head_num)]
         rid_reps = []
         for rid, rid_mask in zip(rids, rids_mask):
             rid_rep = self.can_encoder(rid, rid_mask)
             rid_reps.append(rid_rep)
-        # assert len(cid_reps) == len(rid_reps)
         return cid_rep, rid_reps
 
     @torch.no_grad()
     def _encode_(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
-        cid_reps = [self.header[i](cid_rep) for i in range(self.head_num)]
         rid_rep = self.can_encoder(rid, rid_mask)
         return cid_rep, rid_rep
 
@@ -87,26 +72,45 @@ class BERTDualOne2ManyEncoder(nn.Module):
         dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B]
         return dot_product
     
-    @torch.no_grad()
-    def predict_(self, cid, rid, rid_mask):
-        batch_size = rid.shape[0]
-        cid_rep, rid_rep = self._encode_(cid.unsqueeze(0), rid, None, rid_mask)
-        # cid_rep/rid_rep: [768], [B, 768]
+    def forward_(self, cid, rids, cid_mask, rids_mask):
+        batch_size = cid.shape[0]
+        assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
+        cid_rep, rid_reps = self._encode(cid, rids, cid_mask, rids_mask)
+
+        mask = torch.eye(batch_size).cuda().half()    # [B, B]
+        zero = torch.zeros(batch_size, batch_size*(self.head_num-1)).cuda().half()    # [B, (K-1)*B]
+        mask = torch.cat([mask, zero], dim=1)
+        acc, loss, additional_matrix, neg_additional_matrix = 0, 0, [], []
+        counter, loss = 0, 0
         dot_products = []
-        for cid_rep in cid_reps:
-            cid_rep = cid_rep.squeeze(0)    # [768]
-            dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B]
+        for rid_rep in rid_reps:
+            dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
             dot_products.append(dot_product)
-        dot_products = torch.stack(dot_products)    # [H, B]
-        # pooling strategy: mean or max
-        # dot_products = F.softmax(dot_products, dim=1).mean(dim=0)
-        dot_products = F.softmax(dot_products, dim=1).max(dim=0)[0]
-        return dot_products
+        for i in range(self.head_num):
+            index = list(range(self.head_num))
+            index.remove(i)
+            p = [dot_products[i]]
+            for idx in index:
+                k = dot_products[idx].clone()
+                # DO NOT USE -np.inf
+                k[range(batch_size), range(batch_size)] = -1e4
+                p.append(k)
+            p = torch.cat(p, dim=1)    # [B, K*B]
+            loss_ = F.log_softmax(p, dim=-1) * mask
+            loss += (-loss_.sum(dim=1)).mean()
+
+            # calculate the acc
+            acc_num = (F.softmax(p, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
+            acc += acc_num / batch_size
+
+        loss /= self.head_num
+        acc /= self.head_num
+        return loss, acc
     
     def forward(self, cid, rids, cid_mask, rids_mask):
         batch_size = cid.shape[0]
         assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
-        cid_reps, rid_reps = self._encode(cid, rids, cid_mask, rids_mask)
+        cid_rep, rid_reps = self._encode(cid, rids, cid_mask, rids_mask)
 
         # ========== K matrixes =========== #
         # cid_rep/rid_rep: [B, 768]
@@ -114,9 +118,9 @@ class BERTDualOne2ManyEncoder(nn.Module):
         mask = torch.eye(batch_size).cuda().half()    # [B, B]
         # mask = torch.eye(batch_size).cuda()    # [B, B]
         # calculate accuracy
-        acc, loss, additional_matrix = 0, 0, []
+        acc, loss, additional_matrix, neg_additional_matrix = 0, 0, [], []
         counter = 0
-        for cid, rid_rep in zip(cid_reps, rid_reps):
+        for rid_rep in rid_reps:
             dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
             # calculate the loss
             loss_ = F.log_softmax(dot_product, dim=-1) * mask
@@ -124,22 +128,20 @@ class BERTDualOne2ManyEncoder(nn.Module):
             loss += loss_
 
             # calculate the acc
-            acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
             if counter == 0:
+                acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
                 acc = acc_num / batch_size
             # .append [B]
-            # NOTE:
             additional_matrix.append(dot_product[range(batch_size), range(batch_size)])
             counter += 1
 
-        # acc /= self.head_num
-        # loss /= self.head_num
-
-        # NOTE:
+        loss /= self.head_num
         # groundtruth is better than retrieved samples
         additional_matrix = torch.stack(additional_matrix).transpose(0, 1)    # [K, B] -> [B, K]
         mask_ = torch.zeros_like(additional_matrix).half().cuda()
-        mask_[:, 0] = 1
+        # NOTE
+        random_idx = [random.choice(range(self.head_num)) for _ in range(batch_size)]
+        mask_[range(batch_size), random_idx] = 1
         additional_loss = F.log_softmax(additional_matrix, dim=-1) * mask_
         additional_loss = (-additional_loss.sum(dim=1)).mean()
         loss += additional_loss

@@ -2,6 +2,8 @@
 
 Constrastive Learning for dual-encoder model, leveraging the memory bank to enlarge the number of the negative samples. Besides, the FAISS memory bank can be used to recall better samples, so these better samples can be used as the medium samples (not so good and not so bad).
 
+Constrastive Learning, context is the q, and response is the jey. Ground-truth response is positive k, and other responses are negative k.
+
 ## How to Use
 
 1. create post data from the orignial dataset
@@ -69,11 +71,20 @@ _Note:_
 * max strategy is equal to mean strategy
 * worse quality (bi-encoder-one2many-bad) of the candidates could bring better performance (test whether the number of the negative samples matter, rather than the quality)
 * the number of the samples and the quality of samples matter!!!
+* adding the number of the positive samples doesn't improve the performance!!!
+
+| Original       | R10@1 | R10@2 | R10@5 | MRR    |
+| -------------- | ----- | ----- | ----- | ------ |
+| SOTA           | 77.6  | 91.9  | 99.1  | -      |
+| Bi-Encoder(bsz=16) | 78.7  | 90.8  | 97.9  | 87.1  |
+| Bi-Encoder(bsz=16) | 80.8  | 91.7  | 98.3  | 88.39  |
 
 | Original       | R10@1 | R10@2 | R10@5 | MRR    |
 | -------------- | ----- | ----- | ----- | ------ |
 | SOTA           | 77.6  | 91.9  | 99.1  | -      |
 | Bi-Encoder(bsz=16) | 80.8  | 91.7  | 98.3  | 88.39  |
+| Bi-Encoder(bsz=16, compare with dual-bert-cl) | 78.7  | 90.8  | 97.9  | 87.1  |
+| Bi-Encoder-cl(bsz=16) | 78.3  | 90.7  | 97.7  | 86.8  |
 | Bi-Encoder-mb(bsz=16, mb=4096) | 80.6  | 91.0  | 97.9  | 88.09  |
 | Bi-Encoder(bsz=64) | 83.7  | 92.4  | 98.5  | 90.02  |
 | Bi-Encoder-one2many(bsz=16) | 90.4  | 95.6  | 98.9  | 94.16  |
@@ -98,9 +109,6 @@ _Note:_
 | Bi-Encoder-hier-multi(bsz=16,m=5) | 80.6  | 91.6  | 98.6  | 88.01  |
 | Bi-Encoder(bsz=64) | 83.7  | 92.4  | 98.5  | 90.02  |
 | Bi-Encoder-CL2 | 80.6  | 91.1  | 98.2  | 88.16  |
-| Bi-Encoder-VAE(Max/5)  | 80.7  | 92.4  | 97.9  | 88.43  |
-| Bi-Encoder-VAE2(Max/5) | 80.2  | 91.9  | 98.8  | 88.11  |
-| Bi-Encoder-VAE2(Max/10) | 80.4  | 92.0  | 98.7  | 88.22  |
 | Poly-Encoder   | 80.0  | 90.3  | 97.9  | 87.69  |
 | BERT-FT        | 62.3  | 84.2  | 98    | 77.59  |
 | BERT-FT        | 60.8  | 82.8  | 97.2  | 76.33  |

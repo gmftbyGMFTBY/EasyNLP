@@ -295,7 +295,7 @@ class BERTDualOne2ManyDataset(Dataset):
                 ids = [ids[0]] + ids[-(self.max_len-1):]
         else:
             if len(ids) > self.res_max_len:
-                ids = [ids[0]] + ids[-(self.res_max_len-1):]
+                ids = ids[:self.res_max_len]
         return ids
                 
     def __len__(self):
@@ -617,7 +617,7 @@ class BERTDualDataset(Dataset):
                     continue
                 item = self.vocab.batch_encode_plus([context, response])
                 ids, rids = item['input_ids'][0], item['input_ids'][1]
-                ids, rids = self._length_limit(ids), self._length_limit(rids)
+                ids, rids = self._length_limit(ids), self._length_limit_res(rids)
                 self.data.append({
                     'ids': ids,
                     'rids': rids,
@@ -630,7 +630,7 @@ class BERTDualDataset(Dataset):
                     item = self.vocab.batch_encode_plus([item[1], item[2]])
                     ids = item['input_ids'][0]
                     rids.append(item['input_ids'][1])
-                ids, rids = self._length_limit(ids), [self._length_limit(rids_) for rids_ in rids]
+                ids, rids = self._length_limit(ids), [self._length_limit_res(rids_) for rids_ in rids]
                 self.data.append({
                     'label': [b[0] for b in batch],
                     'ids': ids,
@@ -640,6 +640,12 @@ class BERTDualDataset(Dataset):
     def _length_limit(self, ids):
         if len(ids) > self.max_len:
             ids = [ids[0]] + ids[-(self.max_len-1):]
+        return ids
+    
+    def _length_limit_res(self, ids):
+        # cut tail
+        if len(ids) > self.max_len:
+            ids = ids[:self.max_len]
         return ids
                 
     def __len__(self):
@@ -1739,7 +1745,7 @@ def load_dataset(args):
         'dual-bert-adv': BERTDualDataset,
         'dual-bert-mb': BERTDualMBDataset,
         'dual-bert-poly': BERTDualDataset,
-        'dual-bert-cl': BERTDualDataset,
+        'dual-bert-cl': BERTDualOne2ManyDataset,
         'dual-bert-vae': BERTDualDataset,
         'dual-bert-vae2': BERTDualDataset,
         'dual-bert-one2many': BERTDualOne2ManyDataset,
@@ -1758,7 +1764,7 @@ def load_dataset(args):
     else:
         path = f'data/{args["dataset"]}/{args["mode"]}.txt'
     if args['mode'] == 'train':
-        if args['model'] == 'dual-bert-one2many':
+        if args['model'] in ['dual-bert-cl', 'dual-bert-one2many']:
             data = DATASET_MAP[args['model']](path, mode=args['mode'], max_len=args['max_len'], model=args['pretrained_model'], head=args['head_num'], res_max_len=args['res_max_len'])
             train_sampler = torch.utils.data.distributed.DistributedSampler(
                 data,

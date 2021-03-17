@@ -137,7 +137,7 @@ def load_model(args):
             pretrained_model_path=args['pretrained_model_path']
         )
     elif args['model'] == 'dual-bert-cl':
-        model = BERTDualEncoderCLAgent(
+        model = BERTDualCLEncoderAgent(
             args['multi_gpu'], 
             args['total_step'], 
             args['warmup_step'], 

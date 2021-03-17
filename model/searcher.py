@@ -13,11 +13,6 @@ def parser_args():
 
 class MemoryBank:
 
-    '''attribute:
-    1. response textual corpus; 
-    2. recent response embedding, will be updated by the recent model
-    '''
-
     def __init__(self, corpus):
         self.data = {}
         for idx, _ in tqdm(corpus.items()):
