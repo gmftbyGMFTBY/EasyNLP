@@ -1745,7 +1745,7 @@ def load_dataset(args):
         'dual-bert-adv': BERTDualDataset,
         'dual-bert-mb': BERTDualMBDataset,
         'dual-bert-poly': BERTDualDataset,
-        'dual-bert-cl': BERTDualOne2ManyDataset,
+        'dual-bert-cl': BERTDualDataset,
         'dual-bert-vae': BERTDualDataset,
         'dual-bert-vae2': BERTDualDataset,
         'dual-bert-one2many': BERTDualOne2ManyDataset,
@@ -1764,7 +1764,7 @@ def load_dataset(args):
     else:
         path = f'data/{args["dataset"]}/{args["mode"]}.txt'
     if args['mode'] == 'train':
-        if args['model'] in ['dual-bert-cl', 'dual-bert-one2many']:
+        if args['model'] in ['dual-bert-one2many']:
             data = DATASET_MAP[args['model']](path, mode=args['mode'], max_len=args['max_len'], model=args['pretrained_model'], head=args['head_num'], res_max_len=args['res_max_len'])
             train_sampler = torch.utils.data.distributed.DistributedSampler(
                 data,
