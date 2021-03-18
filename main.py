@@ -56,12 +56,12 @@ def main(**args):
             # test
             rest_path = f'rest/{args["dataset"]}/{args["model"]}/rest_epoch_{i}.txt'
             (r10_1, r10_2, r10_5), mrr, p1, MAP = agent.test_model(test_iter, rest_path)
-            sum_writer.add_scalar(f'test-epoch-{i}/R10@1', r10_1, i)
-            sum_writer.add_scalar(f'test-epoch-{i}/R10@2', r10_2, i)
-            sum_writer.add_scalar(f'test-epoch-{i}/R10@5', r10_5, i)
-            sum_writer.add_scalar(f'test-epoch-{i}/MRR', mrr, i)
-            sum_writer.add_scalar(f'test-epoch-{i}/P@1', p1, i)
-            sum_writer.add_scalar(f'test-epoch-{i}/MAP', MAP, i)
+            sum_writer.add_scalar(f'test-epoch/R10@1', r10_1, i)
+            sum_writer.add_scalar(f'test-epoch/R10@2', r10_2, i)
+            sum_writer.add_scalar(f'test-epoch/R10@5', r10_5, i)
+            sum_writer.add_scalar(f'test-epoch/MRR', mrr, i)
+            sum_writer.add_scalar(f'test-epoch/P@1', p1, i)
+            sum_writer.add_scalar(f'test-epoch/MAP', MAP, i)
         sum_writer.close()
     elif args['mode'] == 'test':
         test_data, test_iter = load_dataset(args)

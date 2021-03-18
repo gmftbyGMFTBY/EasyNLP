@@ -39,8 +39,9 @@ class Adv(nn.Module):
         self.K = K
         self.adversaries = nn.Parameter(torch.FloatTensor(self.K, 768))
 
-    def forward(self):
-        return self.adversaries    # [K, 768]
+    def forward(self, x):
+        adv_rep = self.adversaries    # [K, 768]
+        return adv_rep
     
 
 class BERTDualAdvEncoder(nn.Module):
@@ -68,7 +69,7 @@ class BERTDualAdvEncoder(nn.Module):
     @torch.no_grad()
     def predict(self, cid, rid, rid_mask):
         batch_size = rid.shape[0]
-        cid_rep, rid_rep, _ = self._encode(cid.unsqueeze(0), rid, None, rid_mask)
+        cid_rep, rid_rep = self._encode(cid.unsqueeze(0), rid, None, rid_mask)
         cid_rep = cid_rep.squeeze(0)    # [768]
         # cid_rep/rid_rep: [768], [B, 768]
         dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B]
@@ -76,7 +77,6 @@ class BERTDualAdvEncoder(nn.Module):
         
     def forward(self, cid, rid, cid_mask, rid_mask, adv_rep):
         batch_size = cid.shape[0]
-        adv_rep = adv_rep.detach()
         assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
         # cid_rep/rid_rep/adv_rep: [B, 768]
@@ -127,7 +127,7 @@ class BERTDualAdvEncoderAgent(RetrievalBaseAgent):
             self.load_bert_model(pretrained_model_path)
         if torch.cuda.is_available():
             self.model.cuda()
-            self.adv = Adv(self.args['K'])
+            self.adv.cuda()
         self.optimizer = transformers.AdamW(
             self.model.parameters(), 
             lr=self.args['lr'],
@@ -180,8 +180,8 @@ class BERTDualAdvEncoderAgent(RetrievalBaseAgent):
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
             cid, rid, cid_mask, rid_mask = batch
-            adv_rep = self.adv()
-            loss, acc, cid_rep, rid_rep, mask = self.model(cid, rid, cid_mask, rid_mask, adv_rep)
+            adv_rep = self.adv(None)
+            loss, acc, cid_rep, rid_rep, mask = self.model(cid, rid, cid_mask, rid_mask, adv_rep.detach())
             # loss for adv encoder, maximun the loss
             dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
             dot_product_ = torch.matmul(cid_rep, adv_rep.t())    # [B, K]
@@ -252,6 +252,7 @@ class BERTDualAdvEncoderAgent(RetrievalBaseAgent):
         print(f"MRR: {round(avg_mrr, 4)}")
         print(f"P@1: {round(avg_prec_at_one, 4)}")
         print(f"MAP: {round(avg_map, 4)}")
+        return (total_correct[0]/total_examples, total_correct[1]/total_examples, total_correct[2]/total_examples), avg_mrr, avg_prec_at_one, avg_map
 
     @torch.no_grad()
     def inference(self, inf_iter, test_iter):
