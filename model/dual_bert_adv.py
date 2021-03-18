@@ -30,6 +30,17 @@ class BertEmbedding(nn.Module):
             name = k.replace('_bert_model.bert.', '')
             new_state_dict[name] = v
         self.model.load_state_dict(new_state_dict)
+
+
+class Adv(nn.Module):
+
+    def __init__(self, K):
+        super(Adv, self).__init__()
+        self.K = K
+        self.adversaries = nn.Parameter(torch.FloatTensor(self.K, 768))
+
+    def forward(self):
+        return self.adversaries    # [K, 768]
     
 
 class BERTDualAdvEncoder(nn.Module):
@@ -38,15 +49,11 @@ class BERTDualAdvEncoder(nn.Module):
         super(BERTDualAdvEncoder, self).__init__()
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
-        self.K = K
-        # learnable adversaries
-        self.adversaries = nn.Parameter(torch.FloatTensor(self.K, 768))
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)    # [B, 768]
         rid_rep = self.can_encoder(rid, rid_mask)    # [B, 768]   
-        adv_rep = self.adversaries    # [K, 768]
-        return cid_rep, rid_rep, adv_rep
+        return cid_rep, rid_rep
 
     @torch.no_grad()
     def get_cand(self, ids, attn_mask):
@@ -67,22 +74,18 @@ class BERTDualAdvEncoder(nn.Module):
         dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B]
         return dot_product
         
-    def forward(self, cid, rid, cid_mask, rid_mask):
+    def forward(self, cid, rid, cid_mask, rid_mask, adv_rep):
         batch_size = cid.shape[0]
+        adv_rep = adv_rep.detach()
         assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
-        cid_rep, rid_rep, adv_rep = self._encode(cid, rid, cid_mask, rid_mask)
-        # detach operation
-        adv_rep_ = adv_rep.detach()
-        cid_rep_ = cid_rep.detach()
-        rid_rep_ = rid_rep.detach()
-
+        cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
         # cid_rep/rid_rep/adv_rep: [B, 768]
         dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
-        dot_product_ = torch.matmul(cid_rep, adv_rep_.t())    # [B, K]
+        dot_product_ = torch.matmul(cid_rep, adv_rep.t())    # [B, K]
         dot_product = torch.cat([dot_product, dot_product_], dim=1)    # [B, B+K]
         # use half for supporting the apex
         mask = torch.eye(batch_size).cuda().half()    # [B, B]
-        zeros = torch.zeros_like(adv_rep).cuda().half()
+        zeros = torch.zeros_like(dot_product_).cuda().half()
         mask = torch.cat([mask, zeros], dim=1)    # [B, 2*B]
         # calculate accuracy
         acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
@@ -90,17 +93,8 @@ class BERTDualAdvEncoder(nn.Module):
         # calculate the loss
         loss = F.log_softmax(dot_product, dim=-1) * mask
         loss = (-loss.sum(dim=1)).mean()
+        return loss, acc, cid_rep.detach(), rid_rep.detach(), mask 
 
-        # loss for adv encoder, maximun the loss
-        dot_product = torch.matmul(cid_rep_, rid_rep_.t())  # [B, B]
-        dot_product_ = torch.matmul(cid_rep_, adv_rep.t())    # [B, B]
-        dot_product = torch.cat([dot_product, dot_product_], dim=1)    # [B, 2*B]
-        adv_loss = F.log_softmax(dot_product, dim=-1) * mask
-        adv_loss = adv_loss.sum(dim=1).mean()
-
-        loss += adv_loss
-        return loss, acc
-    
     
 class BERTDualAdvEncoderAgent(RetrievalBaseAgent):
     
@@ -112,6 +106,7 @@ class BERTDualAdvEncoderAgent(RetrievalBaseAgent):
             raise Exception(f'[!] multi gpu ids are needed, but got: {multi_gpu}')
         self.args = {
             'lr': 5e-5,     # dot production: 5e-5, cosine similairty: 1e-4
+            'adv_lr': 5e-5,     # dot production: 5e-5, cosine similairty: 1e-4
             'grad_clip': 1.0,
             'multi_gpu': self.gpu_ids,
             'model': pretrained_model,
@@ -123,21 +118,28 @@ class BERTDualAdvEncoderAgent(RetrievalBaseAgent):
             'dataset': dataset_name,
             'pretrained_model_path': pretrained_model_path,
             'oom_times': 10,
+            'K': 65536,
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
         self.model = BERTDualAdvEncoder(model=self.args['model'])
+        self.adv = Adv(self.args['K'])
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)
         if torch.cuda.is_available():
             self.model.cuda()
+            self.adv = Adv(self.args['K'])
         self.optimizer = transformers.AdamW(
             self.model.parameters(), 
             lr=self.args['lr'],
         )
+        self.optimizer_adv = transformers.AdamW(
+            self.adv.parameters(), 
+            lr=self.args['adv_lr'],
+        )
         if run_mode == 'train':
-            self.model, self.optimizer = amp.initialize(
-                self.model, 
-                self.optimizer,
+            [self.model, self.adv], [self.optimizer, self.optimizer_adv] = amp.initialize(
+                [self.model, self.adv], 
+                [self.optimizer, self.optimizer_adv],
                 opt_level=self.args['amp_level'],
             )
             self.scheduler = transformers.get_linear_schedule_with_warmup(
@@ -145,9 +147,17 @@ class BERTDualAdvEncoderAgent(RetrievalBaseAgent):
                 num_warmup_steps=warmup_step, 
                 num_training_steps=total_step,
             )
+            self.scheduler_adv = transformers.get_linear_schedule_with_warmup(
+                self.optimizer_adv, 
+                num_warmup_steps=warmup_step, 
+                num_training_steps=total_step,
+            )
             self.model = nn.parallel.DistributedDataParallel(
                 self.model, device_ids=[local_rank], output_device=local_rank,
                 find_unused_parameters=True,
+            )
+            self.adv = nn.parallel.DistributedDataParallel(
+                self.adv, device_ids=[local_rank], output_device=local_rank,
             )
         elif run_mode == 'inference':
             self.model = nn.parallel.DistributedDataParallel(
@@ -163,41 +173,43 @@ class BERTDualAdvEncoderAgent(RetrievalBaseAgent):
         print(f'[!] load pretrained BERT model from {path}')
         
     def train_model(self, train_iter, mode='train', recoder=None, idx_=0):
-        '''ADD OOM ASSERTION'''
         self.model.train()
         total_loss, total_acc, batch_num = 0, 0, 0
         pbar = tqdm(train_iter)
         correct, s, oom_t = 0, 0, 0
         for idx, batch in enumerate(pbar):
-            try:
-                self.optimizer.zero_grad()
-                cid, rid, cid_mask, rid_mask = batch
-                loss, acc = self.model(cid, rid, cid_mask, rid_mask)
-                with amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                    scaled_loss.backward()
-                clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
-                self.optimizer.step()
-                self.scheduler.step()
-    
-                total_loss += loss.item()
-                total_acc += acc
-                batch_num += 1
-                
-                recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
-                recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
-                recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
-                recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
-                
-                pbar.set_description(f'[!] OOM: {oom_t}; loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
-            except RuntimeError as exception:
-                if 'out of memory' in str(exception):
-                    oom_t += 1
-                    torch.cuda.empty_cache()
-                    if oom_t > self.args['oom_times']:
-                        raise Exception(f'[!] too much OOM errors')
-                else:
-                    raise Exception(str(exception))
+            self.optimizer.zero_grad()
+            cid, rid, cid_mask, rid_mask = batch
+            adv_rep = self.adv()
+            loss, acc, cid_rep, rid_rep, mask = self.model(cid, rid, cid_mask, rid_mask, adv_rep)
+            # loss for adv encoder, maximun the loss
+            dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
+            dot_product_ = torch.matmul(cid_rep, adv_rep.t())    # [B, K]
+            dot_product = torch.cat([dot_product, dot_product_], dim=1)    # [B, B+K]
+            adv_loss = F.log_softmax(dot_product, dim=-1) * mask
+            adv_loss = adv_loss.sum(dim=1).mean()
 
+            with amp.scale_loss(loss, self.optimizer) as scaled_loss:
+                scaled_loss.backward()
+            with amp.scale_loss(adv_loss, self.optimizer_adv) as scaled_loss:
+                scaled_loss.backward()
+            clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
+            clip_grad_norm_(amp.master_params(self.optimizer_adv), self.args['grad_clip'])
+            self.optimizer.step()
+            self.optimizer_adv.step()
+            self.scheduler.step()
+            self.scheduler_adv.step()
+
+            total_loss += loss.item()
+            total_acc += acc
+            batch_num += 1
+            
+            recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
+            
+            pbar.set_description(f'[!] OOM: {oom_t}; loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
         return round(total_loss / batch_num, 4)
