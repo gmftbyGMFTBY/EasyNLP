@@ -11,10 +11,16 @@ class BertEmbedding(nn.Module):
     def __init__(self, model='bert-base-chinese'):
         super(BertEmbedding, self).__init__()
         self.model = BertModel.from_pretrained(model)
+        self.head = nn.Sequential(
+            nn.Linear(768, 768),
+            nn.ReLU(),
+            nn.Linear(768, 768)
+        )
 
     def forward(self, ids, attn_mask):
         embd = self.model(ids, attention_mask=attn_mask)[0]    # [B, S, 768]
-        return embd[:, 0, :]
+        embd = self.head(embd[:, 0, :])
+        return embd
     
     def load_bert_model(self, state_dict):
         new_state_dict = OrderedDict()
@@ -28,16 +34,18 @@ class BertEmbedding(nn.Module):
 
 class BERTDualAdvEncoder(nn.Module):
     
-    def __init__(self, model='bert-base-chinese'):
+    def __init__(self, model='bert-base-chinese', K=65536):
         super(BERTDualAdvEncoder, self).__init__()
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
-        self.adv_encoder = BertEmbedding(model=model)
+        self.K = K
+        # learnable adversaries
+        self.adversaries = nn.Parameter(torch.FloatTensor(self.K, 768))
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
-        cid_rep = self.ctx_encoder(cid, cid_mask)
-        rid_rep = self.can_encoder(rid, rid_mask)
-        adv_rep = self.adv_encoder(cid, cid_mask)
+        cid_rep = self.ctx_encoder(cid, cid_mask)    # [B, 768]
+        rid_rep = self.can_encoder(rid, rid_mask)    # [B, 768]   
+        adv_rep = self.adversaries    # [K, 768]
         return cid_rep, rid_rep, adv_rep
 
     @torch.no_grad()
@@ -54,8 +62,6 @@ class BERTDualAdvEncoder(nn.Module):
     def predict(self, cid, rid, rid_mask):
         batch_size = rid.shape[0]
         cid_rep, rid_rep, _ = self._encode(cid.unsqueeze(0), rid, None, rid_mask)
-        # cid_rep = torch.div(cid_rep, torch.norm(cid_rep, dim=1, p=2, keepdim=True))
-        # rid_rep = torch.div(rid_rep, torch.norm(rid_rep, dim=1, p=2, keepdim=True))
         cid_rep = cid_rep.squeeze(0)    # [768]
         # cid_rep/rid_rep: [768], [B, 768]
         dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B]
@@ -72,11 +78,11 @@ class BERTDualAdvEncoder(nn.Module):
 
         # cid_rep/rid_rep/adv_rep: [B, 768]
         dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
-        dot_product_ = torch.matmul(cid_rep, adv_rep_.t())    # [B, B]
-        dot_product = torch.cat([dot_product, dot_product_], dim=1)    # [B, 2*B]
+        dot_product_ = torch.matmul(cid_rep, adv_rep_.t())    # [B, K]
+        dot_product = torch.cat([dot_product, dot_product_], dim=1)    # [B, B+K]
         # use half for supporting the apex
         mask = torch.eye(batch_size).cuda().half()    # [B, B]
-        zeros = torch.zeros(batch_size, batch_size).cuda().half()
+        zeros = torch.zeros_like(adv_rep).cuda().half()
         mask = torch.cat([mask, zeros], dim=1)    # [B, 2*B]
         # calculate accuracy
         acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
@@ -144,10 +150,6 @@ class BERTDualAdvEncoderAgent(RetrievalBaseAgent):
                 find_unused_parameters=True,
             )
         elif run_mode == 'inference':
-            # self.model = amp.initialize(
-            #     self.model, 
-            #     opt_level=self.args['amp_level'],
-            # )
             self.model = nn.parallel.DistributedDataParallel(
                 self.model, device_ids=[local_rank], output_device=local_rank,
                 find_unused_parameters=True,
@@ -211,7 +213,7 @@ class BERTDualAdvEncoderAgent(RetrievalBaseAgent):
             cid, rids, rids_mask, label = batch
             batch_size = len(rids)
             assert batch_size == 10, f'[!] {batch_size} is not equal to 10'
-            scores = self.model.predict(cid, rids, rids_mask).cpu().tolist()    # [B]
+            scores = self.model.module.predict(cid, rids, rids_mask).cpu().tolist()    # [B]
 
             rank_by_pred, pos_index, stack_scores = \
           calculate_candidates_ranking(

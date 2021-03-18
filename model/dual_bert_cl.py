@@ -43,6 +43,7 @@ class BERTDualCLEncoder(nn.Module):
 
     @torch.no_grad()
     def concat_all_gather(self, tensor):
+        '''collect samples from all the devices'''
         tensors_gather = [torch.ones_like(tensor)
                 for _ in range(torch.distributed.get_world_size())]
         torch.distributed.all_gather(tensors_gather, tensor, async_op=False)
@@ -244,11 +245,11 @@ class BERTDualCLEncoderAgent(RetrievalBaseAgent):
         avg_prec_at_one = float(total_prec_at_one / total_examples)
         avg_map = float(total_map / total_examples)
         
-        for i in range(len(k_list)):
-            print(f"R10@{k_list[i]}: {round(((total_correct[i] / total_examples) * 100), 2)}")
-        print(f"MRR: {round(avg_mrr, 4)}")
-        print(f"P@1: {round(avg_prec_at_one, 4)}")
-        print(f"MAP: {round(avg_map, 4)}")
+        # for i in range(len(k_list)):
+        #     print(f"R10@{k_list[i]}: {round(((total_correct[i] / total_examples) * 100), 2)}")
+        # print(f"MRR: {round(avg_mrr, 4)}")
+        # print(f"P@1: {round(avg_prec_at_one, 4)}")
+        # print(f"MAP: {round(avg_map, 4)}")
         return (total_correct[0]/total_examples, total_correct[1]/total_examples, total_correct[2]/total_examples), avg_mrr, avg_prec_at_one, avg_map
 
     @torch.no_grad()

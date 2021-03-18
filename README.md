@@ -4,6 +4,10 @@ Constrastive Learning for dual-encoder model, leveraging the memory bank to enla
 
 Constrastive Learning, context is the q, and response is the jey. Ground-truth response is positive k, and other responses are negative k.
 
+TODO:
+1. Constrastive learning on huge dataset, LCCC, and fine-tuning on ecommerce and douban corpus. But need to compared with the dual-bert pre-trained model
+2. nn.functional.normalize
+
 ## How to Use
 
 1. create post data from the orignial dataset
