@@ -32,6 +32,9 @@ def main(**args):
         torch.distributed.init_process_group(backend='nccl', init_method='env://')
         
         train_data, train_iter = load_dataset(args)
+        args['mode'] = 'test'
+        test_data, test_iter = load_dataset(args)
+        args['mode'] = 'train'
 
         obtain_steps_parameters(train_data, args)
         agent = load_model(args)
@@ -47,8 +50,14 @@ def main(**args):
             # only one process save the checkpoint
             if args['local_rank'] == 0:
                 agent.save_model(f'ckpt/{args["dataset"]}/{args["model"]}/best.pt')
-            # avoid OOM
-            torch.cuda.empty_cache()
+            # test
+            (r10_1, r10_2, r10_5), mrr, p1, MAP = agent.test_model(test_iter, rest_path)
+            sum_writer.add_scalar(f'test-epoch-{i}/R10@1', r10_1, i)
+            sum_writer.add_scalar(f'test-epoch-{i}/R10@2', r10_2, i)
+            sum_writer.add_scalar(f'test-epoch-{i}/R10@5', r10_5, i)
+            sum_writer.add_scalar(f'test-epoch-{i}/MRR', mrr, i)
+            sum_writer.add_scalar(f'test-epoch-{i}/P@1', p1, i)
+            sum_writer.add_scalar(f'test-epoch-{i}/MAP', MAP, i)
         sum_writer.close()
     elif args['mode'] == 'test':
         test_data, test_iter = load_dataset(args)

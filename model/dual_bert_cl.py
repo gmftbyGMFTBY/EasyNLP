@@ -41,7 +41,17 @@ class BERTDualCLEncoder(nn.Module):
         self.register_buffer('queue', torch.randn(self.K, 768))
         self.register_buffer('queue_ptr', torch.zeros(1, dtype=torch.long))
 
+    @torch.no_grad()
+    def concat_all_gather(self, tensor):
+        tensors_gather = [torch.ones_like(tensor)
+                for _ in range(torch.distributed.get_world_size())]
+        torch.distributed.all_gather(tensors_gather, tensor, async_op=False)
+        output = torch.cat(tensors_gather, dim=0)
+        return output
+
+    @torch.no_grad()
     def _dequeue_and_enqueue(self, keys):
+        keys = self.concat_all_gather(keys)
         batch_size = len(keys)
         ptr = int(self.queue_ptr)
 
@@ -53,7 +63,6 @@ class BERTDualCLEncoder(nn.Module):
             self.queue[ptr:, :] = keys[:s_before, :]
             self.queue[:s_after, :] = keys[-s_after:, :]
         ptr = (ptr + batch_size) % self.K
-
         self.queue_ptr[0] = ptr
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
@@ -96,6 +105,8 @@ class BERTDualCLEncoder(nn.Module):
     
     
 class BERTDualCLEncoderAgent(RetrievalBaseAgent):
+
+    '''response encoder update slower'''
     
     def __init__(self, multi_gpu, total_step, warmup_step, run_mode='train', local_rank=0, dataset_name='ecommerce', pretrained_model='bert-base-chinese', pretrained_model_path=None, head=10):
         super(BERTDualCLEncoderAgent, self).__init__()
@@ -105,6 +116,7 @@ class BERTDualCLEncoderAgent(RetrievalBaseAgent):
             raise Exception(f'[!] multi gpu ids are needed, but got: {multi_gpu}')
         self.args = {
             'lr': 5e-5,
+            'res_lr': 2e-5,
             'grad_clip': 1.0,
             'multi_gpu': self.gpu_ids,
             'model': pretrained_model,
@@ -117,7 +129,7 @@ class BERTDualCLEncoderAgent(RetrievalBaseAgent):
             'pretrained_model_path': pretrained_model_path,
             'oom_times': 10,
             'T': 0.07,
-            'K': 4096,
+            'K': 65536,
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
         self.model = BERTDualCLEncoder(model=self.args['model'], T=self.args['T'], K=self.args['K'])
@@ -125,18 +137,27 @@ class BERTDualCLEncoderAgent(RetrievalBaseAgent):
             self.load_bert_model(pretrained_model_path)
         if torch.cuda.is_available():
             self.model.cuda()
-        self.optimizer = transformers.AdamW(
-            self.model.parameters(), 
+        self.optimizer_ctx = transformers.AdamW(
+            self.model.ctx_encoder.parameters(), 
             lr=self.args['lr'],
         )
+        self.optimizer_res = transformers.AdamW(
+            self.model.can_encoder.parameters(), 
+            lr=self.args['res_lr'],
+        )
         if run_mode == 'train':
-            self.model, self.optimizer = amp.initialize(
+            self.model, [self.optimizer_ctx, self.optimizer_res] = amp.initialize(
                 self.model, 
-                self.optimizer,
+                [self.optimizer_ctx, self.optimizer_res],
                 opt_level=self.args['amp_level'],
             )
-            self.scheduler = transformers.get_linear_schedule_with_warmup(
-                self.optimizer, 
+            self.scheduler_ctx = transformers.get_linear_schedule_with_warmup(
+                self.optimizer_ctx, 
+                num_warmup_steps=warmup_step, 
+                num_training_steps=total_step,
+            )
+            self.scheduler_res = transformers.get_linear_schedule_with_warmup(
+                self.optimizer_res, 
                 num_warmup_steps=warmup_step, 
                 num_training_steps=total_step,
             )
@@ -158,20 +179,23 @@ class BERTDualCLEncoderAgent(RetrievalBaseAgent):
         print(f'[!] load pretrained BERT model from {path}')
         
     def train_model(self, train_iter, mode='train', recoder=None, idx_=0):
-        '''ADD OOM ASSERTION'''
         self.model.train()
         total_loss, total_acc, batch_num = 0, 0, 0
         pbar = tqdm(train_iter)
         correct, s, oom_t = 0, 0, 0
         for idx, batch in enumerate(pbar):
-            self.optimizer.zero_grad()
+            self.optimizer_ctx.zero_grad()
+            self.optimizer_res.zero_grad()
             cid, rid, cid_mask, rid_mask = batch
             loss, acc, ptr = self.model(cid, rid, cid_mask, rid_mask)
-            with amp.scale_loss(loss, self.optimizer) as scaled_loss:
+            with amp.scale_loss(loss, [self.optimizer_ctx, self.optimizer_res]) as scaled_loss:
                 scaled_loss.backward()
-            clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
-            self.optimizer.step()
-            self.scheduler.step()
+            clip_grad_norm_(amp.master_params(self.optimizer_ctx), self.args['grad_clip'])
+            clip_grad_norm_(amp.master_params(self.optimizer_res), self.args['grad_clip'])
+            self.optimizer_ctx.step()
+            self.optimizer_res.step()
+            self.scheduler_ctx.step()
+            self.scheduler_res.step()
 
             total_loss += loss.item()
             total_acc += acc
@@ -225,6 +249,7 @@ class BERTDualCLEncoderAgent(RetrievalBaseAgent):
         print(f"MRR: {round(avg_mrr, 4)}")
         print(f"P@1: {round(avg_prec_at_one, 4)}")
         print(f"MAP: {round(avg_map, 4)}")
+        return (total_correct[0]/total_examples, total_correct[1]/total_examples, total_correct[2]/total_examples), avg_mrr, avg_prec_at_one, avg_map
 
     @torch.no_grad()
     def inference(self, inf_iter, test_iter):

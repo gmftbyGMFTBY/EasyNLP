@@ -223,6 +223,7 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         print(f"MRR: {round(avg_mrr, 4)}")
         print(f"P@1: {round(avg_prec_at_one, 4)}")
         print(f"MAP: {round(avg_map, 4)}")
+        return (total_correct[0]/total_examples, total_correct[1]/total_examples, total_correct[2]/total_examples), avg_mrr, avg_prec_at_one, avg_map
 
     @torch.no_grad()
     def inference(self, inf_iter, test_iter):
