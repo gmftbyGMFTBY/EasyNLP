@@ -33,8 +33,11 @@ def main(**args):
         
         train_data, train_iter = load_dataset(args)
         args['mode'] = 'test'
+        train_bsz = args['batch_size']
+        args['batch_size'] = 1
         test_data, test_iter = load_dataset(args)
         args['mode'] = 'train'
+        args['batch_size'] = train_bsz
 
         obtain_steps_parameters(train_data, args)
         agent = load_model(args)
@@ -51,6 +54,7 @@ def main(**args):
             if args['local_rank'] == 0:
                 agent.save_model(f'ckpt/{args["dataset"]}/{args["model"]}/best.pt')
             # test
+            rest_path = f'rest/{args["dataset"]}/{args["model"]}/rest_epoch_{i}.txt'
             (r10_1, r10_2, r10_5), mrr, p1, MAP = agent.test_model(test_iter, rest_path)
             sum_writer.add_scalar(f'test-epoch-{i}/R10@1', r10_1, i)
             sum_writer.add_scalar(f'test-epoch-{i}/R10@2', r10_2, i)

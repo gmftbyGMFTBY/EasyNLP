@@ -223,7 +223,7 @@ class BERTDualCLEncoderAgent(RetrievalBaseAgent):
             cid, rids, rids_mask, label = batch
             batch_size = len(rids)
             assert batch_size == 10, f'[!] {batch_size} is not equal to 10'
-            scores = self.model.predict(cid, rids, rids_mask).cpu().tolist()    # [B]
+            scores = self.model.module.predict(cid, rids, rids_mask).cpu().tolist()    # [B]
             
             rank_by_pred, pos_index, stack_scores = \
           calculate_candidates_ranking(
