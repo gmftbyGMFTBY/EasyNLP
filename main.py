@@ -31,11 +31,11 @@ def main(**args):
         torch.cuda.set_device(args['local_rank'])
         torch.distributed.init_process_group(backend='nccl', init_method='env://')
         
-        train_data, train_iter = load_dataset(args)
+        train_data, train_iter, sampler = load_dataset(args)
         args['mode'] = 'test'
         train_bsz = args['batch_size']
         args['batch_size'] = 1
-        test_data, test_iter = load_dataset(args)
+        test_data, test_iter, _ = load_dataset(args)
         args['mode'] = 'train'
         args['batch_size'] = train_bsz
 
@@ -44,6 +44,7 @@ def main(**args):
         
         sum_writer = SummaryWriter(log_dir=f'rest/{args["dataset"]}/{args["model"]}')
         for i in tqdm(range(args['epoch'])):
+            sampler.set_epoch(i)    # shuffle for DDP
             train_loss = agent.train_model(
                 train_iter, 
                 mode='train',

@@ -1780,6 +1780,7 @@ def load_dataset(args):
                 rank=args['local_rank'],
             )
             iter_ = DataLoader(data, batch_size=args['batch_size'], collate_fn=data.collate, sampler=train_sampler)
+        sampler = train_sampler
     elif args['mode'] == 'inference':
         # only inference train dataset
         path = f'data/{args["dataset"]}/train.txt'
@@ -1802,9 +1803,11 @@ def load_dataset(args):
 
         iter_ = (iter_res, iter_ctx)
         data = (data_res, data_ctx)
+        sampler = None
     else:
         data = DATASET_MAP[args['model']](path, mode=args['mode'], max_len=args['max_len'], model=args['pretrained_model'])
         iter_ = DataLoader(data, batch_size=args['batch_size'], collate_fn=data.collate)
+        sampler = None
     if args['mode'] == 'inference':
         if not os.path.exists(data_ctx.pp_path):
             data_ctx.save()
@@ -1813,7 +1816,7 @@ def load_dataset(args):
     else:
         if not os.path.exists(data.pp_path):
             data.save()
-    return data, iter_
+    return data, iter_, sampler
 
 
 if __name__ == "__main__":
