@@ -89,7 +89,7 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         except:
             raise Exception(f'[!] multi gpu ids are needed, but got: {multi_gpu}')
         self.args = {
-            'lr': 5e-5,     # dot production: 5e-5, cosine similairty: 1e-4
+            'lr': 5e-5,
             'grad_clip': 1.0,
             'multi_gpu': self.gpu_ids,
             'model': pretrained_model,
@@ -128,7 +128,7 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
                 self.model, device_ids=[local_rank], output_device=local_rank,
                 find_unused_parameters=True,
             )
-        elif run_mode == 'inference':
+        elif run_mode in ['inference']:
             # self.model = amp.initialize(
             #     self.model, 
             #     opt_level=self.args['amp_level'],

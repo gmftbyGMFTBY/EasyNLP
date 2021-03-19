@@ -7,6 +7,7 @@ Constrastive Learning, context is the q, and response is the jey. Ground-truth r
 TODO:
 1. Constrastive learning on huge dataset, LCCC, and fine-tuning on ecommerce and douban corpus. But need to compared with the dual-bert pre-trained model
 2. nn.functional.normalize
+3. MORE EPOCH: EXTEND FROM 5 TO 10
 
 ## How to Use
 
@@ -80,8 +81,10 @@ _Note:_
 | Original       | R10@1 | R10@2 | R10@5 | MRR    |
 | -------------- | ----- | ----- | ----- | ------ |
 | SOTA           | 77.6  | 91.9  | 99.1  | -      |
-| Bi-Encoder(bsz=16) | 78.7  | 90.8  | 97.9  | 87.1  |
-| Bi-Encoder(bsz=24) | 78.7  | 90.8  | 97.9  | 87.1  |
+| dual-bert(bsz=16, epoch=5) | 78.7  | 90.8  | 97.9  | 87.1  |
+| dual-bert(bsz=16, epoch=10) |  |  |  |  |
+| dual-bert-adv(bsz=16, epoch=5) | 80.3  | 91.8  | 98.5  | 88.15  |
+| dual-bert-adv(bsz=16, epoch=10) |  |  |  |  |
 | dual-bert-cl(bsz=16, queue=65536) | 79.0  | 90.7  | 97.8  | 87.14  |
 
 | Original       | R10@1 | R10@2 | R10@5 | MRR    |
@@ -131,6 +134,12 @@ _Note:_
 * SOLUTION1: separate the head, reduce the side effect of the bad candidates
 * SOLUTION2: improve the coarse retrieved candidates quality
 * SOLUTION3: MoE (Mixture of the Experts)?
+
+| Original           | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   |
+| ------------------ | ----- | ----- | ----- | ----- | ----- | ------ |
+| SOTA               | 31.8  | 48.2  | 85.8  | 66.4  | 49.9  | 62.5   |
+| dual-bert(max-len=256,bsz=16) | 27.74 | 46.88  | 80.84 | 61.99 | 43.63 | 58.7  |
+| dual-bert-adv(max-len=256,bsz=16) | 25.43 | 45.35  | 83.07 | 60.72 | 41.38 | 57.38  |
 
 | Original           | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   |
 | ------------------ | ----- | ----- | ----- | ----- | ----- | ------ |
