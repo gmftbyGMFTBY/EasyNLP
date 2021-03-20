@@ -36,26 +36,28 @@ def read_ums_data(path, vocab):
     return dataset
 
 
-def read_text_data(path):
+def read_text_data(path, lang='zh'):
     with open(path) as f:
         dataset = []
         for line in f.readlines():
             line = line.strip().split('\t')
             label, utterances = int(line[0]), line[1:]
-            utterances = [''.join(u.split()) for u in utterances]
+            if lang == 'zh':
+                utterances = [''.join(u.split()) for u in utterances]
             context, response = ' [SEP] '.join(utterances[:-1]), utterances[-1]
             dataset.append((label, context, response))
     print(f'[!] load {len(dataset)} utterances from {path}')
     return dataset
 
 
-def read_text_data_sa(path):
+def read_text_data_sa(path, lang='zh'):
     with open(path) as f:
         dataset = []
         for line in f.readlines():
             line = line.strip().split('\t')
             label, utterances = int(line[0]), line[1:]
-            utterances = [''.join(u.split()) for u in utterances]
+            if lang == 'zh':
+                utterances = [''.join(u.split()) for u in utterances]
             dataset.append((label, utterances))
     print(f'[!] load {len(dataset)} utterances from {path}')
     return dataset
@@ -73,7 +75,7 @@ def read_text_data_fast(path):
     return dataset
 
 
-def read_text_data_one2many(path):
+def read_text_data_one2many(path, lang='zh'):
     with open(path) as f:
         dataset = []
         for line in f.readlines():
@@ -81,32 +83,35 @@ def read_text_data_one2many(path):
             label, utterances = int(line[0]), line[1:]
             if label == 0:
                 continue
-            utterances = [''.join(u.split()) for u in utterances]
+            if lang == 'zh':
+                utterances = [''.join(u.split()) for u in utterances]
             context, response = ' [SEP] '.join(utterances[:-1]), utterances[-1]
             dataset.append((context, response))
     print(f'[!] load {len(dataset)} utterances from {path}')
     return dataset
 
 
-def read_text_data_hier(path):
+def read_text_data_hier(path, lang='zh'):
     with open(path) as f:
         dataset = []
         for line in f.readlines():
             line = line.strip().split('\t')
             label, utterances = int(line[0]), line[1:]
-            utterances = [''.join(u.split()) for u in utterances]
+            if lang == 'zh':
+                utterances = [''.join(u.split()) for u in utterances]
             context, response = utterances[:-1], utterances[-1]
             dataset.append((label, context, response))
     print(f'[!] load {len(dataset)} utterances from {path}')
     return dataset
 
 
-def read_response_data(path):
+def read_response_data(path, lang='zh'):
     with open(path) as f:
         dataset = []
         for line in f.readlines():
             utterance = line.strip().split('\t')[-1]
-            utterance = ''.join(utterance.split())
+            if lang == 'zh':
+                utterance = ''.join(utterance.split())
             dataset.append(utterance)
     # delete the duplicate responses
     dataset = list(set(dataset))
@@ -114,7 +119,7 @@ def read_response_data(path):
     return dataset
 
 
-def read_context_data(path):
+def read_context_data(path, lang='zh'):
     # also build the map from the context to response
     with open(path) as f:
         ctx, res = [], []
@@ -124,7 +129,8 @@ def read_context_data(path):
             label = items[0]
             if label == '0':
                 continue
-            utterance = [''.join(u.split()) for u in utterance]
+            if lang == 'zh':
+                utterance = [''.join(u.split()) for u in utterance]
             context, response = utterance[:-1], utterance[-1]
             context = ' [SEP] '.join(context)
             ctx.append(context)
@@ -138,7 +144,7 @@ class BERTDualHierarchicalDataset(Dataset):
     
     '''segment embedding, token embedding, position embedding (default), mask embedding'''
     
-    def __init__(self, path, mode='train', max_len=300, model='bert-base-chinese'):
+    def __init__(self, path, lang='zh', mode='train', max_len=300, model='bert-base-chinese'):
         self.mode, self.max_len = mode, max_len
         self.inner_bsz = 32 
         self.vocab = BertTokenizer.from_pretrained(model)
@@ -148,7 +154,7 @@ class BERTDualHierarchicalDataset(Dataset):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
-        data = read_text_data_hier(path)
+        data = read_text_data_hier(path, lang=lang)
         self.data = []
         if mode == 'train':
             for label, context, response in tqdm(data):
@@ -249,7 +255,7 @@ class BERTDualHierarchicalDataset(Dataset):
 # ========== DUAL BERT ONE2MANY Dataset ========== #
 class BERTDualOne2ManyDataset(Dataset):
     
-    def __init__(self, path, mode='train', max_len=300, model='bert-base-chinese', head=5, res_max_len=128):
+    def __init__(self, path, mode='train', lang='zh', max_len=300, model='bert-base-chinese', head=5, res_max_len=128):
         self.mode, self.max_len, self.res_max_len = mode, max_len, res_max_len
         self.head = head
         self.vocab = BertTokenizer.from_pretrained(model)
@@ -262,7 +268,7 @@ class BERTDualOne2ManyDataset(Dataset):
         candidates = torch.load(f'{os.path.split(path)[0]}/candidates.pt')
         self.data = []
         if mode == 'train':
-            data = read_text_data_one2many(path)
+            data = read_text_data_one2many(path, lang=lang)
             for (context, response), cands in tqdm(list(zip(data, candidates))):
                 # cands = cands[:self.head-1]
                 cands = random.sample(cands, self.head-1)
@@ -358,7 +364,7 @@ class BERTDualOne2ManyDataset(Dataset):
 # ========== DUAL BERT INFERENCE CONTEXT Dataset ========== #
 class BERTDualInferenceContextDataset(Dataset):
     
-    def __init__(self, path, mode='inference', max_len=300, model='bert-base-chinese'):
+    def __init__(self, path, lang='zh', mode='inference', max_len=300, model='bert-base-chinese'):
         self.mode, self.max_len = mode, max_len
         self.vocab = BertTokenizer.from_pretrained(model)
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
@@ -367,7 +373,7 @@ class BERTDualInferenceContextDataset(Dataset):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
-        context, response = read_context_data(path)
+        context, response = read_context_data(path, lang=lang)
         self.data = []
         counter = 0
         for ctx, res in tqdm(list(zip(context, response))):
@@ -420,7 +426,7 @@ class BERTDualInferenceDataset(Dataset):
     
     '''segment embedding, token embedding, position embedding (default), mask embedding'''
     
-    def __init__(self, path, mode='inference', max_len=300, model='bert-base-chinese'):
+    def __init__(self, path, lang='zh', mode='inference', max_len=300, model='bert-base-chinese'):
         self.mode, self.max_len = mode, max_len
         self.vocab = BertTokenizer.from_pretrained(model)
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
@@ -429,7 +435,7 @@ class BERTDualInferenceDataset(Dataset):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
-        data = read_response_data(path)
+        data = read_response_data(path, lang=lang)
         self.data = []
         for response in tqdm(data):
             item = self.vocab.encode(response)
@@ -475,7 +481,7 @@ class BERTDualGenDataset(Dataset):
     
     '''segment embedding, token embedding, position embedding (default), mask embedding'''
     
-    def __init__(self, path, mode='train', max_len=300, model='bert-base-chinese'):
+    def __init__(self, path, lang='zh', mode='train', max_len=300, model='bert-base-chinese'):
         self.mode, self.max_len = mode, max_len
         self.vocab = BertTokenizer.from_pretrained(model)
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
@@ -488,7 +494,7 @@ class BERTDualGenDataset(Dataset):
             data = read_text_data_fast(path)
             print(f'[!] fast dataloader activate ...')
         else:
-            data = read_text_data(path)
+            data = read_text_data(path, lang=lang)
         self.data = []
         if mode == 'train':
             for label, context, response in tqdm(data):
@@ -596,7 +602,7 @@ class BERTDualDataset(Dataset):
     
     '''segment embedding, token embedding, position embedding (default), mask embedding'''
     
-    def __init__(self, path, mode='train', max_len=300, model='bert-base-chinese'):
+    def __init__(self, path, lang='zh', mode='train', max_len=300, model='bert-base-chinese'):
         self.mode, self.max_len = mode, max_len
         self.vocab = BertTokenizer.from_pretrained(model)
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
@@ -609,7 +615,7 @@ class BERTDualDataset(Dataset):
             data = read_text_data_fast(path)
             print(f'[!] fast dataloader activate ...')
         else:
-            data = read_text_data(path)
+            data = read_text_data(path, lang=lang)
         self.data = []
         if mode == 'train':
             for label, context, response in tqdm(data):
@@ -701,7 +707,7 @@ class BERTFTMultiDataset(Dataset):
     
     '''segment embedding, token embedding, position embedding (default), mask embedding'''
     
-    def __init__(self, path, mode='train', max_len=300, model='bert-base-chinese'):
+    def __init__(self, path, lang='zh', mode='train', max_len=300, model='bert-base-chinese'):
         self.mode, self.max_len = mode, max_len
         self.vocab = BertTokenizer.from_pretrained(model)
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
@@ -710,7 +716,7 @@ class BERTFTMultiDataset(Dataset):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
-        data = read_text_data(path)
+        data = read_text_data(path, lang=lang)
         self.data = []
         if mode == 'train':
             for label, context, response in tqdm(data):
@@ -791,7 +797,7 @@ class BERTFTDataset(Dataset):
     
     '''segment embedding, token embedding, position embedding (default), mask embedding'''
     
-    def __init__(self, path, mode='train', max_len=300, model='bert-base-chinese'):
+    def __init__(self, path, mode='train', max_len=300, lang='zh', model='bert-base-chinese'):
         self.mode, self.max_len = mode, max_len
         self.vocab = BertTokenizer.from_pretrained(model)
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
@@ -800,10 +806,11 @@ class BERTFTDataset(Dataset):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
-        data = read_text_data(path)
+        data = read_text_data(path, lang=lang)
         self.data = []
         if mode == 'train':
             for label, context, response in tqdm(data):
+                ipdb.set_trace()
                 item = self.vocab.batch_encode_plus([[context, response]])
                 ids = item['input_ids'][0]
                 tids = item['token_type_ids'][0]
@@ -883,7 +890,7 @@ class BERTGenDataset(Dataset):
     
     '''segment embedding, token embedding, position embedding (default), mask embedding'''
     
-    def __init__(self, path, mode='train', max_len=300, model='bert-base-chinese'):
+    def __init__(self, path, lang='zh', mode='train', max_len=300, model='bert-base-chinese'):
         self.mode, self.max_len = mode, max_len
         self.vocab = BertTokenizer.from_pretrained(model)
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
@@ -892,7 +899,7 @@ class BERTGenDataset(Dataset):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
-        data = read_text_data(path)
+        data = read_text_data(path, lang=lang)
         self.data = []
         if mode == 'train':
             for label, context, response in tqdm(data):
@@ -1000,7 +1007,7 @@ class BERTGenFTDataset(Dataset):
     
     Only employ classification inference during test mode'''
     
-    def __init__(self, path, mode='train', max_len=300, model='bert-base-chinese'):
+    def __init__(self, path, lang='zh', mode='train', max_len=300, model='bert-base-chinese'):
         self.mode, self.max_len = mode, max_len
         self.vocab = BertTokenizer.from_pretrained(model)
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
@@ -1009,7 +1016,7 @@ class BERTGenFTDataset(Dataset):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
-        data = read_text_data(path)
+        data = read_text_data(path, lang=lang)
         self.data = []
         if mode == 'train':
             for label, context, response in tqdm(data):
@@ -1116,7 +1123,7 @@ class BERTDualMBDataset(Dataset):
 
     '''init and save the memory bank'''
     
-    def __init__(self, path, mode='train', max_len=300, model='bert-base-chinese'):
+    def __init__(self, path, lang='zh', mode='train', max_len=300, model='bert-base-chinese'):
         self.mode, self.max_len = mode, max_len
         self.vocab = BertTokenizer.from_pretrained(model)
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
@@ -1129,7 +1136,7 @@ class BERTDualMBDataset(Dataset):
             data = read_text_data_fast(path)
             print(f'[!] fast dataloader activate ...')
         else:
-            data = read_text_data(path)
+            data = read_text_data(path, lang=lang)
         self.data = []
         if mode == 'train':
             # NOTE: MEMORY BANK
@@ -1619,7 +1626,7 @@ class SABERTFTDataset(Dataset):
 
     '''segment embedding, token embedding, position embedding (default), mask embedding'''
 
-    def __init__(self, path, mode='train', max_len=300, model='bert-base-chinese'):
+    def __init__(self, path, lang='zh', mode='train', max_len=300, model='bert-base-chinese'):
         self.mode, self.max_len = mode, max_len
         self.vocab = BertTokenizer.from_pretrained(model)
         # [EOT] token
@@ -1630,7 +1637,7 @@ class SABERTFTDataset(Dataset):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
-        data = read_text_data_sa(path)
+        data = read_text_data_sa(path, lang=lang)
         self.data = []
         if mode == 'train':
             for label, utterances in tqdm(data):
@@ -1765,7 +1772,7 @@ def load_dataset(args):
         path = f'data/{args["dataset"]}/{args["mode"]}.txt'
     if args['mode'] == 'train':
         if args['model'] in ['dual-bert-one2many']:
-            data = DATASET_MAP[args['model']](path, mode=args['mode'], max_len=args['max_len'], model=args['pretrained_model'], head=args['head_num'], res_max_len=args['res_max_len'])
+            data = DATASET_MAP[args['model']](path, lang=args['lang'], mode=args['mode'], max_len=args['max_len'], model=args['pretrained_model'], head=args['head_num'], res_max_len=args['res_max_len'])
             train_sampler = torch.utils.data.distributed.DistributedSampler(
                 data,
                 num_replicas=dist.get_world_size(),
@@ -1773,7 +1780,7 @@ def load_dataset(args):
             )
             iter_ = DataLoader(data, batch_size=args['batch_size'], collate_fn=data.collate, sampler=train_sampler)
         else:
-            data = DATASET_MAP[args['model']](path, mode=args['mode'], max_len=args['max_len'], model=args['pretrained_model'])
+            data = DATASET_MAP[args['model']](path, mode=args['mode'], lang=args['lang'], max_len=args['max_len'], model=args['pretrained_model'])
             train_sampler = torch.utils.data.distributed.DistributedSampler(
                 data,
                 num_replicas=dist.get_world_size(),
@@ -1784,8 +1791,8 @@ def load_dataset(args):
     elif args['mode'] == 'inference':
         # only inference train dataset
         path = f'data/{args["dataset"]}/train.txt'
-        data_res = INFERENCE_DATASET_MAP[args['model']][0](path, mode=args['mode'], max_len=args['max_len'], model=args['pretrained_model'])
-        data_ctx = INFERENCE_DATASET_MAP[args['model']][1](path, mode=args['mode'], max_len=args['max_len'], model=args['pretrained_model'])
+        data_res = INFERENCE_DATASET_MAP[args['model']][0](path, lang=args['lang'], mode=args['mode'], max_len=args['max_len'], model=args['pretrained_model'])
+        data_ctx = INFERENCE_DATASET_MAP[args['model']][1](path, lang=args['lang'], mode=args['mode'], max_len=args['max_len'], model=args['pretrained_model'])
 
         res_sampler = torch.utils.data.distributed.DistributedSampler(
             data_res,
@@ -1805,7 +1812,7 @@ def load_dataset(args):
         data = (data_res, data_ctx)
         sampler = None
     else:
-        data = DATASET_MAP[args['model']](path, mode=args['mode'], max_len=args['max_len'], model=args['pretrained_model'])
+        data = DATASET_MAP[args['model']](path, mode=args['mode'], lang=args['lang'], max_len=args['max_len'], model=args['pretrained_model'])
         iter_ = DataLoader(data, batch_size=args['batch_size'], collate_fn=data.collate)
         sampler = None
     if args['mode'] == 'inference':

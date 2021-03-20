@@ -31,9 +31,11 @@ cuda=$4
 
 if [[ ${chinese_datasets[@]} =~ $dataset ]]; then
     pretrained_model=bert-base-chinese
+    lang=zh
     # pretrained_model=hfl/chinese-bert-wwm
 else
     pretrained_model=bert-base-uncased
+    lang=en
 fi
 
 if [ $mode = 'init' ]; then
@@ -58,7 +60,7 @@ elif [ $mode = 'train' ]; then
     rm rest/$dataset/$model/events*    # clear the tensorboard cache
     
     gpu_ids=(${cuda//,/ })
-    CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 29403 main.py \
+    CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 29405 main.py \
         --dataset $dataset \
         --model $model \
         --mode train \
@@ -70,6 +72,7 @@ elif [ $mode = 'train' ]; then
         --multi_gpu $cuda \
         --pretrained_model $pretrained_model \
         --head_num $head_num \
+        --lang $lang \
         --warmup_ratio $warmup_ratio
 elif [ $mode = 'inference' ]; then
     gpu_ids=(${cuda//,/ })
@@ -82,6 +85,7 @@ elif [ $mode = 'inference' ]; then
         --max_len $max_len \
         --multi_gpu $cuda \
         --pretrained_model $pretrained_model \
+        --lang $lang \
         --warmup_ratio $warmup_ratio
     # reconstruct
     python model/searcher.py \
@@ -125,5 +129,6 @@ else
         --seed $seed \
         --multi_gpu $cuda \
         --head_num $head_num \
+        --lang $lang \
         --pretrained_model $pretrained_model
 fi

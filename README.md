@@ -84,7 +84,7 @@ _Note:_
 | dual-bert(bsz=16, epoch=5) | 78.7  | 90.8  | 97.9  | 87.1  |
 | dual-bert(bsz=16, epoch=10, shuffle-ddp) | 85.8 | 94.3 | 98.7 | 91.53 |
 | dual-bert-adv(bsz=16, epoch=5) | 80.3  | 91.8  | 98.5  | 88.15  |
-| dual-bert-adv(bsz=16, epoch=10) |  |  |  |  |
+| dual-bert-adv(bsz=16, epoch=10, shuffle-ddp) | 87.4 | 94.2 | 98.8 | 92.3 |
 | dual-bert-cl(bsz=16, queue=65536) | 79.0  | 90.7  | 97.8  | 87.14  |
 
 | Original       | R10@1 | R10@2 | R10@5 | MRR    |
