@@ -140,8 +140,9 @@ class BERTDualOne2ManyEncoder(nn.Module):
         additional_matrix = torch.stack(additional_matrix).transpose(0, 1)    # [K, B] -> [B, K]
         mask_ = torch.zeros_like(additional_matrix).half().cuda()
         # NOTE
-        random_idx = [random.choice(range(self.head_num)) for _ in range(batch_size)]
-        mask_[range(batch_size), random_idx] = 1
+        # random_idx = [random.choice(range(self.head_num)) for _ in range(batch_size)]
+        # mask_[range(batch_size), random_idx] = 1
+        mask_[:, 0] = 1
         additional_loss = F.log_softmax(additional_matrix, dim=-1) * mask_
         additional_loss = (-additional_loss.sum(dim=1)).mean()
         loss += additional_loss
@@ -292,7 +293,7 @@ class BERTDualOne2ManyEncoderAgent(RetrievalBaseAgent):
             cid, rids, rids_mask, label = batch
             batch_size = len(rids)
             assert batch_size == 10, f'[!] {batch_size} is not equal to 10'
-            scores = self.model.predict(cid, rids, rids_mask).cpu().tolist()    # [B]
+            scores = self.model.module.predict(cid, rids, rids_mask).cpu().tolist()    # [B]
             
             rank_by_pred, pos_index, stack_scores = \
           calculate_candidates_ranking(
@@ -318,6 +319,7 @@ class BERTDualOne2ManyEncoderAgent(RetrievalBaseAgent):
         print(f"MRR: {round(avg_mrr, 4)}")
         print(f"P@1: {round(avg_prec_at_one, 4)}")
         print(f"MAP: {round(avg_map, 4)}")
+        return (total_correct[0]/total_examples, total_correct[1]/total_examples, total_correct[2]/total_examples), avg_mrr, avg_prec_at_one, avg_map
 
     @torch.no_grad()
     def inference(self, inf_iter, test_iter):

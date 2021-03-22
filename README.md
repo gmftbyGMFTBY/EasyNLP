@@ -8,6 +8,8 @@ TODO:
 1. Constrastive learning on huge dataset, LCCC, and fine-tuning on ecommerce and douban corpus. But need to compared with the dual-bert pre-trained model
 2. nn.functional.normalize
 3. MORE EPOCH: EXTEND FROM 5 TO 10
+4. re-test dual-bert-one2many
+5. test on Ubuntu v1 corpus
 
 ## How to Use
 
@@ -77,6 +79,7 @@ _Note:_
 * worse quality (bi-encoder-one2many-bad) of the candidates could bring better performance (test whether the number of the negative samples matter, rather than the quality)
 * the number of the samples and the quality of samples matter!!!
 * adding the number of the positive samples doesn't improve the performance!!!
+* context max length 256, response max length 128
 
 | Original       | R10@1 | R10@2 | R10@5 | MRR    |
 | -------------- | ----- | ----- | ----- | ------ |
@@ -85,6 +88,7 @@ _Note:_
 | dual-bert(bsz=16, epoch=10, shuffle-ddp) | 85.8 | 94.3 | 98.7 | 91.53 |
 | dual-bert-adv(bsz=16, epoch=5) | 80.3  | 91.8  | 98.5  | 88.15  |
 | dual-bert-adv(bsz=16, epoch=10, shuffle-ddp) | 87.4 | 94.2 | 98.8 | 92.3 |
+| dual-bert-one2many(bsz=16, epoch=10, shuffle-ddp) | | | | |
 | dual-bert-cl(bsz=16, queue=65536) | 79.0  | 90.7  | 97.8  | 87.14  |
 
 | Original       | R10@1 | R10@2 | R10@5 | MRR    |
@@ -131,15 +135,14 @@ _Note:_
 * one2many performance is worse than dual-bert on douban corpus, which is very different from the ecommerce corpus. The reason maybe: the dual-bert performance is worse than that on ecommerce corpus, which lead to bad candidate samples for dual-bert-one2many model, e.g., the quality of the candidates matter!
 * max-sequence-length and PLMs (hfl/chinese-bert-wwm is slightly worse than bert-base-chinese) is not the core, but max-sequence-length do improve some metrics
 * good candidates (pre-extract=20, topk=10) provide  better R10@1 and R10@2, hopeful!
-* SOLUTION1: separate the head, reduce the side effect of the bad candidates
-* SOLUTION2: improve the coarse retrieved candidates quality
-* SOLUTION3: MoE (Mixture of the Experts)?
+* context max length 256, response max length 128
 
 | Original           | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   |
 | ------------------ | ----- | ----- | ----- | ----- | ----- | ------ |
 | SOTA               | 31.8  | 48.2  | 85.8  | 66.4  | 49.9  | 62.5   |
-| dual-bert(max-len=256,bsz=16) | 27.74 | 46.88  | 80.84 | 61.99 | 43.63 | 58.7  |
-| dual-bert-adv(max-len=256,bsz=16) | 25.43 | 45.35  | 83.07 | 60.72 | 41.38 | 57.38  |
+| dual-bert(max-len=256, bsz=16, epoch=10, shuffle-ddp) | 28.59 | 47.37  | 81.81 | 63.49 | 45.88 | 59.56  |
+| dual-bert-adv(max-len=256, bsz=16, epoch=10, shuffle-ddp) | 28.94 | 48.02 | 82.39 | 63.74 | 46.03 | 59.83 |
+| dual-bert-one2many(bsz=16, epoch=10, shuffle-ddp) |  | | | |
 
 | Original           | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   |
 | ------------------ | ----- | ----- | ----- | ----- | ----- | ------ |

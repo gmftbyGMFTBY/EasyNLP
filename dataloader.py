@@ -135,7 +135,7 @@ def read_context_data(path, lang='zh'):
             context = ' [SEP] '.join(context)
             ctx.append(context)
             res.append(response)
-    print(f'[!] load {len(ctx)} responses from {path}')
+    print(f'[!] load {len(ctx)} context from {path}')
     return ctx, res
 
 
@@ -810,7 +810,6 @@ class BERTFTDataset(Dataset):
         self.data = []
         if mode == 'train':
             for label, context, response in tqdm(data):
-                ipdb.set_trace()
                 item = self.vocab.batch_encode_plus([[context, response]])
                 ids = item['input_ids'][0]
                 tids = item['token_type_ids'][0]

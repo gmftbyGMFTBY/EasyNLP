@@ -66,7 +66,7 @@ def main(**args):
             sum_writer.add_scalar(f'test-epoch/MAP', MAP, i)
         sum_writer.close()
     elif args['mode'] == 'test':
-        test_data, test_iter = load_dataset(args)
+        test_data, test_iter, _ = load_dataset(args)
         args['total_step'], args['warmup_step'] = 0, 0
         agent = load_model(args)
         agent.load_model(f'ckpt/{args["dataset"]}/{args["model"]}/best.pt')
@@ -77,7 +77,7 @@ def main(**args):
         torch.cuda.set_device(args['local_rank'])
         torch.distributed.init_process_group(backend='nccl', init_method='env://')
         # inference the dataset and generate the vector for each sample
-        _, (iter_res, iter_ctx) = load_dataset(args)
+        _, (iter_res, iter_ctx), _ = load_dataset(args)
         args['total_step'], args['warmup_step'] = 0, 0
         agent = load_model(args)
         agent.load_model(f'ckpt/{args["dataset"]}/{args["model"]}/best.pt')
