@@ -132,20 +132,20 @@ class BERTDualOne2ManyEncoder(nn.Module):
                 acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
                 acc = acc_num / batch_size
             # .append [B]
-            additional_matrix.append(dot_product[range(batch_size), range(batch_size)])
+            # additional_matrix.append(dot_product[range(batch_size), range(batch_size)])
             counter += 1
 
         loss /= self.head_num
         # groundtruth is better than retrieved samples
-        additional_matrix = torch.stack(additional_matrix).transpose(0, 1)    # [K, B] -> [B, K]
-        mask_ = torch.zeros_like(additional_matrix).half().cuda()
+        # additional_matrix = torch.stack(additional_matrix).transpose(0, 1)    # [K, B] -> [B, K]
+        # mask_ = torch.zeros_like(additional_matrix).half().cuda()
         # NOTE
         # random_idx = [random.choice(range(self.head_num)) for _ in range(batch_size)]
         # mask_[range(batch_size), random_idx] = 1
-        mask_[:, 0] = 1
-        additional_loss = F.log_softmax(additional_matrix, dim=-1) * mask_
-        additional_loss = (-additional_loss.sum(dim=1)).mean()
-        loss += additional_loss
+        # mask_[:, 0] = 1
+        # additional_loss = F.log_softmax(additional_matrix, dim=-1) * mask_
+        # additional_loss = (-additional_loss.sum(dim=1)).mean()
+        # loss += additional_loss
         return loss, acc
     
     def forward_(self, cid, rids, cid_mask, rids_mask):

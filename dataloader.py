@@ -141,11 +141,13 @@ def read_context_data(path, lang='zh'):
 
 # ========== DUAL BERT HIERARCHICAL Dataset ========== #
 class BERTDualHierarchicalDataset(Dataset):
+
+    '''SET THE MAX LEN OF EACH UTTERANCE AS 64'''
     
-    '''segment embedding, token embedding, position embedding (default), mask embedding'''
-    
-    def __init__(self, path, lang='zh', mode='train', max_len=300, model='bert-base-chinese'):
+    def __init__(self, path, lang='zh', mode='train', max_len=64, model='bert-base-chinese'):
         self.mode, self.max_len = mode, max_len
+        # SET MAX LEN
+        self.max_len = 64
         self.inner_bsz = 32 
         self.vocab = BertTokenizer.from_pretrained(model)
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')

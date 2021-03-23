@@ -34,66 +34,77 @@ class BertEmbedding(nn.Module):
 
 class Adv(nn.Module):
 
-    def __init__(self, K):
+    def __init__(self, topk, K):
         super(Adv, self).__init__()
         self.K = K
-        self.adversaries = nn.Parameter(torch.FloatTensor(self.K, 768))
+        self.topk = topk
+        self.adversaries = nn.Parameter(torch.randn(self.K, 768))
 
     def forward(self, x):
-        adv_rep = self.adversaries    # [K, 768]
+        # x: [B, E]
+        key = torch.matmul(x, self.adversaries.t())    # [B, K]
+        key = key.topk(self.topk, dim=1)[1]    # [B, topk]
+        # [K, E] -> [B, topk, E] 
+        adv_rep = []
+        for index in key:
+            adv_rep.append(self.adversaries[index, :])
+        adv_rep = torch.stack(adv_rep)    # [B, topk, E]
         return adv_rep
     
 
 class BERTDualAdvEncoder(nn.Module):
     
-    def __init__(self, model='bert-base-chinese', K=65536):
+    def __init__(self, model='bert-base-chinese', K=65536, topk=1024):
         super(BERTDualAdvEncoder, self).__init__()
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
+        self.adv = Adv(topk, K)
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)    # [B, 768]
         rid_rep = self.can_encoder(rid, rid_mask)    # [B, 768]   
-        return cid_rep, rid_rep
+        adv_rep = self.adv(cid_rep.detach())    # [B, topk, 768]
+        return cid_rep, rid_rep, adv_rep
 
-    @torch.no_grad()
-    def get_cand(self, ids, attn_mask):
-        rid_rep = self.can_encoder(ids, attn_mask)
-        return rid_rep
-
-    @torch.no_grad()
-    def get_ctx(self, ids, attn_mask):
-        cid_rep = self.ctx_encoder(ids, attn_mask)
-        return cid_rep
-    
     @torch.no_grad()
     def predict(self, cid, rid, rid_mask):
         batch_size = rid.shape[0]
-        cid_rep, rid_rep = self._encode(cid.unsqueeze(0), rid, None, rid_mask)
+        cid_rep, rid_rep, _ = self._encode(cid.unsqueeze(0), rid, None, rid_mask)
         cid_rep = cid_rep.squeeze(0)    # [768]
-        # cid_rep/rid_rep: [768], [B, 768]
         dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B]
         return dot_product
         
-    def forward(self, cid, rid, cid_mask, rid_mask, adv_rep):
+    def forward(self, cid, rid, cid_mask, rid_mask):
         batch_size = cid.shape[0]
         assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
-        cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
+        cid_rep, rid_rep, adv_rep = self._encode(cid, rid, cid_mask, rid_mask)
+
+        # Sub-network 1, context encoder and response encoder feedforward
         # cid_rep/rid_rep/adv_rep: [B, 768]
-        dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
-        dot_product_ = torch.matmul(cid_rep, adv_rep.t())    # [B, K]
-        dot_product = torch.cat([dot_product, dot_product_], dim=1)    # [B, B+K]
+        dot_product_base = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
+        # [B, topk, 768] x [B, 768, 1] -> [B, topk]
+        dot_product_ = torch.bmm(adv_rep.detach(), cid_rep.unsqueeze(-1)).squeeze(-1)
+        dot_product = torch.cat([dot_product_base, dot_product_], dim=1)    # [B, B+topk]
         # use half for supporting the apex
         mask = torch.eye(batch_size).cuda().half()    # [B, B]
         zeros = torch.zeros_like(dot_product_).cuda().half()
-        mask = torch.cat([mask, zeros], dim=1)    # [B, 2*B]
+        mask = torch.cat([mask, zeros], dim=1)    # [B, B+K]
         # calculate accuracy
         acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
         acc = acc_num / batch_size
         # calculate the loss
         loss = F.log_softmax(dot_product, dim=-1) * mask
         loss = (-loss.sum(dim=1)).mean()
-        return loss, acc, cid_rep.detach(), rid_rep.detach(), mask 
+
+        # Sub-network2, adversarials feedforward
+        # DETACH
+        # [B, topk, 768] x [B, 768, 1] -> [B, topk]
+        dot_product_ = torch.bmm(adv_rep, cid_rep.detach().unsqueeze(-1)).squeeze(-1)
+        dot_product = torch.cat([dot_product_base.detach(), dot_product_], dim=1)
+        # calculate the loss
+        adv_loss = F.log_softmax(dot_product, dim=-1) * mask
+        adv_loss = adv_loss.sum(dim=1).mean()
+        return loss, adv_loss, acc
 
     
 class BERTDualAdvEncoderAgent(RetrievalBaseAgent):
@@ -106,7 +117,6 @@ class BERTDualAdvEncoderAgent(RetrievalBaseAgent):
             raise Exception(f'[!] multi gpu ids are needed, but got: {multi_gpu}')
         self.args = {
             'lr': 5e-5,     # dot production: 5e-5, cosine similairty: 1e-4
-            'adv_lr': 5e-5,     # dot production: 5e-5, cosine similairty: 1e-4
             'grad_clip': 1.0,
             'multi_gpu': self.gpu_ids,
             'model': pretrained_model,
@@ -119,27 +129,22 @@ class BERTDualAdvEncoderAgent(RetrievalBaseAgent):
             'pretrained_model_path': pretrained_model_path,
             'oom_times': 10,
             'K': 65536,
+            'topk': 1024,
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
-        self.model = BERTDualAdvEncoder(model=self.args['model'])
-        self.adv = Adv(self.args['K'])
+        self.model = BERTDualAdvEncoder(model=self.args['model'], K=self.args['K'], topk=self.args['topk'])
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)
         if torch.cuda.is_available():
             self.model.cuda()
-            self.adv.cuda()
         self.optimizer = transformers.AdamW(
             self.model.parameters(), 
             lr=self.args['lr'],
         )
-        self.optimizer_adv = transformers.AdamW(
-            self.adv.parameters(), 
-            lr=self.args['adv_lr'],
-        )
         if run_mode == 'train':
-            [self.model, self.adv], [self.optimizer, self.optimizer_adv] = amp.initialize(
-                [self.model, self.adv], 
-                [self.optimizer, self.optimizer_adv],
+            self.model, self.optimizer = amp.initialize(
+                self.model, 
+                self.optimizer,
                 opt_level=self.args['amp_level'],
             )
             self.scheduler = transformers.get_linear_schedule_with_warmup(
@@ -147,17 +152,9 @@ class BERTDualAdvEncoderAgent(RetrievalBaseAgent):
                 num_warmup_steps=warmup_step, 
                 num_training_steps=total_step,
             )
-            self.scheduler_adv = transformers.get_linear_schedule_with_warmup(
-                self.optimizer_adv, 
-                num_warmup_steps=warmup_step, 
-                num_training_steps=total_step,
-            )
             self.model = nn.parallel.DistributedDataParallel(
                 self.model, device_ids=[local_rank], output_device=local_rank,
                 find_unused_parameters=True,
-            )
-            self.adv = nn.parallel.DistributedDataParallel(
-                self.adv, device_ids=[local_rank], output_device=local_rank,
             )
         elif run_mode == 'inference':
             self.model = nn.parallel.DistributedDataParallel(
@@ -180,25 +177,15 @@ class BERTDualAdvEncoderAgent(RetrievalBaseAgent):
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
             cid, rid, cid_mask, rid_mask = batch
-            adv_rep = self.adv(None)
-            loss, acc, cid_rep, rid_rep, mask = self.model(cid, rid, cid_mask, rid_mask, adv_rep.detach())
-            # loss for adv encoder, maximun the loss
-            dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
-            dot_product_ = torch.matmul(cid_rep, adv_rep.t())    # [B, K]
-            dot_product = torch.cat([dot_product, dot_product_], dim=1)    # [B, B+K]
-            adv_loss = F.log_softmax(dot_product, dim=-1) * mask
-            adv_loss = adv_loss.sum(dim=1).mean()
+            loss, adv_loss, acc = self.model(cid, rid, cid_mask, rid_mask)
 
             with amp.scale_loss(loss, self.optimizer) as scaled_loss:
                 scaled_loss.backward()
-            with amp.scale_loss(adv_loss, self.optimizer_adv) as scaled_loss:
+            with amp.scale_loss(adv_loss, self.optimizer) as scaled_loss:
                 scaled_loss.backward()
             clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
-            clip_grad_norm_(amp.master_params(self.optimizer_adv), self.args['grad_clip'])
             self.optimizer.step()
-            self.optimizer_adv.step()
             self.scheduler.step()
-            self.scheduler_adv.step()
 
             total_loss += loss.item()
             total_acc += acc

@@ -11,6 +11,20 @@ TODO:
 4. re-test dual-bert-one2many
 5. test on Ubuntu v1 corpus
 
+
+Category:
+
+Fine-grained perspective:
+1. Hierarchical
+2. Non-hierarchical
+    1. Cross-encoder
+    2. Dual-encoder
+
+Coarse-grained perspective:
+1. Non-hierarchical
+    1. Dual-encoder
+2. Hierarchical: More faster
+
 ## How to Use
 
 1. create post data from the orignial dataset
@@ -84,11 +98,11 @@ _Note:_
 | Original       | R10@1 | R10@2 | R10@5 | MRR    |
 | -------------- | ----- | ----- | ----- | ------ |
 | SOTA           | 77.6  | 91.9  | 99.1  | -      |
-| dual-bert(bsz=16, epoch=5) | 78.7  | 90.8  | 97.9  | 87.1  |
+| dual-bert(bsz=16, epoch=5, shuffle-ddp) | 81.7 | 92.2  | 98.3 | 88.93 |
 | dual-bert(bsz=16, epoch=10, shuffle-ddp) | 85.8 | 94.3 | 98.7 | 91.53 |
 | dual-bert-adv(bsz=16, epoch=5) | 80.3  | 91.8  | 98.5  | 88.15  |
 | dual-bert-adv(bsz=16, epoch=10, shuffle-ddp) | 87.4 | 94.2 | 98.8 | 92.3 |
-| dual-bert-one2many(bsz=16, epoch=10, shuffle-ddp) | | | | |
+| dual-bert-one2many(bsz=16, epoch=5, shuffle-ddp) | | | | |
 | dual-bert-cl(bsz=16, queue=65536) | 79.0  | 90.7  | 97.8  | 87.14  |
 
 | Original       | R10@1 | R10@2 | R10@5 | MRR    |
@@ -141,6 +155,7 @@ _Note:_
 | ------------------ | ----- | ----- | ----- | ----- | ----- | ------ |
 | SOTA               | 31.8  | 48.2  | 85.8  | 66.4  | 49.9  | 62.5   |
 | dual-bert(max-len=256, bsz=16, epoch=10, shuffle-ddp) | 28.59 | 47.37  | 81.81 | 63.49 | 45.88 | 59.56  |
+| dual-bert(max-len=256, bsz=32, epoch=10, shuffle-ddp) | 30.09 | 48.05  | 83.67 | 64.42 | 46.93 | 60.68  |
 | dual-bert-adv(max-len=256, bsz=16, epoch=10, shuffle-ddp) | 28.94 | 48.02 | 82.39 | 63.74 | 46.03 | 59.83 |
 | dual-bert-one2many(bsz=16, epoch=10, shuffle-ddp) |  | | | |
 
