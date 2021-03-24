@@ -5,27 +5,23 @@ from .utils import *
 
 class BertEmbedding(nn.Module):
     
-    def __init__(self, m=0, model='bert-base-chinese'):
+    def __init__(self, model='bert-base-chinese'):
         super(BertEmbedding, self).__init__()
         self.model = BertModel.from_pretrained(model)
-        self.m = m
 
     def forward(self, ids, attn_mask):
         embd = self.model(ids, attention_mask=attn_mask)[0]    # [B, S, 768]
-        if self.m == 0:
-            rest = embd[:, 0, :]
-        else:
-            rest = []
-            cid_ls = [min(len(item.nonzero().squeeze()), self.m) for item in attn_mask]
-            for idx in range(len(embd)):
-                rest.append(embd[idx][:cid_ls[idx], :])
-        # [B, E]/B*[M, E]
+        rest = embd[:, 0, :]    # [B, E]
         return rest
     
-    def load_bert_model(self, path):
-        state_dict = torch.load(path, map_location=torch.device('cpu'))
-        self.model.load_state_dict(state_dict)
-        print(f'[!] load pretrained BERT model from {path}')
+    def load_bert_model(self, state_dict):
+        new_state_dict = OrderedDict()
+        for k, v in state_dict.items():
+            if k.startswith('_bert_model.cls.'):
+                continue
+            name = k.replace('_bert_model.bert.', '')
+            new_state_dict[name] = v
+        self.model.load_state_dict(new_state_dict)
 
 
 class BERTDualHierarchicalEncoder(nn.Module):
@@ -152,14 +148,12 @@ class BERTDualHierarchicalEncoderAgent(RetrievalBaseAgent):
             'pretrained_model_path': pretrained_model_path,
             'oom_times': 10,
             'gru_layer': 2,
-            'm': 5,
             'dropout': 0.1,
-            'num_encoder_layers': 4,
-            'dim_ffd': 512,
-            'nhead': 6,
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
-        self.model = BERTDualHierarchicalEncoder(model=self.args['model'], layer=self.args['gru_layer'], p=self.args['dropout'])
+        self.model = BERTDualHierarchicalEncoder(
+            model=self.args['model'], layer=self.args['gru_layer'], p=self.args['dropout']
+        )
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)
         if torch.cuda.is_available():
@@ -183,8 +177,6 @@ class BERTDualHierarchicalEncoderAgent(RetrievalBaseAgent):
                 self.model, device_ids=[local_rank], output_device=local_rank,
                 find_unused_parameters=True,
             )
-        elif run_mode == 'inference':
-            pass
         self.show_parameters(self.args)
         
     def load_bert_model(self, path):

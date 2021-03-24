@@ -155,6 +155,8 @@ _Note:_
 | Original           | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   |
 | ------------------ | ----- | ----- | ----- | ----- | ----- | ------ |
 | SOTA               | 31.8  | 48.2  | 85.8  | 66.4  | 49.9  | 62.5   |
+| dual-bert-hier(bsz=48, epoch=10) | 28.54  | 48.04  | 83.11  | 63.91  | 45.43  | 59.67 |
+| dual-bert-hier(bsz=48, epoch=10, bert-post) | 29.77 | 50.41 | 82.2 | 65.29 | 47.38 | 61.02 |
 | dual-bert(max-len=256, bsz=16, epoch=10, shuffle-ddp) | 28.59 | 47.37  | 81.81 | 63.49 | 45.88 | 59.56  |
 | dual-bert(max-len=256, bsz=32, epoch=10, shuffle-ddp) | 30.09 | 48.05  | 83.67 | 64.42 | 46.93 | 60.68  |
 | dual-bert-adv(max-len=256, bsz=16, epoch=10, shuffle-ddp) | 28.94 | 48.02 | 82.39 | 63.74 | 46.03 | 59.83 |

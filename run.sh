@@ -15,7 +15,7 @@ head_num=5     # hyperparameter of the dual-bert-one2mnay: 11 heads means there 
 pre_extract=50
 inf_bsz=64
 # 
-post_bsz=16
+post_bsz=48
 post_epoch=10
 post_max_len=256
 post_res_max_len=128
