@@ -5,7 +5,8 @@ def read(path):
             line = line.strip().split('\t')
             label, utterances = line[0], line[1:]
             if label == '1':
-                utterances = [''.join(u.split()) for u in utterances]
+                if 'ubuntu' not in path:
+                    utterances = [''.join(u.split()) for u in utterances]
                 lines.append(utterances)
     print(f'[!] collect {len(lines)} samples from {path}')
     return lines

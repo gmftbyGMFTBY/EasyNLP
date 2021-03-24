@@ -3,31 +3,6 @@ from .base import *
 from .utils import *
 
 
-class PositionEmbedding(nn.Module):
-
-    '''
-    Position embedding for self-attention
-    refer: https://pytorch.org/tutorials/beginner/transformer_tutorial.html
-    d_model: word embedding size or output size of the self-attention blocks
-    max_len: the max length of the input squeezec
-    '''
-
-    def __init__(self, d_model, dropout=0.5, max_len=512):
-        super(PositionEmbedding, self).__init__()
-        self.dropout = nn.Dropout(p=dropout)
-        pe = torch.zeros(max_len, d_model)    # [max_len, d_model]
-        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)    # [1, max_len]
-        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
-        pe = pe.unsqueeze(0).transpose(0, 1)
-        self.register_buffer('pe', pe)
-
-    def forward(self, x):
-        x = x + self.pe[:x.size(0), :]
-        return self.dropout(x)
-
-
 class BertEmbedding(nn.Module):
     
     def __init__(self, m=0, model='bert-base-chinese'):
@@ -110,16 +85,6 @@ class BERTDualHierarchicalEncoder(nn.Module):
         cid_reps = torch.stack(cid_reps)
         return cid_reps    # [B, S, E]
 
-    @torch.no_grad()
-    def get_cand(self, ids, attn_mask):
-        rid_rep = self.can_encoder(ids, attn_mask)
-        return rid_rep
-
-    @torch.no_grad()
-    def get_ctx(self, ids, attn_mask):
-        cid_rep = self.ctx_encoder(ids, attn_mask)
-        return cid_rep
-    
     @torch.no_grad()
     def predict(self, cid, rid, cid_turn_length, cid_mask, rid_mask):
         '''batch size is 1'''
@@ -229,7 +194,6 @@ class BERTDualHierarchicalEncoderAgent(RetrievalBaseAgent):
         print(f'[!] load pretrained BERT model from {path}')
         
     def train_model(self, train_iter, mode='train', recoder=None, idx_=0):
-        '''ADD OOM ASSERTION'''
         self.model.train()
         total_loss, total_acc, batch_num = 0, 0, 0
         pbar = tqdm(train_iter)
@@ -296,31 +260,3 @@ class BERTDualHierarchicalEncoderAgent(RetrievalBaseAgent):
         print(f"P@1: {round(avg_prec_at_one, 4)}")
         print(f"MAP: {round(avg_map, 4)}")
         return (total_correct[0]/total_examples, total_correct[1]/total_examples, total_correct[2]/total_examples), avg_mrr, avg_prec_at_one, avg_map
-
-    @torch.no_grad()
-    def inference(self, inf_iter, test_iter):
-        self.model.eval()
-        pbar = tqdm(inf_iter)
-        matrix, corpus, queries, q_text, q_order, q_text_r = [], [], [], [], [], []
-        for batch in pbar:
-            ids, mask, text = batch
-            vec = self.model.get_cand(ids, mask).cpu()    # [B, H]
-            matrix.append(vec)
-            corpus.extend(text)
-        matrix = torch.cat(matrix, dim=0).numpy()    # [Size, H]
-        assert len(matrix) == len(corpus)
-
-        # context response
-        pbar = tqdm(test_iter)
-        for batch in pbar:
-            ids, ids_mask, ctx_text, res_text, order = batch
-            vec = self.model.get_ctx(ids, ids_mask).cpu()
-            queries.append(vec)
-            q_text.extend(ctx_text)
-            q_text_r.extend(res_text)
-            q_order.extend(order)
-        queries = torch.cat(queries, dim=0).numpy()
-        torch.save(
-            (queries, q_text, q_text_r, q_order, matrix, corpus), 
-            f'data/{self.args["dataset"]}/inference_{self.args["local_rank"]}.pt'
-        )
