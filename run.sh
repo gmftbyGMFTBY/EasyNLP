@@ -10,12 +10,12 @@ res_max_len=128
 seed=50
 warmup_ratio=0.1
 epoch=10
-bsz=48
+bsz=64
 head_num=5     # hyperparameter of the dual-bert-one2mnay: 11 heads means there are 1 groundtruths and 10 retrieved candidates
 pre_extract=50
 inf_bsz=64
 # 
-post_bsz=48
+post_bsz=64
 post_epoch=10
 post_max_len=256
 post_res_max_len=128

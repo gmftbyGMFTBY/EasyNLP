@@ -9,7 +9,11 @@ class SABERTRetrieval(nn.Module):
     def __init__(self, model='bert-base-chinese'):
         super(SABERTRetrieval, self).__init__()
         self.model = BertModel.from_pretrained(model)
-        self.model.resize_token_embeddings(self.model.config.vocab_size + 1)    # [EOT]
+        if model in ['bert-base-uncased']:
+            # english corpus has three special tokens: __number__, __url__, __path__ AND [EOT]
+            self.model.resize_token_embeddings(self.model.config.vocab_size + 4)
+        else:
+            self.model.resize_token_embeddings(self.model.config.vocab_size + 1)    # [EOT]
         self.head = nn.Linear(768, 2)
         self.speaker_embedding = nn.Embedding(2, 768)
 

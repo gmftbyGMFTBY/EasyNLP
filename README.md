@@ -5,11 +5,12 @@ Constrastive Learning for dual-encoder model, leveraging the memory bank to enla
 Constrastive Learning, context is the q, and response is the jey. Ground-truth response is positive k, and other responses are negative k.
 
 TODO:
-1. Constrastive learning on huge dataset, LCCC, and fine-tuning on ecommerce and douban corpus. But need to compared with the dual-bert pre-trained model
-2. nn.functional.normalize
-3. MORE EPOCH: EXTEND FROM 5 TO 10
-4. re-test dual-bert-one2many
-5. test on Ubuntu v1 corpus
+- [ ] Constrastive learning on huge dataset, LCCC, and fine-tuning on ecommerce and douban corpus. But need to compared with the dual-bert pre-trained model
+- [x] MORE EPOCH: EXTEND FROM 5 TO 10
+- [ ] re-test dual-bert-one2many
+- [ ] test on Ubuntu v1 corpus
+- [x] for Ubuntu v1 corpus, add the special tokens for the BertTokenizer during fine-tuning
+- [ ] larger batch size for dual-bert-hierarchical model on ecommerce, douban, ubuntu (128)
 
 
 Category:
@@ -59,6 +60,12 @@ python create_post_data.py
 ```bash
 # save the extended train dataset into data/<dataset>/candidates.pt
 ./run.sh inference ecommerce dual-bert <gpu_ids>
+```
+
+6. train the model, test after each epoch
+
+```bash
+./run.sh train ecommerce dual-bert <gpu_ids>
 ```
 
 ## Ready models and datasets

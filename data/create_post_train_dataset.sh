@@ -12,4 +12,5 @@ python data/create_post_training_data.py \
     --input_file ./data/$dataset/train_post.txt \
     --output_file ./data/$dataset/train_post.hdf5 \
     --bert_pretrained $ckpt \
+    --dataset $dataset \
     --dupe_factor 10

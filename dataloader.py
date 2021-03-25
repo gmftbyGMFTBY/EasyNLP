@@ -150,6 +150,9 @@ class BERTDualHierarchicalDataset(Dataset):
         self.max_len = 64
         self.inner_bsz = 32 
         self.vocab = BertTokenizer.from_pretrained(model)
+        if lang != 'zh':
+            # add special tokens for english corpus, __number__, __path__, __url__
+            self.vocab.add_tokens(['__number__', '__path__', '__url__'])
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.pp_path = f'{os.path.splitext(path)[0]}_dual_hier.pt'
         if os.path.exists(self.pp_path):
@@ -261,6 +264,9 @@ class BERTDualOne2ManyDataset(Dataset):
         self.mode, self.max_len, self.res_max_len = mode, max_len, res_max_len
         self.head = head
         self.vocab = BertTokenizer.from_pretrained(model)
+        if lang != 'zh':
+            # add special tokens for english corpus, __number__, __path__, __url__
+            self.vocab.add_tokens(['__number__', '__path__', '__url__'])
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.pp_path = f'{os.path.splitext(path)[0]}_dual_one2many_{head}.pt'
         if os.path.exists(self.pp_path):
@@ -369,6 +375,9 @@ class BERTDualInferenceContextDataset(Dataset):
     def __init__(self, path, lang='zh', mode='inference', max_len=300, model='bert-base-chinese'):
         self.mode, self.max_len = mode, max_len
         self.vocab = BertTokenizer.from_pretrained(model)
+        if lang != 'zh':
+            # add special tokens for english corpus, __number__, __path__, __url__
+            self.vocab.add_tokens(['__number__', '__path__', '__url__'])
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.pp_path = f'{os.path.splitext(path)[0]}_inference_ctx.pt'
         if os.path.exists(self.pp_path):
@@ -431,6 +440,9 @@ class BERTDualInferenceDataset(Dataset):
     def __init__(self, path, lang='zh', mode='inference', max_len=300, model='bert-base-chinese'):
         self.mode, self.max_len = mode, max_len
         self.vocab = BertTokenizer.from_pretrained(model)
+        if lang != 'zh':
+            # add special tokens for english corpus, __number__, __path__, __url__
+            self.vocab.add_tokens(['__number__', '__path__', '__url__'])
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.pp_path = f'{os.path.splitext(path)[0]}_inference.pt'
         if os.path.exists(self.pp_path):
@@ -486,6 +498,9 @@ class BERTDualGenDataset(Dataset):
     def __init__(self, path, lang='zh', mode='train', max_len=300, model='bert-base-chinese'):
         self.mode, self.max_len = mode, max_len
         self.vocab = BertTokenizer.from_pretrained(model)
+        if lang != 'zh':
+            # add special tokens for english corpus, __number__, __path__, __url__
+            self.vocab.add_tokens(['__number__', '__path__', '__url__'])
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.pp_path = f'{os.path.splitext(path)[0]}_dual_gen.pt'
         if os.path.exists(self.pp_path):
@@ -607,6 +622,9 @@ class BERTDualDataset(Dataset):
     def __init__(self, path, lang='zh', mode='train', max_len=300, model='bert-base-chinese'):
         self.mode, self.max_len = mode, max_len
         self.vocab = BertTokenizer.from_pretrained(model)
+        if lang != 'zh':
+            # add special tokens for english corpus, __number__, __path__, __url__
+            self.vocab.add_tokens(['__number__', '__path__', '__url__'])
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.pp_path = f'{os.path.splitext(path)[0]}_dual.pt'
         if os.path.exists(self.pp_path):
@@ -712,6 +730,9 @@ class BERTFTMultiDataset(Dataset):
     def __init__(self, path, lang='zh', mode='train', max_len=300, model='bert-base-chinese'):
         self.mode, self.max_len = mode, max_len
         self.vocab = BertTokenizer.from_pretrained(model)
+        if lang != 'zh':
+            # add special tokens for english corpus, __number__, __path__, __url__
+            self.vocab.add_tokens(['__number__', '__path__', '__url__'])
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.pp_path = f'{os.path.splitext(path)[0]}_multi_ft.pt'
         if os.path.exists(self.pp_path):
@@ -802,6 +823,9 @@ class BERTFTDataset(Dataset):
     def __init__(self, path, mode='train', max_len=300, lang='zh', model='bert-base-chinese'):
         self.mode, self.max_len = mode, max_len
         self.vocab = BertTokenizer.from_pretrained(model)
+        if lang != 'zh':
+            # add special tokens for english corpus, __number__, __path__, __url__
+            self.vocab.add_tokens(['__number__', '__path__', '__url__'])
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.pp_path = f'{os.path.splitext(path)[0]}_ft.pt'
         if os.path.exists(self.pp_path):
@@ -894,6 +918,9 @@ class BERTGenDataset(Dataset):
     def __init__(self, path, lang='zh', mode='train', max_len=300, model='bert-base-chinese'):
         self.mode, self.max_len = mode, max_len
         self.vocab = BertTokenizer.from_pretrained(model)
+        if lang != 'zh':
+            # add special tokens for english corpus, __number__, __path__, __url__
+            self.vocab.add_tokens(['__number__', '__path__', '__url__'])
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.pp_path = f'{os.path.splitext(path)[0]}_gen.pt'
         if os.path.exists(self.pp_path):
@@ -1011,6 +1038,9 @@ class BERTGenFTDataset(Dataset):
     def __init__(self, path, lang='zh', mode='train', max_len=300, model='bert-base-chinese'):
         self.mode, self.max_len = mode, max_len
         self.vocab = BertTokenizer.from_pretrained(model)
+        if lang != 'zh':
+            # add special tokens for english corpus, __number__, __path__, __url__
+            self.vocab.add_tokens(['__number__', '__path__', '__url__'])
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.pp_path = f'{os.path.splitext(path)[0]}_gen_ft.pt'
         if os.path.exists(self.pp_path):
@@ -1127,6 +1157,9 @@ class BERTDualMBDataset(Dataset):
     def __init__(self, path, lang='zh', mode='train', max_len=300, model='bert-base-chinese'):
         self.mode, self.max_len = mode, max_len
         self.vocab = BertTokenizer.from_pretrained(model)
+        if lang != 'zh':
+            # add special tokens for english corpus, __number__, __path__, __url__
+            self.vocab.add_tokens(['__number__', '__path__', '__url__'])
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.pp_path = f'{os.path.splitext(path)[0]}_dual_mb.pt'
         if os.path.exists(self.pp_path):
@@ -1238,6 +1271,9 @@ class UMSDataset(Dataset):
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
         self.vocab = BertTokenizer.from_pretrained(model)
+        if lang != 'zh':
+            # add special tokens for english corpus, __number__, __path__, __url__
+            self.vocab.add_tokens(['__number__', '__path__', '__url__'])
         self.data = read_ums_data(path, self.vocab)
         self.vocab.add_tokens(["[EOT]"])
         
@@ -1630,6 +1666,9 @@ class SABERTFTDataset(Dataset):
     def __init__(self, path, lang='zh', mode='train', max_len=300, model='bert-base-chinese'):
         self.mode, self.max_len = mode, max_len
         self.vocab = BertTokenizer.from_pretrained(model)
+        if lang != 'zh':
+            # add special tokens for english corpus, __number__, __path__, __url__
+            self.vocab.add_tokens(['__number__', '__path__', '__url__'])
         # [EOT] token
         self.vocab.add_tokens(['[EOT]'])
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')

@@ -8,6 +8,9 @@ class BertEmbedding(nn.Module):
     def __init__(self, model='bert-base-chinese'):
         super(BertEmbedding, self).__init__()
         self.model = BertModel.from_pretrained(model)
+        if model in ['bert-base-uncased']:
+            # english corpus has three special tokens: __number__, __url__, __path__
+            self.model.resize_token_embeddings(self.model.config.vocab_size + 3)
 
     def forward(self, ids, attn_mask):
         embd = self.model(ids, attention_mask=attn_mask)[0]    # [B, S, 768]

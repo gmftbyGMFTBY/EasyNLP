@@ -51,6 +51,8 @@ class CreateBertPretrainingData(object):
     def __init__(self, args):
         self.args = args
         self._bert_tokenizer = BertTokenizer.from_pretrained(args.bert_pretrained)
+        if args.dataset in ['ubuntu']:
+            self._bert_tokenizer.add_tokens(['__number__', '__url__', '__path__'])
     
     def create_training_instances(self, input_file, max_seq_length,
                                   dupe_factor, short_seq_prob, masked_lm_prob,
@@ -384,6 +386,8 @@ if __name__ == "__main__":
                                "e.g., ./data/ubuntu_corpus_v1/ubuntu_post_training.txt")
     arg_parser.add_argument("--output_file", dest="output_file", type=str, required=True,
                           help="Output example pkl. e.g., ./data/ubuntu_corpus_v1/ubuntu_post_training.hdf5")
+    arg_parser.add_argument("--dataset", dest="dataset", type=str, required=True,
+                          help="ecommerce; douban; ubuntu")
     arg_parser.add_argument("--bert_pretrained", dest="bert_pretrained", type=str, required=True,
                           help="bert-base-wwm-chinese")
     arg_parser.add_argument("--do_lower_case", dest="do_lower_case", type=bool, default=True,

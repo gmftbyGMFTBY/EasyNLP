@@ -8,6 +8,9 @@ class BertEmbedding(nn.Module):
     def __init__(self, model='bert-base-chinese', p=0.2):
         super(BertEmbedding, self).__init__()
         self.model = BertModel.from_pretrained(model)
+        if model in ['bert-base-uncased']:
+            # english corpus has three special tokens: __number__, __url__, __path__
+            self.model.resize_token_embeddings(self.model.config.vocab_size + 3)
         self.head = nn.Sequential(
             nn.Dropout(p=p),
             nn.Linear(768, 768),
