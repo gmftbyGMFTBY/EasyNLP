@@ -5,7 +5,7 @@ dataset=$1
 model=$2
 cuda=$3
 
-chinese_datasets=(douban ecommerce ubuntu)
+chinese_datasets=(douban ecommerce)
 if [[ ${chinese_datasets[@]} =~ $dataset ]]; then
     ckpt=bert-base-chinese
 else
@@ -38,7 +38,7 @@ CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=$
     --warmup_ratio 0.1 \
     --seed 50 \
     --grad_clip 5 \
-    --batch_size 16 \
+    --batch_size 14 \
     --epoch 3 \
     --lr 3e-5 \
     --model $model

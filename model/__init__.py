@@ -9,6 +9,7 @@ from .dual_bert_adv import *
 from .dual_bert_mb import *
 from .dual_bert_one2many import *
 from .dual_bert_hierarchical import *
+from .dual_bert_hier_trs import *
 from .dual_bert_poly import *
 from .dual_bert_cl import *
 from .dual_bert_vae import *
@@ -127,6 +128,17 @@ def load_model(args):
         )
     elif args['model'] == 'dual-bert-hierarchical':
         model = BERTDualHierarchicalEncoderAgent(
+            args['multi_gpu'], 
+            args['total_step'], 
+            args['warmup_step'], 
+            run_mode=args['mode'], 
+            pretrained_model=args['pretrained_model'],
+            local_rank=args['local_rank'], 
+            dataset_name=args['dataset'],
+            pretrained_model_path=args['pretrained_model_path']
+        )
+    elif args['model'] == 'dual-bert-hierarchical-trs':
+        model = BERTDualHierarchicalTrsEncoderAgent(
             args['multi_gpu'], 
             args['total_step'], 
             args['warmup_step'], 

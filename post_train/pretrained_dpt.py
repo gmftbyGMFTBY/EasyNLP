@@ -1,5 +1,4 @@
 import os
-import ipdb
 import torch
 from torch import nn
 from transformers import BertConfig, BertForPreTraining
@@ -13,6 +12,9 @@ class BertNSPMLM(nn.Module):
         self._bert_model = BertForPreTraining.from_pretrained(
             self.hparams['bert_pretrained']
         )
+        if hparams['dataset'] in ['ubuntu']:
+            # '__number__', '__url__', '__path__'
+            self._bert_model.resize_token_embeddings(self._bert_model.config.vocab_size + 3)
 
     def forward(self, batch):
         bert_outputs = self._bert_model(
@@ -36,6 +38,9 @@ class BertMLM(nn.Module):
         self._bert_model = BertForMaskedLM.from_pretrained(
             self.hparams['bert_pretrained']
         )
+        if hparams['dataset'] in ['ubuntu']:
+            # '__number__', '__url__', '__path__'
+            self._bert_model.resize_token_embeddings(self._bert_model.config.vocab_size + 3)
 
     def forward(self, batch):
         bert_outputs = self._bert_model(
@@ -58,6 +63,9 @@ class BertNSP(nn.Module):
         self._bert_model = BertForNextSentencePrediction.from_pretrained(
             self.hparams['bert_pretrained']
         )
+        if hparams['dataset'] in ['ubuntu']:
+            # '__number__', '__url__', '__path__'
+            self._bert_model.resize_token_embeddings(self._bert_model.config.vocab_size + 3)
 
     def forward(self, batch):
         bert_outputs = self._bert_model(

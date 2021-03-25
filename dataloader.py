@@ -1797,6 +1797,7 @@ def load_dataset(args):
         'dual-bert-vae2': BERTDualDataset,
         'dual-bert-one2many': BERTDualOne2ManyDataset,
         'dual-bert-hierarchical': BERTDualHierarchicalDataset,
+        'dual-bert-hierarchical-trs': BERTDualHierarchicalDataset,
     }
 
     INFERENCE_DATASET_MAP = {
