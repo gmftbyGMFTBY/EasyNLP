@@ -12,6 +12,7 @@ TODO:
 - [x] for Ubuntu v1 corpus, add the special tokens for the BertTokenizer during fine-tuning
 - [ ] larger batch size for dual-bert-hierarchical model on ecommerce, douban, ubuntu (128)
 - [ ] speaker embedding in dual-bert-hierarchical (necessary?)
+- [ ] fully use all the utterances, the sequence length more than 64 will be cut.
 
 
 Category:
@@ -107,6 +108,7 @@ _Note:_
 | -------------- | ----- | ----- | ----- | ------ |
 | SOTA           | 77.6  | 91.9  | 99.1  | -      |
 | dual-bert-hier(bsz=64, epoch=10, shuffle-ddp) | 88.8 | 95.8  | 98.6 | 93.32 |
+| dual-bert-hier(bsz=128, epoch=10, shuffle-ddp) | 90.7 | 96.5  | 99.3 | 94.5 |
 | dual-bert(bsz=16, epoch=5, shuffle-ddp) | 81.7 | 92.2  | 98.3 | 88.93 |
 | dual-bert(bsz=16, epoch=10, shuffle-ddp) | 85.8 | 94.3 | 98.7 | 91.53 |
 | dual-bert-adv(bsz=16, epoch=5) | 80.3  | 91.8  | 98.5  | 88.15  |
@@ -165,7 +167,7 @@ _Note:_
 | SOTA               | 31.8  | 48.2  | 85.8  | 66.4  | 49.9  | 62.5   |
 | dual-bert-hier(bsz=48, epoch=10) | 28.54  | 48.04  | 83.11  | 63.91  | 45.43  | 59.67 |
 | dual-bert-hier(bsz=48, epoch=10, bert-post) | 29.77 | 50.41 | 82.2 | 65.29 | 47.38 | 61.02 |
-| dual-bert-hier(bsz=128, epoch=10, bert-post)| 29.77 | 50.41 | 82.2 | 65.29 | 47.38 | 61.02 |
+| dual-bert-hier(bsz=128, epoch=10, bert-post)| 29.63 | 49.03 | 84.31 | 64.83 | 47.23 | 60.95 |
 | dual-bert(max-len=256, bsz=16, epoch=10, shuffle-ddp) | 28.59 | 47.37  | 81.81 | 63.49 | 45.88 | 59.56  |
 | dual-bert(max-len=256, bsz=32, epoch=10, shuffle-ddp) | 30.09 | 48.05  | 83.67 | 64.42 | 46.93 | 60.68  |
 | dual-bert-adv(max-len=256, bsz=16, epoch=10, shuffle-ddp) | 28.94 | 48.02 | 82.39 | 63.74 | 46.03 | 59.83 |
@@ -213,10 +215,10 @@ _Note:_
 | Original       | R10@1 | R10@2 | R10@5 | R2@1   |
 | -------------- | ----- | ----- | ----- | ------ |
 | SOTA           | 0.884 | 0.946 | 0.990 | 0.975  |
-| Bi-Encoder(bsz=48) | 67.22 | 80.23     | 94.6 | -  |
-| Bi-Encoder-one2many(bsz=16,max,pre-extract=50) |  |      |  |  |
-| dual-bert-hier(bsz=64, epoch=10) | 79.42 | 89.85 | 97.63 |  |
-| BERT-FT        | 66.86 | 79.75 | 94.15 | -     |
+| Bi-Encoder(bsz=48) | | | | |
+| dual-bert-hier(bsz=64, epoch=10) | 79.42 | 89.85 | 97.63 | - |
+| dual-bert-hier(bsz=128, epoch=10, bert-post) | | | | - |
+| BERT-FT        | | | | |
 | BERT-FT+MLM+NSP|       |       |       |        |
 | BERT-FT+MLM    |       |       |       |        |
 | BERT-FT+NSP    |       |       |       |        |

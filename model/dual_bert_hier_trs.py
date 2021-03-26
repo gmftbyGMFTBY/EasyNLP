@@ -48,7 +48,7 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
 
     '''try the transformers'''
 
-    def __init__(self, model='bert-base-chinese', layer=3, nhead=6, dim_feedforward=512, dropout=0.1):
+    def __init__(self, model='bert-base-chinese', nlayer=3, nhead=6, nhide=512, dropout=0.1):
         super(BERTDualHierarchicalTrsEncoder, self).__init__()
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
@@ -56,22 +56,30 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
         encoder_layer = nn.TransformerEncoderLayer(
             768,
             nhead=nhead,
-            dim_feedforward=dim_feedforward,
+            dim_feedforward=nhide,
             dropout=dropout
         )
         encoder_norm = nn.LayerNorm(768)
-        self.position_embd = PositionEmbedding(768)
+        # max context utterances is 512
+        self.position_embd = nn.Embedding(512, 768)
+        self.speaker_embd = nn.Embedding(2, 768)
         self.trs_encoder = nn.TransformerEncoder(
             encoder_layer,
-            num_encoder_layers,
+            nlayer,
             encoder_norm,
         )
+        # rnn
+        self.gru_encoder = nn.GRU(
+            768, 768, nlayer, batch_first=True,
+            dropout=0 if nlayer == 1 else dropout
+        )
         self.proj = nn.Sequential(
-            nn.Linear(768, 768),
-            nn.Dropout(p=p),
+            nn.Linear(nlayer*768, 768),
+            nn.Dropout(p=dropout),
             nn.ReLU(),
             nn.Linear(768, 768)
         )
+        
         
     def _encode(self, cids, rid, cids_mask, rid_mask, recover_mapping):
         '''resort'''
@@ -102,7 +110,7 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
         cid_mask = []    # [B, S]
         for ctx in cid_rep:
             # mask, [S]
-            m = torch.tensor([0] * len(ctx) + [1] * (max_turn_length - len(ctx))).to(torch.bool).half()
+            m = torch.tensor([0] * len(ctx) + [1] * (max_turn_length - len(ctx))).to(torch.bool)
             cid_mask.append(m)
             if len(ctx) < max_turn_length:
                 # support apex
@@ -110,42 +118,38 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
                 padding = [zero_tensor] * (max_turn_length - len(ctx))
                 ctx = torch.cat([ctx] + padding)    # append [S, E]
             cid_reps.append(ctx)
+        pos_index = torch.arange(max_turn_length).repeat(len(cid_rep), 1).cuda()    # [B, S]
         cid_reps = torch.stack(cid_reps)
-        cid_mask = cid_mask.cuda()
-        return cid_reps, cid_mask    # [B, S, E], [B, S]
-
+        cid_mask = torch.stack(cid_mask).cuda()
+        spk_index = torch.ones(len(cid_rep), max_turn_length).cuda()    # [B, S]
+        spk_index[:, ::2] = 0
+        spk_index = spk_index.to(torch.long)
+        return cid_reps, cid_mask, pos_index, spk_index  # [B, S, E], [B, S], [B, S]
+    
     @torch.no_grad()
     def predict(self, cid, rid, cid_turn_length, cid_mask, rid_mask):
         '''batch size is 1'''
-        batch_size = rid_rep.shape[0]
+        batch_size = rid.shape[0]
         cid_rep, rid_rep = self._encode_(cid, rid, cid_mask, rid_mask)
         # [S, E], [10, E]
-        cid_rep, cid_mask = self.reconstruct_tensor(cid_rep, cid_turn_length)
-        ipdb.set_trace()
+        cid_rep_base, cid_mask, pos_index, spk_index = self.reconstruct_tensor(cid_rep, cid_turn_length)
         
-        cid_rep = cid_rep.unsqueeze(0)    # [1, S, E]
-        cid_mask = cid_mask.unsqueeze(0)    # [1, S]
+        pos_embd = self.position_embd(pos_index)
+        spk_embd = self.speaker_embd(spk_index)
+        cid_rep = cid_rep_base + pos_embd + spk_embd
 
-        cid_rep = self.position_embd(cid_rep)
-        cid_rep = self.trs_encoder(cid_rep.permute(1, 0, 2), src_key_padding=cid_mask).permute(1, 0, 2)    # [1, S, E]
-        cid_rep = self.proj(cid_rep)    # [B, 768]
+        cid_rep = self.trs_encoder(cid_rep.permute(1, 0, 2), src_key_padding_mask=cid_mask).permute(1, 0, 2)    # [1, S, E]
+
+        cid_rep += cid_rep_base
+
+        _, cid_rep = self.gru_encoder(cid_rep)
+        cid_rep = cid_rep.permute(1, 0, 2)
+        cid_rep = cid_rep.reshape(cid_rep.shape[0], -1)
+        cid_rep = self.proj(cid_rep)
         
-        # step 1: obtain key
-        # [B_c, B_r, E] x [B_c, E, S] -> [B_c, B_r, S]
-        key = torch.bmm(rid_rep.repeat(1, 1, 1), cid_rep.permute(0, 2, 1))
-        # step 2: mask the key, then softmax
-        # [1, 10, S] * [1, 10, S] -> [1, 10, S]
-        key = key * (~a).unsqueeze(1).repeat(1, batch_size, 1)
-        key = F.softmax(key, dim=-1)
-        # step 3: attention
-        # [1, 10, S] x [1, S, E] -> [1, 10, E]
-        cid_rep = torch.bmm(key, cid_rep)
-        # step 4: dot production
-        # [1, 10, E] enisum [1, 10, E] -> [1, 10]
-        dot_product = torch.einsum('ijz, ijz -> ij', cid_rep, rid_rep.repeat(batch_size, 1, 1))
-        dot_product = dot_product.squeeze(0)    # [10]
+        dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze()    # [10] 
         return dot_product
-        
+
     def forward(self, cid, rid, cid_turn_length, cid_mask, rid_mask, recover_mapping):
         '''parameters:
         cid: [B_k, S]; B_k = B * \sum_{k=1}^B S_k
@@ -155,27 +159,25 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
         cid_turn_length: [B]'''
         batch_size = rid.shape[0]
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask, recover_mapping)
-        cid_rep, cid_mask = self.reconstruct_tensor(cid_rep, cid_turn_length)
-        ipdb.set_trace()
+        cid_rep_base, cid_mask, pos_index, spk_index = self.reconstruct_tensor(cid_rep, cid_turn_length)
 
-        cid_rep = self.position_embd(cid_rep)    # [B, S, E]
-        cid_rep = self.trs_encoder(cid_rep.permute(1, 0, 2), src_key_padding=cid_mask).permute(1, 0, 2)    # [B, S, E]
-        cid_rep = self.proj(cid_rep)
+        # Transformer Encoder
+        pos_embd = self.position_embd(pos_index)    # [B, S, E]
+        spk_embd = self.speaker_embd(spk_index)
+        cid_rep = cid_rep_base + pos_embd + spk_embd
 
-        # step 1: obtain key
-        # [B_c, B_r, E] x [B_c, E, S] -> [B_c, B_r, S]
-        key = torch.bmm(rid_rep.repeat(batch_size, 1, 1), cid_rep.permute(0, 2, 1))
-        # step 2: mask the key, then softmax
-        # [B_c, B_r, S] * [B_c, B_r, S] -> [B_c, B_r, S]
-        key = key * (~a).unsqueeze(1).repeat(1, batch_size, 1)
-        key = F.softmax(key, dim=-1)
-        # step 3: attention
-        # [B_c, B_r, S] x [B_c, S, E] -> [B_c, B_r, E]
-        cid_rep = torch.bmm(key, cid_rep)
-        # step 4: dot production
-        # [B_c, B_r, E] enisum [B_c, B_r, E] -> [B_c, B_r]
-        dot_product = torch.einsum('ijz, ijz -> ij', cid_rep, rid_rep.repeat(batch_size, 1, 1))
+        cid_rep = self.trs_encoder(cid_rep.permute(1, 0, 2), src_key_padding_mask=cid_mask).permute(1, 0, 2)    # [B, S, E]
 
+        cid_rep += cid_rep_base
+        
+        # RNN Encoder
+        cid_rep = nn.utils.rnn.pack_padded_sequence(cid_rep, cid_turn_length, batch_first=True, enforce_sorted=False)
+        _, cid_rep = self.gru_encoder(cid_rep)
+        cid_rep = cid_rep.permute(1, 0, 2)
+        cid_rep = cid_rep.reshape(cid_rep.shape[0], -1)
+        cid_rep = self.proj(cid_rep)    # [B, 768]
+
+        dot_product = torch.matmul(cid_rep, rid_rep.t())    # [B, B]
         # use half for supporting the apex
         mask = torch.eye(batch_size).cuda().half()    # [B, B]
         # mask = torch.eye(batch_size).cuda()    # [B, B]
@@ -186,7 +188,7 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
         loss = F.log_softmax(dot_product, dim=-1) * mask
         loss = (-loss.sum(dim=1)).mean()
         return loss, acc
-    
+        
     
 class BERTDualHierarchicalTrsEncoderAgent(RetrievalBaseAgent):
     
@@ -209,12 +211,18 @@ class BERTDualHierarchicalTrsEncoderAgent(RetrievalBaseAgent):
             'dataset': dataset_name,
             'pretrained_model_path': pretrained_model_path,
             'oom_times': 10,
-            'gru_layer': 2,
-            'dropout': 0.1,
+            'nhead': 6,
+            'nhide': 512,
+            'nlayer': 2,
+            'dropout': 0.2,
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
         self.model = BERTDualHierarchicalTrsEncoder(
-            model=self.args['model'], layer=self.args['gru_layer'], p=self.args['dropout']
+            model=self.args['model'], 
+            nlayer=self.args['nlayer'], 
+            nhide=self.args['nhide'], 
+            nhead=self.args['nhead'], 
+            dropout=self.args['dropout']
         )
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)

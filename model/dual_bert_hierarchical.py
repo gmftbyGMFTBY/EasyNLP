@@ -90,7 +90,7 @@ class BERTDualHierarchicalEncoder(nn.Module):
         batch_size = rid.shape[0]
         cid_rep, rid_rep = self._encode_(cid, rid, cid_mask, rid_mask)    # [k, E]
         cid_rep = self.reconstruct_tensor(cid_rep, cid_turn_length)
-        _, cid_rep = self.ctx_gru(cid_rep)    # [1, B, 768]
+        _, cid_rep = self.ctx_gru(cid_rep)    # [S, 1, 2*768]
         cid_rep = cid_rep.permute(1, 0, 2)    # [B, layer, 768]
         cid_rep = cid_rep.reshape(cid_rep.shape[0], -1)    # [B, layer*768]
         cid_rep = self.proj(cid_rep)    # [B, 768]
@@ -110,9 +110,9 @@ class BERTDualHierarchicalEncoder(nn.Module):
         cid_rep = self.reconstruct_tensor(cid_rep, cid_turn_length)
 
         cid_rep = nn.utils.rnn.pack_padded_sequence(cid_rep, cid_turn_length, batch_first=True, enforce_sorted=False)
-        _, cid_rep = self.ctx_gru(cid_rep)    # [layer, B, 768]
-        cid_rep = cid_rep.permute(1, 0, 2)    # [B, layer, 768]
-        cid_rep = cid_rep.reshape(cid_rep.shape[0], -1)    # [B, layer*768]
+        _, cid_rep = self.ctx_gru(cid_rep)    # [num_layer, B, 768]
+        cid_rep = cid_rep.permute(1, 0, 2)    # [B, num_layer, 768]
+        cid_rep = cid_rep.reshape(cid_rep.shape[0], -1)    # [B, num_layer*768]
         cid_rep = self.proj(cid_rep)    # [B, 768]
 
         # cid_rep/rid_rep: [B, 768]
@@ -150,8 +150,8 @@ class BERTDualHierarchicalEncoderAgent(RetrievalBaseAgent):
             'dataset': dataset_name,
             'pretrained_model_path': pretrained_model_path,
             'oom_times': 10,
-            'gru_layer': 2,
-            'dropout': 0.1,
+            'gru_layer': 3,
+            'dropout': 0.3,
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
         self.model = BERTDualHierarchicalEncoder(

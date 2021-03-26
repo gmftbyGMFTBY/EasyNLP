@@ -142,13 +142,15 @@ def read_context_data(path, lang='zh'):
 # ========== DUAL BERT HIERARCHICAL Dataset ========== #
 class BERTDualHierarchicalDataset(Dataset):
 
-    '''SET THE MAX LEN OF EACH UTTERANCE AS 64'''
+    '''SET THE MAX LEN OF EACH UTTERANCE AS 64. The utterances that longer than 64 will be cut'''
     
     def __init__(self, path, lang='zh', mode='train', max_len=64, model='bert-base-chinese'):
         self.mode, self.max_len = mode, max_len
-        # SET MAX LEN
+
+        # set hyperparameter in dataloader
         self.max_len = 64
-        self.inner_bsz = 32 
+        self.inner_bsz = 64
+
         self.vocab = BertTokenizer.from_pretrained(model)
         if lang != 'zh':
             # add special tokens for english corpus, __number__, __path__, __url__
