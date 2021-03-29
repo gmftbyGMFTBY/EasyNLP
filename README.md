@@ -171,6 +171,7 @@ _Note:_
 | dual-bert-hier(bsz=48, epoch=10) | 28.54  | 48.04  | 83.11  | 63.91  | 45.43  | 59.67 |
 | dual-bert-hier(bsz=48, epoch=10, bert-post) | 29.77 | 50.41 | 82.2 | 65.29 | 47.38 | 61.02 |
 | dual-bert-hier(bsz=128, epoch=10, bert-post)| 29.63 | 49.03 | 84.31 | 64.83 | 47.23 | 60.95 |
+| dual-bert-hier-trs(bsz=128, epoch=10, bert-post)| 33.35 | 50.87 | 83.85 | 67.76 | 52.32 | 63.13 |
 | dual-bert(max-len=256, bsz=16, epoch=10, shuffle-ddp) | 28.59 | 47.37  | 81.81 | 63.49 | 45.88 | 59.56  |
 | dual-bert(max-len=256, bsz=32, epoch=10, shuffle-ddp) | 30.09 | 48.05  | 83.67 | 64.42 | 46.93 | 60.68  |
 | dual-bert-adv(max-len=256, bsz=16, epoch=10, shuffle-ddp) | 28.94 | 48.02 | 82.39 | 63.74 | 46.03 | 59.83 |
