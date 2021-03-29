@@ -68,13 +68,8 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
             nlayer,
             encoder_norm,
         )
-        # rnn
-        self.gru_encoder = nn.GRU(
-            768, 768, nlayer, batch_first=True,
-            dropout=0 if nlayer == 1 else dropout
-        )
         self.proj = nn.Sequential(
-            nn.Linear(nlayer*768, 768),
+            nn.Linear(768, 768),
             nn.Dropout(p=dropout),
             nn.ReLU(),
             nn.Linear(768, 768)
@@ -142,10 +137,8 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
 
         cid_rep += cid_rep_base
 
-        _, cid_rep = self.gru_encoder(cid_rep)
-        cid_rep = cid_rep.permute(1, 0, 2)
-        cid_rep = cid_rep.reshape(cid_rep.shape[0], -1)
-        cid_rep = self.proj(cid_rep)
+        cid_rep = cid_rep[:, cid_turn_length-1, :]    # [1, E]
+        # cid_rep = self.proj(cid_rep)
         
         dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze()    # [10] 
         return dot_product
@@ -169,13 +162,14 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
         cid_rep = self.trs_encoder(cid_rep.permute(1, 0, 2), src_key_padding_mask=cid_mask).permute(1, 0, 2)    # [B, S, E]
 
         cid_rep += cid_rep_base
-        
-        # RNN Encoder
-        cid_rep = nn.utils.rnn.pack_padded_sequence(cid_rep, cid_turn_length, batch_first=True, enforce_sorted=False)
-        _, cid_rep = self.gru_encoder(cid_rep)
-        cid_rep = cid_rep.permute(1, 0, 2)
-        cid_rep = cid_rep.reshape(cid_rep.shape[0], -1)
-        cid_rep = self.proj(cid_rep)    # [B, 768]
+
+        last_utterance = []
+        for i in range(len(cid_turn_length)):
+            c = cid_rep[i]
+            p = cid_turn_length[i]
+            last_utterance.append(c[p-1, :])
+        cid_rep = torch.stack(last_utterance)    # [B_c, E]
+        # cid_rep = self.proj(cid_rep)    # [B, 768]
 
         dot_product = torch.matmul(cid_rep, rid_rep.t())    # [B, B]
         # use half for supporting the apex
@@ -214,7 +208,7 @@ class BERTDualHierarchicalTrsEncoderAgent(RetrievalBaseAgent):
             'nhead': 6,
             'nhide': 512,
             'nlayer': 2,
-            'dropout': 0.2,
+            'dropout': 0.3,
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
         self.model = BERTDualHierarchicalTrsEncoder(

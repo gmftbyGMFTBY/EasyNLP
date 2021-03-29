@@ -8,12 +8,15 @@ TODO:
 - [ ] Constrastive learning on huge dataset, LCCC, and fine-tuning on ecommerce and douban corpus. But need to compared with the dual-bert pre-trained model
 - [x] MORE EPOCH: EXTEND FROM 5 TO 10
 - [ ] re-test dual-bert-one2many
-- [ ] test on Ubuntu v1 corpus
+- [x] test on Ubuntu v1 corpus
 - [x] for Ubuntu v1 corpus, add the special tokens for the BertTokenizer during fine-tuning
-- [ ] larger batch size for dual-bert-hierarchical model on ecommerce, douban, ubuntu (128)
-- [ ] speaker embedding in dual-bert-hierarchical (necessary?)
-- [ ] fully use all the utterances, the sequence length more than 64 will be cut.
-
+- [x] larger batch size for dual-bert-hierarchical model on ecommerce, douban, ubuntu (128)
+- [x] speaker embedding in dual-bert-hierarchical (necessary?)
+- [x] fully use all the utterances, the sequence length more than 64 will be cut.
+- [ ] post-train -> constrastive post-train -> train
+- [ ] refer to MSN, IoI, ... for turn-aware aggregation
+- [ ] 分析一下是不是dual encoder只在ecommerce上效果好的原因是不是因为ecommerce是限定领域的，但是其他的开放领域里面one to many现象更发散？可以尝试新的loss函数
+- [ ] proj head for dual-bert model sucks
 
 Category:
 
@@ -217,7 +220,7 @@ _Note:_
 | SOTA           | 0.884 | 0.946 | 0.990 | 0.975  |
 | Bi-Encoder(bsz=48) | | | | |
 | dual-bert-hier(bsz=64, epoch=10) | 79.42 | 89.85 | 97.63 | - |
-| dual-bert-hier(bsz=128, epoch=10, bert-post) | | | | - |
+| dual-bert-hier(bsz=128, epoch=10, bert-post) | 83.14 | 92.04 | 98.32 | - |
 | BERT-FT        | | | | |
 | BERT-FT+MLM+NSP|       |       |       |        |
 | BERT-FT+MLM    |       |       |       |        |
