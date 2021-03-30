@@ -105,7 +105,7 @@ elif [ $mode = 'train-post' ]; then
     CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 29400 main.py \
         --dataset $dataset \
         --model $model \
-        --mode train \
+        --mode train-post \
         --batch_size $post_bsz \
         --epoch $post_epoch \
         --seed $seed \
@@ -115,6 +115,27 @@ elif [ $mode = 'train-post' ]; then
         --pretrained_model $pretrained_model \
         --warmup_ratio $warmup_ratio \
         --pretrained_model_path ckpt/$dataset/bert-post/best_nspmlm.pt
+elif [ $mode = 'train-dual-post' ]; then
+    echo "[!] make sure that the dual bert has been already trained on bert-post checkpoint"
+    # load model parameters from post train checkpoint and fine tuning
+    ./run.sh backup $dataset $model
+    rm ckpt/$dataset/$model/*
+    rm rest/$dataset/$model/events*    # clear the tensorboard cache
+    
+    gpu_ids=(${cuda//,/ })
+    CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 29400 main.py \
+        --dataset $dataset \
+        --model $model \
+        --mode train-dual-post \
+        --batch_size $post_bsz \
+        --epoch $post_epoch \
+        --seed $seed \
+        --max_len $post_max_len \
+        --res_max_len $post_res_max_len \
+        --multi_gpu $cuda \
+        --pretrained_model $pretrained_model \
+        --warmup_ratio $warmup_ratio \
+        --pretrained_model_path ckpt/$dataset/dual-bert/best.pt
 else
     # test
     if [[ ${ONE_BATCH_SIZE_MODEL[@]} =~ $model ]]; then

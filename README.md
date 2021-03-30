@@ -17,6 +17,8 @@ TODO:
 - [ ] refer to MSN, IoI, ... for turn-aware aggregation
 - [ ] 分析一下是不是dual encoder只在ecommerce上效果好的原因是不是因为ecommerce是限定领域的，但是其他的开放领域里面one to many现象更发散？可以尝试新的loss函数
 - [ ] proj head for dual-bert model sucks
+- [ ] use native pytorch amp not apex
+- [ ] dual post train for the dual-bert-hierarchical. The bert-post checkpoint may not be appripriate for the dual-encoder architecture. So, the dual-bert-post should be used for dual-bert-hierarchical or dual-bert-hierarchical-trs model, which train the dual-bert model with the bert-post initilized.
 
 Category:
 

@@ -69,7 +69,7 @@ class BERTFTAgent(RetrievalBaseAgent):
         )
         # self.criterion = nn.CrossEntropyLoss()
         self.criterion = nn.BCEWithLogitsLoss()
-        if run_mode == 'train':
+        if run_mode in ['train', 'train-post', 'train-dual-post']:
             self.model, self.optimizer = amp.initialize(
                 self.model, 
                 self.optimizer, 

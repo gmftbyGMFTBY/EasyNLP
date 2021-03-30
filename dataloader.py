@@ -163,7 +163,7 @@ class BERTDualHierarchicalDataset(Dataset):
             return None
         data = read_text_data_hier(path, lang=lang)
         self.data = []
-        if mode == 'train':
+        if mode in ['train', 'train-post', 'train-dual-post']:
             for label, context, response in tqdm(data):
                 if label == 0:
                     continue
@@ -1809,13 +1809,20 @@ def load_dataset(args):
         )
     }
 
+
+    # compatible for train, train-post, train-dual-post
+    if args['mode'] in ['train', 'train-post', 'train-dual-post']:
+        mode = 'train'
+    else:
+        mode = args['mode']
+
     if args['model'] == 'bert-ft-multi':
         path = f'data/{args["dataset"]}/{args["mode"]}_dup.txt'
     else:
         path = f'data/{args["dataset"]}/{args["mode"]}.txt'
     if args['mode'] == 'train':
         if args['model'] in ['dual-bert-one2many']:
-            data = DATASET_MAP[args['model']](path, lang=args['lang'], mode=args['mode'], max_len=args['max_len'], model=args['pretrained_model'], head=args['head_num'], res_max_len=args['res_max_len'])
+            data = DATASET_MAP[args['model']](path, lang=args['lang'], mode=mode, max_len=args['max_len'], model=args['pretrained_model'], head=args['head_num'], res_max_len=args['res_max_len'])
             train_sampler = torch.utils.data.distributed.DistributedSampler(
                 data,
                 num_replicas=dist.get_world_size(),
@@ -1823,7 +1830,7 @@ def load_dataset(args):
             )
             iter_ = DataLoader(data, batch_size=args['batch_size'], collate_fn=data.collate, sampler=train_sampler)
         else:
-            data = DATASET_MAP[args['model']](path, mode=args['mode'], lang=args['lang'], max_len=args['max_len'], model=args['pretrained_model'])
+            data = DATASET_MAP[args['model']](path, mode=mode, lang=args['lang'], max_len=args['max_len'], model=args['pretrained_model'])
             train_sampler = torch.utils.data.distributed.DistributedSampler(
                 data,
                 num_replicas=dist.get_world_size(),
@@ -1834,8 +1841,8 @@ def load_dataset(args):
     elif args['mode'] == 'inference':
         # only inference train dataset
         path = f'data/{args["dataset"]}/train.txt'
-        data_res = INFERENCE_DATASET_MAP[args['model']][0](path, lang=args['lang'], mode=args['mode'], max_len=args['max_len'], model=args['pretrained_model'])
-        data_ctx = INFERENCE_DATASET_MAP[args['model']][1](path, lang=args['lang'], mode=args['mode'], max_len=args['max_len'], model=args['pretrained_model'])
+        data_res = INFERENCE_DATASET_MAP[args['model']][0](path, lang=args['lang'], mode=mode, max_len=args['max_len'], model=args['pretrained_model'])
+        data_ctx = INFERENCE_DATASET_MAP[args['model']][1](path, lang=args['lang'], mode=mode, max_len=args['max_len'], model=args['pretrained_model'])
 
         res_sampler = torch.utils.data.distributed.DistributedSampler(
             data_res,
@@ -1855,7 +1862,7 @@ def load_dataset(args):
         data = (data_res, data_ctx)
         sampler = None
     else:
-        data = DATASET_MAP[args['model']](path, mode=args['mode'], lang=args['lang'], max_len=args['max_len'], model=args['pretrained_model'])
+        data = DATASET_MAP[args['model']](path, mode=mode, lang=args['lang'], max_len=args['max_len'], model=args['pretrained_model'])
         iter_ = DataLoader(data, batch_size=args['batch_size'], collate_fn=data.collate)
         sampler = None
     if args['mode'] == 'inference':

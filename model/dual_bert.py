@@ -11,14 +11,15 @@ class BertEmbedding(nn.Module):
         if model in ['bert-base-uncased']:
             # english corpus has three special tokens: __number__, __url__, __path__
             self.model.resize_token_embeddings(self.model.config.vocab_size + 3)
-        self.head = nn.Sequential(
-            nn.Dropout(p=p),
-            nn.Linear(768, 768),
-        )
+        # self.head = nn.Sequential(
+        #     nn.Dropout(p=p),
+        #     nn.Linear(768, 768),
+        # )
 
     def forward(self, ids, attn_mask):
         embd = self.model(ids, attention_mask=attn_mask)[0]    # [B, S, 768]
-        return self.head(embd[:, 0, :])
+        # return self.head(embd[:, 0, :])
+        return embd[:, 0, :]
     
     def load_bert_model(self, state_dict):
         new_state_dict = OrderedDict()
@@ -96,7 +97,6 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             'grad_clip': 1.0,
             'multi_gpu': self.gpu_ids,
             'model': pretrained_model,
-            'amp_level': 'O2',
             'local_rank': local_rank,
             'warmup_steps': warmup_step,
             'total_step': total_step,
@@ -108,6 +108,8 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
         self.model = BERTDualEncoder(model=self.args['model'], p=self.args['dropout'])
+        # NOTE: pytorch amp
+        # self.scaler = GradScaler()
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)
         if torch.cuda.is_available():
@@ -116,12 +118,7 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             self.model.parameters(), 
             lr=self.args['lr'],
         )
-        if run_mode == 'train':
-            self.model, self.optimizer = amp.initialize(
-                self.model, 
-                self.optimizer,
-                opt_level=self.args['amp_level'],
-            )
+        if run_mode in ['train', 'train-post', 'train-dual-post']:
             self.scheduler = transformers.get_linear_schedule_with_warmup(
                 self.optimizer, 
                 num_warmup_steps=warmup_step, 
@@ -132,10 +129,6 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
                 find_unused_parameters=True,
             )
         elif run_mode in ['inference']:
-            # self.model = amp.initialize(
-            #     self.model, 
-            #     opt_level=self.args['amp_level'],
-            # )
             self.model = nn.parallel.DistributedDataParallel(
                 self.model, device_ids=[local_rank], output_device=local_rank,
                 find_unused_parameters=True,
@@ -149,41 +142,33 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         print(f'[!] load pretrained BERT model from {path}')
         
     def train_model(self, train_iter, mode='train', recoder=None, idx_=0):
-        '''ADD OOM ASSERTION'''
         self.model.train()
         total_loss, total_acc, batch_num = 0, 0, 0
         pbar = tqdm(train_iter)
         correct, s, oom_t = 0, 0, 0
         for idx, batch in enumerate(pbar):
-            try:
-                self.optimizer.zero_grad()
-                cid, rid, cid_mask, rid_mask = batch
+            self.optimizer.zero_grad()
+            cid, rid, cid_mask, rid_mask = batch
+            with autocast():
                 loss, acc = self.model(cid, rid, cid_mask, rid_mask)
-                with amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                    scaled_loss.backward()
-                clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
-                self.optimizer.step()
-                self.scheduler.step()
-    
-                total_loss += loss.item()
-                total_acc += acc
-                batch_num += 1
-                
-                recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
-                recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
-                recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
-                recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
-                
-                pbar.set_description(f'[!] OOM: {oom_t}; loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
-            except RuntimeError as exception:
-                if 'out of memory' in str(exception):
-                    oom_t += 1
-                    torch.cuda.empty_cache()
-                    if oom_t > self.args['oom_times']:
-                        raise Exception(f'[!] too much OOM errors')
-                else:
-                    raise Exception(str(exception))
+            self.scalar.scale(loss).backward)
+            self.scalar.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            self.scalar.step(self.optimizer)
+            self.scalar.update()
+            
+            self.scheduler.step()
 
+            total_loss += loss.item()
+            total_acc += acc
+            batch_num += 1
+            
+            recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
+             
+            pbar.set_description(f'[!] OOM: {oom_t}; loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
         return round(total_loss / batch_num, 4)

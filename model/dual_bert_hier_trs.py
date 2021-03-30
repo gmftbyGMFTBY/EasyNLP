@@ -68,6 +68,10 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
             nlayer,
             encoder_norm,
         )
+        self.gru = nn.GRU(
+            768, 768, nlayer, batch_first=True,
+            dropout=0 if nlayer == 1 else dropout,
+        )
         self.proj = nn.Sequential(
             nn.Linear(768, 768),
             nn.Dropout(p=dropout),
@@ -137,8 +141,14 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
 
         cid_rep += cid_rep_base
 
-        cid_rep = cid_rep[:, cid_turn_length-1, :]    # [1, E]
-        # cid_rep = self.proj(cid_rep)
+        cid_rep_jump = cid_rep[:, cid_turn_length-1, :]    # [1, E]
+
+        _, cid_rep = self.ctx_gru(cid_rep)
+        cid_rep = cid_rep.permute(1, 0, 2)
+        cid_rep = cid_rep.shape(cid_rep.shape[0], -1)
+        cid_rep = self.proj(cid_rep)
+
+        cid_rep += cid_rep_jump
         
         dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze()    # [10] 
         return dot_product
@@ -168,8 +178,15 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
             c = cid_rep[i]
             p = cid_turn_length[i]
             last_utterance.append(c[p-1, :])
-        cid_rep = torch.stack(last_utterance)    # [B_c, E]
-        # cid_rep = self.proj(cid_rep)    # [B, 768]
+        cid_rep_jump = torch.stack(last_utterance)    # [B_c, E]
+
+        cid_rep = nn.utils.rnn.pack_padded_sequence(cid_rep, cid_turn_length, batch_first=True, enforce_sorted=False)
+        _, cid_rep = self.ctx_gru(cid_rep)
+        cid_rep = cid_rep.permute(1, 0, 2)
+        cid_rep = cid_rep.reshape(cid_rep.shape[0], -1)
+        cid_rep = self.proj(cid_rep)
+
+        cid_rep += cid_rep_jump
 
         dot_product = torch.matmul(cid_rep, rid_rep.t())    # [B, B]
         # use half for supporting the apex
@@ -197,7 +214,6 @@ class BERTDualHierarchicalTrsEncoderAgent(RetrievalBaseAgent):
             'grad_clip': 1.0,
             'multi_gpu': self.gpu_ids,
             'model': pretrained_model,
-            'amp_level': 'O2',
             'local_rank': local_rank,
             'warmup_steps': warmup_step,
             'total_step': total_step,
@@ -226,12 +242,7 @@ class BERTDualHierarchicalTrsEncoderAgent(RetrievalBaseAgent):
             self.model.parameters(), 
             lr=self.args['lr'],
         )
-        if run_mode == 'train':
-            self.model, self.optimizer = amp.initialize(
-                self.model, 
-                self.optimizer,
-                opt_level=self.args['amp_level'],
-            )
+        if run_mode in ['train', 'train-post', 'train-dual-post']:
             self.scheduler = transformers.get_linear_schedule_with_warmup(
                 self.optimizer, 
                 num_warmup_steps=warmup_step, 
@@ -242,6 +253,19 @@ class BERTDualHierarchicalTrsEncoderAgent(RetrievalBaseAgent):
                 find_unused_parameters=True,
             )
         self.show_parameters(self.args)
+
+    def load_dual_bert_model(self, path):
+        # collect
+        def collect_params(name):
+            new_state_dict = OrderedDict()
+            for k, v in state_dict.items():
+                if k.startswith(name):
+                    new_state_dict[name] = v
+            return new_state_dict
+        state_dict = torch.load(path, map_location=torch.device('cpu'))
+        self.model.ctx_encoder.load_state_dict(collect_params('ctx_encoder'))
+        self.model.can_encoder.load_state_dict(collect_params('can_encoder'))
+        print(f'[!] load the dual-bert-post pretrained BERT model from {path}')
         
     def load_bert_model(self, path):
         state_dict = torch.load(path, map_location=torch.device('cpu'))
@@ -257,11 +281,17 @@ class BERTDualHierarchicalTrsEncoderAgent(RetrievalBaseAgent):
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
             cid, rid, cid_turn_length, cid_mask, rid_mask, recover_mapping = batch
-            loss, acc = self.model(cid, rid, cid_turn_length, cid_mask, rid_mask, recover_mapping)
-            with amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                scaled_loss.backward()
-            clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
-            self.optimizer.step()
+            with autocast():
+                loss, acc = self.model(
+                    cid, rid, cid_turn_length, 
+                    cid_mask, rid_mask, recover_mapping
+                )
+            self.scalar.scale(loss).backward()
+            self.scalar.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            self.scalar.step(self.optimizer)
+            self.scalar.update()
+
             self.scheduler.step()
 
             total_loss += loss.item()
