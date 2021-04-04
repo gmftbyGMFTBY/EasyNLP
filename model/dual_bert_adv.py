@@ -14,15 +14,10 @@ class BertEmbedding(nn.Module):
         if model in ['bert-base-uncased']:
             # english corpus has three special tokens: __number__, __url__, __path__
             self.model.resize_token_embeddings(self.model.config.vocab_size + 3)
-        self.head = nn.Sequential(
-            nn.Linear(768, 768),
-            nn.ReLU(),
-            nn.Linear(768, 768)
-        )
 
     def forward(self, ids, attn_mask):
         embd = self.model(ids, attention_mask=attn_mask)[0]    # [B, S, 768]
-        embd = self.head(embd[:, 0, :])
+        embd = embd[:, 0, :]
         return embd
     
     def load_bert_model(self, state_dict):
@@ -144,7 +139,7 @@ class BERTDualAdvEncoderAgent(RetrievalBaseAgent):
             self.model.parameters(), 
             lr=self.args['lr'],
         )
-        if run_mode == 'train':
+        if run_mode in ['train', 'train-post', 'train-dual-post']:
             self.model, self.optimizer = amp.initialize(
                 self.model, 
                 self.optimizer,

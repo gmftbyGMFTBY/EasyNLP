@@ -15,6 +15,7 @@ class PositionEmbedding(nn.Module):
         pe[:, 1::2] = torch.cos(position * div_term)
         pe = pe.unsqueeze(0).transpose(0, 1)
         self.register_buffer('pe', pe)
+
     def forward(self, x):
         x = x + self.pe[:x.size(0), :]
         return self.dropout(x)
@@ -235,7 +236,12 @@ class BERTDualHierarchicalTrsEncoderAgent(RetrievalBaseAgent):
             dropout=self.args['dropout']
         )
         if pretrained_model_path:
-            self.load_bert_model(pretrained_model_path)
+            if run_mode == 'train-post':
+                self.load_bert_model(pretrained_model_path)
+            elif run_mode == 'train-dual-post':
+                self.load_dual_bert_model(pretrained_model_path)
+            else:
+                raise Exception(f'[!] Unknown run mode: {run_mode}')
         if torch.cuda.is_available():
             self.model.cuda()
         self.optimizer = transformers.AdamW(
@@ -260,11 +266,13 @@ class BERTDualHierarchicalTrsEncoderAgent(RetrievalBaseAgent):
             new_state_dict = OrderedDict()
             for k, v in state_dict.items():
                 if k.startswith(name):
-                    new_state_dict[name] = v
+                    k = k.replace(f'{name}.', '')
+                    new_state_dict[k] = v
             return new_state_dict
         state_dict = torch.load(path, map_location=torch.device('cpu'))
-        self.model.ctx_encoder.load_state_dict(collect_params('ctx_encoder'))
-        self.model.can_encoder.load_state_dict(collect_params('can_encoder'))
+        ctx_ckpt, can_ckpt = collect_params('ctx_encoder'), collect_params('can_encoder')
+        self.model.ctx_encoder.load_state_dict(ctx_ckpt)
+        self.model.can_encoder.load_state_dict(can_ckpt)
         print(f'[!] load the dual-bert-post pretrained BERT model from {path}')
         
     def load_bert_model(self, path):
@@ -281,17 +289,14 @@ class BERTDualHierarchicalTrsEncoderAgent(RetrievalBaseAgent):
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
             cid, rid, cid_turn_length, cid_mask, rid_mask, recover_mapping = batch
-            with autocast():
-                loss, acc = self.model(
-                    cid, rid, cid_turn_length, 
-                    cid_mask, rid_mask, recover_mapping
-                )
-            self.scalar.scale(loss).backward()
-            self.scalar.unscale_(self.optimizer)
-            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
-            self.scalar.step(self.optimizer)
-            self.scalar.update()
-
+            loss, acc = self.model(
+                cid, rid, cid_turn_length, 
+                cid_mask, rid_mask, recover_mapping
+            )
+            with amp.scale_loss(loss, self.optimizer) as scaled_loss:
+                scaled_loss.backward()
+            clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
+            self.optimizer.step()
             self.scheduler.step()
 
             total_loss += loss.item()

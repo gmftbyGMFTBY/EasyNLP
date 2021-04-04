@@ -9,14 +9,14 @@ max_len=256
 res_max_len=128
 seed=50
 warmup_ratio=0.1
-epoch=10
-bsz=128
+epoch=5
+bsz=16
 head_num=5     # hyperparameter of the dual-bert-one2mnay: 11 heads means there are 1 groundtruths and 10 retrieved candidates
 pre_extract=50
 inf_bsz=64
 # 
-post_bsz=128
-post_epoch=10
+post_bsz=16
+post_epoch=5
 post_max_len=256
 post_res_max_len=128
 models=(sa-bert bert-ft bert-ft-multi bert-gen bert-gen-ft bert-post dual-bert-gen dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-mb dual-bert-adv dual-bert-jsd dual-bert-hierarchical-trs)
@@ -33,7 +33,6 @@ cuda=$4
 if [[ ${chinese_datasets[@]} =~ $dataset ]]; then
     pretrained_model=bert-base-chinese
     lang=zh
-    # pretrained_model=hfl/chinese-bert-wwm
 else
     pretrained_model=bert-base-uncased
     lang=en
@@ -61,7 +60,7 @@ elif [ $mode = 'train' ]; then
     rm rest/$dataset/$model/events*    # clear the tensorboard cache
     
     gpu_ids=(${cuda//,/ })
-    CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 29401 main.py \
+    CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 29402 main.py \
         --dataset $dataset \
         --model $model \
         --mode train \
@@ -123,7 +122,7 @@ elif [ $mode = 'train-dual-post' ]; then
     rm rest/$dataset/$model/events*    # clear the tensorboard cache
     
     gpu_ids=(${cuda//,/ })
-    CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 29400 main.py \
+    CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 29403 main.py \
         --dataset $dataset \
         --model $model \
         --mode train-dual-post \

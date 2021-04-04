@@ -11,14 +11,9 @@ class BertEmbedding(nn.Module):
         if model in ['bert-base-uncased']:
             # english corpus has three special tokens: __number__, __url__, __path__
             self.model.resize_token_embeddings(self.model.config.vocab_size + 3)
-        # self.head = nn.Sequential(
-        #     nn.Dropout(p=p),
-        #     nn.Linear(768, 768),
-        # )
 
     def forward(self, ids, attn_mask):
         embd = self.model(ids, attention_mask=attn_mask)[0]    # [B, S, 768]
-        # return self.head(embd[:, 0, :])
         return embd[:, 0, :]
     
     def load_bert_model(self, state_dict):
@@ -33,10 +28,13 @@ class BertEmbedding(nn.Module):
 
 class BERTDualEncoder(nn.Module):
     
-    def __init__(self, model='bert-base-chinese', p=0.2):
+    def __init__(self, model='bert-base-chinese', scale_loss=1/32, p=0.2, lambd=3.9e-3):
         super(BERTDualEncoder, self).__init__()
         self.ctx_encoder = BertEmbedding(model=model, p=p)
         self.can_encoder = BertEmbedding(model=model, p=p)
+        self.lambd = lambd
+        self.scale_loss = scale_loss
+        self.bn = nn.BatchNorm1d(768, affine=False)
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
@@ -57,23 +55,25 @@ class BERTDualEncoder(nn.Module):
     def predict(self, cid, rid, rid_mask):
         batch_size = rid.shape[0]
         cid_rep, rid_rep = self._encode(cid.unsqueeze(0), rid, None, rid_mask)
-        # cid_rep = torch.div(cid_rep, torch.norm(cid_rep, dim=1, p=2, keepdim=True))
-        # rid_rep = torch.div(rid_rep, torch.norm(rid_rep, dim=1, p=2, keepdim=True))
         cid_rep = cid_rep.squeeze(0)    # [768]
         # cid_rep/rid_rep: [768], [B, 768]
         dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B]
         return dot_product
+
+    def off_diagonal(self, x):
+        n, m = x.shape
+        assert n == m
+        return x.flatten()[:-1].view(n-1, n+1)[:, 1:].flatten()
         
     def forward(self, cid, rid, cid_mask, rid_mask):
+        '''add barlow twins loss'''
         batch_size = cid.shape[0]
         assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
-        # cid_rep/rid_rep: [B, 768]
-        # cid_rep = torch.div(cid_rep, torch.norm(cid_rep, dim=1, p=2, keepdim=True))
-        # rid_rep = torch.div(rid_rep, torch.norm(rid_rep, dim=1, p=2, keepdim=True))
         dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
+        
         # use half for supporting the apex
-        mask = torch.eye(batch_size).cuda().half()    # [B, B]
+        mask = torch.eye(batch_size).cuda()    # [B, B]
         # mask = torch.eye(batch_size).cuda()    # [B, B]
         # calculate accuracy
         acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
@@ -81,6 +81,17 @@ class BERTDualEncoder(nn.Module):
         # calculate the loss
         loss = F.log_softmax(dot_product, dim=-1) * mask
         loss = (-loss.sum(dim=1)).mean()
+
+        # twins loss
+        # cid_rep, rid_rep = self.bn(cid_rep), self.bn(rid_rep)
+        # c = cid_rep.T @ rid_rep     # [E, E]
+        # c /= batch_size
+        # on_diag = torch.diagonal(c).add(-1).pow(2).mul(self.scale_loss).sum()
+        # off_diag = self.off_diagonal(c).pow(2).mul(self.scale_loss).sum()
+        # loss_twins = on_diag + self.lambd * off_diag
+        # loss += loss_twins
+        # if loss.isnan():
+        #     ipdb.set_trace()
         return loss, acc
     
     
@@ -105,11 +116,12 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             'pretrained_model_path': pretrained_model_path,
             'oom_times': 10,
             'dropout': 0.2,
+            'amp_level': 'O2',
+            'lambd': 3.9e-3,
+            'scale_loss': 1/128
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
-        self.model = BERTDualEncoder(model=self.args['model'], p=self.args['dropout'])
-        # NOTE: pytorch amp
-        # self.scaler = GradScaler()
+        self.model = BERTDualEncoder(model=self.args['model'], p=self.args['dropout'], lambd=self.args['lambd'], scale_loss=self.args['scale_loss'])
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)
         if torch.cuda.is_available():
@@ -119,6 +131,11 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             lr=self.args['lr'],
         )
         if run_mode in ['train', 'train-post', 'train-dual-post']:
+            self.model, self.optimizer = amp.initialize(
+                self.model,
+                self.optimizer,
+                opt_level=self.args['amp_level']
+            )
             self.scheduler = transformers.get_linear_schedule_with_warmup(
                 self.optimizer, 
                 num_warmup_steps=warmup_step, 
@@ -144,19 +161,22 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
     def train_model(self, train_iter, mode='train', recoder=None, idx_=0):
         self.model.train()
         total_loss, total_acc, batch_num = 0, 0, 0
+        total_tloss, total_bloss = 0, 0
         pbar = tqdm(train_iter)
         correct, s, oom_t = 0, 0, 0
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
             cid, rid, cid_mask, rid_mask = batch
-            with autocast():
-                loss, acc = self.model(cid, rid, cid_mask, rid_mask)
-            self.scalar.scale(loss).backward)
-            self.scalar.unscale_(self.optimizer)
-            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
-            self.scalar.step(self.optimizer)
-            self.scalar.update()
+            loss, acc = self.model(cid, rid, cid_mask, rid_mask)
             
+            with amp.scale_loss(loss, self.optimizer) as scaled_loss:
+                scaled_loss.backward()
+            clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
+
+            # loss.backward()
+            # clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            
+            self.optimizer.step()
             self.scheduler.step()
 
             total_loss += loss.item()
@@ -168,7 +188,7 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
             recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
              
-            pbar.set_description(f'[!] OOM: {oom_t}; loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
+            pbar.set_description(f'[!] loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
         return round(total_loss / batch_num, 4)

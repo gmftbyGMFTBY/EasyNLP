@@ -1,12 +1,10 @@
 joblib==0.17.0
 ipdb==0.13.3
-faiss==1.5.3
 gensim==3.7.3
 tqdm==4.48.2
 transformers==4.2.1
 ijson==3.1.1
 elasticsearch==7.6.0
-numpy==1.19.1
 jieba==0.42.1
 h5py==3.1.0
 scikit_learn==0.24.1

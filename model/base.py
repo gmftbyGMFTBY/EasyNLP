@@ -8,7 +8,8 @@ class RetrievalBaseAgent:
 
     def __init__(self):
         # NOTE: for torch.cuda.amp
-        self.scaler = GradScaler()
+        # self.scaler = GradScaler()
+        pass
 
     def show_parameters(self, args):
         print(f'========== Model Parameters ==========')

@@ -28,16 +28,19 @@ def obtain_steps_parameters(train_data, args):
 
 
 def main(**args):
-    if args['mode'] in ['train', 'train-post']:
+    if args['mode'] in ['train', 'train-post', 'train-dual-post']:
         torch.cuda.set_device(args['local_rank'])
         torch.distributed.init_process_group(backend='nccl', init_method='env://')
         
         train_data, train_iter, sampler = load_dataset(args)
+        train_bsz, mode = args['batch_size'], args['mode']
+        
+        # load test dataset
         args['mode'] = 'test'
-        train_bsz = args['batch_size']
         args['batch_size'] = 1
         test_data, test_iter, _ = load_dataset(args)
-        args['mode'] = 'train'
+
+        args['mode'] = mode 
         args['batch_size'] = train_bsz
 
         obtain_steps_parameters(train_data, args)

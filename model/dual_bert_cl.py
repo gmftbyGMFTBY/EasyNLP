@@ -8,15 +8,10 @@ class BertEmbedding(nn.Module):
     def __init__(self, model='bert-base-chinese'):
         super(BertEmbedding, self).__init__()
         self.model = BertModel.from_pretrained(model)
-        self.head = nn.Sequential(
-            nn.Linear(768, 768),
-            nn.ReLU(),
-            nn.Linear(768, 768)
-        )
 
     def forward(self, ids, attn_mask, m=0):
         embd = self.model(ids, attention_mask=attn_mask)[0]    # [B, S, 768]
-        embd = self.head(embd[:, 0, :])
+        embd = embd[:, 0, :]
         return embd
     
     def load_bert_model(self, state_dict):
@@ -31,19 +26,19 @@ class BertEmbedding(nn.Module):
 
 class BERTDualCLEncoder(nn.Module):
 
-    def __init__(self, model='bert-base-chinese', T=0.07, K=4096):
+    def __init__(self, model='bert-base-chinese', K=4096):
         super(BERTDualCLEncoder, self).__init__()
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
         # queue
         self.K = K
-        self.T = T
         self.register_buffer('queue', torch.randn(self.K, 768))
         self.register_buffer('queue_ptr', torch.zeros(1, dtype=torch.long))
 
     @torch.no_grad()
     def concat_all_gather(self, tensor):
         '''collect samples from all the devices'''
+        tensor = tensor.contiguous()
         tensors_gather = [torch.ones_like(tensor)
                 for _ in range(torch.distributed.get_world_size())]
         torch.distributed.all_gather(tensors_gather, tensor, async_op=False)
@@ -90,9 +85,8 @@ class BERTDualCLEncoder(nn.Module):
         dot_product_1 = torch.matmul(cid_rep, rid_rep.t())    # [B, B]
         dot_product_2 = torch.matmul(cid_rep, neg_rep.t())    # [B, K]
         dot_product = torch.cat([dot_product_1, dot_product_2], dim=1)    # [B, B+K]
-        dot_product /= self.T
-        mask = torch.eye(batch_size).cuda().half()    # [B, B]
-        zeros = torch.zeros_like(dot_product_2).cuda().half()
+        mask = torch.eye(batch_size).cuda()    # [B, B]
+        zeros = torch.zeros_like(dot_product_2).cuda()
         mask = torch.cat([mask, zeros], dim=1)
         loss_ = F.log_softmax(dot_product, dim=-1) * mask
         loss = (-loss_.sum(dim=1)).mean()
@@ -117,7 +111,6 @@ class BERTDualCLEncoderAgent(RetrievalBaseAgent):
             raise Exception(f'[!] multi gpu ids are needed, but got: {multi_gpu}')
         self.args = {
             'lr': 5e-5,
-            'res_lr': 2e-5,
             'grad_clip': 1.0,
             'multi_gpu': self.gpu_ids,
             'model': pretrained_model,
@@ -129,36 +122,21 @@ class BERTDualCLEncoderAgent(RetrievalBaseAgent):
             'dataset': dataset_name,
             'pretrained_model_path': pretrained_model_path,
             'oom_times': 10,
-            'T': 0.07,
-            'K': 65536,
+            'K': 4096,
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
-        self.model = BERTDualCLEncoder(model=self.args['model'], T=self.args['T'], K=self.args['K'])
+        self.model = BERTDualCLEncoder(model=self.args['model'], K=self.args['K'])
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)
         if torch.cuda.is_available():
             self.model.cuda()
-        self.optimizer_ctx = transformers.AdamW(
-            self.model.ctx_encoder.parameters(), 
+        self.optimizer = transformers.AdamW(
+            self.model.parameters(), 
             lr=self.args['lr'],
         )
-        self.optimizer_res = transformers.AdamW(
-            self.model.can_encoder.parameters(), 
-            lr=self.args['res_lr'],
-        )
-        if run_mode == 'train':
-            self.model, [self.optimizer_ctx, self.optimizer_res] = amp.initialize(
-                self.model, 
-                [self.optimizer_ctx, self.optimizer_res],
-                opt_level=self.args['amp_level'],
-            )
-            self.scheduler_ctx = transformers.get_linear_schedule_with_warmup(
-                self.optimizer_ctx, 
-                num_warmup_steps=warmup_step, 
-                num_training_steps=total_step,
-            )
-            self.scheduler_res = transformers.get_linear_schedule_with_warmup(
-                self.optimizer_res, 
+        if run_mode in ['train', 'train-post', 'train-dual-post']:
+            self.scheduler = transformers.get_linear_schedule_with_warmup(
+                self.optimizer, 
                 num_warmup_steps=warmup_step, 
                 num_training_steps=total_step,
             )
@@ -185,18 +163,17 @@ class BERTDualCLEncoderAgent(RetrievalBaseAgent):
         pbar = tqdm(train_iter)
         correct, s, oom_t = 0, 0, 0
         for idx, batch in enumerate(pbar):
-            self.optimizer_ctx.zero_grad()
-            self.optimizer_res.zero_grad()
+            self.optimizer.zero_grad()
             cid, rid, cid_mask, rid_mask = batch
-            loss, acc, ptr = self.model(cid, rid, cid_mask, rid_mask)
-            with amp.scale_loss(loss, [self.optimizer_ctx, self.optimizer_res]) as scaled_loss:
-                scaled_loss.backward()
-            clip_grad_norm_(amp.master_params(self.optimizer_ctx), self.args['grad_clip'])
-            clip_grad_norm_(amp.master_params(self.optimizer_res), self.args['grad_clip'])
-            self.optimizer_ctx.step()
-            self.optimizer_res.step()
-            self.scheduler_ctx.step()
-            self.scheduler_res.step()
+            with autocast():
+                loss, acc, ptr = self.model(cid, rid, cid_mask, rid_mask)
+            self.scaler.scale(loss).backward()
+            self.scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+
+            self.scheduler.step()
 
             total_loss += loss.item()
             total_acc += acc
@@ -208,7 +185,6 @@ class BERTDualCLEncoderAgent(RetrievalBaseAgent):
             recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
             
             pbar.set_description(f'[!] ptr: {ptr}|{self.args["K"]}; loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
-
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
         return round(total_loss / batch_num, 4)

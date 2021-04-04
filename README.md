@@ -13,25 +13,12 @@ TODO:
 - [x] larger batch size for dual-bert-hierarchical model on ecommerce, douban, ubuntu (128)
 - [x] speaker embedding in dual-bert-hierarchical (necessary?)
 - [x] fully use all the utterances, the sequence length more than 64 will be cut.
-- [ ] post-train -> constrastive post-train -> train
 - [ ] refer to MSN, IoI, ... for turn-aware aggregation
 - [ ] 分析一下是不是dual encoder只在ecommerce上效果好的原因是不是因为ecommerce是限定领域的，但是其他的开放领域里面one to many现象更发散？可以尝试新的loss函数
-- [ ] proj head for dual-bert model sucks
-- [ ] use native pytorch amp not apex
+- [x] jump connection is essential
+- [x] !!! torch1.8 + native amp (seems bad), use torch1.5cu92 + apex(0.1)
 - [ ] dual post train for the dual-bert-hierarchical. The bert-post checkpoint may not be appripriate for the dual-encoder architecture. So, the dual-bert-post should be used for dual-bert-hierarchical or dual-bert-hierarchical-trs model, which train the dual-bert model with the bert-post initilized.
-
-Category:
-
-Fine-grained perspective:
-1. Hierarchical
-2. Non-hierarchical
-    1. Cross-encoder
-    2. Dual-encoder
-
-Coarse-grained perspective:
-1. Non-hierarchical
-    1. Dual-encoder
-2. Hierarchical: More faster
+- [x] pytorch 1.5.1+cu92 (CUDA 9.2), apex 0.1, NVIDIA driver: 410.78 (CUDA Version: 10.0)
 
 ## How to Use
 
@@ -114,8 +101,12 @@ _Note:_
 | SOTA           | 77.6  | 91.9  | 99.1  | -      |
 | dual-bert-hier(bsz=64, epoch=10, shuffle-ddp) | 88.8 | 95.8  | 98.6 | 93.32 |
 | dual-bert-hier(bsz=128, epoch=10, shuffle-ddp) | 90.7 | 96.5  | 99.3 | 94.5 |
+| dual-bert-hier(bsz=64, epoch=5, bert-post) | |  | | |
+| dual-bert-hier(bsz=64, epoch=5, bert-dual-post) | |  | | |
 | dual-bert(bsz=16, epoch=5, shuffle-ddp) | 81.7 | 92.2  | 98.3 | 88.93 |
 | dual-bert(bsz=16, epoch=10, shuffle-ddp) | 85.8 | 94.3 | 98.7 | 91.53 |
+| dual-bert(bsz=16, epoch=5, bert-post) | 86.1 | 94.1 | 99.2 | 91.71 |
+| dual-bert-whitening(bsz=16, epoch=5, bert-post) | 84.6 | 93.0 | 98.7 | 90.6 |
 | dual-bert-adv(bsz=16, epoch=5) | 80.3  | 91.8  | 98.5  | 88.15  |
 | dual-bert-adv(bsz=16, epoch=10, shuffle-ddp) | 87.4 | 94.2 | 98.8 | 92.3 |
 | dual-bert-one2many(bsz=16, epoch=5, shuffle-ddp) | | | | |

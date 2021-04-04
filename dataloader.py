@@ -1817,10 +1817,10 @@ def load_dataset(args):
         mode = args['mode']
 
     if args['model'] == 'bert-ft-multi':
-        path = f'data/{args["dataset"]}/{args["mode"]}_dup.txt'
+        path = f'data/{args["dataset"]}/{mode}_dup.txt'
     else:
-        path = f'data/{args["dataset"]}/{args["mode"]}.txt'
-    if args['mode'] == 'train':
+        path = f'data/{args["dataset"]}/{mode}.txt'
+    if mode == 'train':
         if args['model'] in ['dual-bert-one2many']:
             data = DATASET_MAP[args['model']](path, lang=args['lang'], mode=mode, max_len=args['max_len'], model=args['pretrained_model'], head=args['head_num'], res_max_len=args['res_max_len'])
             train_sampler = torch.utils.data.distributed.DistributedSampler(
@@ -1838,7 +1838,7 @@ def load_dataset(args):
             )
             iter_ = DataLoader(data, batch_size=args['batch_size'], collate_fn=data.collate, sampler=train_sampler)
         sampler = train_sampler
-    elif args['mode'] == 'inference':
+    elif mode == 'inference':
         # only inference train dataset
         path = f'data/{args["dataset"]}/train.txt'
         data_res = INFERENCE_DATASET_MAP[args['model']][0](path, lang=args['lang'], mode=mode, max_len=args['max_len'], model=args['pretrained_model'])
@@ -1865,7 +1865,7 @@ def load_dataset(args):
         data = DATASET_MAP[args['model']](path, mode=mode, lang=args['lang'], max_len=args['max_len'], model=args['pretrained_model'])
         iter_ = DataLoader(data, batch_size=args['batch_size'], collate_fn=data.collate)
         sampler = None
-    if args['mode'] == 'inference':
+    if mode == 'inference':
         if not os.path.exists(data_ctx.pp_path):
             data_ctx.save()
         if not os.path.exists(data_res.pp_path):
