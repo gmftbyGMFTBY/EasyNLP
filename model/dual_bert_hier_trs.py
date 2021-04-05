@@ -74,7 +74,7 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
             dropout=0 if nlayer == 1 else dropout,
         )
         self.proj = nn.Sequential(
-            nn.Linear(768, 768),
+            nn.Linear(nlayer*768, 768),
             nn.Dropout(p=dropout),
             nn.ReLU(),
             nn.Linear(768, 768)
@@ -144,9 +144,9 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
 
         cid_rep_jump = cid_rep[:, cid_turn_length-1, :]    # [1, E]
 
-        _, cid_rep = self.ctx_gru(cid_rep)
+        _, cid_rep = self.gru(cid_rep)
         cid_rep = cid_rep.permute(1, 0, 2)
-        cid_rep = cid_rep.shape(cid_rep.shape[0], -1)
+        cid_rep = cid_rep.reshape(cid_rep.shape[0], -1)
         cid_rep = self.proj(cid_rep)
 
         cid_rep += cid_rep_jump
@@ -182,7 +182,7 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
         cid_rep_jump = torch.stack(last_utterance)    # [B_c, E]
 
         cid_rep = nn.utils.rnn.pack_padded_sequence(cid_rep, cid_turn_length, batch_first=True, enforce_sorted=False)
-        _, cid_rep = self.ctx_gru(cid_rep)
+        _, cid_rep = self.gru(cid_rep)
         cid_rep = cid_rep.permute(1, 0, 2)
         cid_rep = cid_rep.reshape(cid_rep.shape[0], -1)
         cid_rep = self.proj(cid_rep)
@@ -226,6 +226,7 @@ class BERTDualHierarchicalTrsEncoderAgent(RetrievalBaseAgent):
             'nhide': 512,
             'nlayer': 2,
             'dropout': 0.3,
+            'amp_level': 'O2',
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
         self.model = BERTDualHierarchicalTrsEncoder(
@@ -249,6 +250,11 @@ class BERTDualHierarchicalTrsEncoderAgent(RetrievalBaseAgent):
             lr=self.args['lr'],
         )
         if run_mode in ['train', 'train-post', 'train-dual-post']:
+            self.model, self.optimizer = amp.initialize(
+                self.model,
+                self.optimizer,
+                opt_level=self.args['amp_level']
+            )
             self.scheduler = transformers.get_linear_schedule_with_warmup(
                 self.optimizer, 
                 num_warmup_steps=warmup_step, 

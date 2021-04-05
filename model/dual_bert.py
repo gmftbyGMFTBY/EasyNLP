@@ -173,9 +173,6 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
                 scaled_loss.backward()
             clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
 
-            # loss.backward()
-            # clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
-            
             self.optimizer.step()
             self.scheduler.step()
 
@@ -192,7 +189,7 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
         return round(total_loss / batch_num, 4)
-        
+
     @torch.no_grad()
     def test_model(self, test_iter, recoder=None):
         self.model.eval()

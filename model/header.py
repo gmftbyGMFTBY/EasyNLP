@@ -34,3 +34,4 @@ import argparse
 import joblib
 import faiss
 import time
+from thop import profile

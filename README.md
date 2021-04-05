@@ -16,7 +16,6 @@ TODO:
 - [ ] refer to MSN, IoI, ... for turn-aware aggregation
 - [ ] 分析一下是不是dual encoder只在ecommerce上效果好的原因是不是因为ecommerce是限定领域的，但是其他的开放领域里面one to many现象更发散？可以尝试新的loss函数
 - [x] jump connection is essential
-- [x] !!! torch1.8 + native amp (seems bad), use torch1.5cu92 + apex(0.1)
 - [ ] dual post train for the dual-bert-hierarchical. The bert-post checkpoint may not be appripriate for the dual-encoder architecture. So, the dual-bert-post should be used for dual-bert-hierarchical or dual-bert-hierarchical-trs model, which train the dual-bert model with the bert-post initilized.
 - [x] pytorch 1.5.1+cu92 (CUDA 9.2), apex 0.1, NVIDIA driver: 410.78 (CUDA Version: 10.0)
 
@@ -101,8 +100,8 @@ _Note:_
 | SOTA           | 77.6  | 91.9  | 99.1  | -      |
 | dual-bert-hier(bsz=64, epoch=10, shuffle-ddp) | 88.8 | 95.8  | 98.6 | 93.32 |
 | dual-bert-hier(bsz=128, epoch=10, shuffle-ddp) | 90.7 | 96.5  | 99.3 | 94.5 |
-| dual-bert-hier(bsz=64, epoch=5, bert-post) | |  | | |
-| dual-bert-hier(bsz=64, epoch=5, bert-dual-post) | |  | | |
+| dual-bert-hier(bsz=64, epoch=5, bert-post) | 87.0 | 93.8 | 98.7 | 91.97 |
+| dual-bert-hier(bsz=64, epoch=5, bert-dual-post) | 89.4 | 95.2 | 99.2 | 93.64 |
 | dual-bert(bsz=16, epoch=5, shuffle-ddp) | 81.7 | 92.2  | 98.3 | 88.93 |
 | dual-bert(bsz=16, epoch=10, shuffle-ddp) | 85.8 | 94.3 | 98.7 | 91.53 |
 | dual-bert(bsz=16, epoch=5, bert-post) | 86.1 | 94.1 | 99.2 | 91.71 |
@@ -161,11 +160,20 @@ _Note:_
 | Original           | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   |
 | ------------------ | ----- | ----- | ----- | ----- | ----- | ------ |
 | SOTA               | 31.8  | 48.2  | 85.8  | 66.4  | 49.9  | 62.5   |
+| dual-bert(max-len=256, bsz=16, epoch=5, bert-post) | 29.86 | 50.25  | 84.85 | 65.4 | 47.68 | 61.55  |
+| dual-bert-hier(bsz=32, epoch=5, bert-post) | | | | | | |
+| dual-bert-hier(bsz=32, epoch=5, bert-dual-post) | | | | | | |
+
+
+| Original           | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   |
+| ------------------ | ----- | ----- | ----- | ----- | ----- | ------ |
+| SOTA               | 31.8  | 48.2  | 85.8  | 66.4  | 49.9  | 62.5   |
 | dual-bert-hier(bsz=48, epoch=10) | 28.54  | 48.04  | 83.11  | 63.91  | 45.43  | 59.67 |
 | dual-bert-hier(bsz=48, epoch=10, bert-post) | 29.77 | 50.41 | 82.2 | 65.29 | 47.38 | 61.02 |
 | dual-bert-hier(bsz=128, epoch=10, bert-post)| 29.63 | 49.03 | 84.31 | 64.83 | 47.23 | 60.95 |
-| dual-bert-hier-trs(bsz=128, epoch=10, bert-post)| 33.35 | 50.87 | 83.85 | 67.76 | 52.32 | 63.13 |
+| dual-bert-hier-trs(bsz=128, epoch=10, bert-post, trs+jump)| 33.35 | 50.87 | 83.85 | 67.76 | 52.32 | 63.13 |
 | dual-bert(max-len=256, bsz=16, epoch=10, shuffle-ddp) | 28.59 | 47.37  | 81.81 | 63.49 | 45.88 | 59.56  |
+| dual-bert(max-len=256, bsz=16, epoch=5, bert-post) | 29.86 | 50.25  | 84.85 | 65.4 | 47.68 | 61.55  |
 | dual-bert(max-len=256, bsz=32, epoch=10, shuffle-ddp) | 30.09 | 48.05  | 83.67 | 64.42 | 46.93 | 60.68  |
 | dual-bert-adv(max-len=256, bsz=16, epoch=10, shuffle-ddp) | 28.94 | 48.02 | 82.39 | 63.74 | 46.03 | 59.83 |
 | dual-bert-one2many(bsz=16, epoch=10, shuffle-ddp) |  | | | |
@@ -212,7 +220,8 @@ _Note:_
 | Original       | R10@1 | R10@2 | R10@5 | R2@1   |
 | -------------- | ----- | ----- | ----- | ------ |
 | SOTA           | 0.884 | 0.946 | 0.990 | 0.975  |
-| Bi-Encoder(bsz=48) | | | | |
+| dual-bert(bsz=16, epoch=5, bert-post) | | | | |
+| dual-bert-hier(bsz=32, epoch=5, bert-post) | | | | |
 | dual-bert-hier(bsz=64, epoch=10) | 79.42 | 89.85 | 97.63 | - |
 | dual-bert-hier(bsz=128, epoch=10, bert-post) | 83.14 | 92.04 | 98.32 | - |
 | BERT-FT        | | | | |
