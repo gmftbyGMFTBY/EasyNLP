@@ -4,20 +4,25 @@ Constrastive Learning for dual-encoder model, leveraging the memory bank to enla
 
 Constrastive Learning, context is the q, and response is the jey. Ground-truth response is positive k, and other responses are negative k.
 
-TODO:
+NOTE:
 - [ ] Constrastive learning on huge dataset, LCCC, and fine-tuning on ecommerce and douban corpus. But need to compared with the dual-bert pre-trained model
-- [x] MORE EPOCH: EXTEND FROM 5 TO 10
-- [ ] re-test dual-bert-one2many
+- [x] MORE EPOCH: EXTEND FROM 5 TO 10 (questionable)
 - [x] test on Ubuntu v1 corpus
 - [x] for Ubuntu v1 corpus, add the special tokens for the BertTokenizer during fine-tuning
 - [x] larger batch size for dual-bert-hierarchical model on ecommerce, douban, ubuntu (128)
 - [x] speaker embedding in dual-bert-hierarchical (necessary?)
 - [x] fully use all the utterances, the sequence length more than 64 will be cut.
-- [ ] refer to MSN, IoI, ... for turn-aware aggregation
-- [ ] 分析一下是不是dual encoder只在ecommerce上效果好的原因是不是因为ecommerce是限定领域的，但是其他的开放领域里面one to many现象更发散？可以尝试新的loss函数
+- [x] refer to MSN, IoI, ... for turn-aware aggregation
 - [x] jump connection is essential
-- [ ] dual post train for the dual-bert-hierarchical. The bert-post checkpoint may not be appripriate for the dual-encoder architecture. So, the dual-bert-post should be used for dual-bert-hierarchical or dual-bert-hierarchical-trs model, which train the dual-bert model with the bert-post initilized.
+- [x] dual post train for the dual-bert-hierarchical. The bert-post checkpoint may not be appripriate for the dual-encoder architecture. So, the dual-bert-post should be used for dual-bert-hierarchical or dual-bert-hierarchical-trs model, which train the dual-bert model with the bert-post initilized.
 - [x] pytorch 1.5.1+cu92 (CUDA 9.2), apex 0.1, NVIDIA driver: 410.78 (CUDA Version: 10.0)
+- [ ] test cross-encoder-hierarchical (bert-ft-hierarchical) further
+- [ ] new idea: during training, dual encoder architecture doesn't memory the former training samples, which leads to the 较低的样本利用率，这个强化学习是一样的。改进低样本利用率。样本利用率还是负样本的数目？
+- [ ] 把检索式对话系统做成QA的选择题，而不是现在的对错题
+- [ ] 基于文档的对话系统使用层次化方法，充分考虑所有对话句子以及文档信息，可以看成embedding方法全部从word embedding换成了bert
+- [ ] 仔细对比以下dual encoder架构和cross-encoder架构，传统的方法也用dual encoder架构复现以下，主要是证明一下in-batch negative sample方法的有效性。
+- [ ] 实现以下dual vanilla model
+- [ ] test the difference between 5 and 10
 
 ## How to Use
 
@@ -102,6 +107,7 @@ _Note:_
 | dual-bert-hier(bsz=128, epoch=10, shuffle-ddp) | 90.7 | 96.5  | 99.3 | 94.5 |
 | dual-bert-hier(bsz=64, epoch=5, bert-post) | 87.0 | 93.8 | 98.7 | 91.97 |
 | dual-bert-hier(bsz=64, epoch=5, bert-dual-post) | 89.4 | 95.2 | 99.2 | 93.64 |
+| dual-gru(bsz=64, epoch=5) | 74.3 | 87.7 | 96.5 | 83.91 |
 | dual-bert(bsz=16, epoch=5, shuffle-ddp) | 81.7 | 92.2  | 98.3 | 88.93 |
 | dual-bert(bsz=16, epoch=10, shuffle-ddp) | 85.8 | 94.3 | 98.7 | 91.53 |
 | dual-bert(bsz=16, epoch=5, bert-post) | 86.1 | 94.1 | 99.2 | 91.71 |
@@ -160,9 +166,9 @@ _Note:_
 | Original           | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   |
 | ------------------ | ----- | ----- | ----- | ----- | ----- | ------ |
 | SOTA               | 31.8  | 48.2  | 85.8  | 66.4  | 49.9  | 62.5   |
-| dual-bert(max-len=256, bsz=16, epoch=5, bert-post) | 29.86 | 50.25  | 84.85 | 65.4 | 47.68 | 61.55  |
-| dual-bert-hier(bsz=32, epoch=5, bert-post) | | | | | | |
-| dual-bert-hier(bsz=32, epoch=5, bert-dual-post) | | | | | | |
+| dual-bert(max-len=256, bsz=16, epoch=5, bert-post) | 30.15 | 49.42  | 84.51 | 65.65 | 48.28 | 61.62  |
+| dual-bert-hier(bsz=32, epoch=5, bert-post) | 29.1 | 49.22 | 82.16 | 64.73 | 47.23 | 60.5 |
+| dual-bert-hier(bsz=32, epoch=5, bert-dual-post) | 29.74 | 47.43 | 82.06 | 64.83 | 47.83 | 60.6 |
 
 
 | Original           | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   |
@@ -220,8 +226,9 @@ _Note:_
 | Original       | R10@1 | R10@2 | R10@5 | R2@1   |
 | -------------- | ----- | ----- | ----- | ------ |
 | SOTA           | 0.884 | 0.946 | 0.990 | 0.975  |
-| dual-bert(bsz=16, epoch=5, bert-post) | | | | |
-| dual-bert-hier(bsz=32, epoch=5, bert-post) | | | | |
+| dual-bert(bsz=16, epoch=5, bert-post) | 84.69 | 92.66 | 98.51 | - |
+| dual-bert-hier(bsz=32, epoch=5, bert-dual-post) | | | | |
+| dual-bert-hier(bsz=32, epoch=5, bert-dual-post) | | | | |
 | dual-bert-hier(bsz=64, epoch=10) | 79.42 | 89.85 | 97.63 | - |
 | dual-bert-hier(bsz=128, epoch=10, bert-post) | 83.14 | 92.04 | 98.32 | - |
 | BERT-FT        | | | | |

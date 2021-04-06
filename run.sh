@@ -10,7 +10,7 @@ res_max_len=128
 seed=50
 warmup_ratio=0.1
 epoch=5
-bsz=32
+bsz=64
 head_num=5     # hyperparameter of the dual-bert-one2mnay: 11 heads means there are 1 groundtruths and 10 retrieved candidates
 pre_extract=50
 inf_bsz=64
@@ -19,8 +19,8 @@ post_bsz=32
 post_epoch=5
 post_max_len=256
 post_res_max_len=128
-models=(sa-bert bert-ft bert-ft-multi bert-gen bert-gen-ft bert-post dual-bert-gen dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-mb dual-bert-adv dual-bert-jsd dual-bert-hierarchical-trs)
-ONE_BATCH_SIZE_MODEL=(bert-ft-multi dual-bert dual-bert-poly dual-bert-cl dual-bert-gen dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-mb dual-bert-adv dual-bert-jsd)
+models=(sa-bert bert-ft bert-ft-multi bert-gen bert-gen-ft bert-post dual-bert-gen dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-mb dual-bert-adv dual-bert-jsd dual-bert-hierarchical-trs dual-gru-hierarchical-trs)
+ONE_BATCH_SIZE_MODEL=(bert-ft-multi dual-bert dual-bert-poly dual-bert-cl dual-bert-gen dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-mb dual-bert-adv dual-bert-jsd dual-gru-hierarchical)
 datasets=(ecommerce douban ubuntu lccc lccc-large)
 chinese_datasets=(douban ecommerce lccc lccc-large)
 # ========== metadata ========== #
@@ -58,6 +58,12 @@ elif [ $mode = 'train' ]; then
     ./run.sh backup $dataset $model
     rm ckpt/$dataset/$model/*
     rm rest/$dataset/$model/events*    # clear the tensorboard cache
+
+    if [ $model = 'dual-gru-hierarchical-trs' ]; then
+        pretrained_model_path=data/$dataset/word2vec.pt
+    else
+        pretrained_model_path=''
+    fi
     
     gpu_ids=(${cuda//,/ })
     CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 29402 main.py \
@@ -73,7 +79,8 @@ elif [ $mode = 'train' ]; then
         --pretrained_model $pretrained_model \
         --head_num $head_num \
         --lang $lang \
-        --warmup_ratio $warmup_ratio
+        --warmup_ratio $warmup_ratio \
+        --pretrained_model_path $pretrained_model_path
 elif [ $mode = 'inference' ]; then
     gpu_ids=(${cuda//,/ })
     CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 29400 main.py \

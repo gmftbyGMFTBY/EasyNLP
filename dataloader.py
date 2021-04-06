@@ -105,6 +105,18 @@ def read_text_data_hier(path, lang='zh'):
     return dataset
 
 
+def read_text_data_hier_gru(path, lang='zh'):
+    with open(path) as f:
+        dataset = []
+        for line in f.readlines():
+            line = line.strip().split('\t')
+            label, utterances = int(line[0]), line[1:]
+            context, response = utterances[:-1], utterances[-1]
+            dataset.append((label, context, response))
+    print(f'[!] load {len(dataset)} utterances from {path}')
+    return dataset
+
+
 def read_response_data(path, lang='zh'):
     with open(path) as f:
         dataset = []
@@ -137,6 +149,133 @@ def read_context_data(path, lang='zh'):
             res.append(response)
     print(f'[!] load {len(ctx)} context from {path}')
     return ctx, res
+
+
+# ========== DUAL GRU HIERARCHICAL Dataset ========== #
+class GRUDualHierarchicalDataset(Dataset):
+
+    def __init__(self, path, vocab_path='', lang='zh', mode='train', max_len=64, model='bert-base-chinese'):
+        self.mode, self.max_len = mode, max_len
+
+        # set hyperparameter in dataloader
+        self.max_len = 64
+        self.inner_bsz = 64
+
+        # load vocab from the pretrained language model
+        vocab, _ = torch.load(vocab_path)
+        self.vocab = {word:idx for idx, word in enumerate(vocab)}
+        self.pad = self.vocab['[PAD]']
+        self.unk = self.vocab['[UNK]']
+        self.sos = self.vocab['[SOS]']
+        self.eos = self.vocab['[EOS]']
+
+        self.pp_path = f'{os.path.splitext(path)[0]}_dual_gru_hier.pt'
+        if os.path.exists(self.pp_path):
+            self.data = torch.load(self.pp_path)
+            print(f'[!] load preprocessed file from {self.pp_path}')
+            return None
+        data = read_text_data_hier_gru(path, lang=lang)
+        self.data = []
+        if mode in ['train']:
+            for label, context, response in tqdm(data):
+                if label == 0:
+                    continue
+                # text to ids
+                cids = [self.encode(u) for u in context]
+                rids = self.encode(response)
+                cids, rids = [self._length_limit(ids) for ids in cids], self._length_limit(rids)
+                self.data.append({
+                    'cids': cids,
+                    'rids': rids,
+                    'cids_turn_length': len(cids),
+                    'cids_length': [len(i) for i in cids],
+                    'rids_length': len(rids)
+                })
+        else:
+            for i in tqdm(range(0, len(data), 10)):
+                batch = data[i:i+10]
+                rids = []
+                for item in batch:
+                    # text to ids
+                    cids = [self.encode(u) for u in item[1]]
+                    rids.append(self.encode(item[2]))
+                cids, rids = [self._length_limit(ids) for ids in cids], [self._length_limit(rids_) for rids_ in rids]
+                self.data.append({
+                    'label': [b[0] for b in batch],
+                    'cids': cids,
+                    'rids': rids,
+                    'cids_turn_length': len(cids),
+                    'cids_length': [len(i) for i in cids],
+                    'rids_length': [len(i) for i in rids]
+                })    
+    
+    def encode(self, utterance):
+        ids = [self.sos] + [self.vocab[word] if word in self.vocab else self.vocab['[UNK]'] for word in utterance.split()] + [self.eos]
+        return ids
+                
+    def _length_limit(self, ids):
+        if len(ids) > self.max_len:
+            ids = [ids[0]] + ids[-(self.max_len-1):]
+        return ids
+                
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, i):
+        bundle = self.data[i]
+        if self.mode == 'train':
+            cids = [torch.LongTensor(i) for i in bundle['cids']]
+            rids = torch.LongTensor(bundle['rids'])
+            cids_turn_length = bundle['cids_turn_length']
+            cids_length = bundle['cids_length']
+            rids_length = bundle['rids_length']
+            return cids, rids, cids_turn_length, cids_length, rids_length
+        else:
+            cids = [torch.LongTensor(i) for i in bundle['cids']]
+            rids = [torch.LongTensor(i) for i in bundle['rids']]
+            cids_turn_length = bundle['cids_turn_length']
+            cids_length = bundle['cids_length']
+            rids_length = bundle['rids_length']
+            return cids, rids, cids_turn_length, cids_length, rids_length, bundle['label']
+
+    def save(self):
+        data = torch.save(self.data, self.pp_path)
+        print(f'[!] save preprocessed dataset into {self.pp_path}')
+        
+    def collate(self, batch):
+        if self.mode == 'train':
+            rids, cids_turn_length = [i[1] for i in batch], [i[2] for i in batch]
+            cids_length, cids = [], []
+            rids_length = [i[4] for i in batch]
+            for i in batch:
+                cids.extend(i[0])
+                cids_length.extend(i[3])
+            # count the length
+            lengths = [len(i) for i in cids]
+            lengths_order = np.argsort(lengths)
+            cids = [cids[i] for i in lengths_order]
+            cids_length = [cids_length[i] for i in lengths_order]
+            recover_mapping = {i:idx for idx, i in enumerate(lengths_order)}
+
+            chunks = [cids[i:i+self.inner_bsz] for i in range(0, len(lengths), self.inner_bsz)]
+            cids = [pad_sequence(item, batch_first=True, padding_value=self.pad).cuda() for item in chunks]
+            cids_length = [cids_length[i:i+self.inner_bsz] for i in range(0, len(lengths), self.inner_bsz)]
+            rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
+            rids_length = torch.LongTensor(rids_length)
+            if torch.cuda.is_available():
+                rids, rids_length = rids.cuda(), rids_length.cuda()
+            return cids, rids, cids_turn_length, cids_length, rids_length, recover_mapping
+        else:
+            # batch size is batch_size * 10
+            assert len(batch) == 1
+            batch = batch[0]
+            cids, rids, cids_turn_length, cids_length, rids_length, label = batch[0], batch[1], batch[2], batch[3], batch[4], batch[5]
+            cids = pad_sequence(cids, batch_first=True, padding_value=self.pad)
+            rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
+            label = torch.LongTensor(label)
+            if torch.cuda.is_available():
+                cids, rids, label = cids.cuda(), rids.cuda(), label.cuda()
+            return cids, rids, cids_turn_length, cids_length, rids_length, label
 
 
 # ========== DUAL BERT HIERARCHICAL Dataset ========== #
@@ -1800,6 +1939,7 @@ def load_dataset(args):
         'dual-bert-one2many': BERTDualOne2ManyDataset,
         'dual-bert-hierarchical': BERTDualHierarchicalDataset,
         'dual-bert-hierarchical-trs': BERTDualHierarchicalDataset,
+        'dual-gru-hierarchical-trs': GRUDualHierarchicalDataset,
     }
 
     INFERENCE_DATASET_MAP = {
@@ -1823,6 +1963,15 @@ def load_dataset(args):
     if mode == 'train':
         if args['model'] in ['dual-bert-one2many']:
             data = DATASET_MAP[args['model']](path, lang=args['lang'], mode=mode, max_len=args['max_len'], model=args['pretrained_model'], head=args['head_num'], res_max_len=args['res_max_len'])
+            train_sampler = torch.utils.data.distributed.DistributedSampler(
+                data,
+                num_replicas=dist.get_world_size(),
+                rank=args['local_rank'],
+            )
+            iter_ = DataLoader(data, batch_size=args['batch_size'], collate_fn=data.collate, sampler=train_sampler)
+        elif args['model'] in ['dual-gru-hierarchical-trs']:
+            vocab_path = f'data/{args["dataset"]}/word2vec.pt'
+            data = DATASET_MAP[args['model']](path, vocab_path=vocab_path, mode=mode, lang=args['lang'], max_len=args['max_len'], model=args['pretrained_model'])
             train_sampler = torch.utils.data.distributed.DistributedSampler(
                 data,
                 num_replicas=dist.get_world_size(),
@@ -1862,8 +2011,13 @@ def load_dataset(args):
         data = (data_res, data_ctx)
         sampler = None
     else:
-        data = DATASET_MAP[args['model']](path, mode=mode, lang=args['lang'], max_len=args['max_len'], model=args['pretrained_model'])
-        iter_ = DataLoader(data, batch_size=args['batch_size'], collate_fn=data.collate)
+        if args['model'] in ['dual-gru-hierarchical-trs']:
+            vocab_path = f'data/{args["dataset"]}/word2vec.pt'
+            data = DATASET_MAP[args['model']](path, vocab_path=vocab_path, mode=mode, lang=args['lang'], max_len=args['max_len'], model=args['pretrained_model'])
+            iter_ = DataLoader(data, batch_size=args['batch_size'], collate_fn=data.collate)
+        else:
+            data = DATASET_MAP[args['model']](path, mode=mode, lang=args['lang'], max_len=args['max_len'], model=args['pretrained_model'])
+            iter_ = DataLoader(data, batch_size=args['batch_size'], collate_fn=data.collate)
         sampler = None
     if mode == 'inference':
         if not os.path.exists(data_ctx.pp_path):
@@ -1874,21 +2028,3 @@ def load_dataset(args):
         if not os.path.exists(data.pp_path):
             data.save()
     return data, iter_, sampler
-
-
-if __name__ == "__main__":
-    # ========== BERTFTDataset ========== #
-    train_data = BERTFTDataset('data/ubuntu/train.txt', mode='train')
-    train_iter = DataLoader(train_data, batch_size=10, collate_fn=train_data.collate)
-    # ========== BERTFTDataset ========== #
-    # ========== BERTGenDataset ========== #
-    # train_data = BERTGenDataset('data/ecommerce/train.txt', mode='train')
-    # train_iter = DataLoader(train_data, batch_size=10, collate_fn=train_data.collate)
-    # ========== BERTGenDataset ========== #
-    # ========== BERTGenFTDataset ========== #
-    # train_data = BERTGenFTDataset('data/ubuntu/train.txt', mode='train')
-    # train_iter = DataLoader(train_data, batch_size=10, collate_fn=train_data.collate)
-    # ========== BERTGenFTDataset ========== #
-    train_data.save()
-    for batch in tqdm(train_iter):
-        ipdb.set_trace()
