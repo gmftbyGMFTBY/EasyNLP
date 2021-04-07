@@ -227,7 +227,8 @@ _Note:_
 | -------------- | ----- | ----- | ----- | ------ |
 | SOTA           | 0.884 | 0.946 | 0.990 | 0.975  |
 | dual-bert(bsz=16, epoch=5, bert-post) | 84.69 | 92.66 | 98.51 | - |
-| dual-bert-hier(bsz=32, epoch=5, bert-dual-post) | | | | |
+| dual-gru(bsz=64, epoch=5) | 72.51 | 85.22 | 96.41 | - |
+| dual-bert-hier(bsz=32, epoch=5, bert-post) | 67.71 | 81.33 | 95.36 | - |
 | dual-bert-hier(bsz=32, epoch=5, bert-dual-post) | | | | |
 | dual-bert-hier(bsz=64, epoch=10) | 79.42 | 89.85 | 97.63 | - |
 | dual-bert-hier(bsz=128, epoch=10, bert-post) | 83.14 | 92.04 | 98.32 | - |
