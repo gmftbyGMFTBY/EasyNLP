@@ -227,7 +227,7 @@ class GRUDualHierarchicalTrsEncoderAgent(RetrievalBaseAgent):
             vocab, weight = torch.load(pretrained_model_path)
         self.vocab = vocab
         self.args = {
-            'lr': 5e-4,    # E-Commerce (1e-3), Ubuntu (5e-4), Douban (1e-4)
+            'lr': 5e-5,    # E-Commerce (1e-3), Ubuntu (5e-4), Douban (1e-3)
             'grad_clip': 1.0,
             'multi_gpu': self.gpu_ids,
             'model': pretrained_model,
@@ -241,7 +241,7 @@ class GRUDualHierarchicalTrsEncoderAgent(RetrievalBaseAgent):
             'nhide': 512,
             'nlayer': 2,
             'gru_nlayers': 2,
-            'dropout': 0.3,
+            'dropout': 0.5,
             'vocab_size': len(weight),
             'inpt_size': len(weight[0]),
             'hidden_size': 500,

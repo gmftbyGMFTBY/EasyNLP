@@ -6,7 +6,6 @@ Constrastive Learning, context is the q, and response is the jey. Ground-truth r
 
 NOTE:
 - [ ] Constrastive learning on huge dataset, LCCC, and fine-tuning on ecommerce and douban corpus. But need to compared with the dual-bert pre-trained model
-- [x] MORE EPOCH: EXTEND FROM 5 TO 10 (questionable)
 - [x] test on Ubuntu v1 corpus
 - [x] for Ubuntu v1 corpus, add the special tokens for the BertTokenizer during fine-tuning
 - [x] larger batch size for dual-bert-hierarchical model on ecommerce, douban, ubuntu (128)
@@ -23,6 +22,10 @@ NOTE:
 - [ ] 仔细对比以下dual encoder架构和cross-encoder架构，传统的方法也用dual encoder架构复现以下，主要是证明一下in-batch negative sample方法的有效性。
 - [ ] 实现以下dual vanilla model
 - [ ] test the difference between 5 and 10
+- [ ] 测试蒸馏学习解决层次化的无法建模细粒度信息的问题
+- [ ] 测试不同step下的dual-bert-hier和dual-bert的效果（检测训练效率，同bsz e.g. negative samplers）
+- [ ] 直接继承 dual-bert-hier 的dataloader写bert-ft-hier
+- [ ] dual-bert-hier 之前用 last utterance 作为 key 重新获得细粒度的 history 在做 contextual transformer encoding
 
 ## How to Use
 
@@ -107,7 +110,9 @@ _Note:_
 | dual-bert-hier(bsz=128, epoch=10, shuffle-ddp) | 90.7 | 96.5  | 99.3 | 94.5 |
 | dual-bert-hier(bsz=64, epoch=5, bert-post) | 87.0 | 93.8 | 98.7 | 91.97 |
 | dual-bert-hier(bsz=64, epoch=5, bert-dual-post) | 89.4 | 95.2 | 99.2 | 93.64 |
-| dual-gru(bsz=64, epoch=5) | 74.3 | 87.7 | 96.5 | 83.91 |
+| dual-gru(bsz=64, epoch=5) | 74.7 | 86.4 | 96.5 | 83.89 |
+| dual-gru-no-gru(bsz=64, epoch=5) | 69.3 | 83.8 | 93.5 | 80.51 |
+| dual-gru(bsz=64, epoch=5, last-utterance) | 73.8 | 86.7 | 96.7 | 83.58 |
 | dual-bert(bsz=16, epoch=5, shuffle-ddp) | 81.7 | 92.2  | 98.3 | 88.93 |
 | dual-bert(bsz=16, epoch=10, shuffle-ddp) | 85.8 | 94.3 | 98.7 | 91.53 |
 | dual-bert(bsz=16, epoch=5, bert-post) | 86.1 | 94.1 | 99.2 | 91.71 |
@@ -166,9 +171,10 @@ _Note:_
 | Original           | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   |
 | ------------------ | ----- | ----- | ----- | ----- | ----- | ------ |
 | SOTA               | 31.8  | 48.2  | 85.8  | 66.4  | 49.9  | 62.5   |
-| dual-bert(max-len=256, bsz=16, epoch=5, bert-post) | 30.15 | 49.42  | 84.51 | 65.65 | 48.28 | 61.62  |
+| dual-bert(bsz=16, epoch=5, bert-post) | 30.15 | 49.42  | 84.51 | 65.65 | 48.28 | 61.62  |
 | dual-bert-hier(bsz=32, epoch=5, bert-post) | 29.1 | 49.22 | 82.16 | 64.73 | 47.23 | 60.5 |
 | dual-bert-hier(bsz=32, epoch=5, bert-dual-post) | 29.74 | 47.43 | 82.06 | 64.83 | 47.83 | 60.6 |
+| dual-bert-hier(bsz=32, epoch=5, bert-dual-post, mean) | 28.79 | 47.49 | 82.43 | 63.9 | 46.48 | 59.84 |
 
 
 | Original           | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   |

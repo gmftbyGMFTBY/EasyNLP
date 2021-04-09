@@ -30,10 +30,13 @@ class BertEmbedding(nn.Module):
             # english corpus has three special tokens: __number__, __url__, __path__
             self.model.resize_token_embeddings(self.model.config.vocab_size + 3)
 
-    def forward(self, ids, attn_mask):
+    def forward(self, ids, attn_mask, mode='res'):
         embd = self.model(ids, attention_mask=attn_mask)[0]    # [B, S, 768]
         rest = embd[:, 0, :]    # [B, E]
-        return rest
+        if mode == 'ctx':
+            return rest, embd    # [B, E], [B, S, E]
+        else:
+            return rest
     
     def load_bert_model(self, state_dict):
         new_state_dict = OrderedDict()
@@ -49,7 +52,7 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
 
     '''try the transformers'''
 
-    def __init__(self, model='bert-base-chinese', nlayer=3, nhead=6, nhide=512, dropout=0.1):
+    def __init__(self, model='bert-base-chinese', fg_gru_nlayer=2, nlayer=3, nhead=6, nhide=512, dropout=0.1):
         super(BERTDualHierarchicalTrsEncoder, self).__init__()
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
@@ -79,13 +82,34 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
             nn.ReLU(),
             nn.Linear(768, 768)
         )
+
+        # fine-grained GRU
+        self.fg_gru = nn.GRU(
+            768, 768, fg_gru_nlayer, batch_first=True,
+            dropout=0 if fg_gru_nlayer == 1 else dropout,
+        )
+        self.fg_proj = nn.Sequential(
+            nn.Linear(fg_gru_nlayer*768, 768),
+            nn.Dropout(p=dropout),
+            nn.ReLU(),
+            nn.Linear(768, 768)
+        )
         
         
     def _encode(self, cids, rid, cids_mask, rid_mask, recover_mapping):
         '''resort'''
         cid_reps = []
         for cid, cid_mask in zip(cids, cids_mask):
-            cid_rep = self.ctx_encoder(cid, cid_mask)
+            cid_rep, hidden_rep = self.ctx_encoder(cid, cid_mask, mode='ctx')
+            # fg_gru: hidden [B, S, E], hidden_turn_length
+            hidden_turn_length = [len(item.nonzero()) for item in cid_mask]
+            hidden_rep = nn.utils.rnn.pack_padded_sequence(hidden_rep, hidden_turn_length, batch_first=True, enforce_sorted=False)
+            _, hidden_rep = self.fg_gru(hidden_rep)
+            hidden_rep = hidden_rep.permute(1, 0, 2)
+            hidden_rep = hidden_rep.reshape(hidden_rep.shape[0], -1)
+            hidden_rep = self.fg_proj(hidden_rep)
+            # concatenate
+            cid_rep += hidden_rep
             cid_reps.append(cid_rep)
         cid_reps = torch.cat(cid_reps)    # [B, E]
         # recover
@@ -96,7 +120,16 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
 
     @torch.no_grad()
     def _encode_(self, cid, rid, cid_mask, rid_mask):
-        cid_rep = self.ctx_encoder(cid, cid_mask)
+        cid_rep, hidden_rep = self.ctx_encoder(cid, cid_mask, mode='ctx')
+        # fg_gru: hidden [B, S, E], hidden_turn_length
+        hidden_turn_length = [len(item.nonzero()) for item in cid_mask]
+        hidden_rep = nn.utils.rnn.pack_padded_sequence(hidden_rep, hidden_turn_length, batch_first=True, enforce_sorted=False)
+        _, hidden_rep = self.fg_gru(hidden_rep)
+        hidden_rep = hidden_rep.permute(1, 0, 2)
+        hidden_rep = hidden_rep.reshape(hidden_rep.shape[0], -1)
+        hidden_rep = self.fg_proj(hidden_rep)
+        # concatenate
+        cid_rep += hidden_rep
         rid_rep = self.can_encoder(rid, rid_mask)
         return cid_rep, rid_rep
 
@@ -227,18 +260,16 @@ class BERTDualHierarchicalTrsEncoderAgent(RetrievalBaseAgent):
             'nlayer': 2,
             'dropout': 0.3,
             'amp_level': 'O2',
-            'test_interval': 0.05
+            'fg_gru_nlayer': 1,
         }
-        self.args['test_step'] = [int(total_step*i) for i in np.arange(0, 1+self.args['test_interval'], self.args['test_interval'])]
-        self.test_step_counter = 0
-
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
         self.model = BERTDualHierarchicalTrsEncoder(
             model=self.args['model'], 
             nlayer=self.args['nlayer'], 
             nhide=self.args['nhide'], 
             nhead=self.args['nhead'], 
-            dropout=self.args['dropout']
+            dropout=self.args['dropout'],
+            fg_gru_nlayer=self.args['fg_gru_nlayer'],
         )
         if pretrained_model_path:
             if run_mode == 'train-post':
@@ -312,35 +343,21 @@ class BERTDualHierarchicalTrsEncoderAgent(RetrievalBaseAgent):
             total_loss += loss.item()
             total_acc += acc
             batch_num += 1
-
-            if batch_num in self.args['test_step']:
-                # test in the training loop
-                index = self.test_step_counter
-                (r10_1, r10_2, r10_5), avg_mrr, avg_p1, avg_map = self.test_model()
-                self.model.train()
-                recoder.add_scalar(f'train-test/R10@1', r10_1, index)
-                recoder.add_scalar(f'train-test/R10@2', r10_2, index)
-                recoder.add_scalar(f'train-test/R10@5', r10_5, index)
-                recoder.add_scalar(f'train-test/MRR', avg_mrr, index)
-                recoder.add_scalar(f'train-test/P@1', avg_p1, index)
-                recoder.add_scalar(f'train-test/MAP', avg_map, index)
-                self.test_step_counter += 1
-
             
             recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
             recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
             recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
             recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
             
-            pbar.set_description(f'[!] loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
+            pbar.set_description(f'[!] OOM: {oom_t}; loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
         return round(total_loss / batch_num, 4)
         
     @torch.no_grad()
-    def test_model(self):
+    def test_model(self, test_iter, recoder=None):
         self.model.eval()
-        pbar = tqdm(self.test_iter)
+        pbar = tqdm(test_iter)
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
         total_examples, total_correct = 0, 0
         k_list = [1, 2, 5, 10]

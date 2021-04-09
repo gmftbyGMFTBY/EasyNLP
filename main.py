@@ -45,6 +45,7 @@ def main(**args):
 
         obtain_steps_parameters(train_data, args)
         agent = load_model(args)
+        agent.test_iter = test_iter
         
         sum_writer = SummaryWriter(log_dir=f'rest/{args["dataset"]}/{args["model"]}')
         for i in tqdm(range(args['epoch'])):
@@ -60,7 +61,7 @@ def main(**args):
                 agent.save_model(f'ckpt/{args["dataset"]}/{args["model"]}/best.pt')
             # test
             rest_path = f'rest/{args["dataset"]}/{args["model"]}/rest_epoch_{i}.txt'
-            (r10_1, r10_2, r10_5), mrr, p1, MAP = agent.test_model(test_iter, rest_path)
+            (r10_1, r10_2, r10_5), mrr, p1, MAP = agent.test_model()
             sum_writer.add_scalar(f'test-epoch/R10@1', r10_1, i)
             sum_writer.add_scalar(f'test-epoch/R10@2', r10_2, i)
             sum_writer.add_scalar(f'test-epoch/R10@5', r10_5, i)
@@ -72,9 +73,10 @@ def main(**args):
         test_data, test_iter, _ = load_dataset(args)
         args['total_step'], args['warmup_step'] = 0, 0
         agent = load_model(args)
+        agent.test_iter = test_iter
         agent.load_model(f'ckpt/{args["dataset"]}/{args["model"]}/best.pt')
         rest_path = f'rest/{args["dataset"]}/{args["model"]}/rest.txt'
-        (r10_1, r10_2, r10_5), mrr, p1, MAP = agent.test_model(test_iter, rest_path)
+        (r10_1, r10_2, r10_5), mrr, p1, MAP = agent.test_model()
         print(f'R10@1: {round(r10_1, 4)}; R10@2: {round(r10_2, 4)}; R10@5: {round(r10_5, 4)}; MRR: {mrr}; P@1: {p1}; MAP: {MAP}')
     elif args['mode'] == 'inference':
         torch.cuda.set_device(args['local_rank'])

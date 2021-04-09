@@ -118,8 +118,12 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             'dropout': 0.2,
             'amp_level': 'O2',
             'lambd': 3.9e-3,
-            'scale_loss': 1/128
+            'scale_loss': 1/128,
+            'test_interval': 0.05,
         }
+        self.args['test_step'] = [int(total_step*i) for i in np.arange(0, 1+self.args['test_interval'], self.args['test_interval'])]
+        self.test_step_counter = 0
+
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
         self.model = BERTDualEncoder(model=self.args['model'], p=self.args['dropout'], lambd=self.args['lambd'], scale_loss=self.args['scale_loss'])
         if pretrained_model_path:
@@ -179,6 +183,20 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             total_loss += loss.item()
             total_acc += acc
             batch_num += 1
+
+            if batch_num in self.args['test_step']:
+                # test in the training loop
+                index = self.test_step_counter
+                index = self.args['test_step'].index(batch_num)
+                (r10_1, r10_2, r10_5), avg_mrr, avg_p1, avg_map = self.test_model()
+                self.model.train()    # reset the train mode
+                recoder.add_scalar(f'train-test/R10@1', r10_1, index)
+                recoder.add_scalar(f'train-test/R10@2', r10_2, index)
+                recoder.add_scalar(f'train-test/R10@5', r10_5, index)
+                recoder.add_scalar(f'train-test/MRR', avg_mrr, index)
+                recoder.add_scalar(f'train-test/P@1', avg_p1, index)
+                recoder.add_scalar(f'train-test/MAP', avg_map, index)
+                self.test_step_counter += 1
             
             recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
             recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
@@ -191,9 +209,9 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         return round(total_loss / batch_num, 4)
 
     @torch.no_grad()
-    def test_model(self, test_iter, recoder=None):
+    def test_model(self):
         self.model.eval()
-        pbar = tqdm(test_iter)
+        pbar = tqdm(self.test_iter)
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
         total_examples, total_correct = 0, 0
         k_list = [1, 2, 5, 10]

@@ -1,6 +1,10 @@
 from .header import *
 from .base import *
 from .utils import *
+from .dual_bert import BERTDualEncoder
+
+
+'''Knowledge Distillation'''
 
 
 class PositionEmbedding(nn.Module):
@@ -45,12 +49,12 @@ class BertEmbedding(nn.Module):
         self.model.load_state_dict(new_state_dict)
 
 
-class BERTDualHierarchicalTrsEncoder(nn.Module):
+class BERTDualHierarchicalTrsKDEncoder(nn.Module):
 
     '''try the transformers'''
 
     def __init__(self, model='bert-base-chinese', nlayer=3, nhead=6, nhide=512, dropout=0.1):
-        super(BERTDualHierarchicalTrsEncoder, self).__init__()
+        super(BERTDualHierarchicalTrsKDEncoder, self).__init__()
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
 
@@ -79,7 +83,9 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
             nn.ReLU(),
             nn.Linear(768, 768)
         )
-        
+
+        # KD projector
+        self.kd_proj = nn.Linear(768, 768)
         
     def _encode(self, cids, rid, cids_mask, rid_mask, recover_mapping):
         '''resort'''
@@ -160,7 +166,8 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
         cid_mask: [B_k, S]
         rid: [B, S];
         rid_mask: [B_k, S];
-        cid_turn_length: [B]'''
+        cid_turn_length: [B];
+        teacher_embd: [B, S]'''
         batch_size = rid.shape[0]
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask, recover_mapping)
         cid_rep_base, cid_mask, pos_index, spk_index = self.reconstruct_tensor(cid_rep, cid_turn_length)
@@ -171,6 +178,16 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
         cid_rep = cid_rep_base + pos_embd + spk_embd
 
         cid_rep = self.trs_encoder(cid_rep.permute(1, 0, 2), src_key_padding_mask=cid_mask).permute(1, 0, 2)    # [B, S, E]
+
+        # KNOWLEDGE DISTILLATION
+        cid_rep_mean = []
+        for i in range(len(cid_turn_length)):
+            c = cid_rep[i]
+            p = cid_turn_length[i]
+            cid_rep_mean.append(c[:p, :].mean(dim=0))    # append [E]
+        cid_rep_mean = torch.stack(cid_rep_mean)    # [B, E]
+        cid_rep_kd = self.kd_proj(cid_rep_mean)    # [B, E]
+        # KNOWLEDGE DISTILLATION
 
         cid_rep += cid_rep_base
 
@@ -199,13 +216,13 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
         # calculate the loss
         loss = F.log_softmax(dot_product, dim=-1) * mask
         loss = (-loss.sum(dim=1)).mean()
-        return loss, acc
+        return loss, acc, cid_rep_kd
         
     
-class BERTDualHierarchicalTrsEncoderAgent(RetrievalBaseAgent):
+class BERTDualHierarchicalTrsKDEncoderAgent(RetrievalBaseAgent):
     
-    def __init__(self, multi_gpu, total_step, warmup_step, run_mode='train', local_rank=0, dataset_name='ecommerce', pretrained_model='bert-base-chinese', pretrained_model_path=None):
-        super(BERTDualHierarchicalTrsEncoderAgent, self).__init__()
+    def __init__(self, multi_gpu, total_step, warmup_step, run_mode='train', local_rank=0, dataset_name='ecommerce', pretrained_model='bert-base-chinese', pretrained_model_path=None, teacher_model_path=None):
+        super(BERTDualHierarchicalTrsKDEncoderAgent, self).__init__()
         try:
             self.gpu_ids = list(range(len(multi_gpu.split(',')))) 
         except:
@@ -227,13 +244,13 @@ class BERTDualHierarchicalTrsEncoderAgent(RetrievalBaseAgent):
             'nlayer': 2,
             'dropout': 0.3,
             'amp_level': 'O2',
-            'test_interval': 0.05
         }
-        self.args['test_step'] = [int(total_step*i) for i in np.arange(0, 1+self.args['test_interval'], self.args['test_interval'])]
-        self.test_step_counter = 0
-
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
-        self.model = BERTDualHierarchicalTrsEncoder(
+        self.teacher = BERTDualEncoder(model=self.args['model'], p=self.args['dropout'])
+        self.teacher.load_state_dict(torch.load(teacher_model_path))
+        print(f'[!] load pretrained BertDual teacher model from {teacher_model_path}')
+        # load teacher checkpoint
+        self.model = BERTDualHierarchicalTrsKDEncoder(
             model=self.args['model'], 
             nlayer=self.args['nlayer'], 
             nhide=self.args['nhide'], 
@@ -249,13 +266,14 @@ class BERTDualHierarchicalTrsEncoderAgent(RetrievalBaseAgent):
                 raise Exception(f'[!] Unknown run mode: {run_mode}')
         if torch.cuda.is_available():
             self.model.cuda()
+            self.teacher.cuda()
         self.optimizer = transformers.AdamW(
             self.model.parameters(), 
             lr=self.args['lr'],
         )
         if run_mode in ['train', 'train-post', 'train-dual-post']:
-            self.model, self.optimizer = amp.initialize(
-                self.model,
+            [self.model, self.teaher], self.optimizer = amp.initialize(
+                [self.model, self.teacher],
                 self.optimizer,
                 opt_level=self.args['amp_level']
             )
@@ -268,6 +286,11 @@ class BERTDualHierarchicalTrsEncoderAgent(RetrievalBaseAgent):
                 self.model, device_ids=[local_rank], output_device=local_rank,
                 find_unused_parameters=True,
             )
+            self.teacher = nn.parallel.DistributedDataParallel(
+                self.teacher, device_ids=[local_rank], output_device=local_rank,
+                find_unused_parameters=True,
+            )
+        self.kd_criterion = nn.MSELoss()
         self.show_parameters(self.args)
 
     def load_dual_bert_model(self, path):
@@ -293,16 +316,19 @@ class BERTDualHierarchicalTrsEncoderAgent(RetrievalBaseAgent):
         
     def train_model(self, train_iter, mode='train', recoder=None, idx_=0):
         self.model.train()
-        total_loss, total_acc, batch_num = 0, 0, 0
+        total_loss, total_kd_loss, total_base_loss, total_acc, batch_num = 0, 0, 0, 0, 0
         pbar = tqdm(train_iter)
         correct, s, oom_t = 0, 0, 0
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
-            cid, rid, cid_turn_length, cid_mask, rid_mask, recover_mapping = batch
-            loss, acc = self.model(
+            cid, rid, cid_turn_length, cid_mask, rid_mask, recover_mapping, teacher_cid, teacher_cid_mask = batch
+            teacher_embd = self.teacher.get_ctx(teacher_cid, teacher_cid_mask)
+            base_loss, acc, cid_rep_kd = self.model(
                 cid, rid, cid_turn_length, 
                 cid_mask, rid_mask, recover_mapping
             )
+            kd_loss = self.kd_criterion(cid_rep_kd, teacher_embd)
+            loss = base_loss + kd_loss
             with amp.scale_loss(loss, self.optimizer) as scaled_loss:
                 scaled_loss.backward()
             clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
@@ -310,37 +336,31 @@ class BERTDualHierarchicalTrsEncoderAgent(RetrievalBaseAgent):
             self.scheduler.step()
 
             total_loss += loss.item()
+            total_kd_loss += kd_loss.item()
+            total_base_loss += base_loss.item()
             total_acc += acc
             batch_num += 1
-
-            if batch_num in self.args['test_step']:
-                # test in the training loop
-                index = self.test_step_counter
-                (r10_1, r10_2, r10_5), avg_mrr, avg_p1, avg_map = self.test_model()
-                self.model.train()
-                recoder.add_scalar(f'train-test/R10@1', r10_1, index)
-                recoder.add_scalar(f'train-test/R10@2', r10_2, index)
-                recoder.add_scalar(f'train-test/R10@5', r10_5, index)
-                recoder.add_scalar(f'train-test/MRR', avg_mrr, index)
-                recoder.add_scalar(f'train-test/P@1', avg_p1, index)
-                recoder.add_scalar(f'train-test/MAP', avg_map, index)
-                self.test_step_counter += 1
-
             
             recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
             recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/KDLoss', total_kd_loss/batch_num, idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/RunKDLoss', kd_loss.item(), idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/BaseLoss', total_base_loss/batch_num, idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/RunBaseLoss', base_loss.item(), idx)
             recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
             recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
             
-            pbar.set_description(f'[!] loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
+            pbar.set_description(f'[!] kd_loss: {round(kd_loss.item(), 4)}; loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
+        recoder.add_scalar(f'train-whole/KDLoss', total_kd_loss/batch_num, idx_)
+        recoder.add_scalar(f'train-whole/BaseLoss', total_base_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
         return round(total_loss / batch_num, 4)
         
     @torch.no_grad()
-    def test_model(self):
+    def test_model(self, test_iter, recoder=None):
         self.model.eval()
-        pbar = tqdm(self.test_iter)
+        pbar = tqdm(test_iter)
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
         total_examples, total_correct = 0, 0
         k_list = [1, 2, 5, 10]

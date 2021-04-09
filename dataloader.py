@@ -279,6 +279,126 @@ class GRUDualHierarchicalDataset(Dataset):
 
 
 # ========== DUAL BERT HIERARCHICAL Dataset ========== #
+class BERTDualHierarchicalKDDataset(Dataset):
+
+    '''SET THE MAX LEN OF EACH UTTERANCE AS 64. The utterances that longer than 64 will be cut'''
+    
+    def __init__(self, path, lang='zh', mode='train', max_len=64, model='bert-base-chinese'):
+        self.mode, self.max_len = mode, max_len
+
+        # set hyperparameter in dataloader
+        self.max_len = 64
+        self.inner_bsz = 64
+
+        self.vocab = BertTokenizer.from_pretrained(model)
+        if lang != 'zh':
+            # add special tokens for english corpus, __number__, __path__, __url__
+            self.vocab.add_tokens(['__number__', '__path__', '__url__'])
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.pp_path = f'{os.path.splitext(path)[0]}_dual_hier.pt'
+        if os.path.exists(self.pp_path):
+            self.data = torch.load(self.pp_path)
+            print(f'[!] load preprocessed file from {self.pp_path}')
+            return None
+        data = read_text_data_hier(path, lang=lang)
+        self.data = []
+        if mode in ['train', 'train-post', 'train-dual-post']:
+            for label, context, response in tqdm(data):
+                if label == 0:
+                    continue
+                item = self.vocab.batch_encode_plus(context + [response])
+                cids, rids = item['input_ids'][:-1], item['input_ids'][-1]
+                cids, rids = [self._length_limit(ids) for ids in cids], self._length_limit(rids)
+                self.data.append({
+                    'cids': cids,
+                    'rids': rids,
+                    'cids_turn_length': len(cids)
+                })
+        else:
+            for i in tqdm(range(0, len(data), 10)):
+                batch = data[i:i+10]
+                rids = []
+                for item in batch:
+                    item = self.vocab.batch_encode_plus(item[1] + [item[2]])
+                    cids = item['input_ids'][:-1]
+                    rids.append(item['input_ids'][-1])
+                cids, rids = [self._length_limit(ids) for ids in cids], [self._length_limit(rids_) for rids_ in rids]
+                self.data.append({
+                    'label': [b[0] for b in batch],
+                    'cids': cids,
+                    'rids': rids,
+                    'cids_turn_length': len(cids)
+                })    
+                
+    def _length_limit(self, ids):
+        if len(ids) > self.max_len:
+            ids = [ids[0]] + ids[-(self.max_len-1):]
+        return ids
+                
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, i):
+        bundle = self.data[i]
+        if self.mode == 'train':
+            cids = [torch.LongTensor(i) for i in bundle['cids']]
+            rids = torch.LongTensor(bundle['rids'])
+            cids_turn_length = bundle['cids_turn_length']
+            return cids, rids, cids_turn_length
+        else:
+            cids = [torch.LongTensor(i) for i in bundle['cids']]
+            rids = [torch.LongTensor(i) for i in bundle['rids']]
+            cids_turn_length = bundle['cids_turn_length']
+            return cids, rids, cids_turn_length, bundle['label']
+
+    def save(self):
+        data = torch.save(self.data, self.pp_path)
+        print(f'[!] save preprocessed dataset into {self.pp_path}')
+        
+    def generate_mask(self, ids):
+        attn_mask_index = ids.nonzero().tolist()   # [PAD] IS 0
+        attn_mask_index_x, attn_mask_index_y = [i[0] for i in attn_mask_index], [i[1] for i in attn_mask_index]
+        attn_mask = torch.zeros_like(ids)
+        attn_mask[attn_mask_index_x, attn_mask_index_y] = 1
+        return attn_mask
+        
+    def collate(self, batch):
+        '''for training procedure, bigger batch size lead to longer processing time, because of the more useless padding tokens; we use the inner bsz to resort method to reduce the number of the padding tokens'''
+        if self.mode == 'train':
+            rids, cids_turn_length = [i[1] for i in batch], [i[2] for i in batch]
+            cids = []
+            for i in batch:
+                cids.extend(i[0])
+            # count the length
+            lengths = [len(i) for i in cids]
+            lengths_order = np.argsort(lengths)
+            cids = [cids[i] for i in lengths_order]
+            recover_mapping = {i:idx for idx, i in enumerate(lengths_order)}
+
+            chunks = [cids[i:i+self.inner_bsz] for i in range(0, len(lengths), self.inner_bsz)]
+            cids = [pad_sequence(item, batch_first=True, padding_value=self.pad).cuda() for item in chunks]
+            cids_mask = [self.generate_mask(item).cuda() for item in cids]
+            rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
+            rids_mask = self.generate_mask(rids)
+            if torch.cuda.is_available():
+                rids, rids_mask = rids.cuda(), rids_mask.cuda()
+            return cids, rids, cids_turn_length, cids_mask, rids_mask, recover_mapping
+        else:
+            # batch size is batch_size * 10
+            assert len(batch) == 1
+            batch = batch[0]
+            cids, rids, cids_turn_length, label = batch[0], batch[1], batch[2], batch[3]
+            cids = pad_sequence(cids, batch_first=True, padding_value=self.pad)
+            rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
+            rids_mask = self.generate_mask(rids)
+            cids_mask = self.generate_mask(cids)
+            label = torch.LongTensor(label)
+            if torch.cuda.is_available():
+                cids, rids, cids_mask, rids_mask, label = cids.cuda(), rids.cuda(), cids_mask.cuda(), rids_mask.cuda(), label.cuda()
+            return cids, rids, cids_turn_length, cids_mask, rids_mask, label
+
+
+# ========== DUAL BERT HIERARCHICAL Dataset ========== #
 class BERTDualHierarchicalDataset(Dataset):
 
     '''SET THE MAX LEN OF EACH UTTERANCE AS 64. The utterances that longer than 64 will be cut'''
