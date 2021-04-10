@@ -2048,6 +2048,7 @@ def load_dataset(args):
         'bert-ft-multi': BERTFTMultiDataset,
         'bert-gen-ft': BERTGenFTDataset,
         'dual-bert': BERTDualDataset,
+        'dual-bert-fg': BERTDualDataset,
         'dual-bert-jsd': BERTDualDataset,
         'dual-bert-gen': BERTDualGenDataset,
         'dual-bert-adv': BERTDualDataset,

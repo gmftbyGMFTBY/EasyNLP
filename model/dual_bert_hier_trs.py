@@ -79,7 +79,9 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
             nn.ReLU(),
             nn.Linear(768, 768)
         )
-        
+
+    def init_test_time(self):
+        self.test_time_cost = []
         
     def _encode(self, cids, rid, cids_mask, rid_mask, recover_mapping):
         '''resort'''
@@ -130,8 +132,25 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
     def predict(self, cid, rid, cid_turn_length, cid_mask, rid_mask):
         '''batch size is 1'''
         batch_size = rid.shape[0]
-        cid_rep, rid_rep = self._encode_(cid, rid, cid_mask, rid_mask)
+        t = 0
+        
+        # split the context encoding to count the time
+        if cid.shape[0] > 1:
+            cid_rep_1 = self.ctx_encoder(cid[:-1, :], cid_mask[:-1, :])
+            s_time = time.time()
+            cid_rep_2 = self.ctx_encoder(cid[-1, :].unsqueeze(0), cid_mask[-1, :].unsqueeze(0))
+            e_time = time.time()
+            t += e_time - s_time
+            cid_rep = torch.cat([cid_rep_1, cid_rep_2], dim=0)    # [B, E]
+        else:
+            s_time = time.time()
+            cid_rep = self.ctx_encoder(cid, cid_mask)
+            e_time = time.time()
+            t += e_time - s_time
+
+        rid_rep = self.can_encoder(rid, rid_mask)
         # [S, E], [10, E]
+        s_time = time.time()
         cid_rep_base, cid_mask, pos_index, spk_index = self.reconstruct_tensor(cid_rep, cid_turn_length)
         
         pos_embd = self.position_embd(pos_index)
@@ -152,6 +171,9 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
         cid_rep += cid_rep_jump
         
         dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze()    # [10] 
+        e_time = time.time()
+        t += e_time - s_time
+        self.test_time_cost.append(t)
         return dot_product
 
     def forward(self, cid, rid, cid_turn_length, cid_mask, rid_mask, recover_mapping):
@@ -333,6 +355,7 @@ class BERTDualHierarchicalTrsEncoderAgent(RetrievalBaseAgent):
             recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
             
             pbar.set_description(f'[!] loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
+            break
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
         return round(total_loss / batch_num, 4)
@@ -340,6 +363,7 @@ class BERTDualHierarchicalTrsEncoderAgent(RetrievalBaseAgent):
     @torch.no_grad()
     def test_model(self):
         self.model.eval()
+        self.model.module.init_test_time()
         pbar = tqdm(self.test_iter)
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
         total_examples, total_correct = 0, 0
@@ -368,10 +392,12 @@ class BERTDualHierarchicalTrsEncoderAgent(RetrievalBaseAgent):
         avg_mrr = float(total_mrr / total_examples)
         avg_prec_at_one = float(total_prec_at_one / total_examples)
         avg_map = float(total_map / total_examples)
+        avg_time = np.mean(self.model.module.test_time_cost)
         
         for i in range(len(k_list)):
             print(f"R10@{k_list[i]}: {round(((total_correct[i] / total_examples) * 100), 2)}")
         print(f"MRR: {round(avg_mrr, 4)}")
         print(f"P@1: {round(avg_prec_at_one, 4)}")
         print(f"MAP: {round(avg_map, 4)}")
+        print(f"Avg Time Cost: {round(1000*avg_time, 5)} ms")
         return (total_correct[0]/total_examples, total_correct[1]/total_examples, total_correct[2]/total_examples), avg_mrr, avg_prec_at_one, avg_map

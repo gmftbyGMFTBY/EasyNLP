@@ -19,8 +19,8 @@ post_bsz=16
 post_epoch=5
 post_max_len=256
 post_res_max_len=128
-models=(sa-bert bert-ft bert-ft-multi bert-gen bert-gen-ft bert-post dual-bert-gen dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-mb dual-bert-adv dual-bert-jsd dual-bert-hierarchical-trs dual-gru-hierarchical-trs)
-ONE_BATCH_SIZE_MODEL=(bert-ft-multi dual-bert dual-bert-poly dual-bert-cl dual-bert-gen dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-mb dual-bert-adv dual-bert-jsd dual-gru-hierarchical)
+models=(sa-bert bert-ft bert-ft-multi bert-gen bert-gen-ft bert-post dual-bert-fg dual-bert-gen dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-mb dual-bert-adv dual-bert-jsd dual-bert-hierarchical-trs dual-gru-hierarchical-trs)
+ONE_BATCH_SIZE_MODEL=(bert-ft-multi dual-bert dual-bert-poly dual-bert-fg dual-bert-cl dual-bert-gen dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-hierarchical-trs dual-bert-mb dual-bert-adv dual-bert-jsd dual-gru-hierarchical)
 datasets=(ecommerce douban ubuntu lccc lccc-large)
 chinese_datasets=(douban ecommerce lccc lccc-large)
 # ========== metadata ========== #
@@ -108,7 +108,7 @@ elif [ $mode = 'train-post' ]; then
     rm rest/$dataset/$model/events*    # clear the tensorboard cache
     
     gpu_ids=(${cuda//,/ })
-    CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 29400 main.py \
+    CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 29402 main.py \
         --dataset $dataset \
         --model $model \
         --mode train-post \

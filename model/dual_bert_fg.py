@@ -3,6 +3,9 @@ from .base import *
 from .utils import *
 
 
+'''fine-grained interaction among context and response'''
+
+
 class BertEmbedding(nn.Module):
     
     def __init__(self, model='bert-base-chinese', p=0.2):
@@ -14,7 +17,7 @@ class BertEmbedding(nn.Module):
 
     def forward(self, ids, attn_mask):
         embd = self.model(ids, attention_mask=attn_mask)[0]    # [B, S, 768]
-        return embd[:, 0, :]
+        return embd[:, 0, :], embd
     
     def load_bert_model(self, state_dict):
         new_state_dict = OrderedDict()
@@ -26,24 +29,20 @@ class BertEmbedding(nn.Module):
         self.model.load_state_dict(new_state_dict)
     
 
-class BERTDualEncoder(nn.Module):
+class BERTDualFGEncoder(nn.Module):
     
     def __init__(self, model='bert-base-chinese', scale_loss=1/32, p=0.2, lambd=3.9e-3):
-        super(BERTDualEncoder, self).__init__()
+        super(BERTDualFGEncoder, self).__init__()
         self.ctx_encoder = BertEmbedding(model=model, p=p)
         self.can_encoder = BertEmbedding(model=model, p=p)
         self.lambd = lambd
         self.scale_loss = scale_loss
         self.bn = nn.BatchNorm1d(768, affine=False)
 
-    def init_test_time(self):
-        # counting test time
-        self.test_time_cost = []
-
     def _encode(self, cid, rid, cid_mask, rid_mask):
-        cid_rep = self.ctx_encoder(cid, cid_mask)
-        rid_rep = self.can_encoder(rid, rid_mask)
-        return cid_rep, rid_rep
+        cid_rep, cid_rep_h = self.ctx_encoder(cid, cid_mask)
+        rid_rep, rid_rep_h = self.can_encoder(rid, rid_mask)
+        return (cid_rep, rid_rep), (cid_rep_h, rid_rep_h)
 
     @torch.no_grad()
     def get_cand(self, ids, attn_mask):
@@ -54,66 +53,89 @@ class BERTDualEncoder(nn.Module):
     def get_ctx(self, ids, attn_mask):
         cid_rep = self.ctx_encoder(ids, attn_mask)
         return cid_rep
+
+    def get_dot_product(self, cid_rep, cid_rep_h, rid_rep, rid_rep_h, cid_mask, rid_mask, ctx_batch_size, res_batch_size):
+        # 1. from response to context
+        weight_r2c = torch.bmm(
+            rid_rep.unsqueeze(0).repeat(ctx_batch_size, 1, 1).detach(),    # [B_c, B_r, E]
+            cid_rep_h.permute(0, 2, 1),     # [B_c, E, S_c]
+        )    # [B_c, B_r, S_c]
+        # scale is very important
+        weight_r2c /= np.sqrt(768)
+        weight_c2r = torch.bmm(
+            cid_rep.unsqueeze(0).repeat(res_batch_size, 1, 1).detach(),    # [B_r, B_c, E]
+            rid_rep_h.permute(0, 2, 1),     # [B_r, E, S_r]
+        )    # [B_r, B_c, S_r]
+        weight_c2r /= np.sqrt(768)
+        # 2. mask and softmax
+        cid_mask_ = torch.where(
+            cid_mask != 0, 
+            torch.zeros_like(cid_mask), 
+            torch.ones_like(cid_mask)
+        )
+        cid_mask_ = cid_mask_ * -1e3    # [B_c, S_c]
+        cid_mask_ = cid_mask_.unsqueeze(1).repeat(1, res_batch_size, 1)    # [B_c, B_r, S_c]
+        weight_r2c += cid_mask_
+        weight_r2c = F.softmax(weight_r2c, dim=-1)
+
+        rid_mask_ = torch.where(
+            rid_mask != 0, 
+            torch.zeros_like(rid_mask), 
+            torch.ones_like(rid_mask)
+        )
+        rid_mask_ = rid_mask_ * -1e3    # [B_r, S_r]
+        rid_mask_ = rid_mask_.unsqueeze(1).repeat(1, ctx_batch_size, 1)    # [B_r, B_c, S_r]
+        weight_c2r += rid_mask_
+        weight_c2r = F.softmax(weight_c2r, dim=-1)
+        # 3. attention
+        cid_rep_ = torch.bmm(
+            weight_r2c,    # [B_c, B_r, S_c]
+            cid_rep_h,    # [B_c, S_c, E]
+        )    # [B_c, B_r, E]
+        rid_rep_ = torch.bmm(
+            weight_c2r,    # [B_r, B_c, S_r]
+            rid_rep_h,    # [B_r, S_r, E]
+        )    # [B_r, B_c, E]
+        # 4. residual
+        cid_rep_ += cid_rep.unsqueeze(1).repeat(1, res_batch_size, 1)
+        rid_rep_ += rid_rep.unsqueeze(1).repeat(1, ctx_batch_size, 1)
+        # 5. dot product
+        rid_rep_ = rid_rep_.permute(1, 0, 2)    # [B_c, B_r, E]
+        dot_product = torch.einsum('ijk,ijk->ij', cid_rep_, rid_rep_)
+        return dot_product    # [B_c, B_r]
     
     @torch.no_grad()
     def predict(self, cid, rid, rid_mask):
-        t = 0
-        s_time = time.time()
         batch_size = rid.shape[0]
-        cid_rep = self.ctx_encoder(cid.unsqueeze(0), None)
-        e_time = time.time()
-        t += e_time - s_time
-
-        rid_rep = self.can_encoder(rid, rid_mask)
-        s_time = time.time()
-        cid_rep = cid_rep.squeeze(0)    # [768]
-        # cid_rep/rid_rep: [768], [B, 768]
-        dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B]
-        e_time = time.time()
-        t += e_time - s_time
-        self.test_time_cost.append(t)
+        ctx_batch_size, res_batch_size = 1, batch_size
+        (cid_rep, rid_rep), (cid_rep_h, rid_rep_h) = self._encode(cid.unsqueeze(0), rid, None, rid_mask)     # [B_c, E]; [B_c, S_c, E]; [B_r, E]; [B_r, S_r, E]
+        # cid_mask: [B_c, S], full one
+        cid_mask = torch.ones(1, len(cid)).cuda()
+        dot_product = self.get_dot_product(cid_rep, cid_rep_h, rid_rep, rid_rep_h, cid_mask, rid_mask, ctx_batch_size, res_batch_size)    # [B_c, B_r] = [1, B_r]
+        dot_product = dot_product.squeeze(0)    # [B_r]
         return dot_product
 
-    def off_diagonal(self, x):
-        n, m = x.shape
-        assert n == m
-        return x.flatten()[:-1].view(n-1, n+1)[:, 1:].flatten()
-        
     def forward(self, cid, rid, cid_mask, rid_mask):
         '''add barlow twins loss'''
         batch_size = cid.shape[0]
-        assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
-        cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
-        # cid_rep, rid_rep = F.normalize(cid_rep, 2, -1), F.normalize(rid_rep, 2, -1)
-        dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
-        
-        # use half for supporting the apex
+        ctx_batch_size, res_batch_size = batch_size, batch_size
+        (cid_rep, rid_rep), (cid_rep_h, rid_rep_h) = self._encode(cid, rid, cid_mask, rid_mask)    # [B, S, E]
+        dot_product = self.get_dot_product(cid_rep, cid_rep_h, rid_rep, rid_rep_h, cid_mask, rid_mask, ctx_batch_size, res_batch_size)
+
         mask = torch.eye(batch_size).cuda()    # [B, B]
-        # mask = torch.eye(batch_size).cuda()    # [B, B]
         # calculate accuracy
         acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
         acc = acc_num / batch_size
         # calculate the loss
         loss = F.log_softmax(dot_product, dim=-1) * mask
         loss = (-loss.sum(dim=1)).mean()
-
-        # twins loss
-        # cid_rep, rid_rep = self.bn(cid_rep), self.bn(rid_rep)
-        # c = cid_rep.T @ rid_rep     # [E, E]
-        # c /= batch_size
-        # on_diag = torch.diagonal(c).add(-1).pow(2).mul(self.scale_loss).sum()
-        # off_diag = self.off_diagonal(c).pow(2).mul(self.scale_loss).sum()
-        # loss_twins = on_diag + self.lambd * off_diag
-        # loss += loss_twins
-        # if loss.isnan():
-        #     ipdb.set_trace()
         return loss, acc
     
     
-class BERTDualEncoderAgent(RetrievalBaseAgent):
+class BERTDualFGEncoderAgent(RetrievalBaseAgent):
     
     def __init__(self, multi_gpu, total_step, warmup_step, run_mode='train', local_rank=0, dataset_name='ecommerce', pretrained_model='bert-base-chinese', pretrained_model_path=None):
-        super(BERTDualEncoderAgent, self).__init__()
+        super(BERTDualFGEncoderAgent, self).__init__()
         try:
             self.gpu_ids = list(range(len(multi_gpu.split(',')))) 
         except:
@@ -129,18 +151,15 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             'max_len': 256,
             'dataset': dataset_name,
             'pretrained_model_path': pretrained_model_path,
-            'oom_times': 10,
             'dropout': 0.2,
             'amp_level': 'O2',
-            'lambd': 3.9e-3,
-            'scale_loss': 1/128,
             'test_interval': 0.05,
         }
         self.args['test_step'] = [int(total_step*i) for i in np.arange(0, 1+self.args['test_interval'], self.args['test_interval'])]
         self.test_step_counter = 0
 
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
-        self.model = BERTDualEncoder(model=self.args['model'], p=self.args['dropout'], lambd=self.args['lambd'], scale_loss=self.args['scale_loss'])
+        self.model = BERTDualFGEncoder(model=self.args['model'], p=self.args['dropout'])
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)
         if torch.cuda.is_available():
@@ -219,7 +238,6 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
              
             pbar.set_description(f'[!] loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
-            break
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
         return round(total_loss / batch_num, 4)
@@ -227,7 +245,6 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
     @torch.no_grad()
     def test_model(self):
         self.model.eval()
-        self.model.module.init_test_time()
         pbar = tqdm(self.test_iter)
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
         total_examples, total_correct = 0, 0
@@ -257,14 +274,12 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         avg_mrr = float(total_mrr / total_examples)
         avg_prec_at_one = float(total_prec_at_one / total_examples)
         avg_map = float(total_map / total_examples)
-        avg_time = np.mean(self.model.module.test_time_cost)
         
         for i in range(len(k_list)):
             print(f"R10@{k_list[i]}: {round(((total_correct[i] / total_examples) * 100), 2)}")
         print(f"MRR: {round(avg_mrr, 4)}")
         print(f"P@1: {round(avg_prec_at_one, 4)}")
         print(f"MAP: {round(avg_map, 4)}")
-        print(f"Avg Time Cost: {round(1000*avg_time, 5)} ms")
         return (total_correct[0]/total_examples, total_correct[1]/total_examples, total_correct[2]/total_examples), avg_mrr, avg_prec_at_one, avg_map
 
     @torch.no_grad()

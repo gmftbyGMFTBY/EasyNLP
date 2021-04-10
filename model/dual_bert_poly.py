@@ -5,36 +5,54 @@ from .utils import *
 
 class BertEmbedding(nn.Module):
     
-    def __init__(self, m=0, model='bert-base-chinese'):
+    def __init__(self, model='bert-base-chinese'):
         super(BertEmbedding, self).__init__()
         self.model = BertModel.from_pretrained(model)
-        self.m = m
 
     def forward(self, ids, attn_mask):
         '''convert ids to embedding tensor; Return: [B, 768]'''
         embd = self.model(ids, attention_mask=attn_mask)[0]    # [B, S, 768]
-        if self.m == 0:
-            rest = embd[:, 0, :]    # [B, 768]
-        else:
-            rest = embd[:, :self.m, :]    # [B, M, 768]
-        return rest
-    
-    def load_bert_model(self, path):
-        state_dict = torch.load(path, map_location=torch.device('cpu'))
-        self.model.load_state_dict(state_dict)
-        print(f'[!] load pretrained BERT model from {path}')
+        return embd
+
+    def load_bert_model(self, state_dict):
+        new_state_dict = OrderedDict()
+        for k, v in state_dict.items():
+            if k.startswith('_bert_model.cls.'):
+                continue
+            name = k.replace('_bert_model.bert.', '')
+            new_state_dict[name] = v
+        self.model.load_state_dict(new_state_dict)
 
 
 class PolyEncoder(nn.Module):
     
     def __init__(self, m=16, model='bert-base-chinese'):
         super(PolyEncoder, self).__init__()
-        self.ctx_encoder = BertEmbedding(m=m, model=model)
-        self.can_encoder = BertEmbedding(m=0, model=model)
+        self.ctx_encoder = BertEmbedding(model=model)
+        self.can_encoder = BertEmbedding(model=model)
+        self.poly_embd = nn.Embedding(m, 768)
+        self.m = m
         
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
+        poly_query_id = torch.arange(self.m, dtype=torch.long).cuda()
+        poly_query = self.poly_embd(poly_query_id)    # [M, E]
+        # cid_rep: [B, S, E]; [M, E]
+        weights = torch.matmul(cid_rep, poly_query.t()).permute(0, 2, 1)    # [B, M, S]
+        weights /= np.sqrt(768)
+        cid_mask_ = torch.where(cid_mask != 0, torch.zeros_like(cid_mask), torch.ones_like(cid_mask))
+        cid_mask_ = cid_mask_ * -1e3
+        cid_mask_ = cid_mask_.unsqueeze(1).repeat(1, self.m, 1)    # [B, M, S]
+        weights += cid_mask_
+        weights = F.softmax(weights, dim=-1)
+
+        cid_rep = torch.bmm(
+            weights,     # [B, M, S]
+            cid_rep,     # [B, S, E]
+        )    # [B, M, E]
+
         rid_rep = self.can_encoder(rid, rid_mask)
+        rid_rep = rid_rep[:, 0, :]    # [B, E]
         # cid_rep: [B, M, E]; rid_rep: [B, E]
         return cid_rep, rid_rep
         
@@ -47,10 +65,9 @@ class PolyEncoder(nn.Module):
         
         # POLY ENCODER ATTENTION
         # [M, E] X [E, S] -> [M, S] -> [S, M]
-        weights = F.softmax(
-            torch.matmul(cid_rep, rid_rep.t()).transpose(0, 1),
-            dim=-1,
-        )
+        w_ = torch.matmul(cid_rep, rid_rep.t()).transpose(0, 1)
+        w_ = np.sqrt(768)
+        weights = F.softmax(w_, dim=-1)
         # [S, M] X [M, E] -> [S, E]
         cid_rep = torch.matmul(weights, cid_rep)
         dot_product = (cid_rep * rid_rep).sum(-1)    # [S]
@@ -62,13 +79,12 @@ class PolyEncoder(nn.Module):
         # cid_rep/rid_rep: [B, M, E]; [B, E]
         
         # POLY ENCODER ATTENTION
-        # [B, M, E] X [E, S] -> [B, M, S] -> [B, S, M]
-        weights = F.softmax(
-            torch.matmul(cid_rep, rid_rep.t()).permute(0, 2, 1),    # [B, M, S] -> [B, S, M]
-            dim=-1,
-        )
-        cid_rep = torch.bmm(weights, cid_rep)    # [B, S, M] X [B, M, E] -> [B, S, E]
-        # [B, S, E] x [B, S, E] -> [B, S]
+        # [B, M, E] X [E, B] -> [B, M, B]-> [B, B, M]
+        w_ = torch.matmul(cid_rep, rid_rep.t()).permute(0, 2, 1)    # [B, M, B] -> [B, B, M]
+        w_ /= np.sqrt(768)
+        weights = F.softmax(w_, dim=-1)
+        cid_rep = torch.bmm(weights, cid_rep)    # [B, B, M] X [B, M, E] -> [B, B, E]
+        # [B, B, E] x [B, B, E] -> [B, B]
         dot_product = (cid_rep * rid_rep.unsqueeze(0).expand(batch_size, -1, -1)).sum(-1)
         # use half for supporting the apex
         mask = torch.eye(batch_size).cuda().half()    # [B, B]
@@ -102,7 +118,10 @@ class BERTPolyEncoderAgent(RetrievalBaseAgent):
             'dataset': dataset_name,
             'pretrained_model_path': pretrained_model_path,
             'm': 16,
+            'test_interval': 0.05
         }
+        self.args['test_step'] = [int(total_step*i) for i in np.arange(0, 1+self.args['test_interval'], self.args['test_interval'])]
+        self.test_step_counter = 0
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
         self.model = PolyEncoder(m=self.args['m'], model=self.args['model'])
         if pretrained_model_path:
@@ -113,7 +132,7 @@ class BERTPolyEncoderAgent(RetrievalBaseAgent):
             self.model.parameters(), 
             lr=self.args['lr'],
         )
-        if run_mode == 'train':
+        if run_mode in ['train', 'train-post', 'train-dual-post']:
             self.model, self.optimizer = amp.initialize(
                 self.model, 
                 self.optimizer,
@@ -154,6 +173,18 @@ class BERTPolyEncoderAgent(RetrievalBaseAgent):
             total_loss += loss.item()
             total_acc += acc
             batch_num += 1
+
+            if batch_num in self.args['test_step']:
+                index = self.test_step_counter
+                (r10_1, r10_2, r10_5), avg_mrr, avg_p1, avg_map = self.test_model()
+                self.model.train()
+                recoder.add_scalar(f'train-test/R10@1', r10_1, index)
+                recoder.add_scalar(f'train-test/R10@2', r10_2, index)
+                recoder.add_scalar(f'train-test/R10@5', r10_5, index)
+                recoder.add_scalar(f'train-test/MRR', avg_mrr, index)
+                recoder.add_scalar(f'train-test/P@1', avg_p1, index)
+                recoder.add_scalar(f'train-test/MAP', avg_map, index)
+                self.test_step_counter += 1
             
             recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
             recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
@@ -166,7 +197,7 @@ class BERTPolyEncoderAgent(RetrievalBaseAgent):
         return round(total_loss / batch_num, 4)
         
     @torch.no_grad()
-    def test_model(self, test_iter, recoder=None):
+    def test_model(self):
         self.model.eval()
         pbar = tqdm(test_iter)
         total_mrr, total_prec_at_one, total_map = 0, 0, 0

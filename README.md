@@ -20,12 +20,12 @@ NOTE:
 - [ ] 把检索式对话系统做成QA的选择题，而不是现在的对错题
 - [ ] 基于文档的对话系统使用层次化方法，充分考虑所有对话句子以及文档信息，可以看成embedding方法全部从word embedding换成了bert
 - [ ] 仔细对比以下dual encoder架构和cross-encoder架构，传统的方法也用dual encoder架构复现以下，主要是证明一下in-batch negative sample方法的有效性。
-- [ ] 实现以下dual vanilla model
 - [ ] test the difference between 5 and 10
 - [ ] 测试蒸馏学习解决层次化的无法建模细粒度信息的问题
 - [ ] 测试不同step下的dual-bert-hier和dual-bert的效果（检测训练效率，同bsz e.g. negative samplers）
 - [ ] 直接继承 dual-bert-hier 的dataloader写bert-ft-hier
 - [ ] dual-bert-hier 之前用 last utterance 作为 key 重新获得细粒度的 history 在做 contextual transformer encoding
+- [x] dual-bert-hier-trs-poly and dual-bert-hier-trs-poly2 sucks
 
 ## How to Use
 
