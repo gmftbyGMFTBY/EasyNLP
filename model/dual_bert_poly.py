@@ -59,14 +59,15 @@ class PolyEncoder(nn.Module):
     @torch.no_grad()
     def predict(self, cid, rid, rid_mask):
         batch_size = rid.shape[0]
-        cid_rep, rid_rep = self._encode(cid.unsqueeze(0), rid, None, rid_mask)
+        cid_mask = torch.ones(1, len(cid)).cuda()
+        cid_rep, rid_rep = self._encode(cid.unsqueeze(0), rid, cid_mask, rid_mask)
         cid_rep = cid_rep.squeeze(0)    # [M, E]
         # cid_rep/rid_rep: [M, E], [B, E]
         
         # POLY ENCODER ATTENTION
         # [M, E] X [E, S] -> [M, S] -> [S, M]
         w_ = torch.matmul(cid_rep, rid_rep.t()).transpose(0, 1)
-        w_ = np.sqrt(768)
+        w_ /= np.sqrt(768)
         weights = F.softmax(w_, dim=-1)
         # [S, M] X [M, E] -> [S, E]
         cid_rep = torch.matmul(weights, cid_rep)
@@ -199,7 +200,7 @@ class BERTPolyEncoderAgent(RetrievalBaseAgent):
     @torch.no_grad()
     def test_model(self):
         self.model.eval()
-        pbar = tqdm(test_iter)
+        pbar = tqdm(self.test_iter)
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
         total_examples, total_correct = 0, 0
         k_list = [1, 2, 5, 10]
@@ -207,7 +208,7 @@ class BERTPolyEncoderAgent(RetrievalBaseAgent):
             cid, rids, rids_mask, label = batch
             batch_size = len(rids)
             assert batch_size == 10, f'[!] {batch_size} isnot equal to 10'
-            scores = self.model.predict(cid, rids, rids_mask).cpu().tolist()    # [B]
+            scores = self.model.module.predict(cid, rids, rids_mask).cpu().tolist()    # [B]
             
             rank_by_pred, pos_index, stack_scores = \
           calculate_candidates_ranking(
@@ -233,5 +234,6 @@ class BERTPolyEncoderAgent(RetrievalBaseAgent):
         print(f"MRR: {round(avg_mrr, 4)}")
         print(f"P@1: {round(avg_prec_at_one, 4)}")
         print(f"MAP: {round(avg_map, 4)}")
+        return (total_correct[0]/total_examples, total_correct[1]/total_examples, total_correct[2]/total_examples), avg_mrr, avg_prec_at_one, avg_map
         
         
