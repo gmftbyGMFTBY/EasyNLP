@@ -28,7 +28,7 @@ class BertEmbedding(nn.Module):
 
 class BERTDualCLEncoder(nn.Module):
 
-    def __init__(self, model='bert-base-chinese', K=4096):
+    def __init__(self, model='bert-base-chinese', K=4096, topk=1024, max_len=256, vocab=None, local_rank=0):
         super(BERTDualCLEncoder, self).__init__()
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
@@ -36,30 +36,46 @@ class BERTDualCLEncoder(nn.Module):
         self.K = K
         self.register_buffer('queue', torch.randn(self.K, 768))
         self.register_buffer('queue_ptr', torch.zeros(1, dtype=torch.long))
+        self.register_buffer('queue_ids', torch.zeros(self.K, max_len).to(torch.long))
+        self.vocab = vocab
+        self.topk = topk
+        self.max_len = max_len
+        self.local_rank = local_rank
 
     @torch.no_grad()
-    def concat_all_gather(self, tensor):
+    def concat_all_gather(self, tensor, rids):
         '''collect samples from all the devices'''
         tensor = tensor.contiguous()
+        rids = rids.contiguous()
+
         tensors_gather = [torch.ones_like(tensor)
                 for _ in range(torch.distributed.get_world_size())]
+        rids_gather = [torch.zeros_like(rids)
+                for _ in range(torch.distributed.get_world_size())]
+
         torch.distributed.all_gather(tensors_gather, tensor, async_op=False)
+        torch.distributed.all_gather(rids_gather, rids, async_op=False)
+
         output = torch.cat(tensors_gather, dim=0)
-        return output
+        rids_output = torch.cat(rids_gather, dim=0)
+        return output, rids_output
 
     @torch.no_grad()
-    def _dequeue_and_enqueue(self, keys):
-        keys = self.concat_all_gather(keys)
+    def _dequeue_and_enqueue(self, keys, ids):
+        keys, ids = self.concat_all_gather(keys, ids)
         batch_size = len(keys)
         ptr = int(self.queue_ptr)
 
         if ptr + batch_size <= self.K:
             self.queue[ptr:ptr+batch_size, :] = keys
+            self.queue_ids[ptr:ptr+batch_size, :] = ids
         else:
             s_before = self.K - ptr
             s_after = batch_size - (self.K - ptr)
             self.queue[ptr:, :] = keys[:s_before, :]
             self.queue[:s_after, :] = keys[-s_after:, :]
+            self.queue_ids[ptr:, :] = ids[:s_before, :]
+            self.queue_ids[:s_after, :] = ids[-s_after:, :]
         ptr = (ptr + batch_size) % self.K
         self.queue_ptr[0] = ptr
 
@@ -77,19 +93,40 @@ class BERTDualCLEncoder(nn.Module):
         dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B]
         return dot_product
 
-    def forward(self, cid, rid, cid_mask, rid_mask):
+    def forward(self, cid, rid, cid_mask, rid_mask, verbose=False):
         batch_size = cid.shape[0]
         acc, loss = 0, 0
 
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
-        neg_rep = self.queue.clone().detach()    # [K, 768]
-        
-        dot_product_1 = torch.matmul(cid_rep, rid_rep.t())    # [B, B]
-        dot_product_2 = torch.matmul(cid_rep, neg_rep.t())    # [B, K]
-        dot_product = torch.cat([dot_product_1, dot_product_2], dim=1)    # [B, B+K]
-        mask = torch.eye(batch_size).half().cuda()    # [B, B]
-        zeros = torch.zeros_like(dot_product_2).cuda()
-        mask = torch.cat([mask, zeros], dim=1)
+        # neg_rep
+        neg_rep = []
+        weights = torch.matmul(cid_rep, self.queue.t())    # [B, K]
+        weights = weights.topk(self.topk, largest=False, dim=1)[1]    # [B, topk]
+
+        # verbose
+        if verbose:
+            verbose_weights = weights.topk(10, dim=1)[1]
+            random_idx = random.choice(range(batch_size))
+            hard_ids = self.queue_ids[verbose_weights[random_idx], :]
+            cid_text = self.vocab.decode(cid[random_idx]).replace('[PAD]', '').strip()
+            rid_text = self.vocab.decode(rid[random_idx]).replace('[PAD]', '').strip()
+            hard_text = [self.vocab.decode(ids).replace('[PAD]', '').strip() for ids in hard_ids]
+            print(f'[!] CTX: {cid_text}')
+            print(f'[!] RES: {rid_text}')
+            for i, text in enumerate(hard_text):
+                print(f'[!] HARD-{i}: {text}')
+            print()
+
+        for index in weights:
+            neg_rep.append(self.queue[index, :])
+        neg_rep = torch.stack(neg_rep)    # [B, K, E]
+        rid_rep_ = torch.cat([rid_rep.unsqueeze(0).repeat(batch_size, 1, 1), neg_rep], dim=1)    # [B, K+B, E]
+        dot_product = torch.bmm(
+            cid_rep.unsqueeze(1),    # [B, 1, E]
+            rid_rep_.permute(0, 2, 1),    # [B, E, K+B]
+        ).squeeze(1)    # [B, K+B]
+        mask = torch.zeros_like(dot_product).cuda()
+        mask[torch.arange(batch_size), torch.arange(batch_size)] = 1
         loss_ = F.log_softmax(dot_product, dim=-1) * mask
         loss = (-loss_.sum(dim=1)).mean()
         # calculate the acc
@@ -97,14 +134,18 @@ class BERTDualCLEncoder(nn.Module):
         acc = acc_num / batch_size
 
         # dequeue and enqueue, buffer tensor will not be updated by optimizer
-        self._dequeue_and_enqueue(rid_rep)
+        # pad rid
+        rid_pad = torch.cat([
+                rid,
+                torch.zeros(batch_size, self.max_len-rid.shape[1]).to(torch.long).cuda(),
+            ], dim=-1
+        )    # [B, max_len]
+        self._dequeue_and_enqueue(rid_rep, rid_pad)
         return loss, acc, int(self.queue_ptr)
     
     
 class BERTDualCLEncoderAgent(RetrievalBaseAgent):
 
-    '''response encoder update slower'''
-    
     def __init__(self, multi_gpu, total_step, warmup_step, run_mode='train', local_rank=0, dataset_name='ecommerce', pretrained_model='bert-base-chinese', pretrained_model_path=None, head=10):
         super(BERTDualCLEncoderAgent, self).__init__()
         try:
@@ -120,18 +161,26 @@ class BERTDualCLEncoderAgent(RetrievalBaseAgent):
             'local_rank': local_rank,
             'warmup_steps': warmup_step,
             'total_step': total_step,
-            'max_len': 256,
             'dataset': dataset_name,
             'pretrained_model_path': pretrained_model_path,
-            'oom_times': 10,
-            'K': 4096,
-            'test_interval': 0.05
+            'K': 65536,
+            'topk': 4096,
+            'local_rank': local_rank,
+            'test_interval': 0.05,
+            'max_len': 256,
         }
         self.args['test_step'] = [int(total_step*i) for i in np.arange(0, 1+self.args['test_interval'], self.args['test_interval'])]
         self.test_step_counter = 0
 
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
-        self.model = BERTDualCLEncoder(model=self.args['model'], K=self.args['K'])
+        self.model = BERTDualCLEncoder(
+            model=self.args['model'], 
+            K=self.args['K'], 
+            topk=self.args['topk'],
+            vocab=self.vocab,
+            max_len=self.args['max_len'],
+            local_rank=self.args['local_rank'],
+        )
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)
         if torch.cuda.is_available():
@@ -176,7 +225,11 @@ class BERTDualCLEncoderAgent(RetrievalBaseAgent):
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
             cid, rid, cid_mask, rid_mask = batch
-            loss, acc, ptr = self.model(cid, rid, cid_mask, rid_mask)
+            if batch_num in self.args['test_step']:
+                verbose = True
+            else:
+                verbose = False
+            loss, acc, ptr = self.model(cid, rid, cid_mask, rid_mask, verbose=verbose)
 
             with amp.scale_loss(loss, self.optimizer) as scaled_loss:
                 scaled_loss.backward()
