@@ -28,17 +28,10 @@ class BertEmbedding(nn.Module):
 
 class BERTDualEncoder(nn.Module):
     
-    def __init__(self, model='bert-base-chinese', scale_loss=1/32, p=0.2, lambd=3.9e-3):
+    def __init__(self, model='bert-base-chinese', p=0.2):
         super(BERTDualEncoder, self).__init__()
         self.ctx_encoder = BertEmbedding(model=model, p=p)
         self.can_encoder = BertEmbedding(model=model, p=p)
-        self.lambd = lambd
-        self.scale_loss = scale_loss
-        self.bn = nn.BatchNorm1d(768, affine=False)
-
-    def init_test_time(self):
-        # counting test time
-        self.test_time_cost = []
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
@@ -57,21 +50,12 @@ class BERTDualEncoder(nn.Module):
     
     @torch.no_grad()
     def predict(self, cid, rid, rid_mask):
-        t = 0
-        s_time = time.time()
         batch_size = rid.shape[0]
         cid_rep = self.ctx_encoder(cid.unsqueeze(0), None)
-        e_time = time.time()
-        t += e_time - s_time
-
         rid_rep = self.can_encoder(rid, rid_mask)
-        s_time = time.time()
         cid_rep = cid_rep.squeeze(0)    # [768]
         # cid_rep/rid_rep: [768], [B, 768]
         dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B]
-        e_time = time.time()
-        t += e_time - s_time
-        self.test_time_cost.append(t)
         return dot_product
 
     def off_diagonal(self, x):
@@ -84,7 +68,6 @@ class BERTDualEncoder(nn.Module):
         batch_size = cid.shape[0]
         assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
-        # cid_rep, rid_rep = F.normalize(cid_rep, 2, -1), F.normalize(rid_rep, 2, -1)
         dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
         
         # use half for supporting the apex
@@ -132,15 +115,13 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             'oom_times': 10,
             'dropout': 0.2,
             'amp_level': 'O2',
-            'lambd': 3.9e-3,
-            'scale_loss': 1/128,
             'test_interval': 0.05,
         }
         self.args['test_step'] = [int(total_step*i) for i in np.arange(0, 1+self.args['test_interval'], self.args['test_interval'])]
         self.test_step_counter = 0
 
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
-        self.model = BERTDualEncoder(model=self.args['model'], p=self.args['dropout'], lambd=self.args['lambd'], scale_loss=self.args['scale_loss'])
+        self.model = BERTDualEncoder(model=self.args['model'], p=self.args['dropout'])
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)
         if torch.cuda.is_available():
@@ -219,7 +200,6 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
              
             pbar.set_description(f'[!] loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
-            break
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
         return round(total_loss / batch_num, 4)
@@ -227,7 +207,6 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
     @torch.no_grad()
     def test_model(self):
         self.model.eval()
-        self.model.module.init_test_time()
         pbar = tqdm(self.test_iter)
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
         total_examples, total_correct = 0, 0
@@ -252,19 +231,16 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
                         total_examples -= 1
             total_mrr += logits_mrr(pos_index)
             total_correct = np.add(total_correct, num_correct)
-            # total_examples += math.ceil(label.size()[0] / 10)
             total_examples += 1
         avg_mrr = float(total_mrr / total_examples)
         avg_prec_at_one = float(total_prec_at_one / total_examples)
         avg_map = float(total_map / total_examples)
-        avg_time = np.mean(self.model.module.test_time_cost)
         
         for i in range(len(k_list)):
             print(f"R10@{k_list[i]}: {round(((total_correct[i] / total_examples) * 100), 2)}")
         print(f"MRR: {round(avg_mrr, 4)}")
         print(f"P@1: {round(avg_prec_at_one, 4)}")
         print(f"MAP: {round(avg_map, 4)}")
-        print(f"Avg Time Cost: {round(1000*avg_time, 5)} ms")
         return (total_correct[0]/total_examples, total_correct[1]/total_examples, total_correct[2]/total_examples), avg_mrr, avg_prec_at_one, avg_map
 
     @torch.no_grad()

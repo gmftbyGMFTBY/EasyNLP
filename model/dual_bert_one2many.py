@@ -12,9 +12,9 @@ class BertEmbedding(nn.Module):
             # english corpus has three special tokens: __number__, __url__, __path__
             self.model.resize_token_embeddings(self.model.config.vocab_size + 3)
 
-    def forward(self, ids, attn_mask):
+    def forward(self, ids, attn_mask, m=0):
         embd = self.model(ids, attention_mask=attn_mask)[0]    # [B, S, 768]
-        return embd[:, 0, :]
+        return embd
     
     def load_bert_model(self, state_dict):
         new_state_dict = OrderedDict()
@@ -26,94 +26,121 @@ class BertEmbedding(nn.Module):
         self.model.load_state_dict(new_state_dict)
     
 
-class BERTDualEncoder(nn.Module):
-    
-    def __init__(self, model='bert-base-chinese', scale_loss=1/32, p=0.2, lambd=3.9e-3):
-        super(BERTDualEncoder, self).__init__()
+class BERTDualOne2ManyEncoder(nn.Module):
+
+    def __init__(self, model='bert-base-chinese', head=5, p=0.1):
+        super(BERTDualOne2ManyEncoder, self).__init__()
         self.ctx_encoder = BertEmbedding(model=model, p=p)
         self.can_encoder = BertEmbedding(model=model, p=p)
-        self.lambd = lambd
-        self.scale_loss = scale_loss
-        self.bn = nn.BatchNorm1d(768, affine=False)
+        self.head_proj = nn.Parameter(torch.randn(head, 768))
+        self.head_num = head
 
-    def init_test_time(self):
-        # counting test time
-        self.test_time_cost = []
+    def _encode(self, cid, rids, cid_mask, rids_mask):
+        cid_rep = self.ctx_encoder(cid, cid_mask)    # [B, S, E]
+        weights = torch.matmul(cid_rep, self.head_proj.t()).permute(0, 2, 1)    # [B, H, S]
+        weights /= np.sqrt(768)
+        cid_mask_ = torch.where(cid_mask != 0, torch.zeros_like(cid_mask), torch.ones_like(cid_mask))
+        cid_mask_ = cid_mask_ * -1e3
+        cid_mask_ = cid_mask.unsqueeze(1).repeat(1, self.head_num, 1)    # [B, H, S]
+        weights += cid_mask_
+        weights = F.softmax(weights, dim=-1)    # [B, H, S]
+        cid_reps = torch.bmm(weights, cid_rep)    # [B, H, E]
 
-    def _encode(self, cid, rid, cid_mask, rid_mask):
+        rid_reps = []
+        for rid, rid_mask in zip(rids, rids_mask):
+            rid_rep = self.can_encoder(rid, rid_mask)
+            rid_rep = rid_rep[:, 0, :]    # [B, E]
+            rid_reps.append(rid_rep)
+        return cid_reps, rid_reps
+
+    @torch.no_grad()
+    def _encode_(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
+        weights = torch.matmul(cid_rep, self.head_proj.t()).permute(0, 2, 1)    # [B, H, S]
+        weights /= np.sqrt(768)
+        cid_mask_ = torch.where(cid_mask != 0, torch.zeros_like(cid_mask), torch.ones_like(cid_mask))
+        cid_mask_ = cid_mask_ * -1e3
+        cid_mask_ = cid_mask.unsqueeze(1).repeat(1, self.head_num, 1)    # [B, H, S]
+        weights += cid_mask_
+        weights = F.softmax(weights, dim=-1)    # [B, H, S]
+        cid_reps = torch.bmm(weights, cid_rep)    # [B, H, E]
+
         rid_rep = self.can_encoder(rid, rid_mask)
-        return cid_rep, rid_rep
+        return cid_reps, rid_rep
 
-    @torch.no_grad()
-    def get_cand(self, ids, attn_mask):
-        rid_rep = self.can_encoder(ids, attn_mask)
-        return rid_rep
-
-    @torch.no_grad()
-    def get_ctx(self, ids, attn_mask):
-        cid_rep = self.ctx_encoder(ids, attn_mask)
-        return cid_rep
-    
     @torch.no_grad()
     def predict(self, cid, rid, rid_mask):
-        t = 0
-        s_time = time.time()
         batch_size = rid.shape[0]
-        cid_rep = self.ctx_encoder(cid.unsqueeze(0), None)
-        e_time = time.time()
-        t += e_time - s_time
-
-        rid_rep = self.can_encoder(rid, rid_mask)
-        s_time = time.time()
-        cid_rep = cid_rep.squeeze(0)    # [768]
-        # cid_rep/rid_rep: [768], [B, 768]
-        dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B]
-        e_time = time.time()
-        t += e_time - s_time
-        self.test_time_cost.append(t)
+        cid = cid.unsqueeze(0)
+        cid_mask = torch.ones_like(cid).cuda()
+        cid_reps, rid_rep = self._encode_(cid, rid, cid_mask, rid_mask)
+        # cid_rep/rid_rep: [1, H, 768], [B, 768]
+        cid_rep = cid_rep.squeeze(0)    # [H, 768]
+        dot_product = torch.matmul(cid_rep, rid_rep.t()).max(dim=0)    # [H, B] -> [B]
         return dot_product
-
-    def off_diagonal(self, x):
-        n, m = x.shape
-        assert n == m
-        return x.flatten()[:-1].view(n-1, n+1)[:, 1:].flatten()
-        
-    def forward(self, cid, rid, cid_mask, rid_mask):
-        '''add barlow twins loss'''
+    
+    def forward(self, cid, rids, cid_mask, rids_mask):
         batch_size = cid.shape[0]
         assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
-        cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
-        # cid_rep, rid_rep = F.normalize(cid_rep, 2, -1), F.normalize(rid_rep, 2, -1)
-        dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
-        
+        cid_reps, rid_reps = self._encode(cid, rids, cid_mask, rids_mask)
+
+        # ========== K matrixes =========== #
+        # cid_rep/rid_rep: [B, 768]
+        mask = torch.eye(batch_size).cuda().half()    # [B, B]
+        acc, loss, additional_matrix, neg_additional_matrix = 0, 0, [], []
+        counter = 0
+        for rid_rep in rid_reps:
+            dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
+            loss_ = F.log_softmax(dot_product, dim=-1) * mask
+            loss_ = (-loss_.sum(dim=1)).mean()
+            loss += loss_
+
+            if counter == 0:
+                acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
+                acc = acc_num / batch_size
+            additional_matrix.append(dot_product[range(batch_size), range(batch_size)])
+            counter += 1
+
+        loss /= self.head_num
+        additional_matrix = torch.stack(additional_matrix).transpose(0, 1)
+        mask_ = torch.zeros_like(additional_matrix).cuda()
+        mask_[:, 0] = 1
+        additional_loss = F.log_softmax(additional_matrix, dim=-1) * mask_
+        additional_loss = (-additional_loss.sum(dim=1)).mean()
+        loss += additional_loss
+        return loss, acc
+    
+    def forward_(self, cid, rids, cid_mask, rids_mask):
+        batch_size = cid.shape[0]
+        assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
+        cid_reps, rid_reps = self._encode(cid, rids, cid_mask, rids_mask)
+
+        # ========== K matrixes =========== #
+        # cid_rep/rid_rep: [B, 768]
         # use half for supporting the apex
-        mask = torch.eye(batch_size).cuda()    # [B, B]
+        mask = torch.eye(batch_size).cuda().half()    # [B, B]
+        mask = torch.cat([mask, torch.zeros(batch_size, batch_size*(len(cid_reps)-1)).half().cuda()], dim=-1)    # [B, B*K]
         # mask = torch.eye(batch_size).cuda()    # [B, B]
         # calculate accuracy
-        acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
-        acc = acc_num / batch_size
+        acc, loss, additional_matrix = 0, 0, []
+        counter = 0
+        dot_products = []
+        for cid_rep, rid_rep in zip(cid_reps, rid_reps):
+            dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
+            dot_products.append(dot_product)
+        dot_products = torch.cat(dot_products, dim=-1)    # [B, B*K]
         # calculate the loss
-        loss = F.log_softmax(dot_product, dim=-1) * mask
-        loss = (-loss.sum(dim=1)).mean()
-
-        # twins loss
-        # cid_rep, rid_rep = self.bn(cid_rep), self.bn(rid_rep)
-        # c = cid_rep.T @ rid_rep     # [E, E]
-        # c /= batch_size
-        # on_diag = torch.diagonal(c).add(-1).pow(2).mul(self.scale_loss).sum()
-        # off_diag = self.off_diagonal(c).pow(2).mul(self.scale_loss).sum()
-        # loss_twins = on_diag + self.lambd * off_diag
-        # loss += loss_twins
-        # if loss.isnan():
-        #     ipdb.set_trace()
+        loss_ = F.log_softmax(dot_products, dim=-1) * mask
+        loss = (-loss_.sum(dim=1)).mean()
+        acc_num = (F.softmax(dot_products, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
+        acc = acc_num / batch_size
         return loss, acc
     
     
-class BERTDualEncoderAgent(RetrievalBaseAgent):
+class BERTDualOne2ManyEncoderAgent(RetrievalBaseAgent):
     
-    def __init__(self, multi_gpu, total_step, warmup_step, run_mode='train', local_rank=0, dataset_name='ecommerce', pretrained_model='bert-base-chinese', pretrained_model_path=None):
-        super(BERTDualEncoderAgent, self).__init__()
+    def __init__(self, multi_gpu, total_step, warmup_step, run_mode='train', local_rank=0, dataset_name='ecommerce', pretrained_model='bert-base-chinese', pretrained_model_path=None, head=10):
+        super(BERTDualOne2ManyEncoderAgent, self).__init__()
         try:
             self.gpu_ids = list(range(len(multi_gpu.split(',')))) 
         except:
@@ -123,6 +150,7 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             'grad_clip': 1.0,
             'multi_gpu': self.gpu_ids,
             'model': pretrained_model,
+            'amp_level': 'O2',
             'local_rank': local_rank,
             'warmup_steps': warmup_step,
             'total_step': total_step,
@@ -130,17 +158,14 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             'dataset': dataset_name,
             'pretrained_model_path': pretrained_model_path,
             'oom_times': 10,
+            'head_num': head,
             'dropout': 0.2,
-            'amp_level': 'O2',
-            'lambd': 3.9e-3,
-            'scale_loss': 1/128,
-            'test_interval': 0.05,
+            'margin': 0.1,
+            'pseudo_ratio': 2,
+            'm': 5,
         }
-        self.args['test_step'] = [int(total_step*i) for i in np.arange(0, 1+self.args['test_interval'], self.args['test_interval'])]
-        self.test_step_counter = 0
-
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
-        self.model = BERTDualEncoder(model=self.args['model'], p=self.args['dropout'], lambd=self.args['lambd'], scale_loss=self.args['scale_loss'])
+        self.model = BERTDualOne2ManyEncoder(model=self.args['model'], head=self.args['head_num'], p=self.args['dropout'])
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)
         if torch.cuda.is_available():
@@ -149,11 +174,11 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             self.model.parameters(), 
             lr=self.args['lr'],
         )
-        if run_mode in ['train', 'train-post', 'train-dual-post']:
+        if run_mode == 'train':
             self.model, self.optimizer = amp.initialize(
-                self.model,
+                self.model, 
                 self.optimizer,
-                opt_level=self.args['amp_level']
+                opt_level=self.args['amp_level'],
             )
             self.scheduler = transformers.get_linear_schedule_with_warmup(
                 self.optimizer, 
@@ -164,7 +189,7 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
                 self.model, device_ids=[local_rank], output_device=local_rank,
                 find_unused_parameters=True,
             )
-        elif run_mode in ['inference']:
+        elif run_mode == 'inference':
             self.model = nn.parallel.DistributedDataParallel(
                 self.model, device_ids=[local_rank], output_device=local_rank,
                 find_unused_parameters=True,
@@ -178,56 +203,38 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         print(f'[!] load pretrained BERT model from {path}')
         
     def train_model(self, train_iter, mode='train', recoder=None, idx_=0):
+        '''ADD OOM ASSERTION'''
         self.model.train()
         total_loss, total_acc, batch_num = 0, 0, 0
-        total_tloss, total_bloss = 0, 0
         pbar = tqdm(train_iter)
         correct, s, oom_t = 0, 0, 0
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
             cid, rid, cid_mask, rid_mask = batch
             loss, acc = self.model(cid, rid, cid_mask, rid_mask)
-            
             with amp.scale_loss(loss, self.optimizer) as scaled_loss:
                 scaled_loss.backward()
             clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
-
             self.optimizer.step()
             self.scheduler.step()
 
             total_loss += loss.item()
             total_acc += acc
             batch_num += 1
-
-            if batch_num in self.args['test_step']:
-                # test in the training loop
-                index = self.test_step_counter
-                index = self.args['test_step'].index(batch_num)
-                (r10_1, r10_2, r10_5), avg_mrr, avg_p1, avg_map = self.test_model()
-                self.model.train()    # reset the train mode
-                recoder.add_scalar(f'train-test/R10@1', r10_1, index)
-                recoder.add_scalar(f'train-test/R10@2', r10_2, index)
-                recoder.add_scalar(f'train-test/R10@5', r10_5, index)
-                recoder.add_scalar(f'train-test/MRR', avg_mrr, index)
-                recoder.add_scalar(f'train-test/P@1', avg_p1, index)
-                recoder.add_scalar(f'train-test/MAP', avg_map, index)
-                self.test_step_counter += 1
             
             recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
             recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
             recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
             recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
-             
+            
             pbar.set_description(f'[!] loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
-            break
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
         return round(total_loss / batch_num, 4)
-
+        
     @torch.no_grad()
     def test_model(self):
         self.model.eval()
-        self.model.module.init_test_time()
         pbar = tqdm(self.test_iter)
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
         total_examples, total_correct = 0, 0
@@ -237,7 +244,7 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             batch_size = len(rids)
             assert batch_size == 10, f'[!] {batch_size} is not equal to 10'
             scores = self.model.module.predict(cid, rids, rids_mask).cpu().tolist()    # [B]
-
+            
             rank_by_pred, pos_index, stack_scores = \
           calculate_candidates_ranking(
                 np.array(scores), 
@@ -252,19 +259,16 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
                         total_examples -= 1
             total_mrr += logits_mrr(pos_index)
             total_correct = np.add(total_correct, num_correct)
-            # total_examples += math.ceil(label.size()[0] / 10)
-            total_examples += 1
+            total_examples += math.ceil(label.size()[0] / 10)
         avg_mrr = float(total_mrr / total_examples)
         avg_prec_at_one = float(total_prec_at_one / total_examples)
         avg_map = float(total_map / total_examples)
-        avg_time = np.mean(self.model.module.test_time_cost)
         
         for i in range(len(k_list)):
             print(f"R10@{k_list[i]}: {round(((total_correct[i] / total_examples) * 100), 2)}")
         print(f"MRR: {round(avg_mrr, 4)}")
         print(f"P@1: {round(avg_prec_at_one, 4)}")
         print(f"MAP: {round(avg_map, 4)}")
-        print(f"Avg Time Cost: {round(1000*avg_time, 5)} ms")
         return (total_correct[0]/total_examples, total_correct[1]/total_examples, total_correct[2]/total_examples), avg_mrr, avg_prec_at_one, avg_map
 
     @torch.no_grad()

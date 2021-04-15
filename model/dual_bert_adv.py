@@ -39,10 +39,8 @@ class Adv(nn.Module):
         self.adversaries = nn.Parameter(torch.randn(self.K, 768))
 
     def forward(self, x):
-        # x: [B, E]
         key = torch.matmul(x, self.adversaries.t())    # [B, K]
         key = key.topk(self.topk, dim=1)[1]    # [B, topk]
-        # [K, E] -> [B, topk, E] 
         adv_rep = []
         for index in key:
             adv_rep.append(self.adversaries[index, :])
@@ -74,7 +72,6 @@ class BERTDualAdvEncoder(nn.Module):
         
     def forward(self, cid, rid, cid_mask, rid_mask):
         batch_size = cid.shape[0]
-        assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
         cid_rep, rid_rep, adv_rep = self._encode(cid, rid, cid_mask, rid_mask)
 
         # Sub-network 1, context encoder and response encoder feedforward
@@ -95,7 +92,6 @@ class BERTDualAdvEncoder(nn.Module):
         loss = (-loss.sum(dim=1)).mean()
 
         # Sub-network2, adversarials feedforward
-        # DETACH
         # [B, topk, 768] x [B, 768, 1] -> [B, topk]
         dot_product_ = torch.bmm(adv_rep, cid_rep.detach().unsqueeze(-1)).squeeze(-1)
         dot_product = torch.cat([dot_product_base.detach(), dot_product_], dim=1)
@@ -128,7 +124,11 @@ class BERTDualAdvEncoderAgent(RetrievalBaseAgent):
             'oom_times': 10,
             'K': 65536,
             'topk': 1024,
+            'test_interval': 0.05,
         }
+        self.args['test_step'] = [int(total_step*i) for i in np.arange(0, 1+self.args['test_interval'], self.args['test_interval'])]
+        self.test_step_counter = 0
+
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
         self.model = BERTDualAdvEncoder(model=self.args['model'], K=self.args['K'], topk=self.args['topk'])
         if pretrained_model_path:
@@ -188,21 +188,33 @@ class BERTDualAdvEncoderAgent(RetrievalBaseAgent):
             total_loss += loss.item()
             total_acc += acc
             batch_num += 1
+
+            if batch_num in self.args['test_step']:
+                index = self.test_step_counter
+                (r10_1, r10_2, r10_5), avg_mrr, avg_p1, avg_map = self.test_model()
+                self.model.train()
+                recoder.add_scalar(f'train-test/R10@1', r10_1, index)
+                recoder.add_scalar(f'train-test/R10@2', r10_2, index)
+                recoder.add_scalar(f'train-test/R10@5', r10_5, index)
+                recoder.add_scalar(f'train-test/MRR', avg_mrr, index)
+                recoder.add_scalar(f'train-test/P@1', avg_p1, index)
+                recoder.add_scalar(f'train-test/MAP', avg_map, index)
+                self.test_step_counter += 1
             
             recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
             recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
             recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
             recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
             
-            pbar.set_description(f'[!] OOM: {oom_t}; loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
+            pbar.set_description(f'[!] loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
         return round(total_loss / batch_num, 4)
         
     @torch.no_grad()
-    def test_model(self, test_iter, recoder=None):
+    def test_model(self):
         self.model.eval()
-        pbar = tqdm(test_iter)
+        pbar = tqdm(self.test_iter)
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
         total_examples, total_correct = 0, 0
         k_list = [1, 2, 5, 10]

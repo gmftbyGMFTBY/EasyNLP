@@ -28,56 +28,43 @@ class BertEmbedding(nn.Module):
 
 class BERTDualCLEncoder(nn.Module):
 
-    def __init__(self, model='bert-base-chinese', K=4096, topk=1024, max_len=256, vocab=None, local_rank=0):
+    def __init__(self, model='bert-base-chinese', K=4096, topk=128):
         super(BERTDualCLEncoder, self).__init__()
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
         # queue
         self.K = K
+        self.topk = topk
         self.register_buffer('queue', torch.randn(self.K, 768))
         self.register_buffer('queue_ptr', torch.zeros(1, dtype=torch.long))
-        self.register_buffer('queue_ids', torch.zeros(self.K, max_len).to(torch.long))
-        self.vocab = vocab
-        self.topk = topk
-        self.max_len = max_len
-        self.local_rank = local_rank
+        self.register_buffer('queue_size', torch.zeros(1, dtype=torch.long))
 
     @torch.no_grad()
-    def concat_all_gather(self, tensor, rids):
+    def concat_all_gather(self, tensor):
         '''collect samples from all the devices'''
         tensor = tensor.contiguous()
-        rids = rids.contiguous()
-
         tensors_gather = [torch.ones_like(tensor)
                 for _ in range(torch.distributed.get_world_size())]
-        rids_gather = [torch.zeros_like(rids)
-                for _ in range(torch.distributed.get_world_size())]
-
         torch.distributed.all_gather(tensors_gather, tensor, async_op=False)
-        torch.distributed.all_gather(rids_gather, rids, async_op=False)
-
         output = torch.cat(tensors_gather, dim=0)
-        rids_output = torch.cat(rids_gather, dim=0)
-        return output, rids_output
+        return output
 
     @torch.no_grad()
-    def _dequeue_and_enqueue(self, keys, ids):
-        keys, ids = self.concat_all_gather(keys, ids)
+    def _dequeue_and_enqueue(self, keys):
+        keys = self.concat_all_gather(keys)
         batch_size = len(keys)
         ptr = int(self.queue_ptr)
 
         if ptr + batch_size <= self.K:
             self.queue[ptr:ptr+batch_size, :] = keys
-            self.queue_ids[ptr:ptr+batch_size, :] = ids
         else:
             s_before = self.K - ptr
             s_after = batch_size - (self.K - ptr)
             self.queue[ptr:, :] = keys[:s_before, :]
             self.queue[:s_after, :] = keys[-s_after:, :]
-            self.queue_ids[ptr:, :] = ids[:s_before, :]
-            self.queue_ids[:s_after, :] = ids[-s_after:, :]
         ptr = (ptr + batch_size) % self.K
         self.queue_ptr[0] = ptr
+        self.queue_size[0] = min(self.K, self.queue_size + batch_size)
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
@@ -92,56 +79,35 @@ class BERTDualCLEncoder(nn.Module):
         cid_rep = cid_rep.squeeze(0)    # [768]
         dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B]
         return dot_product
-
-    def forward(self, cid, rid, cid_mask, rid_mask, verbose=False):
+    
+    def forward(self, cid, rid, cid_mask, rid_mask, dequeue_enqueue=False):
         batch_size = cid.shape[0]
         acc, loss = 0, 0
-
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
-        # neg_rep
-        neg_rep = []
-        weights = torch.matmul(cid_rep, self.queue.t())    # [B, K]
-        weights = weights.topk(self.topk, largest=False, dim=1)[1]    # [B, topk]
 
-        # verbose
-        if verbose:
-            verbose_weights = weights.topk(10, dim=1)[1]
-            random_idx = random.choice(range(batch_size))
-            hard_ids = self.queue_ids[verbose_weights[random_idx], :]
-            cid_text = self.vocab.decode(cid[random_idx]).replace('[PAD]', '').strip()
-            rid_text = self.vocab.decode(rid[random_idx]).replace('[PAD]', '').strip()
-            hard_text = [self.vocab.decode(ids).replace('[PAD]', '').strip() for ids in hard_ids]
-            print(f'[!] CTX: {cid_text}')
-            print(f'[!] RES: {rid_text}')
-            for i, text in enumerate(hard_text):
-                print(f'[!] HARD-{i}: {text}')
-            print()
-
-        for index in weights:
-            neg_rep.append(self.queue[index, :])
-        neg_rep = torch.stack(neg_rep)    # [B, K, E]
-        rid_rep_ = torch.cat([rid_rep.unsqueeze(0).repeat(batch_size, 1, 1), neg_rep], dim=1)    # [B, K+B, E]
-        dot_product = torch.bmm(
-            cid_rep.unsqueeze(1),    # [B, 1, E]
-            rid_rep_.permute(0, 2, 1),    # [B, E, K+B]
-        ).squeeze(1)    # [B, K+B]
+        if dequeue_enqueue and int(self.queue_size) > self.topk:
+            neg_rep = []
+            for _ in range(batch_size):
+                random_idx = random.sample(range(self.K), self.topk)
+                neg_rep.append(self.queue[random_idx, :])
+            neg_rep = torch.stack(neg_rep)    # [B, K, E]
+            neg_rep = torch.cat([rid_rep.unsqueeze(0).repeat(batch_size, 1, 1), neg_rep], dim=1)    # [B, B+K, E]
+            dot_product = torch.bmm(cid_rep.unsqueeze(1), neg_rep.permute(0, 2, 1)).squeeze(1)    # [B, B+K]
+        else:
+            dot_product = torch.matmul(cid_rep, rid_rep.t())    # [B, B]
         mask = torch.zeros_like(dot_product).cuda()
         mask[torch.arange(batch_size), torch.arange(batch_size)] = 1
         loss_ = F.log_softmax(dot_product, dim=-1) * mask
         loss = (-loss_.sum(dim=1)).mean()
+        
         # calculate the acc
         acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
         acc = acc_num / batch_size
-
-        # dequeue and enqueue, buffer tensor will not be updated by optimizer
-        # pad rid
-        rid_pad = torch.cat([
-                rid,
-                torch.zeros(batch_size, self.max_len-rid.shape[1]).to(torch.long).cuda(),
-            ], dim=-1
-        )    # [B, max_len]
-        self._dequeue_and_enqueue(rid_rep, rid_pad)
-        return loss, acc, int(self.queue_ptr)
+        
+        # dequeue and enqueue the updated rid_rep
+        if dequeue_enqueue:
+            self._dequeue_and_enqueue(rid_rep)
+        return loss, acc, int(self.queue_ptr), int(self.queue_size)
     
     
 class BERTDualCLEncoderAgent(RetrievalBaseAgent):
@@ -153,7 +119,8 @@ class BERTDualCLEncoderAgent(RetrievalBaseAgent):
         except:
             raise Exception(f'[!] multi gpu ids are needed, but got: {multi_gpu}')
         self.args = {
-            'lr': 5e-5,
+            'lr': 1e-4,
+            'lr_': 1e-4,
             'grad_clip': 1.0,
             'multi_gpu': self.gpu_ids,
             'model': pretrained_model,
@@ -163,11 +130,10 @@ class BERTDualCLEncoderAgent(RetrievalBaseAgent):
             'total_step': total_step,
             'dataset': dataset_name,
             'pretrained_model_path': pretrained_model_path,
-            'K': 65536,
-            'topk': 4096,
+            'K': 4096,
+            'topk': 128,
             'local_rank': local_rank,
             'test_interval': 0.05,
-            'max_len': 256,
         }
         self.args['test_step'] = [int(total_step*i) for i in np.arange(0, 1+self.args['test_interval'], self.args['test_interval'])]
         self.test_step_counter = 0
@@ -177,18 +143,19 @@ class BERTDualCLEncoderAgent(RetrievalBaseAgent):
             model=self.args['model'], 
             K=self.args['K'], 
             topk=self.args['topk'],
-            vocab=self.vocab,
-            max_len=self.args['max_len'],
-            local_rank=self.args['local_rank'],
         )
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)
         if torch.cuda.is_available():
             self.model.cuda()
-        self.optimizer = transformers.AdamW(
-            self.model.parameters(), 
-            lr=self.args['lr'],
-        )
+        # self.optimizer = transformers.AdamW(
+        #     self.model.parameters(), 
+        #     lr=self.args['lr'],
+        # )
+        self.optimizer = transformers.AdamW([
+            {'params': self.model.ctx_encoder.parameters(), 'lr': self.args['lr']},
+            {'params': self.model.can_encoder.parameters(), 'lr': self.args['lr_']}
+        ])
         if run_mode in ['train', 'train-post', 'train-dual-post']:
             self.model, self.optimizer = amp.initialize(
                 self.model,
@@ -221,15 +188,11 @@ class BERTDualCLEncoderAgent(RetrievalBaseAgent):
         self.model.train()
         total_loss, total_acc, batch_num = 0, 0, 0
         pbar = tqdm(train_iter)
-        correct, s, oom_t = 0, 0, 0
+        correct, s, whole_step_counter = 0, 0, len(train_iter) * idx_
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
             cid, rid, cid_mask, rid_mask = batch
-            if batch_num in self.args['test_step']:
-                verbose = True
-            else:
-                verbose = False
-            loss, acc, ptr = self.model(cid, rid, cid_mask, rid_mask, verbose=verbose)
+            loss, acc, ptr, size = self.model(cid, rid, cid_mask, rid_mask, dequeue_enqueue=True)
 
             with amp.scale_loss(loss, self.optimizer) as scaled_loss:
                 scaled_loss.backward()
@@ -240,6 +203,7 @@ class BERTDualCLEncoderAgent(RetrievalBaseAgent):
             total_loss += loss.item()
             total_acc += acc
             batch_num += 1
+            whole_step_counter += 1
 
             if batch_num in self.args['test_step']:
                 index = self.test_step_counter
@@ -258,7 +222,7 @@ class BERTDualCLEncoderAgent(RetrievalBaseAgent):
             recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
             recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
             
-            pbar.set_description(f'[!] ptr: {ptr}|{self.args["K"]}; loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
+            pbar.set_description(f'[!] queue: {ptr}|{size}; loss: {round(loss.item(), 2)}|{round(total_loss/batch_num, 2)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
         return round(total_loss / batch_num, 4)
