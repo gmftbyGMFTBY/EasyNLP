@@ -24,14 +24,15 @@ class BertEmbedding(nn.Module):
             name = k.replace('_bert_model.bert.', '')
             new_state_dict[name] = v
         self.model.load_state_dict(new_state_dict)
+        self.model.resize_token_embeddings(self.model.config.vocab_size+2)    # [CTX], [RES]
     
 
 class BERTDualCLEncoder(nn.Module):
 
     def __init__(self, model='bert-base-chinese', K=4096, topk=128):
         super(BERTDualCLEncoder, self).__init__()
-        self.ctx_encoder = BertEmbedding(model=model)
-        self.can_encoder = BertEmbedding(model=model)
+        self.encoder = BertEmbedding(model=model)
+        # self.can_encoder = BertEmbedding(model=model)
         # queue
         self.K = K
         self.topk = topk
@@ -67,8 +68,8 @@ class BERTDualCLEncoder(nn.Module):
         self.queue_size[0] = min(self.K, self.queue_size + batch_size)
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
-        cid_rep = self.ctx_encoder(cid, cid_mask)
-        rid_rep = self.can_encoder(rid, rid_mask)
+        cid_rep = self.encoder(cid, cid_mask)
+        rid_rep = self.encoder(rid, rid_mask)
         return cid_rep, rid_rep
 
     @torch.no_grad()
@@ -85,16 +86,16 @@ class BERTDualCLEncoder(nn.Module):
         acc, loss = 0, 0
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
 
-        if dequeue_enqueue and int(self.queue_size) > self.topk:
-            neg_rep = []
-            for _ in range(batch_size):
-                random_idx = random.sample(range(self.K), self.topk)
-                neg_rep.append(self.queue[random_idx, :])
-            neg_rep = torch.stack(neg_rep)    # [B, K, E]
-            neg_rep = torch.cat([rid_rep.unsqueeze(0).repeat(batch_size, 1, 1), neg_rep], dim=1)    # [B, B+K, E]
-            dot_product = torch.bmm(cid_rep.unsqueeze(1), neg_rep.permute(0, 2, 1)).squeeze(1)    # [B, B+K]
-        else:
-            dot_product = torch.matmul(cid_rep, rid_rep.t())    # [B, B]
+        # if dequeue_enqueue and int(self.queue_size) > self.topk:
+        #     neg_rep = []
+        #     for _ in range(batch_size):
+        #         random_idx = random.sample(range(self.K), self.topk)
+        #         neg_rep.append(self.queue[random_idx, :])
+        #     neg_rep = torch.stack(neg_rep)    # [B, K, E]
+        #     neg_rep = torch.cat([rid_rep.unsqueeze(0).repeat(batch_size, 1, 1), neg_rep], dim=1)    # [B, B+K, E]
+        #     dot_product = torch.bmm(cid_rep.unsqueeze(1), neg_rep.permute(0, 2, 1)).squeeze(1)    # [B, B+K]
+        # else:
+        dot_product = torch.matmul(cid_rep, rid_rep.t())    # [B, B]
         mask = torch.zeros_like(dot_product).cuda()
         mask[torch.arange(batch_size), torch.arange(batch_size)] = 1
         loss_ = F.log_softmax(dot_product, dim=-1) * mask
@@ -105,8 +106,8 @@ class BERTDualCLEncoder(nn.Module):
         acc = acc_num / batch_size
         
         # dequeue and enqueue the updated rid_rep
-        if dequeue_enqueue:
-            self._dequeue_and_enqueue(rid_rep)
+        # if dequeue_enqueue:
+        #     self._dequeue_and_enqueue(rid_rep)
         return loss, acc, int(self.queue_ptr), int(self.queue_size)
     
     
@@ -119,8 +120,8 @@ class BERTDualCLEncoderAgent(RetrievalBaseAgent):
         except:
             raise Exception(f'[!] multi gpu ids are needed, but got: {multi_gpu}')
         self.args = {
-            'lr': 1e-4,
-            'lr_': 1e-4,
+            'lr': 5e-5,
+            'lr_': 5e-5,
             'grad_clip': 1.0,
             'multi_gpu': self.gpu_ids,
             'model': pretrained_model,
@@ -131,7 +132,7 @@ class BERTDualCLEncoderAgent(RetrievalBaseAgent):
             'dataset': dataset_name,
             'pretrained_model_path': pretrained_model_path,
             'K': 4096,
-            'topk': 128,
+            'topk': 256,
             'local_rank': local_rank,
             'test_interval': 0.05,
         }
@@ -148,13 +149,8 @@ class BERTDualCLEncoderAgent(RetrievalBaseAgent):
             self.load_bert_model(pretrained_model_path)
         if torch.cuda.is_available():
             self.model.cuda()
-        # self.optimizer = transformers.AdamW(
-        #     self.model.parameters(), 
-        #     lr=self.args['lr'],
-        # )
         self.optimizer = transformers.AdamW([
-            {'params': self.model.ctx_encoder.parameters(), 'lr': self.args['lr']},
-            {'params': self.model.can_encoder.parameters(), 'lr': self.args['lr_']}
+            {'params': self.model.encoder.parameters(), 'lr': self.args['lr']},
         ])
         if run_mode in ['train', 'train-post', 'train-dual-post']:
             self.model, self.optimizer = amp.initialize(
@@ -180,8 +176,8 @@ class BERTDualCLEncoderAgent(RetrievalBaseAgent):
         
     def load_bert_model(self, path):
         state_dict = torch.load(path, map_location=torch.device('cpu'))
-        self.model.ctx_encoder.load_bert_model(state_dict)
-        self.model.can_encoder.load_bert_model(state_dict)
+        # self.model.ctx_encoder.load_bert_model(state_dict)
+        self.model.encoder.load_bert_model(state_dict)
         print(f'[!] load pretrained BERT model from {path}')
         
     def train_model(self, train_iter, mode='train', recoder=None, idx_=0):

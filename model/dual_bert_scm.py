@@ -36,19 +36,24 @@ class BERTDualCompEncoder(nn.Module):
         encoder_layer = nn.TransformerEncoderLayer(
             768, nhead=nhead, dim_feedforward=ndim, dropout=dropout        
         )
-        encoder_norm = nn.LayerNoem(768)
+        encoder_norm = nn.LayerNorm(768)
         self.trs_encoder = nn.TransformerEncoder(
             encoder_layer, nlayer, encoder_norm
         )
         self.proj = nn.Sequential(
             nn.Linear(768, 768),
             nn.ReLU(),
-            nn.Dropout(p=p),
-            nn.Linear(768, 1),
-            nn.Sigmoid()
+            nn.Dropout(p=dropout),
+            nn.Linear(768, 768),
         )
-        self.pos_embd = nn.Embedding(2, 768)
-        self.criterion = nn.BCELoss()
+        self.proj2 = nn.Sequential(
+            nn.Linear(768*2, 768*2),
+            nn.ReLU(),
+            nn.Dropout(p=dropout),
+            nn.Linear(768*2, 768),
+        )
+        self.pos_embd = nn.Embedding(512, 768)
+        self.seg_embd = nn.Embedding(2, 768)
         
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
@@ -61,17 +66,23 @@ class BERTDualCompEncoder(nn.Module):
         ctx_batch_size, res_batch_size = len(cid_rep), len(rid_rep)
         # random shuffle and the get the label
         rid_rep = rid_rep.repeat(ctx_batch_size, 1, 1)    # [B_c, B_r, E]
-        label, rid_reps = []
+        label, rid_reps = [], []
 
         # pos embedding
-        pos_index = torch.tensor([1.] + [0.] * res_batch_size).cuda()
+        pos_index = torch.arange(1+res_batch_size).cuda()
         pos_embd = self.pos_embd(pos_index)    # [B_r+1, E] 
+        pos_embd = pos_embd.unsqueeze(0).repeat(ctx_batch_size, 1, 1)    # [B_c, B_r+1, E]
+
+        # segment embedding
+        seg_index = torch.LongTensor([1] + [0] * res_batch_size).cuda()
+        seg_embd = self.seg_embd(seg_index)
+        seg_embd = seg_embd.unsqueeze(0).repeat(ctx_batch_size, 1, 1)    # [B_c, B_r+1, E]
 
         for i in range(ctx_batch_size):
             item = rid_rep[i]    # [B_r, E]
             index = list(range(res_batch_size))
 
-            if mode == 'test':
+            if mode == 'train':
                 random.shuffle(index)
                 # append label
                 l = torch.LongTensor([0] * res_batch_size)
@@ -81,11 +92,11 @@ class BERTDualCompEncoder(nn.Module):
             # update rid rep
             item = [item[i] for i in index]
             item = torch.stack(item)
-            item += pos_embd    # add the pos embedding
             rid_reps.append(item)
         rid_reps = torch.stack(rid_reps)    # [B_c, B_r, E]
-        cid_rep = cid_rep.unsqueeze(1)    # [B_c, 1, E]
-        ipt = torch.cat([cid_rep, rid_reps], dim=1)    # [B_c, B_r+1, E]
+        ipt = torch.cat([cid_rep.unsqueeze(1), rid_reps], dim=1)    # [B_c, B_r+1, E]
+        ipt += pos_embd
+        ipt += seg_embd
         
         if mode == 'train':
             label = torch.stack(label).cuda()    # [B_c, B_r]
@@ -104,25 +115,35 @@ class BERTDualCompEncoder(nn.Module):
         
         ipt = ipt.permute(1, 0, 2)    # [B_r+1, B_c, E]
         opt = self.trs_encoder(ipt)    # [B_r+1, B_c, E]
-        opt = self.proj(opt).squeeze(-1).transpose(0, 1)    # [B_c, B_r+1]
-        opt = opt[0, 1:]    # [B_r], ignore the context information
-        return opt
+        opt = self.proj2(torch.cat([ipt, opt], dim=-1))
+        opt = self.proj(opt).permute(1, 0, 2)    # [B_c, B_r+1, E]
+        opt = opt[0, 1:, :]    # [B_r, E], ignore the context information
+
+        dot_product = torch.matmul(cid_rep, opt.t())    # [B_c, B_r]
+        return dot_product.squeeze(0)    # [B_r]
         
     def forward(self, cid, rid, cid_mask, rid_mask):
-        ipdb.set_trace()
         batch_size = cid.shape[0]
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)    # [B, E]
         ipt, label = self._get_input_label(cid_rep, rid_rep)
 
         ipt = ipt.permute(1, 0, 2)    # [B_r+1, B_c, E]
         opt = self.trs_encoder(ipt)    # [B_r+1, B_c, E]
-        opt = self.proj(opt).squeeze(-1).transpose(0, 1)    # [B_c, B_r+1]
-        opt = opt[:, 1:]    # [B_c, B_r], ignore the context information
+        opt = self.proj2(torch.cat([ipt, opt], dim=-1))
+        opt = self.proj(opt).permute(1, 0, 2)    # [B_c, B_r+1, E]
+        opt = opt[:, 1:, :]    # [B_c, B_r, E], ignore the context information
 
-        loss = self.criterion(opt.view(-1), label.view(-1))
-        acc_num = sum((opt.view(-1) > 0.5) == label.view(-1))
-        acc = acc_num / len(opt.view(-1))
-        acc *= 100
+        # [B_c, B_r]: [B_c, 1, E] x [B_c, B_r, E]
+        dot_product = torch.bmm(
+            cid_rep.unsqueeze(1),
+            opt.permute(0, 2, 1)
+        ).squeeze(1)    # [B_c, B_r]
+
+        loss = F.log_softmax(dot_product, dim=-1) * label
+        loss = (-loss.sum(dim=1)).mean()
+        
+        acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == label.nonzero()[:, 1]).sum().item()
+        acc = 100 * acc_num / batch_size
         return loss, acc
 
     

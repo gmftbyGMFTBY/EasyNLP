@@ -11,33 +11,6 @@ def parser_args():
     return parser.parse_args()
 
 
-class MemoryBank:
-
-    def __init__(self, corpus):
-        self.data = {}
-        for idx, _ in tqdm(corpus.items()):
-            self.data[idx] = torch.randn(768).half()
-        print(f'[!] init the Memory Bank over')
-
-    def update(self, ids, embds):
-        embds = embds.cpu().detach()
-        for idx, embd in zip(ids, embds):
-            self.data[idx] = embd
-
-    def search(self, ids, topk, bsz):
-        # return B*[K, 768]
-        keys = list(set(self.data) - set(ids))
-        rest = []
-        for _ in range(bsz):
-            index = random.sample(keys, topk)
-            embds = torch.stack([self.data[i] for i in index])    # [K, 768]
-            rest.append(embds)
-        rest = torch.stack(rest).permute(0, 2, 1)    # [B, 768, K]
-        if torch.cuda.is_available():
-            rest = rest.cuda()
-        return rest
-
-
 class Searcher:
 
     def __init__(self, dimension=768, nlist=100):

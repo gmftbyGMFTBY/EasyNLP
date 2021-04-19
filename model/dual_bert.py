@@ -5,16 +5,23 @@ from .utils import *
 
 class BertEmbedding(nn.Module):
     
-    def __init__(self, model='bert-base-chinese', p=0.2):
+    def __init__(self, model='bert-base-chinese', p=0.2, dim=1024):
         super(BertEmbedding, self).__init__()
         self.model = BertModel.from_pretrained(model)
         if model in ['bert-base-uncased']:
             # english corpus has three special tokens: __number__, __url__, __path__
             self.model.resize_token_embeddings(self.model.config.vocab_size + 3)
+        self.proj = nn.Sequential(
+            nn.Linear(768, int(dim/2)),
+            nn.ReLU(),
+            nn.Dropout(p=p),
+            nn.Linear(int(dim/2), dim),
+        )
 
     def forward(self, ids, attn_mask):
         embd = self.model(ids, attention_mask=attn_mask)[0]    # [B, S, 768]
-        return embd[:, 0, :]
+        embd = self.proj(embd.mean(dim=1))    # [B, 768], mean pooling
+        return embd
     
     def load_bert_model(self, state_dict):
         new_state_dict = OrderedDict()
@@ -28,10 +35,13 @@ class BertEmbedding(nn.Module):
 
 class BERTDualEncoder(nn.Module):
     
-    def __init__(self, model='bert-base-chinese', p=0.2):
+    def __init__(self, model='bert-base-chinese', p=0.2, dim=8192, scale_loss=1/32, lambd=5e-3, loss_weight=[10, 0.1]):
         super(BERTDualEncoder, self).__init__()
-        self.ctx_encoder = BertEmbedding(model=model, p=p)
-        self.can_encoder = BertEmbedding(model=model, p=p)
+        self.ctx_encoder = BertEmbedding(model=model, p=p, dim=dim)
+        self.can_encoder = BertEmbedding(model=model, p=p, dim=dim)
+        self.scale_loss, self.lambd = scale_loss, lambd
+        self.bn = nn.BatchNorm1d(dim, affine=False)
+        self.loss_weight = loss_weight
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
@@ -66,14 +76,10 @@ class BERTDualEncoder(nn.Module):
     def forward(self, cid, rid, cid_mask, rid_mask):
         '''add barlow twins loss'''
         batch_size = cid.shape[0]
-        assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
         dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
         
-        # use half for supporting the apex
         mask = torch.eye(batch_size).cuda()    # [B, B]
-        # mask = torch.eye(batch_size).cuda()    # [B, B]
-        # calculate accuracy
         acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
         acc = acc_num / batch_size
         # calculate the loss
@@ -83,13 +89,11 @@ class BERTDualEncoder(nn.Module):
         # twins loss
         # cid_rep, rid_rep = self.bn(cid_rep), self.bn(rid_rep)
         # c = cid_rep.T @ rid_rep     # [E, E]
-        # c /= batch_size
-        # on_diag = torch.diagonal(c).add(-1).pow(2).mul(self.scale_loss).sum()
+        # c.div_(batch_size)
+        # on_diag = torch.diagonal(c).add(-1).pow(2).sum().mul(self.scale_loss)
         # off_diag = self.off_diagonal(c).pow(2).mul(self.scale_loss).sum()
         # loss_twins = on_diag + self.lambd * off_diag
-        # loss += loss_twins
-        # if loss.isnan():
-        #     ipdb.set_trace()
+        # loss = self.loss_weight[0] * loss + self.loss_weight[1] * loss_twins
         return loss, acc
     
     
@@ -116,12 +120,20 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             'dropout': 0.2,
             'amp_level': 'O2',
             'test_interval': 0.05,
+            'scale_loss': 1/256,
+            'lambd': 3.9e-3,
+            'dim': 8192,
+            'loss_weight': [10, 0.1],
         }
         self.args['test_step'] = [int(total_step*i) for i in np.arange(0, 1+self.args['test_interval'], self.args['test_interval'])]
         self.test_step_counter = 0
 
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
-        self.model = BERTDualEncoder(model=self.args['model'], p=self.args['dropout'])
+        self.model = BERTDualEncoder(
+            model=self.args['model'], p=self.args['dropout'],
+            scale_loss=self.args['scale_loss'], lambd=self.args['lambd'],
+            dim=self.args['dim']
+        )
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)
         if torch.cuda.is_available():
@@ -183,7 +195,6 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             if batch_num in self.args['test_step']:
                 # test in the training loop
                 index = self.test_step_counter
-                index = self.args['test_step'].index(batch_num)
                 (r10_1, r10_2, r10_5), avg_mrr, avg_p1, avg_map = self.test_model()
                 self.model.train()    # reset the train mode
                 recoder.add_scalar(f'train-test/R10@1', r10_1, index)

@@ -215,8 +215,12 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
         mask = torch.eye(batch_size).cuda().half()    # [B, B]
         acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
         acc = acc_num / batch_size
-        loss = F.log_softmax(dot_product, dim=-1) * mask
-        loss = (-loss.sum(dim=1)).mean()
+        # c-r
+        loss_1 = F.log_softmax(dot_product, dim=-1) * mask
+        loss = (-loss_1.sum(dim=1)).mean()
+        # r-c
+        loss_2 = F.log_softmax(dot_product, dim=0) * mask
+        loss += (-loss_2.sum(dim=0)).mean()
         return loss, acc
         
     

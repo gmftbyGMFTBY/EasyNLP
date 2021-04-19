@@ -11,9 +11,7 @@ class SABERTRetrieval(nn.Module):
         self.model = BertModel.from_pretrained(model)
         if model in ['bert-base-uncased']:
             # english corpus has three special tokens: __number__, __url__, __path__ AND [EOT]
-            self.model.resize_token_embeddings(self.model.config.vocab_size + 4)
-        else:
-            self.model.resize_token_embeddings(self.model.config.vocab_size + 1)    # [EOT]
+            self.model.resize_token_embeddings(self.model.config.vocab_size + 3)
         self.head = nn.Linear(768, 2)
         self.speaker_embedding = nn.Embedding(2, 768)
 
@@ -61,7 +59,6 @@ class SABERTFTAgent(RetrievalBaseAgent):
             'pretrained_model_path': pretrained_model_path,
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
-        self.vocab.add_tokens(['[EOT]'])
         self.model = SABERTRetrieval(self.args['model'])
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)
@@ -72,7 +69,7 @@ class SABERTFTAgent(RetrievalBaseAgent):
             lr=self.args['lr'],
         )
         self.criterion = nn.CrossEntropyLoss()
-        if run_mode == 'train':
+        if run_mode in ['train', 'train-post', 'train-dual-post']:
             self.model, self.optimizer = amp.initialize(
                 self.model, 
                 self.optimizer, 
@@ -101,6 +98,7 @@ class SABERTFTAgent(RetrievalBaseAgent):
         correct, s = 0, 0
         for idx, batch in enumerate(pbar):
             ids, tids, sids, mask, label = batch
+            ipdb.set_trace()
             self.optimizer.zero_grad()
             output = self.model(ids, tids, sids, mask)    # [B, 2]
             loss = self.criterion(
@@ -133,9 +131,9 @@ class SABERTFTAgent(RetrievalBaseAgent):
         return round(total_loss / batch_num, 4)
     
     @torch.no_grad()
-    def test_model(self, test_iter, recoder=None):
+    def test_model(self):
         self.model.eval()
-        pbar = tqdm(test_iter)
+        pbar = tqdm(self.test_iter)
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
         total_examples, total_correct = 0, 0
         k_list = [1, 2, 5, 10]

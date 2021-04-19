@@ -14,6 +14,7 @@ class BertEmbedding(nn.Module):
 
     def forward(self, ids, attn_mask, m=0):
         embd = self.model(ids, attention_mask=attn_mask)[0]    # [B, S, 768]
+        embd = embd[:, 0, :]    # [B, E]
         return embd
     
     def load_bert_model(self, state_dict):

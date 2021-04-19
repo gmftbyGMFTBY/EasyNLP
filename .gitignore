@@ -120,6 +120,7 @@ venv.bak/
 *.hdf5
 *.ckpt
 *.bak
+*.out
 .ipynb_checkpoints
 tblogs
 # events.out.tfevents*
