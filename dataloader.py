@@ -873,10 +873,13 @@ class BERTDualGenDataset(Dataset):
             ids, rids, label = batch[0], batch[1], batch[2]
             rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
             rids_mask = self.generate_mask(rids)
+            ids = ids.unsqueeze(0)    # [1, S]
+            tids = torch.zeros_like(ids)    # [1, S]
+            ids_mask = torch.ones(1, ids.shape[-1], ids.shape[-1]).cuda()
             label = torch.LongTensor(label)
             if torch.cuda.is_available():
-                ids, rids, rids_mask, label = ids.cuda(), rids.cuda(), rids_mask.cuda(), label.cuda()
-            return ids, rids, rids_mask, label
+                ids, ids_mask, tids, rids, rids_mask, label = ids.cuda(), ids_mask.cuda(), tids.cuda(), rids.cuda(), rids_mask.cuda(), label.cuda()
+            return ids, ids_mask, tids, rids, rids_mask, label
 
 
 # ========== BERT DUAL Dataset ========== #
@@ -981,6 +984,146 @@ class BERTDualCLDataset(Dataset):
             if torch.cuda.is_available():
                 ids, rids, ids_mask, rids_mask = ids.cuda(), rids.cuda(), ids_mask.cuda(), rids_mask.cuda()
             return ids, rids, ids_mask, rids_mask
+        else:
+            # batch size is batch_size * 10
+            assert len(batch) == 1
+            batch = batch[0]
+            ids, rids, label = batch[0], batch[1], batch[2]
+            rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
+            rids_mask = self.generate_mask(rids)
+            label = torch.LongTensor(label)
+            if torch.cuda.is_available():
+                ids, rids, rids_mask, label = ids.cuda(), rids.cuda(), rids_mask.cuda(), label.cuda()
+            return ids, rids, rids_mask, label
+
+
+# ========== BERT DUAL Dataset ========== #
+class BERTDualMLMDataset(Dataset):
+    
+    '''segment embedding, token embedding, position embedding (default), mask embedding'''
+    
+    def __init__(self, path, lang='zh', mode='train', max_len=300, model='bert-base-chinese'):
+        self.mode, self.max_len = mode, max_len
+        self.mlm_prob = 0.15
+        self.vocab = BertTokenizer.from_pretrained(model)
+        if lang != 'zh':
+            # add special tokens for english corpus, __number__, __path__, __url__
+            self.vocab.add_tokens(['__number__', '__path__', '__url__'])
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.mask = self.vocab.convert_tokens_to_ids('[MASK]')
+        self.pp_path = f'{os.path.splitext(path)[0]}_dual_mlm.pt'
+        if os.path.exists(self.pp_path):
+            self.data = torch.load(self.pp_path)
+            print(f'[!] load preprocessed file from {self.pp_path}')
+            return None
+        if 'lccc' in path:
+            data = read_text_data_fast(path)
+            print(f'[!] fast dataloader activate ...')
+        else:
+            data = read_text_data(path, lang=lang)
+        self.data = []
+        if mode == 'train':
+            for label, context, response in tqdm(data):
+                if label == 0:
+                    continue
+                item = self.vocab.batch_encode_plus([context, response])
+                ids, rids = item['input_ids'][0], item['input_ids'][1]
+                ids, rids = self._length_limit(ids), self._length_limit_res(rids)
+                (ids, labels), (rids, rids_labels) = self.transform_mlm(ids), self.transform_mlm(rids)
+                self.data.append({
+                    'ids': ids,
+                    'labels': labels,
+                    'rids': rids,
+                    'rids_labels': rids_labels,
+                })
+        else:
+            for i in tqdm(range(0, len(data), 10)):
+                batch = data[i:i+10]
+                rids = []
+                for item in batch:
+                    item = self.vocab.batch_encode_plus([item[1], item[2]])
+                    ids = item['input_ids'][0]
+                    rids.append(item['input_ids'][1])
+                ids, rids = self._length_limit(ids), [self._length_limit_res(rids_) for rids_ in rids]
+                self.data.append({
+                    'label': [b[0] for b in batch],
+                    'ids': ids,
+                    'rids': rids,
+                })    
+
+    def transform_mlm(self, ids):
+        '''after limitation, only for training'''
+        # ignore the [SEP], [CLS] tokens
+        valid_tokens = [idx for idx, i in enumerate(ids) if i not in [self.cls, self.sep]]
+        cands = random.sample(valid_tokens, int(self.mlm_prob * len(valid_tokens)))
+        tokens, labels = [], []
+        for idx in range(len(ids)):
+            if idx in cands:
+                if random.random() < 0.8:
+                    token = self.mask
+                elif random.random() < 0.5:
+                    token = ids[idx]
+                else:
+                    token = random.randint(0, len(self.vocab) - 1)
+                tokens.append(token)
+                labels.append(ids[idx])
+            else:
+                tokens.append(ids[idx])
+                labels.append(self.pad)    # ignored in mlm loss
+        return tokens, labels
+                
+    def _length_limit(self, ids):
+        if len(ids) > self.max_len:
+            ids = [ids[0]] + ids[-(self.max_len-1):]
+        return ids
+    
+    def _length_limit_res(self, ids):
+        # cut tail
+        if len(ids) > self.max_len:
+            ids = ids[:self.max_len]
+        return ids
+                
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, i):
+        bundle = self.data[i]
+        if self.mode == 'train':
+            ids = torch.LongTensor(bundle['ids'])
+            ids_labels = torch.LongTensor(bundle['labels'])
+            rids = torch.LongTensor(bundle['rids'])
+            rids_labels = torch.LongTensor(bundle['rids_labels'])
+            return ids, ids_labels, rids, rids_labels
+        else:
+            ids = torch.LongTensor(bundle['ids'])
+            rids = [torch.LongTensor(i) for i in bundle['rids']]
+            return ids, rids, bundle['label']
+
+    def save(self):
+        data = torch.save(self.data, self.pp_path)
+        print(f'[!] save preprocessed dataset into {self.pp_path}')
+        
+    def generate_mask(self, ids):
+        attn_mask_index = ids.nonzero().tolist()   # [PAD] IS 0
+        attn_mask_index_x, attn_mask_index_y = [i[0] for i in attn_mask_index], [i[1] for i in attn_mask_index]
+        attn_mask = torch.zeros_like(ids)
+        attn_mask[attn_mask_index_x, attn_mask_index_y] = 1
+        return attn_mask
+        
+    def collate(self, batch):
+        if self.mode == 'train':
+            ids, ids_labels, rids, rids_labels = [i[0] for i in batch], [i[1] for i in batch], [i[2] for i in batch], [i[3] for i in batch]
+            ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+            ids_labels = pad_sequence(ids_labels, batch_first=True, padding_value=self.pad)
+            rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
+            rids_labels = pad_sequence(rids_labels, batch_first=True, padding_value=self.pad)
+            ids_mask = self.generate_mask(ids)
+            rids_mask = self.generate_mask(rids)
+            if torch.cuda.is_available():
+                ids, rids, ids_mask, rids_mask, ids_labels, rids_labels = ids.cuda(), rids.cuda(), ids_mask.cuda(), rids_mask.cuda(), ids_labels.cuda(), rids_labels.cuda()
+            return ids, rids, ids_mask, rids_mask, ids_labels, rids_labels
         else:
             # batch size is batch_size * 10
             assert len(batch) == 1
@@ -2054,6 +2197,7 @@ def load_dataset(args):
         'bert-ft-multi': BERTFTMultiDataset,
         'bert-gen-ft': BERTGenFTDataset,
         'dual-bert': BERTDualDataset,
+        'dual-bert-mlm': BERTDualMLMDataset,
         'dual-bert-cross': BERTDualDataset,
         'dual-bert-scm': BERTDualDataset,
         'dual-bert-fg': BERTDualDataset,

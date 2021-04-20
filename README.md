@@ -106,6 +106,7 @@ _Note:_
 | Original       | R10@1 | R10@2 | R10@5 | MRR    |
 | -------------- | ----- | ----- | ----- | ------ |
 | SOTA           | 77.6  | 91.9  | 99.1  | -      |
+| bert-ft(dup=5) | 81.4  | 94.1  | 99.1  | 89.37  |
 | dual-bert-hier(bsz=64, epoch=10, shuffle-ddp) | 88.8 | 95.8  | 98.6 | 93.32 |
 | dual-bert-hier(bsz=128, epoch=10, shuffle-ddp) | 90.7 | 96.5  | 99.3 | 94.5 |
 | dual-bert-hier(bsz=64, epoch=5, bert-post) | 87.0 | 93.8 | 98.7 | 91.97 |

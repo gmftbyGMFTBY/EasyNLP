@@ -39,14 +39,15 @@ class BertGen(nn.Module):
             output = self.model(inpt, attention_mask=attn_mask, token_type_ids=token_type_ids)[0]    # [B, S, 768]
             logits = self.lm_head(output)
             next_token_logits = logits[0, -1, :]
-            embedding.append(next_token_logits)    # [768]
+            # embedding.append(next_token_logits)    # [768]
+            embedding.append(output[0, -1, :])    # [768]
             next_token_logits[self.unk_id] = -np.inf
             next_token = torch.multinomial(
                 F.softmax(next_token_logits, dim=-1),
                 num_samples=1,
             )
-            generation_rest.append(next_token)
-            if next_token == self.sep_id:
+            generation_rest.append(next_token.item())
+            if next_token.item() == self.sep_id:
                 break
             token_type_ids = torch.cat([
                 token_type_ids, 
@@ -54,13 +55,15 @@ class BertGen(nn.Module):
             )
             attn_mask = torch.cat([
                 attn_mask,
-                torch.LongTensor([0] * attn_mask.shape[1]).view(1, attn_mask.shape[1], 1).cuda()], dim=2
+                torch.tensor([0.] * attn_mask.shape[1]).view(1, attn_mask.shape[1], 1).cuda()], dim=2
             )
-            attn_mask = torch.cat([attn_mask, torch.LongTensot([1] * attn_mask.shape[2]).view(1, 1, -1).cuda()], dim=1)
+            attn_mask = torch.cat([attn_mask, torch.tensor([1.] * attn_mask.shape[2]).view(1, 1, -1).cuda()], dim=1)
             inpt = torch.cat([inpt, next_token.view(1, -1)], dim=1)
         embedding = torch.stack(embedding).mean(dim=0)    # [S, 768] -> [768]
-        cls_logits = torch.cat([embedding, output[0, 0, :]])    # [768]
-        return cls_logits, generation
+        cls_logits = self.fusion_head(
+            torch.cat([embedding, output[0, 0, :]])
+        )    # [768]
+        return cls_logits, generation_rest
     
     def load_bert_model(self, state_dict):
         new_state_dict = OrderedDict()
@@ -98,7 +101,7 @@ class BERTDualGenEncoder(nn.Module):
         super(BERTDualGenEncoder, self).__init__()
         self.ctx_encoder = BertGen(vocab_size, model=model, unk_id=unk_id, sep_id=sep_id)
         self.can_encoder = BertEmbedding(model=model)
-        self.criterion = nn.CrossEntropyLoss(ignore_index=pad_id)
+        self.criterion = nn.CrossEntropyLoss(ignore_index=pad_id, reduction='sum')
         self.pad = pad_id
         self.res_max_len = res_max_len
 
@@ -108,16 +111,14 @@ class BERTDualGenEncoder(nn.Module):
         return lm_logits, cls_logits, rid_rep
     
     def _encode_(self, cid, rid, cid_mask, rid_mask, tid):
-        cls_logits, generation = self.ctx_encoder.predict(cid, tid, cid_mask, maxlen=self.res_max_len)
+        cls_logits, generation = self.ctx_encoder.predict(cid, tid, cid_mask, max_len=self.res_max_len)
         rid_rep = self.can_encoder(rid, rid_mask)
         return generation, cls_logits, rid_rep
 
     @torch.no_grad()
-    def predict(self, cid, rid, rid_mask):
+    def predict(self, cid, cid_mask, tid, rid, rid_mask):
         batch_size = rid.shape[0]
-        cid = cid.unsqueeze(0)
-        cid_mask = torch.ones_like(cid).cuda()
-        generation, cid_rep, rid_rep = self._encode_(cid, rid, cid_mask, rid_mask)
+        generation, cid_rep, rid_rep = self._encode_(cid, rid, cid_mask, rid_mask, tid)
         dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B]
         return dot_product, generation
         
@@ -174,6 +175,7 @@ class BERTDualGenEncoderAgent(RetrievalBaseAgent):
             'pretrained_model_path': pretrained_model_path,
             'vocab_size': len(self.vocab),
             'test_interval': 0.05,
+            'res_max_len': 16
         }
         self.args['test_step'] = [int(total_step*i) for i in np.arange(0, 1+self.args['test_interval'], self.args['test_interval'])]
         self.test_step_counter = 0
@@ -181,7 +183,7 @@ class BERTDualGenEncoderAgent(RetrievalBaseAgent):
         self.unk = self.vocab.convert_tokens_to_ids('[UNK]')
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
-        self.model = BERTDualGenEncoder(self.args['vocab_size'], model=self.args['model'], unk_id=self.unk, sep_id=self.sep, pad_id=self.pad)
+        self.model = BERTDualGenEncoder(self.args['vocab_size'], model=self.args['model'], unk_id=self.unk, sep_id=self.sep, pad_id=self.pad, res_max_len=self.args['res_max_len'])
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)
         if torch.cuda.is_available():
@@ -220,7 +222,7 @@ class BERTDualGenEncoderAgent(RetrievalBaseAgent):
         
     def train_model(self, train_iter, mode='train', recoder=None, idx_=0):
         self.model.train()
-        total_loss, total_acc, batch_num = 0, 0, 0
+        total_loss, total_cls_acc, total_lm_acc, batch_num = 0, 0, 0, 0
         total_lm_loss, total_cls_loss = 0, 0
         pbar = tqdm(train_iter)
         correct, s, oom_t = 0, 0, 0
@@ -238,12 +240,13 @@ class BERTDualGenEncoderAgent(RetrievalBaseAgent):
             total_loss += loss.item()
             total_lm_loss += lm_loss.item()
             total_cls_loss += cls_loss.item()
-            total_acc += cls_acc
+            total_lm_acc += lm_acc
+            total_cls_acc += cls_acc
             batch_num += 1
 
             if batch_num in self.args['test_step']:
                 index = self.test_step_counter
-                (r10_1, r10_2, r10_5), avg_mrr, avg_P1, avg_map = self.test_model()
+                (r10_1, r10_2, r10_5), avg_mrr, avg_p1, avg_map = self.test_model()
                 self.model.train()
                 recoder.add_scalar(f'train-test/R10@1', r10_1, index)
                 recoder.add_scalar(f'train-test/R10@2', r10_2, index)
@@ -265,15 +268,18 @@ class BERTDualGenEncoderAgent(RetrievalBaseAgent):
             recoder.add_scalar(f'train-epoch-{idx_}/RunCLSLoss', cls_loss.item(), idx)
             recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
             recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', cls_acc, idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/CLSAcc', total_cls_acc/batch_num, idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/RunCLSAcc', cls_acc, idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/LMAcc', total_lm_acc/batch_num, idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/RunLMAcc', lm_acc, idx)
             
-            pbar.set_description(f'[!] lm_loss: {round(lm_loss.item(), 4)}|{round(total_lm_loss/batch_num, 4)}; loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(cls_acc, 4)}|{round(total_acc/batch_num, 4)}')
+            pbar.set_description(f'[!] loss(c|lm|t): {round(total_cls_loss/batch_num, 4)}|{round(total_lm_loss/batch_num, 4)}|{round(total_loss/batch_num, 4)}; acc(cls|lm): {round(total_cls_acc/batch_num, 4)}|{round(total_lm_acc/batch_num, 4)}')
 
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/LMLoss', total_lm_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/CLSLoss', total_cls_loss/batch_num, idx_)
-        recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
+        recoder.add_scalar(f'train-whole/LMAcc', total_lm_acc/batch_num, idx_)
+        recoder.add_scalar(f'train-whole/CLSAcc', total_cls_acc/batch_num, idx_)
         return round(total_loss / batch_num, 4)
         
     @torch.no_grad()
@@ -286,12 +292,14 @@ class BERTDualGenEncoderAgent(RetrievalBaseAgent):
 
         self.collections = []
         for idx, batch in enumerate(pbar):                
-            cid, rids, rids_mask, label = batch
+            cid, cid_mask, tid, rids, rids_mask, label = batch
             batch_size = len(rids)
             assert batch_size == 10, f'[!] {batch_size} is not equal to 10'
-            scores, generation = self.model.module.predict(cid, rids, rids_mask).cpu().tolist()    # [B]
+            scores, generation = self.model.module.predict(cid, cid_mask, tid, rids, rids_mask)
+            scores = scores.cpu().tolist()
+
             # collect the context and the generated response
-            ctx = self.vocab.decode(cid)
+            ctx = self.vocab.decode(cid[0])
             res = self.vocab.decode(generation)
             self.collections.append((ctx, res))
 
