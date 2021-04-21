@@ -185,6 +185,9 @@ _Note:_
 | dual-bert-hier(bsz=32, epoch=5, bert-post) | 29.1 | 49.22 | 82.16 | 64.73 | 47.23 | 60.5 |
 | dual-bert-hier(bsz=32, epoch=5, bert-dual-post) | 29.74 | 47.43 | 82.06 | 64.83 | 47.83 | 60.6 |
 | dual-bert-hier(bsz=32, epoch=5, bert-dual-post, mean) | 28.79 | 47.49 | 82.43 | 63.9 | 46.48 | 59.84 |
+| dual-bert-hier-trs(bsz=128, epoch=5, bert-post, bert-trs-gru, c-r/r-c)| 29.4 | 48.54 | 82.16 | 64.69 | 47.68 | 60.24 |
+| dual-bert-hier-trs(bsz=128, epoch=5, bert-post, bert-trs)| 30.02 | 48.62 | 82.47 | 65.25 | 48.58 | 60.79 |
+| dual-bert-hier-trs(bsz=128, epoch=10, bert-post, bert-trs)| 30.78 | 47.87 | 81.58 | 65.21 | 48.28 | 60.98 |
 
 
 | Original           | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   |

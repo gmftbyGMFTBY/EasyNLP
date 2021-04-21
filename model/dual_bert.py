@@ -5,23 +5,16 @@ from .utils import *
 
 class BertEmbedding(nn.Module):
     
-    def __init__(self, model='bert-base-chinese', p=0.2, dim=1024):
+    def __init__(self, model='bert-base-chinese'):
         super(BertEmbedding, self).__init__()
         self.model = BertModel.from_pretrained(model)
         if model in ['bert-base-uncased']:
             # english corpus has three special tokens: __number__, __url__, __path__
             self.model.resize_token_embeddings(self.model.config.vocab_size + 3)
-        self.proj = nn.Sequential(
-            nn.Linear(768, int(dim/2)),
-            nn.ReLU(),
-            nn.Dropout(p=p),
-            nn.Linear(int(dim/2), dim),
-        )
 
     def forward(self, ids, attn_mask):
         embd = self.model(ids, attention_mask=attn_mask)[0]    # [B, S, 768]
-        embd = self.proj(embd.mean(dim=1))    # [B, 768], mean pooling
-        return embd
+        return embd[:, 0, :]
     
     def load_bert_model(self, state_dict):
         new_state_dict = OrderedDict()
@@ -35,17 +28,20 @@ class BertEmbedding(nn.Module):
 
 class BERTDualEncoder(nn.Module):
     
-    def __init__(self, model='bert-base-chinese', p=0.2, dim=8192, scale_loss=1/32, lambd=5e-3, loss_weight=[10, 0.1]):
+    def __init__(self, model='bert-base-chinese', p=0.1):
         super(BERTDualEncoder, self).__init__()
-        self.ctx_encoder = BertEmbedding(model=model, p=p, dim=dim)
-        self.can_encoder = BertEmbedding(model=model, p=p, dim=dim)
-        self.scale_loss, self.lambd = scale_loss, lambd
-        self.bn = nn.BatchNorm1d(dim, affine=False)
-        self.loss_weight = loss_weight
+        self.ctx_encoder = BertEmbedding(model=model)
+        self.can_encoder = BertEmbedding(model=model)
+        self.share_head = nn.Sequential(
+            nn.Linear(768, 768),
+            nn.ReLU(),
+            nn.Dropout(p=p),
+            nn.Linear(768, 768)
+        )
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
-        cid_rep = self.ctx_encoder(cid, cid_mask)
-        rid_rep = self.can_encoder(rid, rid_mask)
+        cid_rep = self.share_head(self.ctx_encoder(cid, cid_mask))
+        rid_rep = self.share_head(self.can_encoder(rid, rid_mask))
         return cid_rep, rid_rep
 
     @torch.no_grad()
@@ -61,20 +57,13 @@ class BERTDualEncoder(nn.Module):
     @torch.no_grad()
     def predict(self, cid, rid, rid_mask):
         batch_size = rid.shape[0]
-        cid_rep = self.ctx_encoder(cid.unsqueeze(0), None)
-        rid_rep = self.can_encoder(rid, rid_mask)
+        cid_rep, rid_rep = self._encode(cid.unsqueeze(0), rid, None, rid_mask)
         cid_rep = cid_rep.squeeze(0)    # [768]
         # cid_rep/rid_rep: [768], [B, 768]
         dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B]
         return dot_product
 
-    def off_diagonal(self, x):
-        n, m = x.shape
-        assert n == m
-        return x.flatten()[:-1].view(n-1, n+1)[:, 1:].flatten()
-        
     def forward(self, cid, rid, cid_mask, rid_mask):
-        '''add barlow twins loss'''
         batch_size = cid.shape[0]
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
         dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
@@ -83,17 +72,21 @@ class BERTDualEncoder(nn.Module):
         acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
         acc = acc_num / batch_size
         # calculate the loss
-        loss = F.log_softmax(dot_product, dim=-1) * mask
-        loss = (-loss.sum(dim=1)).mean()
+        # c-r
+        loss_1 = F.log_softmax(dot_product, dim=-1) * mask
+        loss = (-loss_1.sum(dim=1)).mean()
+        # r-c
+        loss_2 = F.log_softmax(dot_product, dim=0) * mask
+        loss += (-loss_2.sum(dim=0)).mean()
+        # c-c
+        dot_product = torch.matmul(cid_rep, cid_rep.t())
+        loss_3 = F.log_softmax(dot_product, dim=-1) * mask
+        loss += (-loss_3.sum(dim=-1)).mean()
+        # r-r
+        dot_product = torch.matmul(rid_rep, rid_rep.t())
+        loss_4 = F.log_softmax(dot_product, dim=-1) * mask
+        loss += (-loss_4.sum(dim=-1)).mean()
 
-        # twins loss
-        # cid_rep, rid_rep = self.bn(cid_rep), self.bn(rid_rep)
-        # c = cid_rep.T @ rid_rep     # [E, E]
-        # c.div_(batch_size)
-        # on_diag = torch.diagonal(c).add(-1).pow(2).sum().mul(self.scale_loss)
-        # off_diag = self.off_diagonal(c).pow(2).mul(self.scale_loss).sum()
-        # loss_twins = on_diag + self.lambd * off_diag
-        # loss = self.loss_weight[0] * loss + self.loss_weight[1] * loss_twins
         return loss, acc
     
     
@@ -113,27 +106,17 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             'local_rank': local_rank,
             'warmup_steps': warmup_step,
             'total_step': total_step,
-            'max_len': 256,
             'dataset': dataset_name,
             'pretrained_model_path': pretrained_model_path,
-            'oom_times': 10,
-            'dropout': 0.2,
+            'dropout': 0.1,
             'amp_level': 'O2',
             'test_interval': 0.05,
-            'scale_loss': 1/256,
-            'lambd': 3.9e-3,
-            'dim': 8192,
-            'loss_weight': [10, 0.1],
         }
         self.args['test_step'] = [int(total_step*i) for i in np.arange(0, 1+self.args['test_interval'], self.args['test_interval'])]
         self.test_step_counter = 0
 
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
-        self.model = BERTDualEncoder(
-            model=self.args['model'], p=self.args['dropout'],
-            scale_loss=self.args['scale_loss'], lambd=self.args['lambd'],
-            dim=self.args['dim']
-        )
+        self.model = BERTDualEncoder(model=self.args['model'], p=self.args['dropout'])
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)
         if torch.cuda.is_available():
