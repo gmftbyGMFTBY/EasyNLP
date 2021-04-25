@@ -223,7 +223,7 @@ class BERTDualHierarchicalTrsEncoderAgent(RetrievalBaseAgent):
             'nhead': 6,
             'nhide': 512,
             'nlayer': 2,
-            'dropout': 0.1,
+            'dropout': 0.3,
             'amp_level': 'O2',
             'test_interval': 0.05
         }

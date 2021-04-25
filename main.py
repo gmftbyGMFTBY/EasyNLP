@@ -8,6 +8,7 @@ def parser_args():
     parser.add_argument('--model', type=str)
     parser.add_argument('--lang', type=str, default='zh')
     parser.add_argument('--batch_size', type=int, default=128)
+    parser.add_argument('--neg_bsz', type=int, default=64)
     parser.add_argument('--mode', type=str, default='train')
     parser.add_argument('--epoch', type=int, default=10)
     parser.add_argument('--seed', type=float, default=30)

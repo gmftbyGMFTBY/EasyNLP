@@ -19,6 +19,7 @@ post_bsz=32
 post_epoch=5
 post_max_len=256
 post_res_max_len=64
+neg_bsz=64    # useless
 models=(dual-bert-mlm dual-bert-cross dual-bert-scm sa-bert bert-ft bert-ft-multi bert-gen bert-gen-ft bert-post dual-bert-fg dual-bert-gen dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-mb dual-bert-adv dual-bert-jsd dual-bert-hierarchical-trs dual-gru-hierarchical-trs)
 ONE_BATCH_SIZE_MODEL=(dual-bert-mlm dual-bert-cross dual-bert-scm bert-ft-multi dual-bert dual-bert-poly dual-bert-fg dual-bert-cl dual-bert-gen dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-hierarchical-trs dual-bert-mb dual-bert-adv dual-bert-jsd dual-gru-hierarchical)
 datasets=(ecommerce douban ubuntu lccc lccc-large)
@@ -71,6 +72,7 @@ elif [ $mode = 'train' ]; then
         --model $model \
         --mode train \
         --batch_size $bsz \
+        --neg_bsz $bsz \
         --epoch $epoch \
         --seed $seed \
         --max_len $max_len \
@@ -113,6 +115,7 @@ elif [ $mode = 'train-post' ]; then
         --model $model \
         --mode train-post \
         --batch_size $post_bsz \
+        --neg_bsz $bsz \
         --epoch $post_epoch \
         --seed $seed \
         --max_len $post_max_len \
@@ -134,6 +137,7 @@ elif [ $mode = 'train-dual-post' ]; then
         --model $model \
         --mode train-dual-post \
         --batch_size $post_bsz \
+        --neg_bsz $bsz \
         --epoch $post_epoch \
         --seed $seed \
         --max_len $post_max_len \
