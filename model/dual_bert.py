@@ -16,7 +16,7 @@ class BertEmbedding(nn.Module):
         self.speaker_embedding = nn.Embedding(2, 768)
 
     def forward(self, ids, attn_mask, speaker_type_ids=None):
-        if speaker_type_ids:
+        if speaker_type_ids is not None:
             word_embeddings = self.model.embeddings(ids)    # [B, S, E]
             speaker_embedding = self.speaker_embedding(speaker_type_ids)    # [B, S, E]
             word_embeddings += speaker_embedding
@@ -50,10 +50,7 @@ class BertEmbedding(nn.Module):
 
 class BERTDualEncoder(nn.Module):
 
-    '''
-    1. temperature ×
-    2. normalization ×
-    3. shared speaker embedding (context encoder and response encoder shared)'''
+    '''dual bert and dual latent interaction: one-to-many mechanism'''
     
     def __init__(self, model='bert-base-chinese', k=4):
         super(BERTDualEncoder, self).__init__()
@@ -76,7 +73,7 @@ class BERTDualEncoder(nn.Module):
         return cid_rep
     
     @torch.no_grad()
-    def predict(self, cid, rid, rid_mask, cid_sids, rid_sids):
+    def predict(self, cid, rid, rid_mask, cid_sids):
         batch_size = rid.shape[0]
         cid_rep, rid_rep = self._encode(cid.unsqueeze(0), rid, None, rid_mask, cid_sids.unsqueeze(0))
 
@@ -85,7 +82,7 @@ class BERTDualEncoder(nn.Module):
         dot_product = dot_product.mean(dim=0)    # [B_r]
         return dot_product
     
-    def forward(self, cid, rid, cid_mask, rid_mask, cid_sids, rid_sids):
+    def forward(self, cid, rid, cid_mask, rid_mask, cid_sids):
         batch_size = cid.shape[0]
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask, cid_sids)
         rid_rep = rid_rep.permute(0, 2, 1)    # [K, E, B]
@@ -126,7 +123,6 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             'amp_level': 'O2',
             'test_interval': 0.05,
             'k': 4,
-            't': 0.07,
         }
         self.args['test_step'] = [int(total_step*i) for i in np.arange(0, 1+self.args['test_interval'], self.args['test_interval'])]
         self.test_step_counter = 0
@@ -135,7 +131,6 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         self.model = BERTDualEncoder(
             model=self.args['model'], 
             k=self.args['k'],
-            t=self.args['t'],
         )
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)
