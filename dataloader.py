@@ -1142,6 +1142,7 @@ class BERTDualDataset(Dataset):
     
     def __init__(self, path, lang='zh', mode='train', max_len=300, model='bert-base-chinese'):
         self.mode, self.max_len = mode, max_len
+        self.res_max_len = max_len
         self.vocab = BertTokenizer.from_pretrained(model)
         if lang != 'zh':
             # add special tokens for english corpus, __number__, __path__, __url__
@@ -1201,8 +1202,8 @@ class BERTDualDataset(Dataset):
     
     def _length_limit_res(self, ids):
         # cut tail
-        if len(ids) > self.max_len:
-            ids = ids[:self.max_len]
+        if len(ids) > self.res_max_len:
+            ids = ids[:self.res_max_len-1] + [self.sep]
         return ids
                 
     def __len__(self):

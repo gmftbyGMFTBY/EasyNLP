@@ -181,7 +181,10 @@ _Note:_
 | SOTA               | 31.8  | 48.2  | 85.8  | 66.4  | 49.9  | 62.5   |
 | dual-bert(bsz=16, epoch=5, bert-post) | 30.15 | 49.42  | 84.51 | 65.65 | 48.28 | 61.62  |
 | dual-bert(bsz=32, epoch=5, bert-post) | 31.01 | 51.59  | 84.68 | 66.29 | 48.88 | 62.49  |
-| dual-bert(bsz=32, epoch=5, bert-post, speaker for context encoder) | 32.12 | 50.64  | 85.69 | 66.98 | 50.52 | 62.98  |
+| dual-bert(bsz=32, epoch=5, bert-post, speaker for context encoder, max-res-len=256) | 30.91 | 50.57  | 84.82 | 66.19 | 48.58 | 62.36  |
+| dual-bert(bsz=48, epoch=5, bert-post, speaker for context encoder, max-res-len=256, lr=1e-4) | 30.91 | 50.57  | 84.82 | 66.19 | 48.58 | 62.36  |
+| dual-bert(bsz=32, epoch=5, bert-post, speaker for context encoder, max-res-len=64) | 30.45 | 50.78  | 84.91 | 65.82 | 48.28 | 62.13 |
+| dual-bert(bsz=32, epoch=5, bert-post, speaker for context encoder, max-len=512) | | | | | | |
 | dual-bert(bsz=16, epoch=5, bert-post, extend-negative) | 31.00 | 49.73  | 83.91 | 65.92 | 47.83 | 61.97  |
 | dual-gru(bsz=32, epoch=5) | 20.38 | 36.67  | 73.52 | 54.59 | 34.78 | 50.41  |
 | dual-bert(bsz=16, epoch=5, bert-post, c-r/r-c) | 30.08 | 50.69  | 84.04 | 65.49 | 47.98 | 61.63  |
@@ -249,6 +252,7 @@ _Note:_
 | -------------- | ----- | ----- | ----- | ------ |
 | SOTA           | 0.884 | 0.946 | 0.990 | 0.975  |
 | dual-bert(bsz=16, epoch=5, bert-post) | 84.69 | 92.66 | 98.51 | - |
+| dual-bert(bsz=32, epoch=5, bert-post) | | | | - |
 | dual-gru(bsz=64, epoch=5) | 72.51 | 85.22 | 96.41 | - |
 | dual-bert-hier(bsz=32, epoch=5, bert-post) | 67.71 | 81.33 | 95.36 | - |
 | dual-bert-hier(bsz=32, epoch=5, bert-dual-post) | | | | |

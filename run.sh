@@ -17,7 +17,7 @@ inf_bsz=64
 # 
 post_bsz=32
 post_epoch=5
-post_max_len=256
+post_max_len=512
 post_res_max_len=64
 neg_bsz=64    # useless
 models=(dual-bert-mlm dual-bert-cross dual-bert-scm sa-bert bert-ft bert-ft-multi bert-gen bert-gen-ft bert-post dual-bert-fg dual-bert-gen dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-mb dual-bert-adv dual-bert-jsd dual-bert-hierarchical-trs dual-gru-hierarchical-trs)

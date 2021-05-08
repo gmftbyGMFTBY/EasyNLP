@@ -98,7 +98,6 @@ class SABERTFTAgent(RetrievalBaseAgent):
         correct, s = 0, 0
         for idx, batch in enumerate(pbar):
             ids, tids, sids, mask, label = batch
-            ipdb.set_trace()
             self.optimizer.zero_grad()
             output = self.model(ids, tids, sids, mask)    # [B, 2]
             loss = self.criterion(
@@ -167,3 +166,4 @@ class SABERTFTAgent(RetrievalBaseAgent):
         print(f"MRR: {round(avg_mrr, 4)}")
         print(f"P@1: {round(avg_prec_at_one, 4)}")
         print(f"MAP: {round(avg_map, 4)}")
+        return (total_correct[0]/total_examples, total_correct[1]/total_examples, total_correct[2]/total_examples), avg_mrr, avg_prec_at_one, avg_map

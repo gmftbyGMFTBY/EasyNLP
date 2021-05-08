@@ -5,14 +5,12 @@ from .utils import *
 
 class BertEmbedding(nn.Module):
     
-    def __init__(self, model='bert-base-chinese', k=5):
+    def __init__(self, model='bert-base-chinese'):
         super(BertEmbedding, self).__init__()
         self.model = BertModel.from_pretrained(model)
         if model in ['bert-base-uncased']:
             # english corpus has three special tokens: __number__, __url__, __path__
             self.model.resize_token_embeddings(self.model.config.vocab_size + 3)
-        assert k <= 12
-        self.k = k
         self.speaker_embedding = nn.Embedding(2, 768)
 
     def forward(self, ids, attn_mask, speaker_type_ids=None):
@@ -27,6 +25,7 @@ class BertEmbedding(nn.Module):
                 inputs_embeds=word_embeddings,
                 output_hidden_states=True,
             )[2]
+            embds = embds[-1][:, 0, :]
         else:
             # response encoder
             embds = self.model(
@@ -34,8 +33,7 @@ class BertEmbedding(nn.Module):
                 attention_mask=attn_mask, 
                 output_hidden_states=True
             )[2]
-        embds = list(embds[-self.k:])
-        embds = torch.stack(embds)[:, :, 0, :]    # [K, B, S, E] -> [K, B, E]
+            embds = embds[-1][:, 0, :]     # [CLS]
         return embds
     
     def load_bert_model(self, state_dict):
@@ -52,10 +50,13 @@ class BERTDualEncoder(nn.Module):
 
     '''dual bert and dual latent interaction: one-to-many mechanism'''
     
-    def __init__(self, model='bert-base-chinese', k=4):
+    def __init__(self, model='bert-base-chinese'):
         super(BERTDualEncoder, self).__init__()
-        self.ctx_encoder = BertEmbedding(model=model, k=k)
-        self.can_encoder = BertEmbedding(model=model, k=k)
+        self.ctx_encoder = BertEmbedding(model=model)
+        self.can_encoder = BertEmbedding(model=model)
+
+    def _encode(self, cid, rid, cid_mask, rid_mask):
+        cid_rep = self.encoder(cid, cid_mask)
 
     def _encode(self, cid, rid, cid_mask, rid_mask, cid_sids):
         cid_rep = self.ctx_encoder(cid, cid_mask, speaker_type_ids=cid_sids)
@@ -71,32 +72,25 @@ class BERTDualEncoder(nn.Module):
     def get_ctx(self, ids, attn_mask):
         cid_rep = self.ctx_encoder(ids, attn_mask)
         return cid_rep
-    
+
     @torch.no_grad()
     def predict(self, cid, rid, rid_mask, cid_sids):
         batch_size = rid.shape[0]
         cid_rep, rid_rep = self._encode(cid.unsqueeze(0), rid, None, rid_mask, cid_sids.unsqueeze(0))
-
-        # cid_rep: [K, B_c, E]; rid_rep: [K, B_r, E]
-        dot_product = torch.bmm(cid_rep, rid_rep.permute(0, 2, 1)).squeeze(1)    # [K, B_r]
-        dot_product = dot_product.mean(dim=0)    # [B_r]
+        dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
         return dot_product
     
     def forward(self, cid, rid, cid_mask, rid_mask, cid_sids):
         batch_size = cid.shape[0]
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask, cid_sids)
-        rid_rep = rid_rep.permute(0, 2, 1)    # [K, E, B]
-        
-        # dot_product: [K, B_c, B_r]
-        dot_product = torch.bmm(cid_rep, rid_rep)    # [K, B_c, B_r]
+        dot_product = torch.matmul(cid_rep, rid_rep_.t())
         mask = torch.zeros_like(dot_product).cuda()
-        mask[:, range(batch_size), range(batch_size)] = 1.
+        mask[range(batch_size), range(batch_size)] = 1.
         # loss
-        loss = F.log_softmax(dot_product, dim=-1) * mask
-        loss = (-loss.sum(dim=2).sum(dim=0)).mean()
+        loss_ = F.log_softmax(dot_product, dim=-1) * mask
+        loss = (-loss_.sum(dim=1)).mean()
         # acc
-        dp = dot_product.mean(dim=0)    # [B_c, B_r]
-        acc_num = (F.softmax(dp, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
+        acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
         acc = acc_num / batch_size
         return loss, acc
     
@@ -110,7 +104,7 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         except:
             raise Exception(f'[!] multi gpu ids are needed, but got: {multi_gpu}')
         self.args = {
-            'lr': 5e-5,
+            'lr': 3e-5,
             'grad_clip': 1.0,
             'multi_gpu': self.gpu_ids,
             'model': pretrained_model,
@@ -122,7 +116,6 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             'dropout': 0.1,
             'amp_level': 'O2',
             'test_interval': 0.05,
-            'k': 4,
         }
         self.args['test_step'] = [int(total_step*i) for i in np.arange(0, 1+self.args['test_interval'], self.args['test_interval'])]
         self.test_step_counter = 0
@@ -130,7 +123,6 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
         self.model = BERTDualEncoder(
             model=self.args['model'], 
-            k=self.args['k'],
         )
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)
@@ -216,6 +208,7 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
     @torch.no_grad()
     def test_model(self):
         self.model.eval()
+        self.model.train()
         pbar = tqdm(self.test_iter)
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
         total_examples, total_correct = 0, 0

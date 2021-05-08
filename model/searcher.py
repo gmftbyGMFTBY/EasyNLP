@@ -75,7 +75,7 @@ if __name__ == "__main__":
     print(f'[!] load checkpoint from {args["nums"]} files, and save them into data/{args["dataset"]}/faiss.ckpt and data/{args["dataset"]}/corpus.ckpt')
 
     # write the query:
-    torch.save((q_text, q_text_mapping), f'data/{args["dataset"]}/context_embedding.pt')
+    # torch.save((q_text, q_text_mapping), f'data/{args["dataset"]}/context_embedding.pt')
 
     # ========== Search ========== #
     print(f'[!] begin to search the candidates')
