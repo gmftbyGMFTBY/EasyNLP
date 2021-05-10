@@ -33,39 +33,20 @@ class BERTDualOne2ManyEncoder(nn.Module):
         super(BERTDualOne2ManyEncoder, self).__init__()
         self.ctx_encoder = BertEmbedding(model=model, p=p)
         self.can_encoder = BertEmbedding(model=model, p=p)
-        self.head_proj = nn.Parameter(torch.randn(head, 768))
-        self.head_num = head
 
     def _encode(self, cid, rids, cid_mask, rids_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)    # [B, S, E]
-        weights = torch.matmul(cid_rep, self.head_proj.t()).permute(0, 2, 1)    # [B, H, S]
-        weights /= np.sqrt(768)
-        cid_mask_ = torch.where(cid_mask != 0, torch.zeros_like(cid_mask), torch.ones_like(cid_mask))
-        cid_mask_ = cid_mask_ * -1e3
-        cid_mask_ = cid_mask.unsqueeze(1).repeat(1, self.head_num, 1)    # [B, H, S]
-        weights += cid_mask_
-        weights = F.softmax(weights, dim=-1)    # [B, H, S]
-        cid_reps = torch.bmm(weights, cid_rep)    # [B, H, E]
-
         rid_reps = []
         for rid, rid_mask in zip(rids, rids_mask):
             rid_rep = self.can_encoder(rid, rid_mask)
             rid_rep = rid_rep[:, 0, :]    # [B, E]
             rid_reps.append(rid_rep)
+        rid_reps = torch.stack(rid_reps).permute(1, 0, 2)    # [B, H, E]
         return cid_reps, rid_reps
 
     @torch.no_grad()
     def _encode_(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
-        weights = torch.matmul(cid_rep, self.head_proj.t()).permute(0, 2, 1)    # [B, H, S]
-        weights /= np.sqrt(768)
-        cid_mask_ = torch.where(cid_mask != 0, torch.zeros_like(cid_mask), torch.ones_like(cid_mask))
-        cid_mask_ = cid_mask_ * -1e3
-        cid_mask_ = cid_mask.unsqueeze(1).repeat(1, self.head_num, 1)    # [B, H, S]
-        weights += cid_mask_
-        weights = F.softmax(weights, dim=-1)    # [B, H, S]
-        cid_reps = torch.bmm(weights, cid_rep)    # [B, H, E]
-
         rid_rep = self.can_encoder(rid, rid_mask)
         return cid_reps, rid_rep
 
@@ -82,59 +63,14 @@ class BERTDualOne2ManyEncoder(nn.Module):
     
     def forward(self, cid, rids, cid_mask, rids_mask):
         batch_size = cid.shape[0]
-        assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
         cid_reps, rid_reps = self._encode(cid, rids, cid_mask, rids_mask)
+        # cid_reps: [B, E]; rid_reps: [B, H, E]
+        dot_product = torch.bmm(cid_reps.unsqueeze(1), rid_reps.permute(0, 2, 1)).squeeze(1)    # [B, H]
+        mask = torch.zeros_like(dot_product)    # [B, B]
+        mask[torch.arange(batch_size), torch.arange(batch_size)] = 1.
 
-        # ========== K matrixes =========== #
-        # cid_rep/rid_rep: [B, 768]
-        mask = torch.eye(batch_size).cuda().half()    # [B, B]
-        acc, loss, additional_matrix, neg_additional_matrix = 0, 0, [], []
-        counter = 0
-        for rid_rep in rid_reps:
-            dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
-            loss_ = F.log_softmax(dot_product, dim=-1) * mask
-            loss_ = (-loss_.sum(dim=1)).mean()
-            loss += loss_
-
-            if counter == 0:
-                acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
-                acc = acc_num / batch_size
-            additional_matrix.append(dot_product[range(batch_size), range(batch_size)])
-            counter += 1
-
-        loss /= self.head_num
-        additional_matrix = torch.stack(additional_matrix).transpose(0, 1)
-        mask_ = torch.zeros_like(additional_matrix).cuda()
-        mask_[:, 0] = 1
-        additional_loss = F.log_softmax(additional_matrix, dim=-1) * mask_
-        additional_loss = (-additional_loss.sum(dim=1)).mean()
-        loss += additional_loss
-        return loss, acc
-    
-    def forward_(self, cid, rids, cid_mask, rids_mask):
-        batch_size = cid.shape[0]
-        assert batch_size > 1, f'[!] batch size must bigger than 1, cause other elements in the batch will be seen as the negative samples'
-        cid_reps, rid_reps = self._encode(cid, rids, cid_mask, rids_mask)
-
-        # ========== K matrixes =========== #
-        # cid_rep/rid_rep: [B, 768]
-        # use half for supporting the apex
-        mask = torch.eye(batch_size).cuda().half()    # [B, B]
-        mask = torch.cat([mask, torch.zeros(batch_size, batch_size*(len(cid_reps)-1)).half().cuda()], dim=-1)    # [B, B*K]
-        # mask = torch.eye(batch_size).cuda()    # [B, B]
-        # calculate accuracy
-        acc, loss, additional_matrix = 0, 0, []
-        counter = 0
-        dot_products = []
-        for cid_rep, rid_rep in zip(cid_reps, rid_reps):
-            dot_product = torch.matmul(cid_rep, rid_rep.t())  # [B, B]
-            dot_products.append(dot_product)
-        dot_products = torch.cat(dot_products, dim=-1)    # [B, B*K]
-        # calculate the loss
-        loss_ = F.log_softmax(dot_products, dim=-1) * mask
+        loss_ = F.log_softmax(dot_product, dim=-1) * mask
         loss = (-loss_.sum(dim=1)).mean()
-        acc_num = (F.softmax(dot_products, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
-        acc = acc_num / batch_size
         return loss, acc
     
     
