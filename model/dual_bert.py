@@ -25,6 +25,16 @@ class BertEmbedding(nn.Module):
                 inputs_embeds=word_embeddings,
                 output_hidden_states=True,
             )[2]
+            embds = embds[-1]
+            
+            attn_mask = attn_mask.to(torch.float16)
+            mask_weight = torch.where(attn_mask != 0, torch.zeros_like(attn_mask), torch.ones_like(attn_mask))
+            mask_weight = mask_weight * -1e3
+            weight = torch.log(torch.arange(1, 1+ids.shape[1])).to(torch.float16).cuda()
+            weight = weight.repeat(ids.shape[0], 1)    # [B, S]
+            weight += mask_weight
+            weight = F.softmax(weight, dim=-1)    # [B, S]
+            embds = torch.bmm(weight.unsqueeze(1), embds).squeeze(1)    # [B, E]
         else:
             # response encoder
             embds = self.model(
@@ -32,7 +42,7 @@ class BertEmbedding(nn.Module):
                 attention_mask=attn_mask, 
                 output_hidden_states=True
             )[2]
-        embds = embds[-1][:, 0, :]     # [CLS]
+            embds = embds[-1][:, 0, :]     # [CLS]
         return embds
     
     def load_bert_model(self, state_dict):
@@ -221,7 +231,8 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
                 10)
             num_correct = logits_recall_at_k(pos_index, k_list)
             if self.args['dataset'] in ["douban"]:
-                ipdb.set_trace()
+                if sum(label).item() >= 2:
+                    ipdb.set_trace()
                 total_prec_at_one += precision_at_one(rank_by_pred)
                 total_map += mean_average_precision(pos_index)
                 for pred in rank_by_pred:
