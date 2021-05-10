@@ -31,8 +31,8 @@ class BERTDualCLEncoder(nn.Module):
 
     def __init__(self, model='bert-base-chinese', K=4096, topk=128):
         super(BERTDualCLEncoder, self).__init__()
-        self.encoder = BertEmbedding(model=model)
-        # self.can_encoder = BertEmbedding(model=model)
+        self.ctx_encoder = BertEmbedding(model=model)
+        self.can_encoder = BertEmbedding(model=model)
         # queue
         self.K = K
         self.topk = topk
@@ -68,8 +68,8 @@ class BERTDualCLEncoder(nn.Module):
         self.queue_size[0] = min(self.K, self.queue_size + batch_size)
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
-        cid_rep = self.encoder(cid, cid_mask)
-        rid_rep = self.encoder(rid, rid_mask)
+        cid_rep = self.ctx_encoder(cid, cid_mask)
+        rid_rep = self.can_encoder(rid, rid_mask)
         return cid_rep, rid_rep
 
     @torch.no_grad()
@@ -85,17 +85,14 @@ class BERTDualCLEncoder(nn.Module):
         batch_size = cid.shape[0]
         acc, loss = 0, 0
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
-
-        # if dequeue_enqueue and int(self.queue_size) > self.topk:
-        #     neg_rep = []
-        #     for _ in range(batch_size):
-        #         random_idx = random.sample(range(self.K), self.topk)
-        #         neg_rep.append(self.queue[random_idx, :])
-        #     neg_rep = torch.stack(neg_rep)    # [B, K, E]
-        #     neg_rep = torch.cat([rid_rep.unsqueeze(0).repeat(batch_size, 1, 1), neg_rep], dim=1)    # [B, B+K, E]
-        #     dot_product = torch.bmm(cid_rep.unsqueeze(1), neg_rep.permute(0, 2, 1)).squeeze(1)    # [B, B+K]
-        # else:
-        dot_product = torch.matmul(cid_rep, rid_rep.t())    # [B, B]
+        hard_rid_rep = []
+        weights = torch.matmul(cid_rep, self.queue.detach().t())    # [B, K]
+        for weight in weights:
+            weight = torch.topk(weight, self.topk)[1]
+            hard_rid_rep.append(self.queue[weight, :])
+        hard_rid_rep = torch.stack(hard_rid_rep)    # [B, k, E]
+        rid_rep = torch.cat([rid_rep.unsqueeze(0).repeat(batch_size, 1, 1), hard_rid_rep], dim=1)    # [B, B+k, E]
+        dot_product = torch.bmm(cid_rep.unsqueeze(1), rid_rep.permute(0, 2, 1)).squeeze(1)    # [B, B+K]
         mask = torch.zeros_like(dot_product).cuda()
         mask[torch.arange(batch_size), torch.arange(batch_size)] = 1
         loss_ = F.log_softmax(dot_product, dim=-1) * mask
@@ -106,8 +103,7 @@ class BERTDualCLEncoder(nn.Module):
         acc = acc_num / batch_size
         
         # dequeue and enqueue the updated rid_rep
-        # if dequeue_enqueue:
-        #     self._dequeue_and_enqueue(rid_rep)
+        self._dequeue_and_enqueue(rid_rep)
         return loss, acc, int(self.queue_ptr), int(self.queue_size)
     
     

@@ -45,6 +45,34 @@ class Searcher:
             self.corpus = joblib.load(f)
 
 if __name__ == "__main__":
+    '''
+    args = vars(parser_args())
+    queries, answers, order = [], [], []
+    for i in tqdm(range(args['nums'])):
+        query, answer, q_order = torch.load(f'data/{args["dataset"]}/inference_qa_{i}.pt')
+        answers.append(answer)
+        queries.append(query)
+        order.extend(q_order)
+    order = np.argsort(order)
+    answers = np.concatenate(answers)
+    queries = np.concatenate(queries)
+    queries = np.array([queries[i] for i in order])
+    answers = np.array([answers[i] for i in order])
+
+    # corr matrix
+    matrixs = []
+    inner_bsz = 512
+    for i in tqdm(range(0, len(queries), inner_bsz)):
+        q = queries[i:i+inner_bsz].cuda()
+        matrix = torch.matmul(q, answers.t()).cpu()
+        matrix = torch.argsort(matrix, descending=True)[:10000]
+        matrixs.append(matrix)
+    matrix = torch.cat(matrixs)
+    torch.save(matrix, f'data/{args["dataset"]}/corr_matrix.pt')
+    exit()
+    ''' 
+        
+    # ========== for one2many ========== #
     # reconstruct
     args = vars(parser_args())
     queries, q_text, query_order, matrixes, corpus, q_text_mapping = [], [], [], [], [], []
@@ -74,9 +102,6 @@ if __name__ == "__main__":
     )
     print(f'[!] load checkpoint from {args["nums"]} files, and save them into data/{args["dataset"]}/faiss.ckpt and data/{args["dataset"]}/corpus.ckpt')
 
-    # write the query:
-    # torch.save((q_text, q_text_mapping), f'data/{args["dataset"]}/context_embedding.pt')
-
     # ========== Search ========== #
     print(f'[!] begin to search the candidates')
     candidates = []
@@ -93,8 +118,9 @@ if __name__ == "__main__":
             if item_gt in item_rest:
                 item_rest.remove(item_gt)
             # rr.append(item_rest[-args['topk']:])
-            rr.append(item_rest[:args['topk']])
+            # rr.append(item_rest[100:100+args['topk']])
             # rr.append(random.sample(item_rest, args['topk']))
+            rr.append(item_rest)
         candidates.extend(rr)
     torch.save(candidates, f'data/{args["dataset"]}/candidates.pt')
     print(f'[!] save retrieved candidates into data/{args["dataset"]}/candidates.pt')

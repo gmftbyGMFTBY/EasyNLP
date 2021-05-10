@@ -3,6 +3,9 @@ from .base import *
 from .utils import *
 
 
+'''Currculum Learning'''
+
+
 class BertEmbedding(nn.Module):
     
     def __init__(self, model='bert-base-chinese'):
@@ -60,26 +63,22 @@ class BERTDualEncoder(nn.Module):
         return cid_rep, rid_rep
 
     @torch.no_grad()
-    def get_cand(self, ids, attn_mask):
-        rid_rep = self.can_encoder(ids, attn_mask)
-        return rid_rep
-
-    @torch.no_grad()
-    def get_ctx(self, ids, attn_mask):
-        cid_rep = self.ctx_encoder(ids, attn_mask)
-        return cid_rep
-
-    @torch.no_grad()
     def predict(self, cid, rid, rid_mask, cid_sids):
         batch_size = rid.shape[0]
         cid_rep, rid_rep = self._encode(cid.unsqueeze(0), rid, None, rid_mask, cid_sids.unsqueeze(0))
         dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
         return dot_product
     
-    def forward(self, cid, rid, cid_mask, rid_mask, cid_sids):
+    def forward(self, cid, rid, cid_mask, rid_mask, cid_sids, rids, rids_mask):
         batch_size = cid.shape[0]
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask, cid_sids)
-        dot_product = torch.matmul(cid_rep, rid_rep.t())
+        # extra rid_reps
+        rid_reps = self.can_encoder(rids, rids_mask, speaker_type_ids=None)
+        rid_reps = torch.stack(torch.split(rid_reps, batch_size)).permute(1, 0, 2)    # [B, K, E]
+        # cid_rep: [B, E]; rid_rep: [B, E]; rid_reps: [B, K, E]
+        rid_rep_ = torch.cat([rid_rep.unsqueeze(0).repeat(batch_size, 1, 1), rid_reps], dim=1)    # [B, K+B, E]
+        cid_rep_ = cid_rep.unsqueeze(1)    # [B, 1, E]
+        dot_product = torch.bmm(cid_rep_, rid_rep_.permute(0, 2, 1)).squeeze(1)    # [B, K+B]
         mask = torch.zeros_like(dot_product).cuda()
         mask[range(batch_size), range(batch_size)] = 1.
         # loss
@@ -88,6 +87,23 @@ class BERTDualEncoder(nn.Module):
         # acc
         acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
         acc = acc_num / batch_size
+
+        # cid_rep: [B, E]; rid_rep: [B, E]; rid_reps: [B, K, E]
+        rid_rep_ = []
+        for i in range(batch_size):
+            index = list(range(batch_size))
+            index.remove(i)
+            rid_rep_.append(rid_rep[index, :])
+        rid_rep_ = torch.stack(rid_rep_)    # [B, B-1, E]
+        scale = 1./rid_reps.shape[1]
+        for i in range(rid_reps.shape[1])):
+            rid_rep_ = torch.cat([rid_reps[:, i, :], rid_rep_], dim=1)    # [B, B, E]
+            dot_product = torch.bmm(cid_rep_, rid_rep_.permute(0, 2, 1)).squeeze(1)    # [B, B]
+            mask = torch.zeros_like(dot_product).cuda()
+            mask[range(batch_size), range(batch_size)] = 1.
+            # loss
+            loss_ = F.log_softmax(dot_product, dim=-1) * mask
+            loss += scale * (-loss_.sum(dim=1)).mean()
         return loss, acc
     
     
@@ -212,7 +228,7 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             cid, rids, rids_mask, s_ids, label = batch
             batch_size = len(rids)
             assert batch_size == 10, f'[!] {batch_size} is not equal to 10'
-            scores = self.model.predict(cid, rids, rids_mask, s_ids).cpu().tolist()    # [B]
+            scores = self.model.module.predict(cid, rids, rids_mask, s_ids).cpu().tolist()    # [B]
 
             rank_by_pred, pos_index, stack_scores = \
           calculate_candidates_ranking(
@@ -221,7 +237,6 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
                 10)
             num_correct = logits_recall_at_k(pos_index, k_list)
             if self.args['dataset'] in ["douban"]:
-                ipdb.set_trace()
                 total_prec_at_one += precision_at_one(rank_by_pred)
                 total_map += mean_average_precision(pos_index)
                 for pred in rank_by_pred:
@@ -240,47 +255,3 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         print(f"P@1: {round(avg_prec_at_one, 4)}")
         print(f"MAP: {round(avg_map, 4)}")
         return (total_correct[0]/total_examples, total_correct[1]/total_examples, total_correct[2]/total_examples), avg_mrr, avg_prec_at_one, avg_map
-
-    @torch.no_grad()
-    def inference_qa(self, inf_iter):
-        self.model.eval()
-        pbar = tqdm(inf_iter)
-        q, a, o = [], [], []
-        for batch in pbar:
-            cid, cid_mask, rid, rid_mask, order = batch
-            ctx = self.model.module.get_ctx(cid, cid_mask).cpu()
-            res = self.model.module.get_cand(rid, rid_mask).cpu()
-            q.append(ctx)
-            a.append(res)
-            o.extend(order)
-        q = torch.cat(q, dim=0).numpy()
-        a = torch.cat(a, dim=0).numpy()
-        torch.save((q, a, o), f'data/{self.args["dataset"]}/inference_qa_{self.args["local_rank"]}.pt')
-
-    @torch.no_grad()
-    def inference(self, inf_iter, test_iter):
-        self.model.eval()
-        pbar = tqdm(inf_iter)
-        matrix, corpus, queries, q_text, q_order, q_text_r = [], [], [], [], [], []
-        for batch in pbar:
-            ids, mask, text = batch
-            vec = self.model.module.get_cand(ids, mask).cpu()    # [B, H]
-            matrix.append(vec)
-            corpus.extend(text)
-        matrix = torch.cat(matrix, dim=0).numpy()    # [Size, H]
-        assert len(matrix) == len(corpus)
-
-        # context response
-        pbar = tqdm(test_iter)
-        for batch in pbar:
-            ids, ids_mask, ctx_text, res_text, order = batch
-            vec = self.model.module.get_ctx(ids, ids_mask).cpu()
-            queries.append(vec)
-            q_text.extend(ctx_text)
-            q_text_r.extend(res_text)
-            q_order.extend(order)
-        queries = torch.cat(queries, dim=0).numpy()
-        torch.save(
-            (queries, q_text, q_text_r, q_order, matrix, corpus), 
-            f'data/{self.args["dataset"]}/inference_{self.args["local_rank"]}.pt'
-        )

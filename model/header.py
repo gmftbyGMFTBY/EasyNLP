@@ -32,6 +32,6 @@ from apex.parallel import convert_syncbn_model
 from sklearn.metrics import label_ranking_average_precision_score
 import argparse
 import joblib
-# import faiss
+import faiss
 import time
 # from thop import profile

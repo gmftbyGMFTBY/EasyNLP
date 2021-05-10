@@ -84,10 +84,12 @@ def main(**args):
         torch.distributed.init_process_group(backend='nccl', init_method='env://')
         # inference the dataset and generate the vector for each sample
         _, (iter_res, iter_ctx), _ = load_dataset(args)
+        # _, data_iter, _ = load_dataset(args)
         args['total_step'], args['warmup_step'] = 0, 0
         agent = load_model(args)
         agent.load_model(f'ckpt/{args["dataset"]}/{args["model"]}/best.pt')
         agent.inference(iter_res, iter_ctx)
+        # agent.inference_qa(data_iter)
 
 if __name__ == "__main__":
     args = parser_args()
