@@ -27,15 +27,12 @@ class BertEmbedding(nn.Module):
         self.model.load_state_dict(new_state_dict)
     
 
-class BERTDualEncoder(nn.Module):
+class BERTDualSemiEncoder(nn.Module):
 
-    '''dual bert and dual latent interaction: one-to-many mechanism'''
-    
-    def __init__(self, delta=(10,), model='bert-base-chinese'):
-        super(BERTDualEncoder, self).__init__()
+    def __init__(self, model='bert-base-chinese'):
+        super(BERTDualSemiEncoder, self).__init__()
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
-        self.delta = delta[0]
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
@@ -59,34 +56,38 @@ class BERTDualEncoder(nn.Module):
         dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
         return dot_product
     
-    def forward(self, cid, rid, cid_mask, rid_mask):
+    def forward(self, cid, rid, cid_mask, rid_mask, hard_rids, hard_rids_mask):
         batch_size = cid.shape[0]
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
-        dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, B]
+        hard_rid_rep = self.can_encoder(hard_rids, hard_rids_mask)    # [H*B, E]
+
+        extra_num = int(len(hard_rids) / batch_size)
+        assert extra_num * batch_size == len(hard_rids)
+        hard_rid_reps = torch.split(hard_rid_rep, extra_num)    # B*[H, E]
+        hard_rid_reps = torch.stack(hard_rid_reps)    # [B, H, E]
+
+        dot_product = torch.matmul(cid_rep, rid_rep.t())    # [B, B]
+        dot_product_semi = torch.bmm(cid_rep.unsqueeze(1), hard_rid_reps.permute(0, 2, 1)).squeeze(1)    # [B, H]
+        semi_label = (dot_product_semi > dot_product[range(batch_size), range(batch_size)].unsqueeze(1)).to(torch.long)
+        # ignore the positive augmented label
+        dot_product_semi = torch.where(semi_label == 1, torch.ones_like(dot_product_semi) * -1e3, dot_product_semi)
+        dot_product = torch.cat([dot_product, dot_product_semi], dim=1)    # [B, B+H]
 
         mask = torch.zeros_like(dot_product).cuda()
         mask[range(batch_size), range(batch_size)] = 1.
         # loss
         loss_ = F.log_softmax(dot_product, dim=-1) * mask
         loss = (-loss_.sum(dim=1)).mean()
-
-        # delta loss
-        ipdb.set_trace()
-        dot_product = self.delta + dot_product - dot_product.diag().unsqueeze(1)
-        # ignore the item that already bigger than self.delta
-        dot_product = torch.where(dot_product < 0, torch.ones_like(dot_product), dot_product)
-        loss += dot_product.mean()
-
         # acc
         acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
         acc = acc_num / batch_size
         return loss, acc
     
     
-class BERTDualEncoderAgent(RetrievalBaseAgent):
+class BERTDualSemiEncoderAgent(RetrievalBaseAgent):
     
     def __init__(self, multi_gpu, total_step, warmup_step, run_mode='train', local_rank=0, dataset_name='ecommerce', pretrained_model='bert-base-chinese', pretrained_model_path=None):
-        super(BERTDualEncoderAgent, self).__init__()
+        super(BERTDualSemiEncoderAgent, self).__init__()
         try:
             self.gpu_ids = list(range(len(multi_gpu.split(',')))) 
         except:
@@ -104,17 +105,13 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             'dropout': 0.1,
             'amp_level': 'O2',
             'test_interval': 0.05,
-            'delta': (10.,), 
         }
         self.args['test_step'] = [int(total_step*i) for i in np.arange(0, 1+self.args['test_interval'], self.args['test_interval'])]
         self.test_step_counter = 0
 
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
-        self.model = BERTDualEncoder(
-            model=self.args['model'], 
-            delta=self.args['delta'],
-        )
-        if pretrained_model_path:
+        self.model = BERTDualSemiEncoder(model=self.args['model'])
+        if pretrained_model_path and run_mode != 'train-dual-post':
             self.load_bert_model(pretrained_model_path)
         if torch.cuda.is_available():
             self.model.cuda()
@@ -158,8 +155,8 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         correct, s, oom_t = 0, 0, 0
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
-            cid, rid, cid_mask, rid_mask = batch
-            loss, acc = self.model(cid, rid, cid_mask, rid_mask)
+            cid, rid, cid_mask, rid_mask, hard_rid, hard_rid_mask = batch
+            loss, acc = self.model(cid, rid, cid_mask, rid_mask, hard_rid, hard_rid_mask)
             
             with amp.scale_loss(loss, self.optimizer) as scaled_loss:
                 scaled_loss.backward()

@@ -15,13 +15,13 @@ head_num=5     # hyperparameter of the dual-bert-one2mnay: 11 heads means there 
 pre_extract=500
 inf_bsz=64
 # 
-post_bsz=32
+post_bsz=16
 post_epoch=5
-post_max_len=512
+post_max_len=256
 post_res_max_len=64
 neg_bsz=64    # useless
-models=(dual-bert-mlm dual-bert-cross dual-bert-scm sa-bert bert-ft bert-ft-multi bert-gen bert-gen-ft bert-post dual-bert-fg dual-bert-gen dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-mb dual-bert-adv dual-bert-jsd dual-bert-hierarchical-trs dual-gru-hierarchical-trs)
-ONE_BATCH_SIZE_MODEL=(dual-bert-mlm dual-bert-cross dual-bert-scm bert-ft-multi dual-bert dual-bert-poly dual-bert-fg dual-bert-cl dual-bert-gen dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-hierarchical-trs dual-bert-mb dual-bert-adv dual-bert-jsd dual-gru-hierarchical)
+models=(dual-bert-semi dual-bert-mlm dual-bert-cross dual-bert-scm sa-bert bert-ft bert-ft-multi bert-gen bert-gen-ft bert-post dual-bert-fg dual-bert-gen dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-mb dual-bert-adv dual-bert-jsd dual-bert-hierarchical-trs dual-gru-hierarchical-trs)
+ONE_BATCH_SIZE_MODEL=(dual-bert-semi dual-bert-mlm dual-bert-cross dual-bert-scm bert-ft-multi dual-bert dual-bert-poly dual-bert-fg dual-bert-cl dual-bert-gen dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-hierarchical-trs dual-bert-mb dual-bert-adv dual-bert-jsd dual-gru-hierarchical)
 datasets=(ecommerce douban ubuntu lccc lccc-large)
 chinese_datasets=(douban ecommerce lccc lccc-large)
 # ========== metadata ========== #
@@ -83,6 +83,26 @@ elif [ $mode = 'train' ]; then
         --lang $lang \
         --warmup_ratio $warmup_ratio \
         --pretrained_model_path $pretrained_model_path
+elif [ $mode = 'inference_qa' ]; then
+    gpu_ids=(${cuda//,/ })
+    CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 29400 main.py \
+        --dataset $dataset \
+        --model $model \
+        --mode inference_qa \
+        --batch_size $inf_bsz \
+        --seed $seed \
+        --max_len $max_len \
+        --multi_gpu $cuda \
+        --pretrained_model $pretrained_model \
+        --lang $lang \
+        --warmup_ratio $warmup_ratio
+    # reconstruct
+    python model/searcher.py \
+        --dataset $dataset \
+        --nums ${#gpu_ids[@]} \
+        --inner_bsz 128 \
+        --pre_extract $pre_extract \
+        --topk 100
 elif [ $mode = 'inference' ]; then
     gpu_ids=(${cuda//,/ })
     CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 29400 main.py \

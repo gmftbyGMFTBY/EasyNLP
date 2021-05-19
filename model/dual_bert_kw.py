@@ -31,16 +31,24 @@ class BERTDualEncoder(nn.Module):
 
     '''dual bert and dual latent interaction: one-to-many mechanism'''
     
-    def __init__(self, delta=(10,), model='bert-base-chinese'):
+    def __init__(self, vocab_size, p=0.1, model='bert-base-chinese'):
         super(BERTDualEncoder, self).__init__()
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
-        self.delta = delta[0]
+        self.kw_predictor = nn.Sequential(
+            nn.Linear(768, 768*2),
+            nn.ReLU(),
+            nn.Dropout(p=p),
+            nn.Linear(768*2, vocab_size),
+            nn.Sigmoid(),
+        )
+        self.criterion = nn.BCELoss()
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
         rid_rep = self.can_encoder(rid, rid_mask)
-        return cid_rep, rid_rep
+        kw_rep = self.kw_predictor(cid_rep)
+        return cid_rep, rid_rep, kw_rep
 
     @torch.no_grad()
     def get_cand(self, ids, attn_mask):
@@ -55,28 +63,21 @@ class BERTDualEncoder(nn.Module):
     @torch.no_grad()
     def predict(self, cid, rid, rid_mask):
         batch_size = rid.shape[0]
-        cid_rep, rid_rep = self._encode(cid.unsqueeze(0), rid, None, rid_mask)
+        cid_rep, rid_rep, _ = self._encode(cid.unsqueeze(0), rid, None, rid_mask)
         dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
         return dot_product
     
-    def forward(self, cid, rid, cid_mask, rid_mask):
+    def forward(self, cid, rid, cid_mask, rid_mask, label):
         batch_size = cid.shape[0]
-        cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
-        dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, B]
-
+        cid_rep, rid_rep, kw_rep = self._encode(cid, rid, cid_mask, rid_mask)
+        dot_product = torch.matmul(cid_rep, rid_rep.t())
         mask = torch.zeros_like(dot_product).cuda()
         mask[range(batch_size), range(batch_size)] = 1.
         # loss
         loss_ = F.log_softmax(dot_product, dim=-1) * mask
         loss = (-loss_.sum(dim=1)).mean()
-
-        # delta loss
-        ipdb.set_trace()
-        dot_product = self.delta + dot_product - dot_product.diag().unsqueeze(1)
-        # ignore the item that already bigger than self.delta
-        dot_product = torch.where(dot_product < 0, torch.ones_like(dot_product), dot_product)
-        loss += dot_product.mean()
-
+        # kw loss
+        loss += self.criterion(kw_rep, label)
         # acc
         acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
         acc = acc_num / batch_size
@@ -104,7 +105,6 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             'dropout': 0.1,
             'amp_level': 'O2',
             'test_interval': 0.05,
-            'delta': (10.,), 
         }
         self.args['test_step'] = [int(total_step*i) for i in np.arange(0, 1+self.args['test_interval'], self.args['test_interval'])]
         self.test_step_counter = 0
@@ -112,7 +112,6 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
         self.model = BERTDualEncoder(
             model=self.args['model'], 
-            delta=self.args['delta'],
         )
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)
@@ -158,8 +157,8 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         correct, s, oom_t = 0, 0, 0
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
-            cid, rid, cid_mask, rid_mask = batch
-            loss, acc = self.model(cid, rid, cid_mask, rid_mask)
+            cid, rid, cid_mask, rid_mask, label = batch
+            loss, acc = self.model(cid, rid, cid_mask, rid_mask, label)
             
             with amp.scale_loss(loss, self.optimizer) as scaled_loss:
                 scaled_loss.backward()

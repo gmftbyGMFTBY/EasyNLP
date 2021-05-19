@@ -26,6 +26,7 @@ NOTE:
 - [ ] 直接继承 dual-bert-hier 的dataloader写bert-ft-hier
 - [ ] dual-bert-hier 之前用 last utterance 作为 key 重新获得细粒度的 history 在做 contextual transformer encoding
 - [x] dual-bert-hier-trs-poly and dual-bert-hier-trs-poly2 sucks
+- [ ] 换个角度思考，就算dual encoder architecture效果不如cross encoder，但是dual encoder因为独有的有点可以作为粗筛的一个有效方法，那么只要改进在dual encoder architecture是显著的就行，不一定要打败SOTA，只要比dual encoder本身好就行
 
 ## How to Use
 

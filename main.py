@@ -46,6 +46,8 @@ def main(**args):
 
         obtain_steps_parameters(train_data, args)
         agent = load_model(args)
+        if args['mode'] == 'train-dual-post':
+            agent.load_model(f'ckpt/{args["dataset"]}/dual-bert/best.pt')
         agent.test_iter = test_iter
         
         sum_writer = SummaryWriter(log_dir=f'rest/{args["dataset"]}/{args["model"]}')
@@ -90,6 +92,14 @@ def main(**args):
         agent.load_model(f'ckpt/{args["dataset"]}/{args["model"]}/best.pt')
         agent.inference(iter_res, iter_ctx)
         # agent.inference_qa(data_iter)
+    elif args['mode'] == 'inference_qa':
+        torch.cuda.set_device(args['local_rank'])
+        torch.distributed.init_process_group(backend='nccl', init_method='env://')
+        _, data_iter, _ = load_dataset(args)
+        args['total_step'], args['warmup_step'] = 0, 0
+        agent = load_model(args)
+        agent.load_model(f'ckpt/{args["dataset"]}/{args["model"]}/best.pt')
+        agent.inference_qa(data_iter)
 
 if __name__ == "__main__":
     args = parser_args()

@@ -45,7 +45,7 @@ class Searcher:
             self.corpus = joblib.load(f)
 
 if __name__ == "__main__":
-    '''
+    # =========== for inference_qa =========== #
     args = vars(parser_args())
     queries, answers, order = [], [], []
     for i in tqdm(range(args['nums'])):
@@ -56,21 +56,20 @@ if __name__ == "__main__":
     order = np.argsort(order)
     answers = np.concatenate(answers)
     queries = np.concatenate(queries)
-    queries = np.array([queries[i] for i in order])
-    answers = np.array([answers[i] for i in order])
+    queries = torch.from_numpy(np.array([queries[i] for i in order]))
+    answers = torch.from_numpy(np.array([answers[i] for i in order]))
 
     # corr matrix
     matrixs = []
     inner_bsz = 512
     for i in tqdm(range(0, len(queries), inner_bsz)):
-        q = queries[i:i+inner_bsz].cuda()
-        matrix = torch.matmul(q, answers.t()).cpu()
-        matrix = torch.argsort(matrix, descending=True)[:10000]
-        matrixs.append(matrix)
+        q = queries[i:i+inner_bsz]
+        matrix = torch.matmul(q, answers.t())
+        matrix = matrix.topk(args['topk'], dim=-1)[1]
+        matrixs.append(matrix.cpu())
     matrix = torch.cat(matrixs)
     torch.save(matrix, f'data/{args["dataset"]}/corr_matrix.pt')
     exit()
-    ''' 
         
     # ========== for one2many ========== #
     # reconstruct
