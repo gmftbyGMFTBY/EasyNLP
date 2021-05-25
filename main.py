@@ -20,6 +20,7 @@ def parser_args():
     parser.add_argument('--warmup_ratio', type=float, default=0.1)
     parser.add_argument('--pretrained_model_path', type=str, default='')
     parser.add_argument('--head_num', type=int, default=5)
+    parser.add_argument('--extra_tm', type=int, default=16)
     return parser.parse_args()
 
 

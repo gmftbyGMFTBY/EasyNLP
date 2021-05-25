@@ -130,6 +130,7 @@ bak/
 ckpt/
 benchmarks/*.md
 *pretrained
+indexdir/
 post_train/runs
 
 !data/vocab/*

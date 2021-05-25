@@ -27,12 +27,12 @@ class BertEmbedding(nn.Module):
         self.model.load_state_dict(new_state_dict)
     
 
-class BERTDualEncoder(nn.Module):
+class BERTDualKWEncoder(nn.Module):
 
     '''dual bert and dual latent interaction: one-to-many mechanism'''
     
-    def __init__(self, vocab_size, p=0.1, model='bert-base-chinese'):
-        super(BERTDualEncoder, self).__init__()
+    def __init__(self, vocab_size, p=0.1, model='bert-base-chinese', alpha=0.3, beta=0.2, topk=10):
+        super(BERTDualKWEncoder, self).__init__()
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
         self.kw_predictor = nn.Sequential(
@@ -43,6 +43,13 @@ class BERTDualEncoder(nn.Module):
             nn.Sigmoid(),
         )
         self.criterion = nn.BCELoss()
+        self.kw_embedding = nn.Embedding(vocab_size, 768)
+        # set the pad token word embedding to all he zeros
+        ipdb.set_trace()
+        self.kw_embedding.data[0].copy_(torch.zeros(768))
+        self.alpha = alpha
+        self.beta = beta
+        self.topk = topk
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
@@ -61,15 +68,36 @@ class BERTDualEncoder(nn.Module):
         return cid_rep
 
     @torch.no_grad()
-    def predict(self, cid, rid, rid_mask):
+    def predict(self, cid, rid, rid_mask, kw_ids, kw_rids):
         batch_size = rid.shape[0]
-        cid_rep, rid_rep, _ = self._encode(cid.unsqueeze(0), rid, None, rid_mask)
+        cid_rep, rid_rep, kw_rep = self._encode(cid.unsqueeze(0), rid, None, rid_mask)
+        # fusion
+        kw_rids_rep = self.kw_embedding(kw_rids)    # [B, S, E]
+        kw_cids_rep = self.kw_embedding(kw_ids.unsqueeze(0))    # [1, S, E]
+        kw_rids_rep = kw_rids_rep.mean(dim=1)
+        kw_cids_rep = kw_cids_rep.mean(dim=1)
+        # during inference, the rids keywords is unknown, use tok
+        pred_kw_rids = torch.topk(kw_rep, self.topk)[0]    # [1, K]
+        pred_kw_rids_rep = self.kw_embedding(pred_kw_rids).mean(dim=1)    # [1, K, E] -> [1, E]
+        cid_rep += self.alpha * kw_cids_rep + self.beta * pred_kw_rids_rep
+        rid_rep += self.alpha * kw_rids_rep
+
         dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
         return dot_product
     
-    def forward(self, cid, rid, cid_mask, rid_mask, label):
+    def forward(self, cid, rid, cid_mask, rid_mask, kw_ids, kw_rids, kw_pred_label):
         batch_size = cid.shape[0]
         cid_rep, rid_rep, kw_rep = self._encode(cid, rid, cid_mask, rid_mask)
+        # fusion the keyword embedding
+        kw_rids_rep = self.kw_embedding(kw_rids)    # [B, S, E]
+        kw_cids_rep = self.kw_embedding(kw_cids)    # [B, S, E]
+        kw_rids_rep = kw_rids_rep.mean(dim=1)
+        kw_cids_rep = kw_cids_rep.mean(dim=1)
+        # TODO: add the teacher force ratio to fill the gap between the training and test procedure
+        cid_rep += self.alpha * kw_cids_rep + self.beta * kw_rids_rep
+        rid_rep += self.alpha * kw_rids_rep
+
+
         dot_product = torch.matmul(cid_rep, rid_rep.t())
         mask = torch.zeros_like(dot_product).cuda()
         mask[range(batch_size), range(batch_size)] = 1.
@@ -77,17 +105,18 @@ class BERTDualEncoder(nn.Module):
         loss_ = F.log_softmax(dot_product, dim=-1) * mask
         loss = (-loss_.sum(dim=1)).mean()
         # kw loss
-        loss += self.criterion(kw_rep, label)
+        kw_pred_label = kw_pred_label.to(torch.half)
+        loss += self.criterion(kw_rep, kw_pred_label)
         # acc
         acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
         acc = acc_num / batch_size
         return loss, acc
     
     
-class BERTDualEncoderAgent(RetrievalBaseAgent):
+class BERTDualKWEncoderAgent(RetrievalBaseAgent):
     
     def __init__(self, multi_gpu, total_step, warmup_step, run_mode='train', local_rank=0, dataset_name='ecommerce', pretrained_model='bert-base-chinese', pretrained_model_path=None):
-        super(BERTDualEncoderAgent, self).__init__()
+        super(BERTDualKWEncoderAgent, self).__init__()
         try:
             self.gpu_ids = list(range(len(multi_gpu.split(',')))) 
         except:
@@ -105,13 +134,22 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             'dropout': 0.1,
             'amp_level': 'O2',
             'test_interval': 0.05,
+            'vocab_size': 50001,    # add the [PAD] token
+            'alpha': 0.3,
+            'beta': 0.2,
+            'topk': 10,
         }
         self.args['test_step'] = [int(total_step*i) for i in np.arange(0, 1+self.args['test_interval'], self.args['test_interval'])]
         self.test_step_counter = 0
 
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
-        self.model = BERTDualEncoder(
+        self.model = BERTDualKWEncoder(
+            self.args['vocab_size'],
             model=self.args['model'], 
+            p=self.args['dropout'],
+            alpha=self.args['alpha'],
+            beta=self.args['beta'],
+            topk=self.args['topk'],
         )
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)
@@ -157,12 +195,15 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         correct, s, oom_t = 0, 0, 0
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
-            cid, rid, cid_mask, rid_mask, label = batch
-            loss, acc = self.model(cid, rid, cid_mask, rid_mask, label)
+            cid, rid, cid_mask, rid_mask, kw_ids, kw_rids, kw_pred_label = batch
+            loss, acc = self.model(cid, rid, cid_mask, rid_mask, kw_ids, kw_rids, kw_pred_label)
             
             with amp.scale_loss(loss, self.optimizer) as scaled_loss:
                 scaled_loss.backward()
             clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
+            # zero the pad token gradient
+            ipdb.set_trace()
+            self.model.module.kw_embedding.weight.grad[0] = 0.
 
             self.optimizer.step()
             self.scheduler.step()
@@ -202,10 +243,10 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         total_examples, total_correct = 0, 0
         k_list = [1, 2, 5, 10]
         for idx, batch in enumerate(pbar):                
-            cid, rids, rids_mask, label = batch
+            cid, rids, rids_mask, label, kw_ids, kw_rids, kw_pred_label = batch
             batch_size = len(rids)
             assert batch_size == 10, f'[!] {batch_size} is not equal to 10'
-            scores = self.model.module.predict(cid, rids, rids_mask).cpu().tolist()    # [B]
+            scores = self.model.module.predict(cid, rids, rids_mask, kw_ids, kw_rids).cpu().tolist()    # [B]
 
             rank_by_pred, pos_index, stack_scores = \
           calculate_candidates_ranking(

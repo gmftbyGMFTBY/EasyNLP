@@ -104,6 +104,7 @@ _Note:_
 * adding the number of the positive samples doesn't improve the performance!!!
 * context max length 256, response max length 128
 
+
 | Original       | R10@1 | R10@2 | R10@5 | MRR    |
 | -------------- | ----- | ----- | ----- | ------ |
 | SOTA           | 77.6  | 91.9  | 99.1  | -      |
@@ -177,9 +178,26 @@ _Note:_
 * good candidates (pre-extract=20, topk=10) provide  better R10@1 and R10@2, hopeful!
 * context max length 256, response max length 128
 
+<!--the influence of the number of the negative samples, max_len=256/64
+It can be found that the number of the negative samples has the limited performance gain
+-->
 | Original           | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   |
 | ------------------ | ----- | ----- | ----- | ----- | ----- | ------ |
 | SOTA               | 31.8  | 48.2  | 85.8  | 66.4  | 49.9  | 62.5   |
+| HCL                | 33.0  | 53.1  | 85.8  | 68.1  | 51.4  | 63.9   |
+| dual-bert(bsz=16, epoch=5, bert-post) | 27.85 | 49.26 | 85.99 | 63.88 | 44.83 | 60.73 |
+| dual-bert(bsz=16, epoch=5, bert-post, extra_t=16) | 30.26 | 51.2 | 85.71 | 65.93 | 47.98 | 62.22  |
+| dual-bert(bsz=16, epoch=5, bert-post, extra_t=32) | 31.36 | 51.32 | 85.82 | 66.63 | 49.33 | 62.91 |
+| dual-bert(bsz=16, epoch=5, bert-post, extra_t=48) | 32.01 | 50.65 | 85.07 | 66.8 | 49.78 | 62.86 |
+| dual-bert(bsz=16, epoch=5, bert-post, extra_t=64) | 30.13 | 51.27 | 85.2 | 65.72 | 47.68 | 61.92 |
+| dual-bert(bsz=16, epoch=5, bert-post, extra_t=128) | | | | | | |
+
+
+
+| Original           | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   |
+| ------------------ | ----- | ----- | ----- | ----- | ----- | ------ |
+| SOTA               | 31.8  | 48.2  | 85.8  | 66.4  | 49.9  | 62.5   |
+| HCL                | 33.0  | 53.1  | 85.8  | 68.1  | 51.4  | 63.9   |
 | dual-bert(bsz=16, epoch=5, bert-post) | 30.15 | 49.42  | 84.51 | 65.65 | 48.28 | 61.62  |
 | dual-bert(bsz=32, epoch=5, bert-post) | 31.01 | 51.59  | 84.68 | 66.29 | 48.88 | 62.49  |
 | dual-bert(bsz=32, epoch=5, bert-post, speaker for context encoder, max-res-len=256) | 30.91 | 50.57  | 84.82 | 66.19 | 48.58 | 62.36  |
@@ -252,6 +270,7 @@ _Note:_
 | Original       | R10@1 | R10@2 | R10@5 | R2@1   |
 | -------------- | ----- | ----- | ----- | ------ |
 | SOTA           | 0.884 | 0.946 | 0.990 | 0.975  |
+| HCL            | 0.867 | 0.940 | 0.992 | 0.977  |
 | dual-bert(bsz=16, epoch=5, bert-post) | 84.69 | 92.66 | 98.51 | - |
 | dual-bert(bsz=32, epoch=5, bert-post) | | | | - |
 | dual-gru(bsz=64, epoch=5) | 72.51 | 85.22 | 96.41 | - |

@@ -59,10 +59,13 @@ class BERTDualEncoder(nn.Module):
         dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
         return dot_product
     
-    def forward(self, cid, rid, cid_mask, rid_mask):
+    def forward(self, cid, rid, xrids, cid_mask, rid_mask, xrids_mask):
         batch_size = cid.shape[0]
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
+        xrid_rep = self.can_encoder(xrids, xrids_mask)    # [X, E]
+        dot_product_ = torch.matmul(cid_rep, xrid_rep.t())    # [B, X]
         dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, B]
+        dot_product = torch.cat([dot_product, dot_product_], dim=1)    # [B, X+B]
 
         mask = torch.zeros_like(dot_product).cuda()
         mask[range(batch_size), range(batch_size)] = 1.
@@ -70,16 +73,10 @@ class BERTDualEncoder(nn.Module):
         loss_ = F.log_softmax(dot_product, dim=-1) * mask
         loss = (-loss_.sum(dim=1)).mean()
 
-        # delta loss
-        ipdb.set_trace()
-        dot_product = self.delta + dot_product - dot_product.diag().unsqueeze(1)
-        # ignore the item that already bigger than self.delta
-        dot_product = torch.where(dot_product < 0, torch.ones_like(dot_product), dot_product)
-        loss += dot_product.mean()
-
         # acc
         acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
         acc = acc_num / batch_size
+        
         return loss, acc
     
     
@@ -104,7 +101,7 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             'dropout': 0.1,
             'amp_level': 'O2',
             'test_interval': 0.05,
-            'delta': (10.,), 
+            'delta': (20.,), 
         }
         self.args['test_step'] = [int(total_step*i) for i in np.arange(0, 1+self.args['test_interval'], self.args['test_interval'])]
         self.test_step_counter = 0
@@ -158,8 +155,8 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         correct, s, oom_t = 0, 0, 0
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
-            cid, rid, cid_mask, rid_mask = batch
-            loss, acc = self.model(cid, rid, cid_mask, rid_mask)
+            cid, rid, xrids, cid_mask, rid_mask, xrids_mask = batch
+            loss, acc = self.model(cid, rid, xrids, cid_mask, rid_mask, xrids_mask)
             
             with amp.scale_loss(loss, self.optimizer) as scaled_loss:
                 scaled_loss.backward()
