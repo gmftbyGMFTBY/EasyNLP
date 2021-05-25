@@ -33,10 +33,7 @@ import pickle
 import argparse
 from torch.nn.utils.rnn import pad_sequence
 import joblib
-from whoosh.index import create_in, open_dir
-from whoosh.fields import *
-from whoosh.qparser import QueryParser
-from whoosh import qparser
+from elasticsearch import Elasticsearch, helpers
 
 logging.getLogger("transformers").setLevel(logging.WARNING)
 logging.getLogger("transformers.tokenization_utils").setLevel(logging.ERROR)
