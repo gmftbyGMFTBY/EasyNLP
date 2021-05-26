@@ -39,23 +39,22 @@ class BERTDualOne2ManyEncoder(nn.Module):
         rid_reps = []
         for rid, rid_mask in zip(rids, rids_mask):
             rid_rep = self.can_encoder(rid, rid_mask)
-            rid_rep = rid_rep[:, 0, :]    # [B, E]
             rid_reps.append(rid_rep)
         rid_reps = torch.stack(rid_reps).permute(1, 0, 2)    # [B, H, E]
-        return cid_reps, rid_reps
+        return cid_rep, rid_reps
 
     @torch.no_grad()
     def _encode_(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
         rid_rep = self.can_encoder(rid, rid_mask)
-        return cid_reps, rid_rep
+        return cid_rep, rid_rep
 
     @torch.no_grad()
     def predict(self, cid, rid, rid_mask):
         batch_size = rid.shape[0]
         cid = cid.unsqueeze(0)
         cid_mask = torch.ones_like(cid).cuda()
-        cid_reps, rid_rep = self._encode_(cid, rid, cid_mask, rid_mask)
+        cid_rep, rid_rep = self._encode_(cid, rid, cid_mask, rid_mask)
         # cid_rep/rid_rep: [1, H, 768], [B, 768]
         cid_rep = cid_rep.squeeze(0)    # [H, 768]
         dot_product = torch.matmul(cid_rep, rid_rep.t()).max(dim=0)    # [H, B] -> [B]
@@ -63,14 +62,19 @@ class BERTDualOne2ManyEncoder(nn.Module):
     
     def forward(self, cid, rids, cid_mask, rids_mask):
         batch_size = cid.shape[0]
-        cid_reps, rid_reps = self._encode(cid, rids, cid_mask, rids_mask)
-        # cid_reps: [B, E]; rid_reps: [B, H, E]
-        dot_product = torch.bmm(cid_reps.unsqueeze(1), rid_reps.permute(0, 2, 1)).squeeze(1)    # [B, H]
-        mask = torch.zeros_like(dot_product)    # [B, B]
-        mask[torch.arange(batch_size), torch.arange(batch_size)] = 1.
+        cid_rep, rid_reps = self._encode(cid, rids, cid_mask, rids_mask)
+        head_num = rid_reps.shape[1]    # H
+        rid_reps = rid_reps.reshape(-1, rid_reps.shape[-1])    # [B*H, E]
+        dot_product = torch.matmul(cid_rep, rid_reps.t())    # [B, B*H]
+        mask = torch.zeros_like(dot_product)    # [B, B*H]
+        mask[torch.arange(batch_size), torch.arange(0, dot_product.shape[-1], head_num)] = 1.
 
         loss_ = F.log_softmax(dot_product, dim=-1) * mask
         loss = (-loss_.sum(dim=1)).mean()
+        
+        # acc
+        acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
+        acc = acc_num / batch_size
         return loss, acc
     
     
@@ -111,7 +115,7 @@ class BERTDualOne2ManyEncoderAgent(RetrievalBaseAgent):
             self.model.parameters(), 
             lr=self.args['lr'],
         )
-        if run_mode == 'train':
+        if run_mode in ['train', 'train-post', 'train-dual-post']:
             self.model, self.optimizer = amp.initialize(
                 self.model, 
                 self.optimizer,

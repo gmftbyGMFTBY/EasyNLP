@@ -537,8 +537,11 @@ class BERTDualOne2ManyDataset(Dataset):
         self.data = []
         if mode == 'train':
             data = read_text_data_one2many(path, lang=lang)
+            responses = [r for c, r in data]
             for (context, response), cands in tqdm(list(zip(data, candidates))):
-                # cands = cands[:self.head-1]
+                cands = cands[:self.head-1]
+                if len(cands) < self.head - 1:
+                    cands.extend(random.sample(responses, self.head-1-len(cands)))
                 item = self.vocab.batch_encode_plus([context, response] + cands)
                 ids, rids = item['input_ids'][0], item['input_ids'][1:]
                 ids, rids = self._length_limit(ids), [self._length_limit(i, mode='res') for i in rids]
@@ -580,7 +583,7 @@ class BERTDualOne2ManyDataset(Dataset):
             # random sample head samples
             ids = torch.LongTensor(bundle['ids'])
             rids = [c for c in bundle['rids']]
-            rids = [rids[0]] + random.sample(rids[1:], self.head-1)
+            # rids = [rids[0]] + random.sample(rids[1:], self.head-1)
             rids = [torch.LongTensor(i) for i in rids]
             return ids, rids
         else:
