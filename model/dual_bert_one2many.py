@@ -56,8 +56,8 @@ class BERTDualOne2ManyEncoder(nn.Module):
         cid_mask = torch.ones_like(cid).cuda()
         cid_rep, rid_rep = self._encode_(cid, rid, cid_mask, rid_mask)
         # cid_rep/rid_rep: [1, H, 768], [B, 768]
-        cid_rep = cid_rep.squeeze(0)    # [H, 768]
-        dot_product = torch.matmul(cid_rep, rid_rep.t()).max(dim=0)    # [H, B] -> [B]
+        cid_rep = cid_rep.squeeze(0)    # [768]
+        dot_product = torch.matmul(cid_rep, rid_rep.t())
         return dot_product
     
     def forward(self, cid, rids, cid_mask, rids_mask):
@@ -73,7 +73,7 @@ class BERTDualOne2ManyEncoder(nn.Module):
         loss = (-loss_.sum(dim=1)).mean()
         
         # acc
-        acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
+        acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(0, dot_product.shape[-1], head_num)).cuda()).sum().item()
         acc = acc_num / batch_size
         return loss, acc
     

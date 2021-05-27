@@ -27,6 +27,7 @@ NOTE:
 - [ ] dual-bert-hier 之前用 last utterance 作为 key 重新获得细粒度的 history 在做 contextual transformer encoding
 - [x] dual-bert-hier-trs-poly and dual-bert-hier-trs-poly2 sucks
 - [ ] 换个角度思考，就算dual encoder architecture效果不如cross encoder，但是dual encoder因为独有的有点可以作为粗筛的一个有效方法，那么只要改进在dual encoder architecture是显著的就行，不一定要打败SOTA，只要比dual encoder本身好就行
+- [ ] the hard negative seems not work as well
 
 ## How to Use
 
@@ -180,6 +181,7 @@ _Note:_
 
 <!--the influence of the number of the negative samples, max_len=256/64
 It can be found that the number of the negative samples has the limited performance gain
+it can also be found that the hard negative samples seems has the limited performance gain on the dual-encoder model
 -->
 | Original           | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   |
 | ------------------ | ----- | ----- | ----- | ----- | ----- | ------ |
@@ -190,7 +192,7 @@ It can be found that the number of the negative samples has the limited performa
 | dual-bert(bsz=16, epoch=5, bert-post, extra_t=32) | 31.36 | 51.32 | 85.82 | 66.63 | 49.33 | 62.91 |
 | dual-bert(bsz=16, epoch=5, bert-post, extra_t=48) | 32.01 | 50.65 | 85.07 | 66.8 | 49.78 | 62.86 |
 | dual-bert(bsz=16, epoch=5, bert-post, extra_t=64) | 30.13 | 51.27 | 85.2 | 65.72 | 47.68 | 61.92 |
-| dual-bert(bsz=16, epoch=5, bert-post, extra_t=128) | | | | | | |
+| dual-bert-bm25(bsz=16, epoch=5, bert-post, head_num=5) | 31.18 | 51.36 | 84.4 | 66.56 | 48.88 | 62.2 |
 
 
 
