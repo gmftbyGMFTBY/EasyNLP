@@ -247,16 +247,20 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         self.model.eval()
         pbar = tqdm(inf_iter)
         q, a, o = [], [], []
+        q_text, a_text = [], []
         for batch in pbar:
-            cid, cid_mask, rid, rid_mask, order = batch
+            cid, cid_mask, rid, rid_mask, cid_text, rid_text, order = batch
             ctx = self.model.module.get_ctx(cid, cid_mask).cpu()
             res = self.model.module.get_cand(rid, rid_mask).cpu()
             q.append(ctx)
             a.append(res)
             o.extend(order)
+            q_text.extend(cid_text)
+            a_text.extend(rid_text)
         q = torch.cat(q, dim=0).numpy()
         a = torch.cat(a, dim=0).numpy()
-        torch.save((q, a, o), f'data/{self.args["dataset"]}/inference_qa_{self.args["local_rank"]}.pt')
+        torch.save((q, a, q_text, a_text, o), f'data/{self.args["dataset"]}/inference_qa_{self.args["local_rank"]}.pt')
+        print(f'[!] save the inference checkpoint over ...')
 
     @torch.no_grad()
     def inference(self, inf_iter, test_iter):

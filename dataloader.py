@@ -657,7 +657,9 @@ class BERTDualInferenceContextResponseDataset(Dataset):
             cids = self._length_limit_ctx(item)
             item = self.vocab.encode(res)
             rids = self._length_limit_res(item)
-            self.data.append({'cid': cids, 'rid': rids, 'order': counter})
+            self.data.append({
+                'cid': cids, 'rid': rids, 'order': counter, 'cid_text': context, 'rid_text': response
+            })
             counter += 1
                 
     def _length_limit_ctx(self, ids):
@@ -677,8 +679,9 @@ class BERTDualInferenceContextResponseDataset(Dataset):
         bundle = self.data[i]
         cid = torch.LongTensor(bundle['cid'])
         rid = torch.LongTensor(bundle['rid'])
+        cid_text, rid_text = bundle['cid_text'], bundle['rid_text']
         order = bundle['order']
-        return cid, rid, order
+        return cid, rid, order, cid_text, rid_text
 
     def save(self):
         data = torch.save(self.data, self.pp_path)
@@ -695,13 +698,15 @@ class BERTDualInferenceContextResponseDataset(Dataset):
         cid = [i[0] for i in batch]
         rid = [i[1] for i in batch]
         order = [i[2] for i in batch]
+        cid_text = [i[3] for i in batch]
+        rid_text = [i[4] for i in batch]
         cid = pad_sequence(cid, batch_first=True, padding_value=self.pad)
         rid = pad_sequence(rid, batch_first=True, padding_value=self.pad)
         cid_mask = self.generate_mask(cid)
         rid_mask = self.generate_mask(rid)
         if torch.cuda.is_available():
             cid, rid, cid_mask, rid_mask = cid.cuda(), rid.cuda(), cid_mask.cuda(), rid_mask.cuda()
-        return cid, cid_mask, rid, rid_mask, order
+        return cid, cid_mask, rid, rid_mask, cid_text, rid_text, order
 
 
 # ========== DUAL BERT INFERENCE CONTEXT Dataset ========== #
@@ -960,7 +965,8 @@ class BERTDualGenDataset(Dataset):
 # ========== BERT DUAL Dataset ========== #
 class BERTDualCLDataset(Dataset):
     
-    '''segment embedding, token embedding, position embedding (default), mask embedding'''
+    '''segment embedding, token embedding, position embedding (default), mask embedding;
+    make sure the inference_qa script has been runned and the candidates.pt file has been saved'''
     
     def __init__(self, path, lang='zh', mode='train', max_len=300, model='bert-base-chinese'):
         self.mode, self.max_len = mode, max_len
@@ -976,22 +982,28 @@ class BERTDualCLDataset(Dataset):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
-        if 'lccc' in path:
-            data = read_text_data_fast(path)
-            print(f'[!] fast dataloader activate ...')
-        else:
-            data = read_text_data(path, lang=lang)
+        data = read_text_data(path, lang=lang)
+        candidates = torch.load(f'{os.path.split(path)}[0]/candidates.pt')     # 500000 * topk samples (ctx-res)
         self.data = []
         if mode == 'train':
-            for label, context, response in tqdm(data):
-                if label == 0:
-                    continue
-                item = self.vocab.batch_encode_plus([context, response])
+            data = [(context, response) for label, context, response in data if label == 1]
+            for (context, response), topk_candidates in tqdm(list(zip(data, candidates))):
+                item = self.vocab.batch_encode_plus([context, response])    # main samples
                 ids, rids = item['input_ids'][0], item['input_ids'][1]
                 ids, rids = self._length_limit(ids), self._length_limit_res(rids)
+
+                # additional sampes
+                collector = []
+                for c, r in topk_candidates:
+                    item = self.vocab.batch_encode_plus([context, response])    # main samples
+                    ids, rids = item['input_ids'][0], item['input_ids'][1]
+                    ids, rids = self._length_limit(ids), self._length_limit_res(rids)
+                    collector.append((ids, rids))
+
                 self.data.append({
                     'ids': ids,
                     'rids': rids,
+                    'candidates': collector
                 })
         else:
             for i in tqdm(range(0, len(data), 10)):
@@ -1027,7 +1039,10 @@ class BERTDualCLDataset(Dataset):
         if self.mode == 'train':
             ids = torch.LongTensor(bundle['ids'])
             rids = torch.LongTensor(bundle['rids'])
-            return ids, rids
+            sim_ids, sim_rids = random.choice(bundle['candidates'])
+            sim_ids = torch.LongTensor(sim_ids)
+            sim_rids = torch.LongTensor(sim_rids)
+            return ids, rids, sim_ids, sim_rids
         else:
             ids = torch.LongTensor(bundle['ids'])
             rids = [torch.LongTensor(i) for i in bundle['rids']]
@@ -1051,9 +1066,17 @@ class BERTDualCLDataset(Dataset):
             rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
             ids_mask = self.generate_mask(ids)
             rids_mask = self.generate_mask(rids)
+            
+            sim_ids, sim_rids = [i[2] for i in batch], [i[3] for i in batch]
+            sim_ids = pad_sequence(sim_ids, batch_first=True, padding_value=self.pad)
+            sim_rids = pad_sequence(sim_rids, batch_first=True, padding_value=self.pad)
+            sim_ids_mask = self.generate_mask(sim_ids)
+            sim_rids_mask = self.generate_mask(sim_rids)
+            
             if torch.cuda.is_available():
                 ids, rids, ids_mask, rids_mask = ids.cuda(), rids.cuda(), ids_mask.cuda(), rids_mask.cuda()
-            return ids, rids, ids_mask, rids_mask
+                sim_ids, sim_rids, sim_ids_mask, sim_rids_mask = sim_ids.cuda(), sim_rids.cuda(), sim_ids_mask.cuda(), sim_rids_mask.cuda()
+            return ids, rids, ids_mask, rids_mask, sim_ids, sim_rids, sim_ids_mask, sim_rids_mask
         else:
             # batch size is batch_size * 10
             assert len(batch) == 1

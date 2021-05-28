@@ -98,6 +98,7 @@ elif [ $mode = 'inference_qa' ]; then
         --warmup_ratio $warmup_ratio
     # reconstruct
     python model/searcher.py \
+        --mode inference_qa \
         --dataset $dataset \
         --nums ${#gpu_ids[@]} \
         --inner_bsz 128 \
@@ -118,6 +119,7 @@ elif [ $mode = 'inference' ]; then
         --warmup_ratio $warmup_ratio
     # reconstruct
     python model/searcher.py \
+        --mode inference \
         --dataset $dataset \
         --nums ${#gpu_ids[@]} \
         --inner_bsz 128 \

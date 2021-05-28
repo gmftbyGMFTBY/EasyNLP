@@ -63,6 +63,10 @@ python create_post_data.py
 ```bash
 # save the extended train dataset into data/<dataset>/candidates.pt
 ./run.sh inference ecommerce dual-bert <gpu_ids>
+
+# if you need to save the context and response (qa) into the FAISS index
+# run the following commands
+./run.sh inference_qa ecommerce dual-bert <gpu_ids>
 ```
 
 6. train the model, test after each epoch
