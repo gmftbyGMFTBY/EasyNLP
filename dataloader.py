@@ -1,39 +1,25 @@
 from header import *
 
 
-class InputExamples:
-    
-    def __init__(self, utterances, response, label, seq_lengths):
-        self.utterances = utterances
-        self.response = response
-        self.label = label
-        self.dialog_len, self.response_len = seq_lengths
-
-
-def read_ums_data(path, vocab):
+def read_json_data(path, lang='zh'):
     with open(path) as f:
-        data = [line.strip() for line in f if len(line.strip()) > 0]
-    dataset = []
-    for dialog in tqdm(dta):
-        dialog_data = dialog.split('\t')
-        label = dialog_data[0]
-        utterances, dialog_len = [], []
-        for utt in dialog_data[1:-1]:
-            utt_tok = vocab.tokenize(utt)
-            utterances.append(utt_tok)
-            dialog_len.append(len(utt_tok))
-        response = vocab.tokenize(dialog_data[-1])
-        dataset.append(
-            InputExamples(
-                utterances=utterances,
-                response=response,
-                label=int(label),
-                seq_lengths=(dialog_len, len(response))
-            )
-        )
-    print(f'[!] collect {len(dataset)} samples')
-    return dataset
-
+        dataset = []
+        responses = []
+        for line in tqdm(list(f.readlines())):
+            line = line.strip()
+            item = json.loads(line)
+            context = ' [SEP] '.join(item['q']).strip()
+            response = item['r'].strip()
+            # NOTE: the candidates may not be 10 (less than 10)
+            candidates = [i.strip() for i in item['nr'] if i.strip()]
+            dataset.append((context, response, candidates))
+            responses.extend([response] + candidates)
+        responses = list(set(responses))
+    print(f'[!] load {len(dataset)} samples from {path}')
+    print(f'[!] load {len(responses)} unique utterances in {path}')
+    # small size test
+    dataset = dataset[:500000]
+    return dataset, responses
 
 def read_text_data(path, lang='zh'):
     with open(path) as f:
@@ -1730,6 +1716,116 @@ class BERTDualBM25Dataset(Dataset):
 
 
 # ========== BERT DUAL Dataset ========== #
+class BERTDualWithNegDataset(Dataset):
+    
+    def __init__(self, path, lang='zh', mode='train', res_max_len=128, max_len=512, model='bert-base-chinese'):
+        self.mode, self.max_len = mode, max_len
+        self.res_max_len = res_max_len 
+        self.vocab = BertTokenizer.from_pretrained(model)
+        if lang != 'zh':
+            # add special tokens for english corpus, __number__, __path__, __url__
+            self.vocab.add_tokens(['__number__', '__path__', '__url__'])
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.pp_path = f'{os.path.splitext(path)[0]}_dual_writer.pt'
+        if os.path.exists(self.pp_path):
+            self.data = torch.load(self.pp_path)
+            print(f'[!] load preprocessed file from {self.pp_path}')
+            return None
+        data, responses = read_json_data(path, lang=lang)
+        self.data = []
+        if mode == 'train':
+            for context, response, candidates in tqdm(data):
+                if len(candidates) < 10:
+                    candidates += random.sample(responses, 10-len(candidates))
+                else:
+                    candidates = candidates[:10]
+                item = self.vocab.batch_encode_plus([context, response] + candidates)
+                ids, rids = item['input_ids'][0], item['input_ids'][1:]
+                ids, rids = self._length_limit(ids), [self._length_limit_res(i) for i in rids]
+                self.data.append({
+                    'ids': ids,
+                    'rids': rids,
+                })
+        else:
+            for context, response, candidates in tqdm(data):
+                if len(candidates) < 10:
+                    candidates += random.sample(responses, 10-len(candidates))
+                else:
+                    candidates = candidates[:10]
+                item = self.vocab.batch_encode_plus([context, response] + candidates)
+                ids = item['input_ids'][0]
+                rids = item['input_ids'][1:]
+                ids, rids = self._length_limit(ids), [self._length_limit_res(rids_) for rids_ in rids]
+                self.data.append({
+                    'label': [1] + [0] * 10,
+                    'ids': ids,
+                    'rids': rids,
+                })    
+                
+    def _length_limit(self, ids):
+        # also return the speaker embeddings
+        if len(ids) > self.max_len:
+            ids = [ids[0]] + ids[-(self.max_len-1):]
+        return ids
+    
+    def _length_limit_res(self, ids):
+        # cut tail
+        if len(ids) > self.res_max_len:
+            ids = ids[:self.res_max_len-1] + [self.sep]
+        return ids
+                
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, i):
+        bundle = self.data[i]
+        if self.mode == 'train':
+            ids = torch.LongTensor(bundle['ids'])
+            rids = [torch.LongTensor(i) for i in bundle['rids']]
+            return ids, rids
+        else:
+            ids = torch.LongTensor(bundle['ids'])
+            rids = [torch.LongTensor(i) for i in bundle['rids']]
+            return ids, rids, bundle['label']
+
+    def save(self):
+        data = torch.save(self.data, self.pp_path)
+        print(f'[!] save preprocessed dataset into {self.pp_path}')
+        
+    def generate_mask(self, ids):
+        attn_mask_index = ids.nonzero().tolist()   # [PAD] IS 0
+        attn_mask_index_x, attn_mask_index_y = [i[0] for i in attn_mask_index], [i[1] for i in attn_mask_index]
+        attn_mask = torch.zeros_like(ids)
+        attn_mask[attn_mask_index_x, attn_mask_index_y] = 1
+        return attn_mask
+        
+    def collate(self, batch):
+        if self.mode == 'train':
+            ids = [i[0] for i in batch]
+            rids = []
+            for i in batch:
+                rids.extend(i[1])
+            ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+            rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
+            ids_mask = self.generate_mask(ids)
+            rids_mask = self.generate_mask(rids)
+            if torch.cuda.is_available():
+                ids, rids, ids_mask, rids_mask = ids.cuda(), rids.cuda(), ids_mask.cuda(), rids_mask.cuda()
+            return ids, rids, ids_mask, rids_mask
+        else:
+            assert len(batch) == 1
+            batch = batch[0]
+            ids, rids, label = batch[0], batch[1], batch[2]
+            rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
+            rids_mask = self.generate_mask(rids)
+            label = torch.LongTensor(label)
+            if torch.cuda.is_available():
+                ids, rids, rids_mask, label = ids.cuda(), rids.cuda(), rids_mask.cuda(), label.cuda()
+            return ids, rids, rids_mask, label
+
+
+# ========== BERT DUAL Dataset ========== #
 class BERTDualDataset(Dataset):
     
     def __init__(self, path, lang='zh', mode='train', max_len=300, model='bert-base-chinese'):
@@ -2790,6 +2886,7 @@ def load_dataset(args):
         'bert-ft-multi': BERTFTMultiDataset,
         'bert-gen-ft': BERTGenFTDataset,
         'dual-bert': BERTDualDataset,
+        'dual-bert-writer': BERTDualWithNegDataset,
         'dual-bert-kw': BERTDualKWDataset,
         'dual-bert-semi': BERTDualSemiDataset,
         'dual-bert-mlm': BERTDualMLMDataset,
@@ -2846,7 +2943,7 @@ def load_dataset(args):
             )
             iter_ = DataLoader(data, batch_size=args['batch_size'], collate_fn=data.collate, sampler=train_sampler)
         else:
-            data = DATASET_MAP[args['model']](path, mode=mode, lang=args['lang'], max_len=args['max_len'], model=args['pretrained_model'])
+            data = DATASET_MAP[args['model']](path, mode=mode, lang=args['lang'], max_len=args['max_len'], model=args['pretrained_model'], res_max_len=args['res_max_len'])
             train_sampler = torch.utils.data.distributed.DistributedSampler(
                 data,
                 num_replicas=dist.get_world_size(),

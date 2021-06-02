@@ -289,3 +289,14 @@ it can also be found that the hard negative samples seems has the limited perfor
 | BERT-FT+MLM    |       |       |       |        |
 | BERT-FT+NSP    |       |       |       |        |
 
+### 5. Writer Dataset
+
+run the following command to train and test:
+
+```bash
+./run.sh train writer dual-bert-writer 0,1,2,3,4,5,6,7
+```
+
+| Original | R10@1 | R10@2 | R10@5 | R2@1 |
+| -------- | ----- | ----- | ----- | ---- |
+|          |       |       |       |      |

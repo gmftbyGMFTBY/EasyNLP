@@ -27,15 +27,14 @@ class BertEmbedding(nn.Module):
         self.model.load_state_dict(new_state_dict)
     
 
-class BERTDualEncoder(nn.Module):
+class BERTDualWriterEncoder(nn.Module):
 
     '''dual bert and dual latent interaction: one-to-many mechanism'''
     
-    def __init__(self, delta=(10,), model='bert-base-chinese'):
-        super(BERTDualEncoder, self).__init__()
+    def __init__(self, model='bert-base-chinese'):
+        super(BERTDualWriterEncoder, self).__init__()
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
-        self.delta = delta[0]
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
@@ -57,30 +56,18 @@ class BERTDualEncoder(nn.Module):
         batch_size = rid.shape[0]
         cid_rep, rid_rep = self._encode(cid.unsqueeze(0), rid, None, rid_mask)
         dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
-        dot_product /= np.sqrt(768)     # scale dot product
         return dot_product
     
     def forward(self, cid, rid, cid_mask, rid_mask):
         batch_size = cid.shape[0]
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
-        dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, B]
-        dot_product /= np.sqrt(768)     # scale dot product
-
-        dot_product_1 = torch.matmul(cid_rep, cid_rep.t())
-        dot_product_1 /= np.sqrt(768)
-        
-        dot_product_2 = torch.matmul(rid_rep, rid_rep.t())
-        dot_product_2 /= np.sqrt(768)
+        dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, 10*B]
 
         mask = torch.zeros_like(dot_product).cuda()
-        mask[range(batch_size), range(batch_size)] = 1.
+        mask[torch.arange(batch_size), torch.arange(0, len(rid), 10)] = 1.
         # loss
         loss_ = F.log_softmax(dot_product, dim=-1) * mask
         loss = (-loss_.sum(dim=1)).mean()
-        loss_ = F.log_softmax(dot_product_1, dim=-1) * mask
-        loss += (-loss_.sum(dim=1)).mean()
-        loss_ = F.log_softmax(dot_product_2, dim=-1) * mask
-        loss += (-loss_.sum(dim=1)).mean()
 
         # acc
         acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
@@ -89,10 +76,10 @@ class BERTDualEncoder(nn.Module):
         return loss, acc
     
     
-class BERTDualEncoderAgent(RetrievalBaseAgent):
+class BERTDualWriterEncoderAgent(RetrievalBaseAgent):
     
     def __init__(self, multi_gpu, total_step, warmup_step, run_mode='train', local_rank=0, dataset_name='ecommerce', pretrained_model='bert-base-chinese', pretrained_model_path=None):
-        super(BERTDualEncoderAgent, self).__init__()
+        super(BERTDualWriterEncoderAgent, self).__init__()
         try:
             self.gpu_ids = list(range(len(multi_gpu.split(',')))) 
         except:
@@ -110,15 +97,13 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             'dropout': 0.1,
             'amp_level': 'O2',
             'test_interval': 0.05,
-            'delta': (20.,), 
         }
         self.args['test_step'] = [int(total_step*i) for i in np.arange(0, 1+self.args['test_interval'], self.args['test_interval'])]
         self.test_step_counter = 0
 
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
-        self.model = BERTDualEncoder(
+        self.model = BERTDualWriterEncoder(
             model=self.args['model'], 
-            delta=self.args['delta'],
         )
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)
@@ -129,11 +114,11 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             lr=self.args['lr'],
         )
         if run_mode in ['train', 'train-post', 'train-dual-post']:
-            # self.model, self.optimizer = amp.initialize(
-            #    self.model,
-            #   self.optimizer,
-            #  opt_level=self.args['amp_level']
-            # )
+            self.model, self.optimizer = amp.initialize(
+               self.model,
+               self.optimizer,
+               opt_level=self.args['amp_level']
+            )
             self.scheduler = transformers.get_linear_schedule_with_warmup(
                 self.optimizer, 
                 num_warmup_steps=warmup_step, 
@@ -167,11 +152,9 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             cid, rid, cid_mask, rid_mask = batch
             loss, acc = self.model(cid, rid, cid_mask, rid_mask)
             
-            # with amp.scale_loss(loss, self.optimizer) as scaled_loss:
-            #     scaled_loss.backward()
-            # clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
-            loss.backward()
-            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            with amp.scale_loss(loss, self.optimizer) as scaled_loss:
+                scaled_loss.backward()
+            clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
 
             self.optimizer.step()
             self.scheduler.step()

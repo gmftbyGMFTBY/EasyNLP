@@ -3,6 +3,7 @@ from .sa_bert import *
 from .bert_gen import *
 from .bert_gen_ft import *
 from .dual_bert import *
+from .dual_bert_writer import *
 from .dual_bert_kw import *
 from .dual_bert_semi import *
 from .dual_bert_mlm import *
@@ -112,6 +113,17 @@ def load_model(args):
         )
     elif args['model'] == 'dual-bert-semi':
         model = BERTDualSemiEncoderAgent(
+            args['multi_gpu'], 
+            args['total_step'], 
+            args['warmup_step'], 
+            run_mode=args['mode'], 
+            pretrained_model=args['pretrained_model'],
+            local_rank=args['local_rank'], 
+            dataset_name=args['dataset'],
+            pretrained_model_path=args['pretrained_model_path']
+        )
+    elif args['model'] == 'dual-bert-writer':
+        model = BERTDualWriterEncoderAgent(
             args['multi_gpu'], 
             args['total_step'], 
             args['warmup_step'], 

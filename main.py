@@ -21,11 +21,13 @@ def parser_args():
     parser.add_argument('--pretrained_model_path', type=str, default='')
     parser.add_argument('--head_num', type=int, default=5)
     parser.add_argument('--extra_tm', type=int, default=16)
+    parser.add_argument('--total_steps', type=int, default=100000)
     return parser.parse_args()
 
 
 def obtain_steps_parameters(train_data, args):
-    args['total_step'] = len(train_data) * args['epoch'] // args['batch_size'] // (args['multi_gpu'].count(',') + 1)
+    # args['total_step'] = len(train_data) * args['epoch'] // args['batch_size'] // (args['multi_gpu'].count(',') + 1)
+    args['total_step'] = args['total_steps']
     args['warmup_step'] = int(0.1 * args['total_step'])
 
 
@@ -52,13 +54,14 @@ def main(**args):
         agent.test_iter = test_iter
         
         sum_writer = SummaryWriter(log_dir=f'rest/{args["dataset"]}/{args["model"]}')
-        for i in tqdm(range(args['epoch'])):
-            sampler.set_epoch(i)    # shuffle for DDP
+        steps, epoch_i = 0, 0
+        while steps < args['total_steps']:
+            sampler.set_epoch(epoch_i)    # shuffle for DDP
             train_loss = agent.train_model(
                 train_iter, 
                 mode='train',
                 recoder=sum_writer,
-                idx_=i,
+                idx_=epoch_i,
             )
             # only one process save the checkpoint
             if args['local_rank'] == 0:
@@ -66,12 +69,14 @@ def main(**args):
             # test
             rest_path = f'rest/{args["dataset"]}/{args["model"]}/rest_epoch_{i}.txt'
             (r10_1, r10_2, r10_5), mrr, p1, MAP = agent.test_model()
-            sum_writer.add_scalar(f'test-epoch/R10@1', r10_1, i)
-            sum_writer.add_scalar(f'test-epoch/R10@2', r10_2, i)
-            sum_writer.add_scalar(f'test-epoch/R10@5', r10_5, i)
-            sum_writer.add_scalar(f'test-epoch/MRR', mrr, i)
-            sum_writer.add_scalar(f'test-epoch/P@1', p1, i)
-            sum_writer.add_scalar(f'test-epoch/MAP', MAP, i)
+            sum_writer.add_scalar(f'test-epoch/R10@1', r10_1, epoch_i)
+            sum_writer.add_scalar(f'test-epoch/R10@2', r10_2, epoch_i)
+            sum_writer.add_scalar(f'test-epoch/R10@5', r10_5, epoch_i)
+            sum_writer.add_scalar(f'test-epoch/MRR', mrr, epoch_i)
+            sum_writer.add_scalar(f'test-epoch/P@1', p1, epoch_i)
+            sum_writer.add_scalar(f'test-epoch/MAP', MAP, epoch_i)
+            steps += len(train_iter)
+            epoch_i += 1
         sum_writer.close()
     elif args['mode'] == 'test':
         test_data, test_iter, _ = load_dataset(args)
