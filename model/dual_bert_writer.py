@@ -64,7 +64,7 @@ class BERTDualWriterEncoder(nn.Module):
         dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, 10*B]
 
         mask = torch.zeros_like(dot_product).cuda()
-        mask[torch.arange(batch_size), torch.arange(0, len(rid), 10)] = 1.
+        mask[torch.arange(batch_size), torch.arange(0, len(rid), 11)] = 1.
         # loss
         loss_ = F.log_softmax(dot_product, dim=-1) * mask
         loss = (-loss_.sum(dim=1)).mean()
@@ -114,11 +114,12 @@ class BERTDualWriterEncoderAgent(RetrievalBaseAgent):
             lr=self.args['lr'],
         )
         if run_mode in ['train', 'train-post', 'train-dual-post']:
-            self.model, self.optimizer = amp.initialize(
-               self.model,
-               self.optimizer,
-               opt_level=self.args['amp_level']
-            )
+            # self.model, self.optimizer = amp.initialize(
+            #    self.model,
+            #    self.optimizer,
+            #    opt_level=self.args['amp_level']
+            # )
+            self.scaler = GradScaler()
             self.scheduler = transformers.get_linear_schedule_with_warmup(
                 self.optimizer, 
                 num_warmup_steps=warmup_step, 
@@ -150,11 +151,15 @@ class BERTDualWriterEncoderAgent(RetrievalBaseAgent):
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
             cid, rid, cid_mask, rid_mask = batch
-            loss, acc = self.model(cid, rid, cid_mask, rid_mask)
-            
-            with amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                scaled_loss.backward()
-            clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
+
+            with autocast():
+                loss, acc = self.model(cid, rid, cid_mask, rid_mask)
+            self.scaler.scale(loss).backward()
+            self.scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
 
             self.optimizer.step()
             self.scheduler.step()

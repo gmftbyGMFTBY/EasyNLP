@@ -25,9 +25,9 @@ import random
 from transformers import BertTokenizer
 from transformers import BertForSequenceClassification, BertModel
 import transformers
-from apex import amp
-from apex.parallel import DistributedDataParallel as DDP
-from apex.parallel import convert_syncbn_model
+# from apex import amp
+# from apex.parallel import DistributedDataParallel as DDP
+# from apex.parallel import convert_syncbn_model
 from torch.cuda.amp import autocast, GradScaler
 from sklearn.metrics import label_ranking_average_precision_score
 import argparse

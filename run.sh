@@ -6,11 +6,10 @@
 
 # ========== metadata ========== #
 max_len=256
-res_max_len=128
+res_max_len=64
 seed=50
-warmup_ratio=0.1
 epoch=5
-bsz=64
+bsz=32
 head_num=5     # hyperparameter of the dual-bert-one2mnay: 11 heads means there are 1 groundtruths and 10 retrieved candidates
 pre_extract=500
 inf_bsz=64
@@ -21,6 +20,7 @@ post_max_len=256
 post_res_max_len=64
 neg_bsz=64    # useless
 total_steps=100000
+warmup_ratio=0.1
 models=(dual-bert-writer dual-bert-kw dual-bert-semi dual-bert-mlm dual-bert-cross dual-bert-scm sa-bert bert-ft bert-ft-multi bert-gen bert-gen-ft bert-post dual-bert-fg dual-bert-gen dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-mb dual-bert-adv dual-bert-jsd dual-bert-hierarchical-trs dual-gru-hierarchical-trs)
 ONE_BATCH_SIZE_MODEL=(dual-bert-writer dual-bert-kw dual-bert-semi dual-bert-mlm dual-bert-cross dual-bert-scm bert-ft-multi dual-bert dual-bert-poly dual-bert-fg dual-bert-cl dual-bert-gen dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-hierarchical-trs dual-bert-mb dual-bert-adv dual-bert-jsd dual-gru-hierarchical)
 datasets=(ecommerce douban ubuntu lccc lccc-large writer)
