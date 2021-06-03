@@ -63,7 +63,7 @@ python create_post_data.py
 
 5. load post train checkpoint and fine-tuning on response selection corpus
 
-It should be noted that, the newest post train checkpoint can be directly loaded from the [BERT-FP model](https://github.com/hanjanghoon/BERT_FP). Just put it into `ckpt/<dataset_name>/<model_name>/best_nspmlm.pt`.
+    It should be noted that, the newest post train checkpoint can be directly loaded from the [BERT-FP model](https://github.com/hanjanghoon/BERT_FP). Just put it into `ckpt/<dataset_name>/<model_name>/best_nspmlm.pt`.
 
 ```bash
 ./run.sh train-post ecommerce bert-ft <gpu_ids>
@@ -82,7 +82,7 @@ It should be noted that, the newest post train checkpoint can be directly loaded
 
 7. train the model, test after each epoch
 
-after training, the log information during the training procedure are saved in the tensorboard file, which can be found under `rest/<dataset_name>/<model_name>/`
+    after training, the log information during the training procedure are saved in the tensorboard file, which can be found under `rest/<dataset_name>/<model_name>/`
 
 ```bash
 ./run.sh train ecommerce dual-bert <gpu_ids>
