@@ -5,18 +5,18 @@
 # for example: ./run/sh train train_generative gpt2 0,1,2,3
 
 # ========== metadata ========== #
-max_len=128
+max_len=256
 res_max_len=64
 seed=50
-epoch=10
-bsz=64
+epoch=5
+bsz=32
 head_num=5     # hyperparameter of the dual-bert-one2mnay: 11 heads means there are 1 groundtruths and 10 retrieved candidates
 pre_extract=500
 inf_bsz=64
 # 
-post_bsz=64
-post_epoch=10
-post_max_len=128
+post_bsz=32
+post_epoch=5
+post_max_len=256
 post_res_max_len=64
 neg_bsz=64    # useless
 total_steps=100000

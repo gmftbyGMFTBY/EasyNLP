@@ -37,15 +37,12 @@ def main(**args):
         torch.distributed.init_process_group(backend='nccl', init_method='env://')
         
         train_data, train_iter, sampler = load_dataset(args)
-        train_bsz, mode = args['batch_size'], args['mode']
         
         # load test dataset
-        args['mode'] = 'test'
-        args['batch_size'] = 1
-        test_data, test_iter, _ = load_dataset(args)
-
-        args['mode'] = mode 
-        args['batch_size'] = train_bsz
+        test_args = deepcopy(args)
+        test_args['mode'] = 'test'
+        test_args['batch_size'] = 1
+        test_data, test_iter, _ = load_dataset(test_args)
 
         obtain_steps_parameters(train_data, args)
         agent = load_model(args)
@@ -54,8 +51,6 @@ def main(**args):
         agent.test_iter = test_iter
         
         sum_writer = SummaryWriter(log_dir=f'rest/{args["dataset"]}/{args["model"]}')
-        # steps, epoch_i = 0, 0
-        # while steps < args['total_steps']:
         for epoch_i in range(args['epoch']):
             sampler.set_epoch(epoch_i)    # shuffle for DDP
             train_loss = agent.train_model(
@@ -75,8 +70,6 @@ def main(**args):
             sum_writer.add_scalar(f'test-epoch/MRR', mrr, epoch_i)
             sum_writer.add_scalar(f'test-epoch/P@1', p1, epoch_i)
             sum_writer.add_scalar(f'test-epoch/MAP', MAP, epoch_i)
-            # steps += len(train_iter)
-            # epoch_i += 1
         sum_writer.close()
     elif args['mode'] == 'test':
         test_data, test_iter, _ = load_dataset(args)

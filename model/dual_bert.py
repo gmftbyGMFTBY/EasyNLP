@@ -74,8 +74,8 @@ class BERTDualEncoder(nn.Module):
         dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, B]
         dot_product /= np.sqrt(768)     # scale dot product
 
-        mask = torch.zeros_like(dot_product).cuda()
-        mask[range(batch_size), range(batch_size)] = 1.
+        # mask = torch.zeros_like(dot_product).cuda()
+        # mask[range(batch_size), range(batch_size)] = 1.
         # loss
         gold = torch.arange(batch_size).cuda()
         loss = self.label_smooth_loss(dot_product, gold)
@@ -129,9 +129,10 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         if run_mode in ['train', 'train-post', 'train-dual-post']:
             # self.model, self.optimizer = amp.initialize(
             #    self.model,
-            #   self.optimizer,
-            #  opt_level=self.args['amp_level']
+            #    self.optimizer,
+            #    opt_level=self.args['amp_level']
             # )
+            self.scaler = GradScaler()
             self.scheduler = transformers.get_linear_schedule_with_warmup(
                 self.optimizer, 
                 num_warmup_steps=warmup_step, 
@@ -168,10 +169,15 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             # with amp.scale_loss(loss, self.optimizer) as scaled_loss:
             #     scaled_loss.backward()
             # clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
-            loss.backward()
+            with autocast():
+                loss, acc = self.model(cid, rid, cid_mask, rid_mask)
+            self.scaler.scale(loss).backward()
+            self.scaler.unscale_(self.optimizer)
             clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
-
-            self.optimizer.step()
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            
+            # self.optimizer.step()
             self.scheduler.step()
 
             total_loss += loss.item()

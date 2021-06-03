@@ -117,12 +117,11 @@ class BERTDualWriterEncoderAgent(RetrievalBaseAgent):
             lr=self.args['lr'],
         )
         if run_mode in ['train', 'train-post', 'train-dual-post']:
-            # self.model, self.optimizer = amp.initialize(
-            #    self.model,
-            #    self.optimizer,
-            #    opt_level=self.args['amp_level']
-            # )
-            self.scaler = GradScaler()
+            self.model, self.optimizer = amp.initialize(
+               self.model,
+               self.optimizer,
+               opt_level=self.args['amp_level']
+            )
             self.scheduler = transformers.get_linear_schedule_with_warmup(
                 self.optimizer, 
                 num_warmup_steps=warmup_step, 
@@ -155,16 +154,10 @@ class BERTDualWriterEncoderAgent(RetrievalBaseAgent):
             self.optimizer.zero_grad()
             cid, rid, cid_mask, rid_mask = batch
 
-            with autocast():
-                loss, acc = self.model(cid, rid, cid_mask, rid_mask)
-            self.scaler.scale(loss).backward()
-            self.scaler.unscale_(self.optimizer)
-            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
-
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
-            # loss.backward()
-            # clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            loss, acc = self.model(cid, rid, cid_mask, rid_mask)
+            with amp.scale_loss(loss, self.optimizer) as scaled_loss:
+                scaled_loss.backward()
+            clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
 
             self.optimizer.step()
             self.scheduler.step()
