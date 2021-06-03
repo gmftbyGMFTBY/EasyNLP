@@ -18,14 +18,20 @@ class BertEmbedding(nn.Module):
         embds = self.model(ids, attention_mask=attn_mask)[0]
         embds = embds[:, 0, :]     # [CLS]
         return embds
-    
+
     def load_bert_model(self, state_dict):
+        # new_state_dict = OrderedDict()
+        # for k, v in state_dict.items():
+        #     if k.startswith('_bert_model.cls.'):
+        #         continue
+        #    name = k.replace('_bert_model.bert.', '')
+        #     new_state_dict[name] = v
+        # self.model.load_state_dict(new_state_dict)
         new_state_dict = OrderedDict()
         for k, v in state_dict.items():
-            if k.startswith('_bert_model.cls.'):
-                continue
-            name = k.replace('_bert_model.bert.', '')
-            new_state_dict[name] = v
+            new_state_dict[k] = v
+        # position_ids
+        new_state_dict['embeddings.position_ids'] = torch.arange(512).expand((1, -1))
         self.model.load_state_dict(new_state_dict)
     
 
