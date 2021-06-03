@@ -27,6 +27,8 @@ class BertEmbedding(nn.Module):
         #    name = k.replace('_bert_model.bert.', '')
         #     new_state_dict[name] = v
         # self.model.load_state_dict(new_state_dict)
+
+        # load the post train checkpoint from BERT-FP (NAACL 2021)
         new_state_dict = OrderedDict()
         for k, v in state_dict.items():
             new_state_dict[k] = v

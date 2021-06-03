@@ -22,6 +22,20 @@ def read_json_data(path, lang='zh'):
     dataset = dataset[:50000]
     return dataset, responses
 
+
+def read_text_data_fp(path, lang='zh'):
+    with open(path) as f:
+        dataset = []
+        for line in f.readlines():
+            line = line.strip().split('\t')
+            label, utterances = int(line[0]), line[1:]
+            if lang == 'zh':
+                utterances = [''.join(u.split()) for u in utterances]
+            dataset.append((label, utterances))
+    print(f'[!] load {len(dataset)} utterances from {path}')
+    return dataset
+
+
 def read_text_data(path, lang='zh'):
     with open(path) as f:
         dataset = []
@@ -1828,6 +1842,117 @@ class BERTDualWithNegDataset(Dataset):
 
 
 # ========== BERT DUAL Dataset ========== #
+class BERTDualFPDataset(Dataset):
+    
+    def __init__(self, path, lang='zh', mode='train', res_max_len=128, max_len=300, model='bert-base-chinese'):
+        self.mode, self.max_len = mode, max_len
+        self.res_max_len = res_max_len 
+        self.vocab = BertTokenizer.from_pretrained(model)
+        if lang != 'zh':
+            # add special tokens for english corpus, __number__, __path__, __url__
+            self.vocab.add_tokens(['__number__', '__path__', '__url__'])
+        # NOTE:
+        self.vocab.add_tokens(['[EOS]'])
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.pp_path = f'{os.path.splitext(path)[0]}_dual_fp.pt'
+        if os.path.exists(self.pp_path):
+            self.data = torch.load(self.pp_path)
+            print(f'[!] load preprocessed file from {self.pp_path}')
+            return None
+        self.data = []
+        if mode == 'train':
+            data = read_text_data_fp(path, lang=lang)
+            for label, utterances in tqdm(data):
+                if label == 0:
+                    continue
+                for i in range(1, len(utterances)):
+                    context = ' [SEP] '.join(utterances[:i])
+                    response = utterances[i]
+                    item = self.vocab.batch_encode_plus([context, response])
+                    ids, rids = item['input_ids'][0], item['input_ids'][1]
+                    ids, rids = self._length_limit(ids), self._length_limit_res(rids)
+                    self.data.append({
+                        'ids': ids,
+                        'rids': rids,
+                    })
+        else:
+            data = read_text_data(path, lang=lang)
+            for i in tqdm(range(0, len(data), 10)):
+                batch = data[i:i+10]
+                rids = []
+                for item in batch:
+                    item = self.vocab.batch_encode_plus([item[1], item[2]])
+                    ids = item['input_ids'][0]
+                    rids.append(item['input_ids'][1])
+                ids, rids = self._length_limit(ids), [self._length_limit_res(rids_) for rids_ in rids]
+                self.data.append({
+                    'label': [b[0] for b in batch],
+                    'ids': ids,
+                    'rids': rids,
+                })    
+                
+    def _length_limit(self, ids):
+        # also return the speaker embeddings
+        if len(ids) > self.max_len:
+            ids = [ids[0]] + ids[-(self.max_len-1):]
+        return ids
+    
+    def _length_limit_res(self, ids):
+        # cut tail
+        if len(ids) > self.res_max_len:
+            ids = ids[:self.res_max_len-1] + [self.sep]
+        return ids
+                
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, i):
+        bundle = self.data[i]
+        if self.mode == 'train':
+            ids = torch.LongTensor(bundle['ids'])
+            rids = torch.LongTensor(bundle['rids'])
+            return ids, rids
+        else:
+            ids = torch.LongTensor(bundle['ids'])
+            rids = [torch.LongTensor(i) for i in bundle['rids']]
+            return ids, rids, bundle['label']
+
+    def save(self):
+        data = torch.save(self.data, self.pp_path)
+        print(f'[!] save preprocessed dataset into {self.pp_path}')
+        
+    def generate_mask(self, ids):
+        attn_mask_index = ids.nonzero().tolist()   # [PAD] IS 0
+        attn_mask_index_x, attn_mask_index_y = [i[0] for i in attn_mask_index], [i[1] for i in attn_mask_index]
+        attn_mask = torch.zeros_like(ids)
+        attn_mask[attn_mask_index_x, attn_mask_index_y] = 1
+        return attn_mask
+        
+    def collate(self, batch):
+        if self.mode == 'train':
+            ids, rids = [i[0] for i in batch], [i[1] for i in batch]
+            ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+            rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
+            ids_mask = self.generate_mask(ids)
+            rids_mask = self.generate_mask(rids)
+            if torch.cuda.is_available():
+                ids, rids, ids_mask, rids_mask = ids.cuda(), rids.cuda(), ids_mask.cuda(), rids_mask.cuda()
+            return ids, rids, ids_mask, rids_mask
+        else:
+            # batch size is batch_size * 10
+            assert len(batch) == 1
+            batch = batch[0]
+            ids, rids, label = batch[0], batch[1], batch[2]
+            rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
+            rids_mask = self.generate_mask(rids)
+            label = torch.LongTensor(label)
+            if torch.cuda.is_available():
+                ids, rids, rids_mask, label = ids.cuda(), rids.cuda(), rids_mask.cuda(), label.cuda()
+            return ids, rids, rids_mask, label
+
+
+# ========== BERT DUAL Dataset ========== #
 class BERTDualDataset(Dataset):
     
     def __init__(self, path, lang='zh', mode='train', res_max_len=128, max_len=300, model='bert-base-chinese'):
@@ -2622,7 +2747,8 @@ def load_dataset(args):
         'bert-ft': BERTFTDataset,
         'bert-ft-multi': BERTFTMultiDataset,
         'bert-gen-ft': BERTGenFTDataset,
-        'dual-bert': BERTDualDataset,
+        # 'dual-bert': BERTDualDataset,
+        'dual-bert': BERTDualFPDataset,
         'dual-bert-writer': BERTDualWithNegDataset,
         'dual-bert-kw': BERTDualKWDataset,
         'dual-bert-semi': BERTDualSemiDataset,

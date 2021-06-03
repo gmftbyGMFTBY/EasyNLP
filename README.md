@@ -63,6 +63,8 @@ python create_post_data.py
 
 5. load post train checkpoint and fine-tuning on response selection corpus
 
+It should be noted that, the newest post train checkpoint can be directly loaded from the [BERT-FP model](https://github.com/hanjanghoon/BERT_FP). Just put it into `ckpt/<dataset_name>/<model_name>/best_nspmlm.pt`.
+
 ```bash
 ./run.sh train-post ecommerce bert-ft <gpu_ids>
 ```
@@ -218,7 +220,7 @@ it can also be found that the hard negative samples seems has the limited perfor
 | dual-bert(bsz=16, epoch=5, bert-post, extra_t=48) | 32.01 | 50.65 | 85.07 | 66.8 | 49.78 | 62.86 |
 | dual-bert(bsz=16, epoch=5, bert-post, extra_t=64) | 30.13 | 51.27 | 85.2 | 65.72 | 47.68 | 61.92 |
 | dual-bert-bm25(bsz=16, epoch=5, bert-post, head_num=5) | 31.18 | 51.36 | 84.4 | 66.56 | 48.88 | 62.2 |
-| dual-bert(bsz=32, epoch=5, bert-fp-post, label-smooth) | 32.57 | 52.33 | 84.37 | 67.47 | 50.82 | 63.13 |
+| dual-bert(bsz=32, epoch=5, bert-fp-post, label-smooth, max_len=256/64) | 32.57 | 52.33 | 84.37 | 67.47 | 50.82 | 63.13 |
 
 
 
