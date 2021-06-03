@@ -1835,6 +1835,8 @@ class BERTDualDataset(Dataset):
         if lang != 'zh':
             # add special tokens for english corpus, __number__, __path__, __url__
             self.vocab.add_tokens(['__number__', '__path__', '__url__'])
+        # NOTE:
+        self.vocab.add_tokens(['[EOS]'])
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
         self.pp_path = f'{os.path.splitext(path)[0]}_dual.pt'

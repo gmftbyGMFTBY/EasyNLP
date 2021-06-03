@@ -11,6 +11,8 @@ class BertEmbedding(nn.Module):
         if model in ['bert-base-uncased']:
             # english corpus has three special tokens: __number__, __url__, __path__
             self.model.resize_token_embeddings(self.model.config.vocab_size + 3)
+        # bert-fp checkpoint has the special token: [EOS]
+        self.model.resize_token_embeddings(self.model.config.vocab_size + 1)
 
     def forward(self, ids, attn_mask, speaker_type_ids=None):
         embds = self.model(ids, attention_mask=attn_mask)[0]
