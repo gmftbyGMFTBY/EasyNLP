@@ -109,6 +109,7 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             'amp_level': 'O2',
             'test_interval': 0.05,
             'smoothing': 0.1,
+            'run_mode': run_mode,
         }
         self.args['test_step'] = [int(total_step*i) for i in np.arange(0, 1+self.args['test_interval'], self.args['test_interval'])]
         self.test_step_counter = 0
@@ -218,7 +219,11 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             cid, rids, rids_mask, label = batch
             batch_size = len(rids)
             assert batch_size == 10, f'[!] {batch_size} is not equal to 10'
-            scores = self.model.module.predict(cid, rids, rids_mask).cpu().tolist()    # [B]
+            if self.args['run_mode'] in ['train', 'train-post', 'train-dual-post']:
+                scores = self.model.module.predict(cid, rids, rids_mask).cpu().tolist()    # [B]
+            else:
+                scores = self.model.predict(cid, rids, rids_mask).cpu().tolist()    # [B]
+
 
             rank_by_pred, pos_index, stack_scores = \
           calculate_candidates_ranking(

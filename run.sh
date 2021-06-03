@@ -10,10 +10,9 @@ res_max_len=64
 seed=50
 epoch=5
 bsz=32
-head_num=5     # hyperparameter of the dual-bert-one2mnay: 11 heads means there are 1 groundtruths and 10 retrieved candidates
+head_num=5
 pre_extract=500
 inf_bsz=64
-# 
 post_bsz=32
 post_epoch=5
 post_max_len=256
@@ -21,7 +20,8 @@ post_res_max_len=64
 neg_bsz=64    # useless
 total_steps=100000
 warmup_ratio=0.1
-models=(dual-bert-writer dual-bert-kw dual-bert-semi dual-bert-mlm dual-bert-cross dual-bert-scm sa-bert bert-ft bert-ft-multi bert-gen bert-gen-ft bert-post dual-bert-fg dual-bert-gen dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-mb dual-bert-adv dual-bert-jsd dual-bert-hierarchical-trs dual-gru-hierarchical-trs)
+test_batch_size=32
+models=(sa-bert-neg dual-bert-writer dual-bert-kw dual-bert-semi dual-bert-mlm dual-bert-cross dual-bert-scm sa-bert bert-ft bert-ft-multi bert-gen bert-gen-ft bert-post dual-bert-fg dual-bert-gen dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-mb dual-bert-adv dual-bert-jsd dual-bert-hierarchical-trs dual-gru-hierarchical-trs)
 ONE_BATCH_SIZE_MODEL=(dual-bert-writer dual-bert-kw dual-bert-semi dual-bert-mlm dual-bert-cross dual-bert-scm bert-ft-multi dual-bert dual-bert-poly dual-bert-fg dual-bert-cl dual-bert-gen dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-hierarchical-trs dual-bert-mb dual-bert-adv dual-bert-jsd dual-gru-hierarchical)
 datasets=(ecommerce douban ubuntu lccc lccc-large writer)
 chinese_datasets=(douban ecommerce lccc lccc-large writer)
@@ -67,12 +67,19 @@ elif [ $mode = 'train' ]; then
         pretrained_model_path=''
     fi
     
+    if [[ ${ONE_BATCH_SIZE_MODEL[@]} =~ $model ]]; then
+        test_bsz=1
+    else
+        test_bsz=$test_batch_size
+    fi
+    
     gpu_ids=(${cuda//,/ })
     CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 29406 main.py \
         --dataset $dataset \
         --model $model \
         --mode train \
         --batch_size $bsz \
+        --test_batch_size $test_bsz \
         --neg_bsz $bsz \
         --epoch $epoch \
         --seed $seed \
@@ -133,12 +140,19 @@ elif [ $mode = 'train-post' ]; then
     rm ckpt/$dataset/$model/*
     rm rest/$dataset/$model/events*    # clear the tensorboard cache
     
+    if [[ ${ONE_BATCH_SIZE_MODEL[@]} =~ $model ]]; then
+        test_bsz=1
+    else
+        test_bsz=$test_batch_size
+    fi
+    
     gpu_ids=(${cuda//,/ })
     CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 29402 main.py \
         --dataset $dataset \
         --model $model \
         --mode train-post \
         --batch_size $post_bsz \
+        --test_batch_size $test_bsz \
         --neg_bsz $bsz \
         --epoch $post_epoch \
         --seed $seed \
@@ -156,12 +170,19 @@ elif [ $mode = 'train-dual-post' ]; then
     rm ckpt/$dataset/$model/*
     rm rest/$dataset/$model/events*    # clear the tensorboard cache
     
+    if [[ ${ONE_BATCH_SIZE_MODEL[@]} =~ $model ]]; then
+        test_bsz=1
+    else
+        test_bsz=$test_batch_size
+    fi
+    
     gpu_ids=(${cuda//,/ })
     CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 29403 main.py \
         --dataset $dataset \
         --model $model \
         --mode train-dual-post \
         --batch_size $post_bsz \
+        --test_batch_size $test_bsz \
         --neg_bsz $bsz \
         --epoch $post_epoch \
         --seed $seed \
@@ -175,13 +196,15 @@ elif [ $mode = 'train-dual-post' ]; then
 else
     # test
     if [[ ${ONE_BATCH_SIZE_MODEL[@]} =~ $model ]]; then
-        bsz=1
+        test_bsz=1
+    else
+        test_bsz=$test_batch_size
     fi
     CUDA_VISIBLE_DEVICES=$cuda python main.py \
         --dataset $dataset \
         --model $model \
         --mode $mode \
-        --batch_size $bsz \
+        --test_batch_size $test_bsz \
         --max_len $max_len \
         --res_max_len $res_max_len \
         --seed $seed \

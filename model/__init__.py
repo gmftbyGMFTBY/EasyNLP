@@ -36,7 +36,7 @@ def load_model(args):
             dataset_name=args['dataset'], 
             pretrained_model_path=args['pretrained_model_path']
         )
-    elif args['model'] == 'sa-bert':
+    elif args['model'] in ['sa-bert-neg', 'sa-bert']:
         model = SABERTFTAgent(
             args['multi_gpu'], 
             args['total_step'], 

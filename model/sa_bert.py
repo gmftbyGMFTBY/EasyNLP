@@ -36,6 +36,7 @@ class SABERTRetrieval(nn.Module):
             name = k.replace('_bert_model.bert.', '')
             new_state_dict[name] = v
         self.model.load_state_dict(new_state_dict)
+
     
 class SABERTFTAgent(RetrievalBaseAgent):
 
@@ -46,7 +47,7 @@ class SABERTFTAgent(RetrievalBaseAgent):
         except:
             raise Exception(f'[!] multi gpu ids are needed, but got: {multi_gpu}')
         self.args = {
-            'lr': 3e-5,
+            'lr': 5e-5,
             'grad_clip': 5.0,
             'multi_gpu': self.gpu_ids,
             'max_len': 256,
@@ -57,6 +58,7 @@ class SABERTFTAgent(RetrievalBaseAgent):
             'warmup_step': warmup_step,
             'dataset': dataset_name,
             'pretrained_model_path': pretrained_model_path,
+            'run_mode': run_mode,
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
         self.model = SABERTRetrieval(self.args['model'])
@@ -70,11 +72,7 @@ class SABERTFTAgent(RetrievalBaseAgent):
         )
         self.criterion = nn.CrossEntropyLoss()
         if run_mode in ['train', 'train-post', 'train-dual-post']:
-            self.model, self.optimizer = amp.initialize(
-                self.model, 
-                self.optimizer, 
-                opt_level=self.args['amp_level']
-            )
+            self.scaler = GradScaler()
             self.scheduler = transformers.get_linear_schedule_with_warmup(
                 self.optimizer, 
                 num_warmup_steps=warmup_step, 
@@ -99,16 +97,17 @@ class SABERTFTAgent(RetrievalBaseAgent):
         for idx, batch in enumerate(pbar):
             ids, tids, sids, mask, label = batch
             self.optimizer.zero_grad()
-            output = self.model(ids, tids, sids, mask)    # [B, 2]
-            loss = self.criterion(
-                output, 
-                label.view(-1),
-            )
-            
-            with amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                scaled_loss.backward()
-            clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
-            self.optimizer.step()
+            with autocast():
+                output = self.model(ids, tids, sids, mask)    # [B, 2]
+                loss = self.criterion(
+                    output, 
+                    label.view(-1),
+                )
+            self.scaler.scale(loss).backward()
+            self.scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
             self.scheduler.step()
 
             total_loss += loss.item()
@@ -123,7 +122,6 @@ class SABERTFTAgent(RetrievalBaseAgent):
             recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
             recoder.add_scalar(f'train-epoch-{idx_}/Acc', correct/s, idx)
             recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', now_correct/len(label), idx)
-
             pbar.set_description(f'[!] train loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(now_correct/len(label), 4)}|{round(correct/s, 4)}')
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/Acc', correct/s, idx_)
@@ -139,13 +137,12 @@ class SABERTFTAgent(RetrievalBaseAgent):
         for idx, batch in enumerate(pbar):
             ids, tids, sids, mask, label = batch
             batch_size = len(ids)
-            assert batch_size % 10 == 0, f'[!] {batch_size} cannot mode 10'
-            scores = self.model(ids, tids, sids, mask)[:, 1].tolist()    # [B]
+            scores = self.model(ids, tids, sids, mask)[:, 1].tolist()
             rank_by_pred, pos_index, stack_scores = \
                     calculate_candidates_ranking(
                         np.array(scores), 
                         np.array(label.cpu().tolist()),
-                        10
+                        10,
                     )
             num_correct = logits_recall_at_k(pos_index, k_list)
             if self.args['dataset'] in ["douban"]:

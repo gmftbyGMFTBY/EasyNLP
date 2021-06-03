@@ -27,52 +27,72 @@ NOTE:
 - [ ] dual-bert-hier 之前用 last utterance 作为 key 重新获得细粒度的 history 在做 contextual transformer encoding
 - [x] dual-bert-hier-trs-poly and dual-bert-hier-trs-poly2 sucks
 - [ ] 换个角度思考，就算dual encoder architecture效果不如cross encoder，但是dual encoder因为独有的有点可以作为粗筛的一个有效方法，那么只要改进在dual encoder architecture是显著的就行，不一定要打败SOTA，只要比dual encoder本身好就行
-- [ ] the hard negative seems not work as well
+- [x] the hard negative seems not work as well
+- [ ] test the short conversation context (multiple samples) for dual-bert
 
 ## How to Use
 
-1. create post data from the orignial dataset
+Before using the repo, please run the following command to init:
+
+1. Init the repo
+
+```bash
+./run.sh init
+```
+
+2. create post data from the orignial dataset
 
 ```bash
 cd data;
 python create_post_data.py
 ```
 
-2. create data for post training
+3. create data for post training
 
 ```bash
 # dataset saved in data/ecommerce/train_post.hdf5
 ./data/create_post_train_dataset.sh ecommerce
 ```
 
-3. post train
+4. post train
 
 ```bash
 # checkpoint are saved in ckpt/ecommerce/bert-post/*
 ./post_train/post-train.sh ecommerce <nspmlm/mlm/nsp> <gpu_ids>
 ```
 
-4. load post train checkpoint and fine-tuning on response selection corpus
+5. load post train checkpoint and fine-tuning on response selection corpus
 
 ```bash
 ./run.sh train-post ecommerce bert-ft <gpu_ids>
 ```
 
-5. inference on the train dataset, save in FAISS index
+6. inference on the train dataset, save in FAISS index
 
 ```bash
 # save the extended train dataset into data/<dataset>/candidates.pt
 ./run.sh inference ecommerce dual-bert <gpu_ids>
 
 # if you need to save the context and response (qa) into the FAISS index
-# run the following commands
+# run the following command
 ./run.sh inference_qa ecommerce dual-bert <gpu_ids>
 ```
 
-6. train the model, test after each epoch
+7. train the model, test after each epoch
+
+after training, the log information during the training procedure are saved in the tensorboard file, which can be found under `rest/<dataset_name>/<model_name>/`
 
 ```bash
 ./run.sh train ecommerce dual-bert <gpu_ids>
+
+# writer dataset now support two kinds of models: dual-bert-writer, sa-bert-neg
+./run.sh train writer dual-bert-writer 0,1,2,3,4,5,6,7
+./run.sh train writer sa-bert-neg 0,1,2,3,4,5,6,7
+```
+8. test the model
+
+```bash
+./run.sh test ecommerce dual-bert <gpu_ids>
 ```
 
 ## Ready models and datasets
@@ -90,6 +110,7 @@ python create_post_data.py
 2. Douban
 3. Ubuntu-v1
 4. LCCC
+5. Writer (智能写作助手数据集)
 
 
 ## Experiment Results
@@ -197,6 +218,7 @@ it can also be found that the hard negative samples seems has the limited perfor
 | dual-bert(bsz=16, epoch=5, bert-post, extra_t=48) | 32.01 | 50.65 | 85.07 | 66.8 | 49.78 | 62.86 |
 | dual-bert(bsz=16, epoch=5, bert-post, extra_t=64) | 30.13 | 51.27 | 85.2 | 65.72 | 47.68 | 61.92 |
 | dual-bert-bm25(bsz=16, epoch=5, bert-post, head_num=5) | 31.18 | 51.36 | 84.4 | 66.56 | 48.88 | 62.2 |
+| dual-bert(bsz=32, epoch=5, bert-fp-post, label-smooth) | 32.57 | 52.33 | 84.37 | 67.47 | 50.82 | 63.13 |
 
 
 
@@ -291,12 +313,6 @@ it can also be found that the hard negative samples seems has the limited perfor
 
 ### 5. Writer Dataset
 
-run the following command to train and test:
-
-```bash
-./run.sh train writer dual-bert-writer 0,1,2,3,4,5,6,7
-```
-
-| Original | R10@1 | R10@2 | R10@5 | R2@1 |
+| Original | R11@1 | R11@2 | R11@5 | MRR  |
 | -------- | ----- | ----- | ----- | ---- |
 |          |       |       |       |      |

@@ -8,6 +8,7 @@ def parser_args():
     parser.add_argument('--model', type=str)
     parser.add_argument('--lang', type=str, default='zh')
     parser.add_argument('--batch_size', type=int, default=128)
+    parser.add_argument('--test_batch_size', type=int, default=128)
     parser.add_argument('--neg_bsz', type=int, default=64)
     parser.add_argument('--mode', type=str, default='train')
     parser.add_argument('--epoch', type=int, default=10)
@@ -41,7 +42,7 @@ def main(**args):
         # load test dataset
         test_args = deepcopy(args)
         test_args['mode'] = 'test'
-        test_args['batch_size'] = 1
+        test_args['batch_size'] = args['test_batch_size']
         test_data, test_iter, _ = load_dataset(test_args)
 
         obtain_steps_parameters(train_data, args)
