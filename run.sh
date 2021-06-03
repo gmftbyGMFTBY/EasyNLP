@@ -5,10 +5,10 @@
 # for example: ./run/sh train train_generative gpt2 0,1,2,3
 
 # ========== metadata ========== #
-max_len=256
+max_len=128
 res_max_len=64
 seed=50
-epoch=5
+epoch=10
 bsz=32
 head_num=5     # hyperparameter of the dual-bert-one2mnay: 11 heads means there are 1 groundtruths and 10 retrieved candidates
 pre_extract=500
@@ -41,7 +41,7 @@ else
 fi
 
 if [ $mode = 'init' ]; then
-    mkdir bak ckpt rest indexdir
+    mkdir bak ckpt rest
     for m in ${models[@]}
     do
         for d in ${datasets[@]}
@@ -68,7 +68,7 @@ elif [ $mode = 'train' ]; then
     fi
     
     gpu_ids=(${cuda//,/ })
-    CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 29402 main.py \
+    CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 29406 main.py \
         --dataset $dataset \
         --model $model \
         --mode train \
@@ -134,7 +134,7 @@ elif [ $mode = 'train-post' ]; then
     rm rest/$dataset/$model/events*    # clear the tensorboard cache
     
     gpu_ids=(${cuda//,/ })
-    CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 29401 main.py \
+    CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 29402 main.py \
         --dataset $dataset \
         --model $model \
         --mode train-post \

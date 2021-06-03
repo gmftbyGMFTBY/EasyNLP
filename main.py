@@ -26,8 +26,8 @@ def parser_args():
 
 
 def obtain_steps_parameters(train_data, args):
-    # args['total_step'] = len(train_data) * args['epoch'] // args['batch_size'] // (args['multi_gpu'].count(',') + 1)
-    args['total_step'] = args['total_steps']
+    args['total_step'] = len(train_data) * args['epoch'] // args['batch_size'] // (args['multi_gpu'].count(',') + 1)
+    # args['total_step'] = args['total_steps']
     args['warmup_step'] = int(0.1 * args['total_step'])
 
 
@@ -54,8 +54,9 @@ def main(**args):
         agent.test_iter = test_iter
         
         sum_writer = SummaryWriter(log_dir=f'rest/{args["dataset"]}/{args["model"]}')
-        steps, epoch_i = 0, 0
-        while steps < args['total_steps']:
+        # steps, epoch_i = 0, 0
+        # while steps < args['total_steps']:
+        for epoch_i in range(args['epoch']):
             sampler.set_epoch(epoch_i)    # shuffle for DDP
             train_loss = agent.train_model(
                 train_iter, 
@@ -74,8 +75,8 @@ def main(**args):
             sum_writer.add_scalar(f'test-epoch/MRR', mrr, epoch_i)
             sum_writer.add_scalar(f'test-epoch/P@1', p1, epoch_i)
             sum_writer.add_scalar(f'test-epoch/MAP', MAP, epoch_i)
-            steps += len(train_iter)
-            epoch_i += 1
+            # steps += len(train_iter)
+            # epoch_i += 1
         sum_writer.close()
     elif args['mode'] == 'test':
         test_data, test_iter, _ = load_dataset(args)

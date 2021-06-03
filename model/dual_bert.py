@@ -31,11 +31,11 @@ class BERTDualEncoder(nn.Module):
 
     '''dual bert and dual latent interaction: one-to-many mechanism'''
     
-    def __init__(self, delta=(10,), model='bert-base-chinese'):
+    def __init__(self, model='bert-base-chinese', s=0.1):
         super(BERTDualEncoder, self).__init__()
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
-        self.delta = delta[0]
+        self.label_smooth_loss = LabelSmoothLoss(smoothing=s)
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
@@ -66,21 +66,11 @@ class BERTDualEncoder(nn.Module):
         dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, B]
         dot_product /= np.sqrt(768)     # scale dot product
 
-        dot_product_1 = torch.matmul(cid_rep, cid_rep.t())
-        dot_product_1 /= np.sqrt(768)
-        
-        dot_product_2 = torch.matmul(rid_rep, rid_rep.t())
-        dot_product_2 /= np.sqrt(768)
-
         mask = torch.zeros_like(dot_product).cuda()
         mask[range(batch_size), range(batch_size)] = 1.
         # loss
-        loss_ = F.log_softmax(dot_product, dim=-1) * mask
-        loss = (-loss_.sum(dim=1)).mean()
-        loss_ = F.log_softmax(dot_product_1, dim=-1) * mask
-        loss += (-loss_.sum(dim=1)).mean()
-        loss_ = F.log_softmax(dot_product_2, dim=-1) * mask
-        loss += (-loss_.sum(dim=1)).mean()
+        gold = torch.arange(batch_size).cuda()
+        loss = self.label_smooth_loss(dot_product, gold)
 
         # acc
         acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
@@ -110,7 +100,7 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             'dropout': 0.1,
             'amp_level': 'O2',
             'test_interval': 0.05,
-            'delta': (20.,), 
+            'smoothing': 0.1,
         }
         self.args['test_step'] = [int(total_step*i) for i in np.arange(0, 1+self.args['test_interval'], self.args['test_interval'])]
         self.test_step_counter = 0
@@ -118,7 +108,7 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
         self.model = BERTDualEncoder(
             model=self.args['model'], 
-            delta=self.args['delta'],
+            s=self.args['smoothing'],
         )
         if pretrained_model_path:
             self.load_bert_model(pretrained_model_path)

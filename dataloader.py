@@ -1828,9 +1828,9 @@ class BERTDualWithNegDataset(Dataset):
 # ========== BERT DUAL Dataset ========== #
 class BERTDualDataset(Dataset):
     
-    def __init__(self, path, lang='zh', mode='train', max_len=300, model='bert-base-chinese'):
+    def __init__(self, path, lang='zh', mode='train', res_max_len=128, max_len=300, model='bert-base-chinese'):
         self.mode, self.max_len = mode, max_len
-        self.res_max_len = 64
+        self.res_max_len = res_max_len 
         self.vocab = BertTokenizer.from_pretrained(model)
         if lang != 'zh':
             # add special tokens for english corpus, __number__, __path__, __url__

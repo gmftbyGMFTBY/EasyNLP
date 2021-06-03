@@ -62,6 +62,9 @@ class BERTDualWriterEncoder(nn.Module):
         batch_size = cid.shape[0]
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
         dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, 10*B]
+        # scale
+        dot_product /= np.sqrt(768)
+        ipdb.set_trace()
 
         mask = torch.zeros_like(dot_product).cuda()
         mask[torch.arange(batch_size), torch.arange(0, len(rid), 11)] = 1.
@@ -160,6 +163,8 @@ class BERTDualWriterEncoderAgent(RetrievalBaseAgent):
 
             self.scaler.step(self.optimizer)
             self.scaler.update()
+            # loss.backward()
+            # clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
 
             self.optimizer.step()
             self.scheduler.step()
