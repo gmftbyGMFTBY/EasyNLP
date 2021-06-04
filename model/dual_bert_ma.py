@@ -37,12 +37,12 @@ class BertEmbedding(nn.Module):
         self.model.load_state_dict(new_state_dict)
     
 
-class BERTDualEncoder(nn.Module):
+class BERTDualMAEncoder(nn.Module):
 
     '''dual bert and dual latent interaction: one-to-many mechanism'''
     
     def __init__(self, model='bert-base-chinese', s=0.1):
-        super(BERTDualEncoder, self).__init__()
+        super(BERTDualMAEncoder, self).__init__()
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
         self.label_smooth_loss = LabelSmoothLoss(smoothing=s)
@@ -70,14 +70,19 @@ class BERTDualEncoder(nn.Module):
         dot_product /= np.sqrt(768)     # scale dot product
         return dot_product
     
-    def forward(self, cid, rid, cid_mask, rid_mask):
+    def forward(self, cid, rid, hard_rid, cid_mask, rid_mask, hard_rid_mask):
         batch_size = cid.shape[0]
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
+        hard_rid_rep = self.can_encoder(hard_rid, hard_rid_mask)
+
         dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, B]
         dot_product /= np.sqrt(768)     # scale dot product
 
+        dot_product_2 = torch.matmul(cid_rep, hard_rid_rep.t())
+        dot_product_2 /= np.sqrt(768)
+
         mask = torch.zeros_like(dot_product).cuda()
-        mask[range(batch_size), range(batch_size)] = 1. 
+        mask[range(batch_size), range(batch_size)] = 1.
 
         # constrastive loss
         # loss = F.log_softmax(dot_product, dim=-1) * mask
@@ -85,6 +90,9 @@ class BERTDualEncoder(nn.Module):
         # label smooth loss
         gold = torch.arange(batch_size).cuda()
         loss = self.label_smooth_loss(dot_product, gold)
+        
+        gold = torch.arange(batch_size).cuda()
+        loss += self.label_smooth_loss(dot_product_2, gold)
 
         # acc
         acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
@@ -93,10 +101,10 @@ class BERTDualEncoder(nn.Module):
         return loss, acc
     
     
-class BERTDualEncoderAgent(RetrievalBaseAgent):
+class BERTDualMAEncoderAgent(RetrievalBaseAgent):
     
     def __init__(self, multi_gpu, total_step, warmup_step, run_mode='train', local_rank=0, dataset_name='ecommerce', pretrained_model='bert-base-chinese', pretrained_model_path=None):
-        super(BERTDualEncoderAgent, self).__init__()
+        super(BERTDualMAEncoderAgent, self).__init__()
         try:
             self.gpu_ids = list(range(len(multi_gpu.split(',')))) 
         except:
@@ -121,7 +129,7 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         self.test_step_counter = 0
 
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
-        self.model = BERTDualEncoder(
+        self.model = BERTDualMAEncoder(
             model=self.args['model'], 
             s=self.args['smoothing'],
         )
@@ -134,11 +142,6 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             lr=self.args['lr'],
         )
         if run_mode in ['train', 'train-post', 'train-dual-post']:
-            # self.model, self.optimizer = amp.initialize(
-            #    self.model,
-            #    self.optimizer,
-            #    opt_level=self.args['amp_level']
-            # )
             self.scaler = GradScaler()
             self.scheduler = transformers.get_linear_schedule_with_warmup(
                 self.optimizer, 
@@ -170,9 +173,10 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         correct, s, oom_t = 0, 0, 0
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
-            cid, rid, cid_mask, rid_mask = batch
+            cid, rid, hard_rid, cid_mask, rid_mask, hard_rid_mask = batch
+            
             with autocast():
-                loss, acc = self.model(cid, rid, cid_mask, rid_mask)
+                loss, acc = self.model(cid, rid, hard_rid, cid_mask, rid_mask, hard_rid_mask)
             self.scaler.scale(loss).backward()
             self.scaler.unscale_(self.optimizer)
             clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])

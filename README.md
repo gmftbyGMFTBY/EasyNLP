@@ -29,6 +29,8 @@ NOTE:
 - [ ] 换个角度思考，就算dual encoder architecture效果不如cross encoder，但是dual encoder因为独有的有点可以作为粗筛的一个有效方法，那么只要改进在dual encoder architecture是显著的就行，不一定要打败SOTA，只要比dual encoder本身好就行
 - [x] the hard negative seems not work as well
 - [ ] test the short conversation context (multiple samples) for dual-bert
+- [x] Conlusion of the hard negative samples: (1) BERT-FP (utterance in the context); (2) BERT-HCL (semantic recall); (3) WorldNotBinary (Generation, retrieval[BM25], random sample)
+- [ ] remove label smoothing and test
 
 ## How to Use
 
@@ -40,21 +42,21 @@ Before using the repo, please run the following command to init:
 ./run.sh init
 ```
 
-2. create post data from the orignial dataset
+2. create post data from the orignial dataset (optional)
 
 ```bash
 cd data;
 python create_post_data.py
 ```
 
-3. create data for post training
+3. create data for post training (optional)
 
 ```bash
 # dataset saved in data/ecommerce/train_post.hdf5
 ./data/create_post_train_dataset.sh ecommerce
 ```
 
-4. post train
+4. post train (optional)
 
 ```bash
 # checkpoint are saved in ckpt/ecommerce/bert-post/*
@@ -209,11 +211,13 @@ _Note:_
 <!--the influence of the number of the negative samples, max_len=256/64
 It can be found that the number of the negative samples has the limited performance gain
 it can also be found that the hard negative samples seems has the limited performance gain on the dual-encoder model
+BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，分别使用可以有提升。可能是这两种的目标是一致的
 -->
 | Original           | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   |
 | ------------------ | ----- | ----- | ----- | ----- | ----- | ------ |
 | SOTA               | 31.8  | 48.2  | 85.8  | 66.4  | 49.9  | 62.5   |
 | HCL                | 33.0  | 53.1  | 85.8  | 68.1  | 51.4  | 63.9   |
+| BERT-FP            | 32.4  | 54.2  | 87.0  | 68.0  | 51.2  | 64.4   |
 | dual-bert(bsz=16, epoch=5, bert-post) | 27.85 | 49.26 | 85.99 | 63.88 | 44.83 | 60.73 |
 | dual-bert(bsz=16, epoch=5, bert-post, extra_t=16) | 30.26 | 51.2 | 85.71 | 65.93 | 47.98 | 62.22  |
 | dual-bert(bsz=16, epoch=5, bert-post, extra_t=32) | 31.36 | 51.32 | 85.82 | 66.63 | 49.33 | 62.91 |
@@ -221,6 +225,7 @@ it can also be found that the hard negative samples seems has the limited perfor
 | dual-bert(bsz=16, epoch=5, bert-post, extra_t=64) | 30.13 | 51.27 | 85.2 | 65.72 | 47.68 | 61.92 |
 | dual-bert-bm25(bsz=16, epoch=5, bert-post, head_num=5) | 31.18 | 51.36 | 84.4 | 66.56 | 48.88 | 62.2 |
 | dual-bert(bsz=32, epoch=5, bert-fp-post, label-smooth, max_len=256/64) | 32.57 | 52.33 | 84.37 | 67.47 | 50.82 | 63.13 |
+| dual-bert(bsz=32, epoch=5, bert-fp-post, label-smooth, max_len=256/64, fp) | 32.16 | 50.4 | 83.96 | 66.52 | 50.37 | 62.82 |
 
 
 
@@ -315,6 +320,6 @@ it can also be found that the hard negative samples seems has the limited perfor
 
 ### 5. Writer Dataset
 
-| Original | R11@1 | R11@2 | R11@5 | MRR  |
+| Original | R10@1 | R10@2 | R10@5 | MRR  |
 | -------- | ----- | ----- | ----- | ---- |
 |          |       |       |       |      |
