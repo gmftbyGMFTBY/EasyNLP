@@ -12,6 +12,7 @@ class BERTRetrieval(nn.Module):
         if model in ['bert-base-uncased']:
             # english corpus has three special tokens: __number__, __url__, __path__
             self.model.resize_token_embeddings(self.model.config.vocab_size + 3)
+        self.model.resize_token_embeddings(self.model.config.vocab_size+1)
         self.head = nn.Sequential(
             nn.Dropout(p=p),
             nn.Linear(768, 1)
@@ -29,10 +30,8 @@ class BERTRetrieval(nn.Module):
     def load_bert_model(self, state_dict):
         new_state_dict = OrderedDict()
         for k, v in state_dict.items():
-            if k.startswith('_bert_model.cls.'):
-                continue
-            name = k.replace('_bert_model.bert.', '')
-            new_state_dict[name] = v
+            new_state_dict[k] = v
+        new_state_dict['embeddings.position_ids'] = torch.arange(512).expand((1, -1))
         self.model.load_state_dict(new_state_dict)
     
 class BERTFTAgent(RetrievalBaseAgent):
@@ -56,6 +55,7 @@ class BERTFTAgent(RetrievalBaseAgent):
             'dataset': dataset_name,
             'pretrained_model_path': pretrained_model_path,
             'dropout': 0.2,
+            'run_mode': run_mode,
         }
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
         self.model = BERTRetrieval(self.args['model'], p=self.args['dropout'])
@@ -70,11 +70,7 @@ class BERTFTAgent(RetrievalBaseAgent):
         # self.criterion = nn.CrossEntropyLoss()
         self.criterion = nn.BCEWithLogitsLoss()
         if run_mode in ['train', 'train-post', 'train-dual-post']:
-            self.model, self.optimizer = amp.initialize(
-                self.model, 
-                self.optimizer, 
-                opt_level=self.args['amp_level']
-            )
+            self.scaler = GradScaler()
             self.scheduler = transformers.get_linear_schedule_with_warmup(
                 self.optimizer, 
                 num_warmup_steps=warmup_step, 
@@ -99,19 +95,19 @@ class BERTFTAgent(RetrievalBaseAgent):
         for idx, batch in enumerate(pbar):
             ids, tids, mask, label = batch
             self.optimizer.zero_grad()
-            output = self.model(ids, tids, mask)    # [B]
-            loss = self.criterion(output, label.to(torch.float))
-            
-            with amp.scale_loss(loss, self.optimizer) as scaled_loss:
-                scaled_loss.backward()
-            clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
-            self.optimizer.step()
+            with autocast():
+                output = self.model(ids, tids, mask)    # [B]
+                loss = self.criterion(output, label.to(torch.float))
+            self.scaler.scale(loss).backward()
+            self.scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
             self.scheduler.step()
 
             total_loss += loss.item()
             batch_num += 1
             
-            # now_correct = torch.max(F.softmax(output, dim=-1), dim=-1)[1]    # [batch]
             output = F.sigmoid(output) > 0.5
             now_correct = torch.sum(output == label).item()
             correct += now_correct
@@ -138,8 +134,7 @@ class BERTFTAgent(RetrievalBaseAgent):
             ids, tids, mask, label = batch
             batch_size = len(ids)
             assert batch_size % 10 == 0, f'[!] {batch_size} cannot mode 10'
-            # scores = self.model(ids, tids, mask)[:, 1].cpu().tolist()    # [B]
-            scores = F.sigmoid(self.model(ids, tids, mask)).cpu().tolist()    # [B]
+            scores = F.sigmoid(self.model(ids, tids, mask)).cpu().tolist()
             
             rank_by_pred, pos_index, stack_scores = \
           calculate_candidates_ranking(

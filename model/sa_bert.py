@@ -9,9 +9,7 @@ class SABERTRetrieval(nn.Module):
     def __init__(self, model='bert-base-chinese'):
         super(SABERTRetrieval, self).__init__()
         self.model = BertModel.from_pretrained(model)
-        if model in ['bert-base-uncased']:
-            # english corpus has three special tokens: __number__, __url__, __path__ AND [EOT]
-            self.model.resize_token_embeddings(self.model.config.vocab_size + 3)
+        self.model.resize_token_embeddings(self.model.config.vocab_size+1)
         self.head = nn.Linear(768, 2)
         self.speaker_embedding = nn.Embedding(2, 768)
 
@@ -31,10 +29,8 @@ class SABERTRetrieval(nn.Module):
     def load_bert_model(self, state_dict):
         new_state_dict = OrderedDict()
         for k, v in state_dict.items():
-            if k.startswith('_bert_model.cls.'):
-                continue
-            name = k.replace('_bert_model.bert.', '')
-            new_state_dict[name] = v
+            new_state_dict[k] = v
+        new_state_dict['embeddings.position_ids'] = torch.arange(512).expand((1, -1))
         self.model.load_state_dict(new_state_dict)
 
     

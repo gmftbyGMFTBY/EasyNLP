@@ -2052,7 +2052,7 @@ class BERTDualMultiAspectDataset(Dataset):
             rids_mask = self.generate_mask(rids)
             hard_rids_mask = self.generate_mask(hard_rids)
             if torch.cuda.is_available():
-                ids, rids, hard_rids, ids_mask, rids_mask. hard_rids_mask = ids.cuda(), rids.cuda(), hard_rids.cuda(), ids_mask.cuda(), rids_mask.cuda(), hard_rids_mask.cuda()
+                ids, rids, hard_rids, ids_mask, rids_mask, hard_rids_mask = ids.cuda(), rids.cuda(), hard_rids.cuda(), ids_mask.cuda(), rids_mask.cuda(), hard_rids_mask.cuda()
             return ids, rids, hard_rids, ids_mask, rids_mask, hard_rids_mask
         else:
             # batch size is batch_size * 10
@@ -2863,6 +2863,7 @@ def load_dataset(args):
         'bert-ft-multi': BERTFTMultiDataset,
         'bert-gen-ft': BERTGenFTDataset,
         'dual-bert': BERTDualDataset,
+        'hash-bert': BERTDualDataset,
         'dual-bert-ma': BERTDualMultiAspectDataset,
         # 'dual-bert': BERTDualFPDataset,
         'dual-bert-writer': BERTDualWithNegDataset,

@@ -81,8 +81,8 @@ class BERTDualMAEncoder(nn.Module):
         dot_product_2 = torch.matmul(cid_rep, hard_rid_rep.t())
         dot_product_2 /= np.sqrt(768)
 
-        mask = torch.zeros_like(dot_product).cuda()
-        mask[range(batch_size), range(batch_size)] = 1.
+        # mask = torch.zeros_like(dot_product).cuda()
+        # mask[range(batch_size), range(batch_size)] = 1.
 
         # constrastive loss
         # loss = F.log_softmax(dot_product, dim=-1) * mask
@@ -90,8 +90,6 @@ class BERTDualMAEncoder(nn.Module):
         # label smooth loss
         gold = torch.arange(batch_size).cuda()
         loss = self.label_smooth_loss(dot_product, gold)
-        
-        gold = torch.arange(batch_size).cuda()
         loss += self.label_smooth_loss(dot_product_2, gold)
 
         # acc

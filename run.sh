@@ -13,16 +13,16 @@ bsz=32
 head_num=5
 pre_extract=500
 inf_bsz=64
-post_bsz=96
+post_bsz=32
 post_epoch=5
-post_max_len=256
+post_max_len=512
 post_res_max_len=64
 neg_bsz=64    # useless
 total_steps=100000
 warmup_ratio=0.1
 test_batch_size=32
-models=(dual-bert-ma sa-bert-neg dual-bert-writer dual-bert-kw dual-bert-semi dual-bert-mlm dual-bert-cross dual-bert-scm sa-bert bert-ft bert-ft-multi bert-gen bert-gen-ft bert-post dual-bert-fg dual-bert-gen dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-mb dual-bert-adv dual-bert-jsd dual-bert-hierarchical-trs dual-gru-hierarchical-trs)
-ONE_BATCH_SIZE_MODEL=(dual-bert-ma dual-bert-writer dual-bert-kw dual-bert-semi dual-bert-mlm dual-bert-cross dual-bert-scm bert-ft-multi dual-bert dual-bert-poly dual-bert-fg dual-bert-cl dual-bert-gen dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-hierarchical-trs dual-bert-mb dual-bert-adv dual-bert-jsd dual-gru-hierarchical)
+models=(hash-bert dual-bert-ma sa-bert-neg dual-bert-writer dual-bert-kw dual-bert-semi dual-bert-mlm dual-bert-cross dual-bert-scm sa-bert bert-ft bert-ft-multi bert-gen bert-gen-ft bert-post dual-bert-fg dual-bert-gen dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-mb dual-bert-adv dual-bert-jsd dual-bert-hierarchical-trs dual-gru-hierarchical-trs)
+ONE_BATCH_SIZE_MODEL=(hash-bert dual-bert-ma dual-bert-writer dual-bert-kw dual-bert-semi dual-bert-mlm dual-bert-cross dual-bert-scm bert-ft-multi dual-bert dual-bert-poly dual-bert-fg dual-bert-cl dual-bert-gen dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-hierarchical-trs dual-bert-mb dual-bert-adv dual-bert-jsd dual-gru-hierarchical)
 datasets=(ecommerce douban ubuntu lccc lccc-large writer)
 chinese_datasets=(douban ecommerce lccc lccc-large writer)
 # ========== metadata ========== #
@@ -147,7 +147,7 @@ elif [ $mode = 'train-post' ]; then
     fi
     
     gpu_ids=(${cuda//,/ })
-    CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 29405 main.py \
+    CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 29406 main.py \
         --dataset $dataset \
         --model $model \
         --mode train-post \
