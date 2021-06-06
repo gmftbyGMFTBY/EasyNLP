@@ -2068,6 +2068,133 @@ class BERTDualMultiAspectDataset(Dataset):
 
 
 # ========== BERT DUAL Dataset ========== #
+class BERTDualPretrainDataset(Dataset):
+    
+    def __init__(self, path, lang='zh', mode='train', res_max_len=128, max_len=300, model='bert-base-chinese'):
+        self.mode, self.max_len = mode, max_len
+        self.res_max_len = res_max_len 
+        self.max_turn_length = 10
+        self.vocab = BertTokenizer.from_pretrained(model)
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.mask = self.vocab.convert_tokens_to_ids('[MASK]')
+        self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
+        self.unk = self.vocab.convert_tokens_to_ids('[UNK]')
+        self.pp_path = f'{os.path.splitext(path)[0]}_dual_pretrain.pt'
+        if os.path.exists(self.pp_path):
+            self.data = torch.load(self.pp_path)
+            print(f'[!] load preprocessed file from {self.pp_path}')
+            return None
+        data = read_text_data_fp(path, lang=lang)
+        self.data = []
+        if mode == 'train':
+            for label, utterances in tqdm(data):
+                if label == 0:
+                    continue
+                item = self.vocab.batch_encode_plus(utterances)['input_ids']
+                item = item[-self.max_turn_length:]
+                ids, ids_label, rids, rids_label = [], [], [], []
+                for i in range(1, len(item)):
+                    ids.append(self._length_limit(item[i-1]))
+                    rids.append(self._length_limit_res(item[i]))
+                self.data.append({
+                    'ids': ids,
+                    'rids': rids,
+                })
+        else:
+            raise Exception(f'[!] Unknown mode: [mode]')
+
+    def get_mlm_label(self, ids):
+        # ids must have been cut
+        labels, new_ids = [], []
+        for token in ids:
+            if token in [self.sep, self.cls, self.unk]:
+                labels.append(-1)
+                new_ids.append(token)
+                continue
+            prob = random.random()
+            if prob < 0.15:
+                prob = random.random()
+                if prob < 0.8:
+                    # mask
+                    new_ids.append(self.mask)
+                elif 0.8 <= prob < 0.9:
+                    # random replace
+                    random_idx = random.choice(range(len(self.vocab))) 
+                    new_ids.append(random_idx)
+                else:
+                    new_ids.append(token)
+
+                labels.append(token)
+            else:
+                labels.append(-1)
+                new_ids.append(token)
+        assert len(new_ids) == len(labels)
+        return new_ids, labels
+                
+    def _length_limit(self, ids):
+        # also return the speaker embeddings
+        if len(ids) > self.max_len:
+            ids = [ids[0]] + ids[-(self.max_len-1):]
+        return ids
+    
+    def _length_limit_res(self, ids):
+        # cut tail
+        if len(ids) > self.res_max_len:
+            ids = ids[:self.res_max_len-1] + [self.sep]
+        return ids
+                
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, i):
+        bundle = self.data[i]
+        # collect the mlm label
+        ids, rids, ids_label, rids_label = [], [], [], []
+        for c, r in zip(bundle['ids'], bundle['rids']):
+            ids_, ids_label_ = self.get_mlm_label(c)
+            rids_, rids_label_ = self.get_mlm_label(r)
+            ids_ = torch.LongTensor(ids_)
+            rids_ = torch.LongTensor(rids_)
+            ids_label_ = torch.LongTensor(ids_label_)
+            rids_label_ = torch.LongTensor(rids_label_)
+            ids.append(ids_)
+            ids_label.append(ids_label_)
+            rids.append(rids_)
+            rids_label.append(rids_label_)
+        return ids, ids_label, rids, rids_label
+
+    def save(self):
+        data = torch.save(self.data, self.pp_path)
+        print(f'[!] save preprocessed dataset into {self.pp_path}')
+        
+    def generate_mask(self, ids):
+        attn_mask_index = ids.nonzero().tolist()   # [PAD] IS 0
+        attn_mask_index_x, attn_mask_index_y = [i[0] for i in attn_mask_index], [i[1] for i in attn_mask_index]
+        attn_mask = torch.zeros_like(ids)
+        attn_mask[attn_mask_index_x, attn_mask_index_y] = 1
+        return attn_mask
+        
+    def collate(self, batch):
+        ids, ids_label, rids, rids_label = [], [], [], []
+        for a, b, c, d in batch:
+            ids.extend(a)
+            ids_label.extend(b)
+            rids.extend(c)
+            rids_label.extend(d)
+        ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+        rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
+        ids_label = pad_sequence(ids_label, batch_first=True, padding_value=-1)
+        rids_label = pad_sequence(rids_label, batch_first=True, padding_value=-1)
+        ids_mask = self.generate_mask(ids)
+        rids_mask = self.generate_mask(rids)
+        if torch.cuda.is_available():
+            ids, rids, ids_mask, rids_mask = ids.cuda(), rids.cuda(), ids_mask.cuda(), rids_mask.cuda()
+            ids_label, rids_label = ids_label.cuda(), rids_label.cuda()
+        return ids, rids, ids_mask, rids_mask, ids_label, rids_label
+
+
+# ========== BERT DUAL Dataset ========== #
 class BERTDualDataset(Dataset):
     
     def __init__(self, path, lang='zh', mode='train', res_max_len=128, max_len=300, model='bert-base-chinese'):
@@ -2866,6 +2993,7 @@ def load_dataset(args):
         'bert-ft-multi': BERTFTMultiDataset,
         'bert-gen-ft': BERTGenFTDataset,
         'dual-bert': BERTDualDataset,
+        'dual-bert-pretrain': BERTDualPretrainDataset,
         'hash-bert': BERTDualDataset,
         'dual-bert-ma': BERTDualMultiAspectDataset,
         # 'dual-bert': BERTDualFPDataset,
@@ -2958,11 +3086,6 @@ def load_dataset(args):
         data = (data_res, data_ctx)
         sampler = None
     else:
-        # if args['model'] in ['dual-gru-hierarchical-trs']:
-        #     vocab_path = f'data/{args["dataset"]}/word2vec.pt'
-        #     data = DATASET_MAP[args['model']](path, vocab_path=vocab_path, mode=mode, lang=args['lang'], max_len=args['max_len'], model=args['pretrained_model'])
-        #     iter_ = DataLoader(data, batch_size=args['batch_size'], collate_fn=data.collate)
-        # else:
         data = DATASET_MAP[args['model']](path, mode=mode, lang=args['lang'], max_len=args['max_len'], model=args['pretrained_model'])
         iter_ = DataLoader(data, batch_size=args['test_batch_size'], collate_fn=data.collate)
         sampler = None

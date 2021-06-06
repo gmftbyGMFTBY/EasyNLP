@@ -5,10 +5,10 @@
 # for example: ./run/sh train train_generative gpt2 0,1,2,3
 
 # ========== metadata ========== #
-max_len=256
+max_len=64
 res_max_len=64
 seed=50
-epoch=5
+epoch=25
 bsz=32
 head_num=5
 pre_extract=500
@@ -21,7 +21,7 @@ neg_bsz=64    # useless
 total_steps=100000
 warmup_ratio=0.1
 test_batch_size=32
-models=(hash-bert dual-bert-ma sa-bert-neg dual-bert-writer dual-bert-kw dual-bert-semi dual-bert-mlm dual-bert-cross dual-bert-scm sa-bert bert-ft bert-ft-multi bert-gen bert-gen-ft bert-post dual-bert-fg dual-bert-gen dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-mb dual-bert-adv dual-bert-jsd dual-bert-hierarchical-trs dual-gru-hierarchical-trs)
+models=(dual-bert-pretrain hash-bert dual-bert-ma sa-bert-neg dual-bert-writer dual-bert-kw dual-bert-semi dual-bert-mlm dual-bert-cross dual-bert-scm sa-bert bert-ft bert-ft-multi bert-gen bert-gen-ft bert-post dual-bert-fg dual-bert-gen dual-bert dual-bert-poly dual-bert-cl dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-mb dual-bert-adv dual-bert-jsd dual-bert-hierarchical-trs dual-gru-hierarchical-trs)
 ONE_BATCH_SIZE_MODEL=(hash-bert dual-bert-ma dual-bert-writer dual-bert-kw dual-bert-semi dual-bert-mlm dual-bert-cross dual-bert-scm bert-ft-multi dual-bert dual-bert-poly dual-bert-fg dual-bert-cl dual-bert-gen dual-bert-vae dual-bert-vae2 dual-bert-one2many dual-bert-hierarchical dual-bert-hierarchical-trs dual-bert-mb dual-bert-adv dual-bert-jsd dual-gru-hierarchical)
 datasets=(ecommerce douban ubuntu lccc lccc-large writer)
 chinese_datasets=(douban ecommerce lccc lccc-large writer)

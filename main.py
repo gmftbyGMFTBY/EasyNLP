@@ -40,16 +40,24 @@ def main(**args):
         train_data, train_iter, sampler = load_dataset(args)
         
         # load test dataset
-        test_args = deepcopy(args)
-        test_args['mode'] = 'test'
-        test_args['batch_size'] = args['test_batch_size']
-        test_data, test_iter, _ = load_dataset(test_args)
+        # It should be noted that some model doesn't support test mode, for example the dual-bert-pretrain
+        try:
+            test_args = deepcopy(args)
+            test_args['mode'] = 'test'
+            test_args['batch_size'] = args['test_batch_size']
+            test_data, test_iter, _ = load_dataset(test_args)
+            is_test = True
+        except:
+            is_test = False
+            print(f'[!] {args["model"]} doesn"t support test mode')
 
         obtain_steps_parameters(train_data, args)
         agent = load_model(args)
         if args['mode'] == 'train-dual-post':
             agent.load_model(f'ckpt/{args["dataset"]}/dual-bert/best.pt')
-        agent.test_iter = test_iter
+
+        if is_test:
+            agent.test_iter = test_iter
         
         sum_writer = SummaryWriter(log_dir=f'rest/{args["dataset"]}/{args["model"]}')
         for epoch_i in range(args['epoch']):
@@ -64,13 +72,14 @@ def main(**args):
             if args['local_rank'] == 0:
                 agent.save_model(f'ckpt/{args["dataset"]}/{args["model"]}/best.pt')
             # test
-            (r10_1, r10_2, r10_5), mrr, p1, MAP = agent.test_model()
-            sum_writer.add_scalar(f'test-epoch/R10@1', r10_1, epoch_i)
-            sum_writer.add_scalar(f'test-epoch/R10@2', r10_2, epoch_i)
-            sum_writer.add_scalar(f'test-epoch/R10@5', r10_5, epoch_i)
-            sum_writer.add_scalar(f'test-epoch/MRR', mrr, epoch_i)
-            sum_writer.add_scalar(f'test-epoch/P@1', p1, epoch_i)
-            sum_writer.add_scalar(f'test-epoch/MAP', MAP, epoch_i)
+            if is_test:
+                (r10_1, r10_2, r10_5), mrr, p1, MAP = agent.test_model()
+                sum_writer.add_scalar(f'test-epoch/R10@1', r10_1, epoch_i)
+                sum_writer.add_scalar(f'test-epoch/R10@2', r10_2, epoch_i)
+                sum_writer.add_scalar(f'test-epoch/R10@5', r10_5, epoch_i)
+                sum_writer.add_scalar(f'test-epoch/MRR', mrr, epoch_i)
+                sum_writer.add_scalar(f'test-epoch/P@1', p1, epoch_i)
+                sum_writer.add_scalar(f'test-epoch/MAP', MAP, epoch_i)
         sum_writer.close()
     elif args['mode'] == 'test':
         test_data, test_iter, _ = load_dataset(args)

@@ -23,11 +23,8 @@ from collections import Counter, OrderedDict
 from torch.nn.utils import clip_grad_norm_
 import random
 from transformers import BertTokenizer
-from transformers import BertForSequenceClassification, BertModel
+from transformers import BertForSequenceClassification, BertModel, BertForPreTraining
 import transformers
-# from apex import amp
-# from apex.parallel import DistributedDataParallel as DDP
-# from apex.parallel import convert_syncbn_model
 from sklearn.metrics import label_ranking_average_precision_score
 import argparse
 import joblib

@@ -19,3 +19,4 @@ from .dual_bert_hier_trs_kd import *
 from .dual_bert_cl import *
 from .dual_bert_vae import *
 from .dual_bert_vae2 import *
+from .dual_bert_pretrain import *
