@@ -56,7 +56,10 @@ class BERTFTAgent(RetrievalBaseAgent):
             'pretrained_model_path': pretrained_model_path,
             'dropout': 0.2,
             'run_mode': run_mode,
+            'test_interval': 0.05
         }
+        self.args['test_step'] = [int(total_step*i) for i in np.arange(0, 1+self.args['test_interval'], self.args['test_interval'])]
+        self.test_step_counter = 0
         self.vocab = BertTokenizer.from_pretrained(self.args['model'])
         self.model = BERTRetrieval(self.args['model'], p=self.args['dropout'])
         if pretrained_model_path:
@@ -107,6 +110,18 @@ class BERTFTAgent(RetrievalBaseAgent):
 
             total_loss += loss.item()
             batch_num += 1
+            if batch_num in self.args['test_step']:
+                # test in the training loop
+                index = self.test_step_counter
+                (r10_1, r10_2, r10_5), avg_mrr, avg_p1, avg_map = self.test_model()
+                self.model.train()    # reset the train mode
+                recoder.add_scalar(f'train-test/R10@1', r10_1, index)
+                recoder.add_scalar(f'train-test/R10@2', r10_2, index)
+                recoder.add_scalar(f'train-test/R10@5', r10_5, index)
+                recoder.add_scalar(f'train-test/MRR', avg_mrr, index)
+                recoder.add_scalar(f'train-test/P@1', avg_p1, index)
+                recoder.add_scalar(f'train-test/MAP', avg_map, index)
+                self.test_step_counter += 1
             
             output = F.sigmoid(output) > 0.5
             now_correct = torch.sum(output == label).item()

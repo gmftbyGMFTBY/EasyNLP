@@ -43,7 +43,7 @@ class SABERTFTAgent(RetrievalBaseAgent):
         except:
             raise Exception(f'[!] multi gpu ids are needed, but got: {multi_gpu}')
         self.args = {
-            'lr': 5e-5,
+            'lr': 2e-5,
             'grad_clip': 5.0,
             'multi_gpu': self.gpu_ids,
             'max_len': 256,
