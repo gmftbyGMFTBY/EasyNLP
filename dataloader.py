@@ -658,7 +658,7 @@ class BERTDualInferenceContextResponseDataset(Dataset):
             item = self.vocab.encode(res)
             rids = self._length_limit_res(item)
             self.data.append({
-                'cid': cids, 'rid': rids, 'order': counter, 'cid_text': context, 'rid_text': response
+                'cid': cids, 'rid': rids, 'order': counter, 'cid_text': ctx, 'rid_text': res
             })
             counter += 1
                 
@@ -2184,6 +2184,9 @@ class BERTFTMultiDataset(Dataset):
     '''segment embedding, token embedding, position embedding (default), mask embedding'''
     
     def __init__(self, path, lang='zh', mode='train', max_len=300, model='bert-base-chinese'):
+
+        path = f'{os.path.splitext(path)[0]}_dup.txt'
+
         self.mode, self.max_len = mode, max_len
         self.vocab = BertTokenizer.from_pretrained(model)
         if lang != 'zh':
@@ -2900,23 +2903,10 @@ def load_dataset(args):
     else:
         mode = args['mode']
 
-    # the duplicate random samples for each conversation context
-    if args['model'] == 'bert-ft-multi':
-        path = f'data/{args["dataset"]}/{mode}_dup.txt'
-    else:
-        path = f'data/{args["dataset"]}/{mode}.txt'
-        
+    path = f'data/{args["dataset"]}/{mode}.txt'
+
     if mode == 'train':
-        # if args['model'] in ['dual-gru-hierarchical-trs']:
-        #     vocab_path = f'data/{args["dataset"]}/word2vec.pt'
-        #     data = DATASET_MAP[args['model']](path, vocab_path=vocab_path, mode=mode, lang=args['lang'], max_len=args['max_len'], model=args['pretrained_model'])
-        #     train_sampler = torch.utils.data.distributed.DistributedSampler(
-        #         data,
-        #         num_replicas=dist.get_world_size(),
-        #         rank=args['local_rank'],
-        #     )
-        #     iter_ = DataLoader(data, batch_size=args['batch_size'], collate_fn=data.collate, sampler=train_sampler)
-        if args['model'] in ['bert-ft', 'sa-bert', 'sa-bert-neg']:
+        if args['model'] in ['bert-ft', 'sa-bert', 'sa-bert-neg', 'bert-ft-multi']:
             # Cross-encoder models doesn't need res_max_len parameters
             data = DATASET_MAP[args['model']](path, mode=mode, lang=args['lang'], max_len=args['max_len'], model=args['pretrained_model'])
             train_sampler = torch.utils.data.distributed.DistributedSampler(

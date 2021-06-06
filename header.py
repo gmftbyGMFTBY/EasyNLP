@@ -34,6 +34,7 @@ import argparse
 from torch.nn.utils.rnn import pad_sequence
 import joblib
 from elasticsearch import Elasticsearch, helpers
+import faiss
 
 logging.getLogger("transformers").setLevel(logging.WARNING)
 logging.getLogger("transformers.tokenization_utils").setLevel(logging.ERROR)

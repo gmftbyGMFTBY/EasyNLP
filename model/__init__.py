@@ -1,30 +1,6 @@
-from .bert_ft import *
-from .sa_bert import *
-from .bert_gen import *
-from .bert_gen_ft import *
-from .dual_bert import *
-from .hash_bert import *
-from .dual_bert_ma import *
-from .dual_bert_writer import *
-from .dual_bert_kw import *
-from .dual_bert_semi import *
-from .dual_bert_mlm import *
-from .dual_bert_cross import *
-from .dual_bert_scm import *
-from .dual_bert_fg import *
-from .dual_bert_jsd import *
-from .dual_bert_gen import *
-from .dual_bert_adv import *
-from .dual_bert_one2many import *
-from .dual_bert_hierarchical import *
-from .dual_gru_hier_trs import *
-from .dual_bert_hier_trs import *
-from .dual_bert_hier_trs_kd import *
-from .dual_bert_poly import *
-from .dual_bert_cl import *
-from .dual_bert_vae import *
-from .dual_bert_vae2 import *
-from .searcher import *
+from .InteractionModels import *
+from .RepresentationModels import *
+from .LatentInteractionModels import *
 
 def load_model(args):
     if args['model'] in ['bert-ft-multi', 'bert-ft']:

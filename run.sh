@@ -106,7 +106,7 @@ elif [ $mode = 'inference_qa' ]; then
         --lang $lang \
         --warmup_ratio $warmup_ratio
     # reconstruct
-    python model/searcher.py \
+    python searcher.py \
         --mode inference_qa \
         --dataset $dataset \
         --nums ${#gpu_ids[@]} \
@@ -127,7 +127,7 @@ elif [ $mode = 'inference' ]; then
         --lang $lang \
         --warmup_ratio $warmup_ratio
     # reconstruct
-    python model/searcher.py \
+    python searcher.py \
         --mode inference \
         --dataset $dataset \
         --nums ${#gpu_ids[@]} \
