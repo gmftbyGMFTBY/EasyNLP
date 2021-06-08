@@ -9,6 +9,7 @@ def parser_args():
     parser.add_argument('--topk', default=20, type=int)
     parser.add_argument('--pre_extract', default=50, type=int)
     parser.add_argument('--mode', default='inference_qa', type=str)
+    parser.add_argument('--root_dir', default='/apdcephfs/priveate_johntianlan', type=str)
     return parser.parse_args()
 
 
@@ -52,7 +53,7 @@ if __name__ == "__main__":
         queries, answers, order = [], [], []
         queries_text, answers_text = [], []
         for i in tqdm(range(args['nums'])):
-            query, answer, q_text, a_text, q_order = torch.load(f'data/{args["dataset"]}/inference_qa_{i}.pt')
+            query, answer, q_text, a_text, q_order = torch.load(f'{args["root_dir"]}/data/{args["dataset"]}/inference_qa_{i}.pt')
             answers.append(answer)
             queries.append(query)
             order.extend(q_order)

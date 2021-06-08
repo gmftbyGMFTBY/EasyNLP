@@ -23,6 +23,7 @@ def parser_args():
     parser.add_argument('--head_num', type=int, default=5)
     parser.add_argument('--extra_tm', type=int, default=16)
     parser.add_argument('--total_steps', type=int, default=100000)
+    parser.add_argument('--root_dir', type=str, default='/apdcephfs/private_johntianlan/MyReDial')
     return parser.parse_args()
 
 

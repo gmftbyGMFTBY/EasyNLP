@@ -91,7 +91,7 @@ python create_post_data.py
 
 # writer dataset now support two kinds of models: dual-bert-writer, sa-bert-neg
 ./run.sh train writer dual-bert-writer 0,1,2,3,4,5,6,7
-./run.sh train writer sa-bert-neg 0,1,2,3,4,5,6,7
+./run.sh train writer bert-ft-writer 0,1,2,3,4,5,6,7
 ```
 8. test the model
 
@@ -323,6 +323,11 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 
 ### 5. Writer Dataset
 
-| Original | R10@1 | R10@2 | R10@5 | MRR  |
-| -------- | ----- | ----- | ----- | ---- |
-|          |       |       |       |      |
+| Models                              | R10@1 | R10@2 | R10@5 | MRR  |
+| ----------------------------------- | ----- | ----- | ----- | ---- |
+| bert-base-chinese (dual-encoder)    |       |       |       |      |
+| bert-base-chinese (cross-encoder)   |       |       |       |      |
+| hfl-roberta-chinese (dual-encoder)  |       |       |       |      |
+| hfl-roberta-chinese (cross-encoder) |       |       |       |      |
+| pijili-bert-base (dual-encoder)     |       |       |       |      |
+| pijili-bert-base (cross-encoder)    |       |       |       |      |
