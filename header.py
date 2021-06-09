@@ -36,5 +36,8 @@ import joblib
 from elasticsearch import Elasticsearch, helpers
 import faiss
 
+# import the pjli bert model
+from pjli_bert_model import *
+
 logging.getLogger("transformers").setLevel(logging.WARNING)
 logging.getLogger("transformers.tokenization_utils").setLevel(logging.ERROR)

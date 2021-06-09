@@ -2195,6 +2195,8 @@ class BERTDualDataset(Dataset):
     def __init__(self, path, lang='zh', mode='train', res_max_len=128, max_len=300, model='bert-base-chinese'):
         self.mode, self.max_len = mode, max_len
         self.res_max_len = res_max_len 
+        # ipdb.set_trace()
+        # self.vocab = PJBertTokenizer.from_pretrained('/apdcephfs/share_916081/pjli/bert_zh_300g_wordpiece_base/data/vocab.txt')
         self.vocab = BertTokenizer.from_pretrained(model)
         if lang != 'zh':
             # add special tokens for english corpus, __number__, __path__, __url__
