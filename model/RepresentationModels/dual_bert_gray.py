@@ -8,33 +8,23 @@ class BertEmbedding(nn.Module):
     def __init__(self, model='bert-base-chinese'):
         super(BertEmbedding, self).__init__()
         self.model = BertModel.from_pretrained(model)
-        # bert-fp checkpoint has the special token: [EOS]
-        self.model.resize_token_embeddings(self.model.config.vocab_size + 1)
+        if model in ['bert-base-uncased']:
+            # english corpus has three special tokens: __number__, __url__, __path__
+            self.model.resize_token_embeddings(self.model.config.vocab_size + 3)
 
     def forward(self, ids, attn_mask, speaker_type_ids=None):
         embds = self.model(ids, attention_mask=attn_mask)[0]
         embds = embds[:, 0, :]     # [CLS]
         return embds
-
-    def load_bert_model(self, state_dict):
-        # load the post train checkpoint from BERT-FP (NAACL 2021)
-        new_state_dict = OrderedDict()
-        for k, v in state_dict.items():
-            new_state_dict[k] = v
-        # position_ids
-        new_state_dict['embeddings.position_ids'] = torch.arange(512).expand((1, -1))
-        self.model.load_state_dict(new_state_dict)
     
-
-class BERTDualEncoder(nn.Module):
+class BERTDualWriterEncoder(nn.Module):
 
     '''dual bert and dual latent interaction: one-to-many mechanism'''
     
-    def __init__(self, model='bert-base-chinese', s=0.1):
-        super(BERTDualEncoder, self).__init__()
+    def __init__(self, model='bert-base-chinese'):
+        super(BERTDualWriterEncoder, self).__init__()
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
-        self.label_smooth_loss = LabelSmoothLoss(smoothing=s)
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
@@ -56,24 +46,19 @@ class BERTDualEncoder(nn.Module):
         batch_size = rid.shape[0]
         cid_rep, rid_rep = self._encode(cid.unsqueeze(0), rid, None, rid_mask)
         dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
-        dot_product /= np.sqrt(768)     # scale dot product
         return dot_product
     
     def forward(self, cid, rid, cid_mask, rid_mask):
         batch_size = cid.shape[0]
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
-        dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, B]
-        dot_product /= np.sqrt(768)     # scale dot product
+        dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, 10*B]
+        dot_product /= np.sqrt(768)
 
-        # constrastive loss
-        # mask = torch.zeros_like(dot_product).cuda()
-        # mask[range(batch_size), range(batch_size)] = 1. 
-        # loss = F.log_softmax(dot_product, dim=-1) * mask
-        # loss = (-loss.sum(dim=1)).mean()
-
-        # label smooth loss
-        gold = torch.arange(batch_size).cuda()
-        loss = self.label_smooth_loss(dot_product, gold)
+        mask = torch.zeros_like(dot_product).cuda()
+        mask[torch.arange(batch_size), torch.arange(0, len(rid), 11)] = 1.
+        # loss
+        loss_ = F.log_softmax(dot_product, dim=-1) * mask
+        loss = (-loss_.sum(dim=1)).mean()
 
         # acc
         acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
@@ -82,46 +67,59 @@ class BERTDualEncoder(nn.Module):
         return loss, acc
     
     
-class BERTDualEncoderAgent(RetrievalBaseAgent):
+class BERTDualWriterEncoderAgent(RetrievalBaseAgent):
     
-    def __init__(self, args):
-        super(BERTDualEncoderAgent, self).__init__()
-        self.args = args
-        self.args['test_step'] = [int(self.args['total_step']*i) for i in np.arange(0, 1+self.args['test_interval'], self.args['test_interval'])]
+    def __init__(self, multi_gpu, total_step, warmup_step, run_mode='train', local_rank=0, dataset_name='ecommerce', pretrained_model='bert-base-chinese', pretrained_model_path=None):
+        super(BERTDualWriterEncoderAgent, self).__init__()
+        try:
+            self.gpu_ids = list(range(len(multi_gpu.split(',')))) 
+        except:
+            raise Exception(f'[!] multi gpu ids are needed, but got: {multi_gpu}')
+        self.args = {
+            'lr': 5e-5,
+            'grad_clip': 1.0,
+            'multi_gpu': self.gpu_ids,
+            'model': pretrained_model,
+            'local_rank': local_rank,
+            'warmup_steps': warmup_step,
+            'total_step': total_step,
+            'dataset': dataset_name,
+            'pretrained_model_path': pretrained_model_path,
+            'dropout': 0.1,
+            'amp_level': 'O2',
+            'test_interval': 0.05,
+        }
+        self.args['test_step'] = [int(total_step*i) for i in np.arange(0, 1+self.args['test_interval'], self.args['test_interval'])]
         self.test_step_counter = 0
 
-        self.vocab = BertTokenizer.from_pretrained(self.args['pretrained_model'])
-        self.model = BERTDualEncoder(
-            model=self.args['pretrained_model'], 
-            s=self.args['smoothing'],
+        self.vocab = BertTokenizer.from_pretrained(self.args['model'])
+        self.model = BERTDualWriterEncoder(
+            model=self.args['model'], 
         )
-        if self.args['checkpoint']['is_load']:
-            path = self.args['checkpoint']['path']
-            self.load_bert_model(f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/{path}')
         if torch.cuda.is_available():
             self.model.cuda()
         self.optimizer = transformers.AdamW(
             self.model.parameters(), 
             lr=self.args['lr'],
         )
-        if self.args['mode'] in ['train']:
-            self.scaler = GradScaler()
+        if run_mode in ['train', 'train-post', 'train-dual-post']:
+            self.model, self.optimizer = amp.initialize(
+               self.model,
+               self.optimizer,
+               opt_level=self.args['amp_level']
+            )
             self.scheduler = transformers.get_linear_schedule_with_warmup(
                 self.optimizer, 
-                num_warmup_steps=self.args['warmup_step'], 
-                num_training_steps=self.args['total_step'],
+                num_warmup_steps=warmup_step, 
+                num_training_steps=total_step,
             )
             self.model = nn.parallel.DistributedDataParallel(
-                self.model, 
-                device_ids=[self.args['local_rank']], 
-                output_device=self.args['local_rank'],
+                self.model, device_ids=[local_rank], output_device=local_rank,
                 find_unused_parameters=True,
             )
-        elif self.args['mode'] in ['inference']:
+        elif run_mode in ['inference', 'inference_qa']:
             self.model = nn.parallel.DistributedDataParallel(
-                self.model, 
-                device_ids=[self.args['local_rank']], 
-                output_device=self.args['local_rank'],
+                self.model, device_ids=[local_rank], output_device=local_rank,
                 find_unused_parameters=True,
             )
         self.show_parameters(self.args)
@@ -132,7 +130,7 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         self.model.can_encoder.load_bert_model(state_dict)
         print(f'[!] load pretrained BERT model from {path}')
         
-    def train_model(self, train_iter, test_iter, mode='train', recoder=None, idx_=0):
+    def train_model(self, train_iter, mode='train', recoder=None, idx_=0):
         self.model.train()
         total_loss, total_acc, batch_num = 0, 0, 0
         total_tloss, total_bloss = 0, 0
@@ -141,14 +139,13 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
             cid, rid, cid_mask, rid_mask = batch
-            with autocast():
-                loss, acc = self.model(cid, rid, cid_mask, rid_mask)
-            self.scaler.scale(loss).backward()
-            self.scaler.unscale_(self.optimizer)
-            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
-            
+
+            loss, acc = self.model(cid, rid, cid_mask, rid_mask)
+            with amp.scale_loss(loss, self.optimizer) as scaled_loss:
+                scaled_loss.backward()
+            clip_grad_norm_(amp.master_params(self.optimizer), self.args['grad_clip'])
+
+            self.optimizer.step()
             self.scheduler.step()
 
             total_loss += loss.item()
@@ -158,7 +155,7 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             if batch_num in self.args['test_step']:
                 # test in the training loop
                 index = self.test_step_counter
-                (r10_1, r10_2, r10_5), avg_mrr, avg_p1, avg_map = self.test_model(test_iter)
+                (r10_1, r10_2, r10_5), avg_mrr, avg_p1, avg_map = self.test_model()
                 self.model.train()    # reset the train mode
                 recoder.add_scalar(f'train-test/R10@1', r10_1, index)
                 recoder.add_scalar(f'train-test/R10@2', r10_2, index)
@@ -179,7 +176,7 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         return round(total_loss / batch_num, 4)
 
     @torch.no_grad()
-    def test_model(self, test_iter):
+    def test_model(self):
         self.model.eval()
         pbar = tqdm(self.test_iter)
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
@@ -188,11 +185,8 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         for idx, batch in enumerate(pbar):                
             cid, rids, rids_mask, label = batch
             batch_size = len(rids)
-            if self.args['mode'] in ['train']:
-                scores = self.model.module.predict(cid, rids, rids_mask).cpu().tolist()    # [B]
-            else:
-                scores = self.model.predict(cid, rids, rids_mask).cpu().tolist()    # [B]
-
+            assert batch_size == 10, f'[!] {batch_size} is not equal to 10'
+            scores = self.model.module.predict(cid, rids, rids_mask).cpu().tolist()    # [B]
 
             rank_by_pred, pos_index, stack_scores = \
           calculate_candidates_ranking(
@@ -201,6 +195,8 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
                 10)
             num_correct = logits_recall_at_k(pos_index, k_list)
             if self.args['dataset'] in ["douban"]:
+                # if sum(label).item() >= 2:
+                #     ipdb.set_trace()
                 total_prec_at_one += precision_at_one(rank_by_pred)
                 total_map += mean_average_precision(pos_index)
                 for pred in rank_by_pred:
@@ -221,7 +217,7 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         return (total_correct[0]/total_examples, total_correct[1]/total_examples, total_correct[2]/total_examples), avg_mrr, avg_prec_at_one, avg_map
 
     @torch.no_grad()
-    def inference(self, inf_iter):
+    def inference_qa(self, inf_iter):
         self.model.eval()
         pbar = tqdm(inf_iter)
         q, a, o = [], [], []
@@ -239,3 +235,31 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         a = torch.cat(a, dim=0).numpy()
         torch.save((q, a, q_text, a_text, o), f'data/{self.args["dataset"]}/inference_qa_{self.args["local_rank"]}.pt')
         print(f'[!] save the inference checkpoint over ...')
+
+    @torch.no_grad()
+    def inference(self, inf_iter, test_iter):
+        self.model.eval()
+        pbar = tqdm(inf_iter)
+        matrix, corpus, queries, q_text, q_order, q_text_r = [], [], [], [], [], []
+        for batch in pbar:
+            ids, mask, text = batch
+            vec = self.model.module.get_cand(ids, mask).cpu()    # [B, H]
+            matrix.append(vec)
+            corpus.extend(text)
+        matrix = torch.cat(matrix, dim=0).numpy()    # [Size, H]
+        assert len(matrix) == len(corpus)
+
+        # context response
+        pbar = tqdm(test_iter)
+        for batch in pbar:
+            ids, ids_mask, ctx_text, res_text, order = batch
+            vec = self.model.module.get_ctx(ids, ids_mask).cpu()
+            queries.append(vec)
+            q_text.extend(ctx_text)
+            q_text_r.extend(res_text)
+            q_order.extend(order)
+        queries = torch.cat(queries, dim=0).numpy()
+        torch.save(
+            (queries, q_text, q_text_r, q_order, matrix, corpus), 
+            f'data/{self.args["dataset"]}/inference_{self.args["local_rank"]}.pt'
+        )

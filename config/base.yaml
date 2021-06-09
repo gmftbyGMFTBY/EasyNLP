@@ -1,0 +1,16 @@
+datasets: 
+    ecommerce: zh
+    douban: zh
+    writer: zh
+    ubuntu: en
+
+models:
+    - dual-bert
+    - dual-bert-gray
+    - bert-ft
+    - sa-bert
+    - poly-encoder
+    - dual-bert-hierarchical
+
+# huge file are saved in the root dir
+root_dir: /dockerdata/johntianlan/sources/MyReDial

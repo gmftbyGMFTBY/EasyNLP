@@ -1,17 +1,11 @@
-from .header import *
 from .base import *
 from .utils import *
-
-'''Cross-Attention BertRetrieval'''
 
 class BERTRetrieval(nn.Module):
 
     def __init__(self, model='bert-base-chinese', p=0.2):
         super(BERTRetrieval, self).__init__()
         self.model = BertModel.from_pretrained(model)
-        if model in ['bert-base-uncased']:
-            # english corpus has three special tokens: __number__, __url__, __path__
-            self.model.resize_token_embeddings(self.model.config.vocab_size + 3)
         self.model.resize_token_embeddings(self.model.config.vocab_size+1)
         self.head = nn.Sequential(
             nn.Dropout(p=p),
@@ -33,19 +27,15 @@ class BERTRetrieval(nn.Module):
             new_state_dict[k] = v
         new_state_dict['embeddings.position_ids'] = torch.arange(512).expand((1, -1))
         self.model.load_state_dict(new_state_dict)
+
     
 class BERTFTAgent(RetrievalBaseAgent):
 
-    def __init__(self, multi_gpu, total_step, warmup_step, run_mode='train', pretrained_model='bert-base-chinese', local_rank=0, dataset_name='ecommerce', pretrained_model_path=None):
+    def __init__(self, total_step, warmup_step, run_mode='train', pretrained_model='bert-base-chinese', local_rank=0, dataset_name='ecommerce', pretrained_model_path=None):
         super(BERTFTAgent, self).__init__()
-        try:
-            self.gpu_ids = list(range(len(multi_gpu.split(',')))) 
-        except:
-            raise Exception(f'[!] multi gpu ids are needed, but got: {multi_gpu}')
         self.args = {
             'lr': 2e-5,
             'grad_clip': 5.0,
-            'multi_gpu': self.gpu_ids,
             'max_len': 256,
             'model': pretrained_model,
             'amp_level': 'O2',
@@ -90,7 +80,7 @@ class BERTFTAgent(RetrievalBaseAgent):
         self.model.load_bert_model(state_dict)
         print(f'[!] load pretrained BERT model from {path}')
 
-    def train_model(self, train_iter, mode='train', recoder=None, idx_=0):
+    def train_model(self, train_iter, test_iter, test_arg, recoder=None, idx_=0):
         self.model.train()
         total_loss, batch_num, correct, s = 0, 0, 0, 0
         pbar = tqdm(train_iter)
@@ -113,7 +103,7 @@ class BERTFTAgent(RetrievalBaseAgent):
             if batch_num in self.args['test_step']:
                 # test in the training loop
                 index = self.test_step_counter
-                (r10_1, r10_2, r10_5), avg_mrr, avg_p1, avg_map = self.test_model()
+                (r10_1, r10_2, r10_5), avg_mrr, avg_p1, avg_map = self.test_model(test_iter, test_args)
                 self.model.train()    # reset the train mode
                 recoder.add_scalar(f'train-test/R10@1', r10_1, index)
                 recoder.add_scalar(f'train-test/R10@2', r10_2, index)
@@ -139,16 +129,15 @@ class BERTFTAgent(RetrievalBaseAgent):
         return round(total_loss / batch_num, 4)
     
     @torch.no_grad()
-    def test_model(self):
+    def test_model(self, test_iter, test_args):
         self.model.eval()
-        pbar = tqdm(self.test_iter)
+        pbar = tqdm(test_iter)
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
         total_examples, total_correct = 0, 0
         k_list = [1, 2, 5, 10]
         for idx, batch in enumerate(pbar):
             ids, tids, mask, label = batch
             batch_size = len(ids)
-            assert batch_size % 10 == 0, f'[!] {batch_size} cannot mode 10'
             scores = F.sigmoid(self.model(ids, tids, mask)).cpu().tolist()
             
             rank_by_pred, pos_index, stack_scores = \

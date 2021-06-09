@@ -1,0 +1,15 @@
+# train configuration
+lr: 0.00005
+grad_clip: 1.0
+dropout: 0.1
+test_interval: 0.05
+smoothing: 0.1
+seed: 50
+batch_size: 32
+max_len: 340
+epoch: 5
+warmup_ratio: 0.1
+pretrained_model: bert-base-chinese
+checkpoint: 
+    path: best_nspmlm.pt
+    is_load: false

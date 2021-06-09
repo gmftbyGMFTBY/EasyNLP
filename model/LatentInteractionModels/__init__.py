@@ -1,1 +1,1 @@
-from .dual_bert_poly import *
+from .poly_encoder import *

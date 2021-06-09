@@ -1,4 +1,4 @@
-from header import *
+from .header import *
 
 # label smoothing loss
 class LabelSmoothLoss(nn.Module):
