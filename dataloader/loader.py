@@ -20,7 +20,7 @@ def load_dataset(args):
     MAP['inference']['dual-bert'] = BERTDualInferenceContextResponseDataset
 
     path = f'{args["root_dir"]}/data/{args["dataset"]}/{args["mode"]}.txt'
-    vocab = BertTokenizer.from_pretrained(args['pretrained_model'])
+    vocab = BertTokenizer.from_pretrained(args['tokenizer'])
         
     data = MAP[args['mode']][args['model']](vocab, path, **args)
     train_sampler = torch.utils.data.distributed.DistributedSampler(
@@ -29,11 +29,7 @@ def load_dataset(args):
         rank=args['local_rank'],
     )
     iter_ = DataLoader(data, batch_size=args['batch_size'], collate_fn=data.collate, sampler=train_sampler)
-    if args['mode'] == 'train':
-        sampler = train_sampler
-    else:
-        sampler = None
-
+    sampler = train_sampler if args['mode'] == 'train' else None
     if not os.path.exists(data.pp_path):
         data.save()
     return data, iter_, sampler

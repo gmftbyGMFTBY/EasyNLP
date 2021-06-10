@@ -1,5 +1,4 @@
-from .base import *
-from .utils import *
+from model.utils import *
 
 class BERTRetrieval(nn.Module):
 
@@ -31,48 +30,17 @@ class BERTRetrieval(nn.Module):
     
 class BERTFTAgent(RetrievalBaseAgent):
 
-    def __init__(self, total_step, warmup_step, run_mode='train', pretrained_model='bert-base-chinese', local_rank=0, dataset_name='ecommerce', pretrained_model_path=None):
+    def __init__(self, args):
         super(BERTFTAgent, self).__init__()
-        self.args = {
-            'lr': 2e-5,
-            'grad_clip': 5.0,
-            'max_len': 256,
-            'model': pretrained_model,
-            'amp_level': 'O2',
-            'local_rank': local_rank,
-            'total_step': total_step,
-            'warmup_step': warmup_step,
-            'dataset': dataset_name,
-            'pretrained_model_path': pretrained_model_path,
-            'dropout': 0.2,
-            'run_mode': run_mode,
-            'test_interval': 0.05
-        }
-        self.args['test_step'] = [int(total_step*i) for i in np.arange(0, 1+self.args['test_interval'], self.args['test_interval'])]
-        self.test_step_counter = 0
-        self.vocab = BertTokenizer.from_pretrained(self.args['model'])
+        self.args = args
+        self.set_test_interval()
+        self.vocab = BertTokenizer.from_pretrained(self.args['tokenizer'])
         self.model = BERTRetrieval(self.args['model'], p=self.args['dropout'])
-        if pretrained_model_path:
-            self.load_bert_model(pretrained_model_path)
+        self.load_chekcpoint()
         if torch.cuda.is_available():
             self.model.cuda()
-        self.optimizer = transformers.AdamW(
-            self.model.parameters(), 
-            lr=self.args['lr'],
-        )
-        # self.criterion = nn.CrossEntropyLoss()
         self.criterion = nn.BCEWithLogitsLoss()
-        if run_mode in ['train', 'train-post', 'train-dual-post']:
-            self.scaler = GradScaler()
-            self.scheduler = transformers.get_linear_schedule_with_warmup(
-                self.optimizer, 
-                num_warmup_steps=warmup_step, 
-                num_training_steps=total_step,
-            )
-            self.model = nn.parallel.DistributedDataParallel(
-                self.model, device_ids=[local_rank], output_device=local_rank,
-                find_unused_parameters=True,
-            )
+        self.set_optimizer_scheduler_ddp()
         self.show_parameters(self.args)
         
     def load_bert_model(self, path):
@@ -80,7 +48,7 @@ class BERTFTAgent(RetrievalBaseAgent):
         self.model.load_bert_model(state_dict)
         print(f'[!] load pretrained BERT model from {path}')
 
-    def train_model(self, train_iter, test_iter, test_arg, recoder=None, idx_=0):
+    def train_model(self, train_iter, test_iter, recoder=None, idx_=0):
         self.model.train()
         total_loss, batch_num, correct, s = 0, 0, 0, 0
         pbar = tqdm(train_iter)
@@ -101,17 +69,7 @@ class BERTFTAgent(RetrievalBaseAgent):
             total_loss += loss.item()
             batch_num += 1
             if batch_num in self.args['test_step']:
-                # test in the training loop
-                index = self.test_step_counter
-                (r10_1, r10_2, r10_5), avg_mrr, avg_p1, avg_map = self.test_model(test_iter, test_args)
-                self.model.train()    # reset the train mode
-                recoder.add_scalar(f'train-test/R10@1', r10_1, index)
-                recoder.add_scalar(f'train-test/R10@2', r10_2, index)
-                recoder.add_scalar(f'train-test/R10@5', r10_5, index)
-                recoder.add_scalar(f'train-test/MRR', avg_mrr, index)
-                recoder.add_scalar(f'train-test/P@1', avg_p1, index)
-                recoder.add_scalar(f'train-test/MAP', avg_map, index)
-                self.test_step_counter += 1
+                self.test_now(test_iter, recoder)
             
             output = F.sigmoid(output) > 0.5
             now_correct = torch.sum(output == label).item()
@@ -129,7 +87,7 @@ class BERTFTAgent(RetrievalBaseAgent):
         return round(total_loss / batch_num, 4)
     
     @torch.no_grad()
-    def test_model(self, test_iter, test_args):
+    def test_model(self, test_iter):
         self.model.eval()
         pbar = tqdm(test_iter)
         total_mrr, total_prec_at_one, total_map = 0, 0, 0

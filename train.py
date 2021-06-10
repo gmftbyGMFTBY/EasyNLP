@@ -21,18 +21,19 @@ def obtain_steps_parameters(train_data, args):
 def main(**args):
     torch.cuda.set_device(args['local_rank'])
     torch.distributed.init_process_group(backend='nccl', init_method='env://')
-    
-    test_args = deepcopy(args)
 
+    test_args = deepcopy(args)
+    test_args['mode'] = 'test'
     args['mode'] = 'train'
-    train_config = load_config(args)
-    args.update(train_config)
-    print(args)
+
+    config = load_config(args)
+    args.update(config)
+    print('train', args)
     train_data, train_iter, sampler = load_dataset(args)
 
-    test_args['mode'] = 'test'
-    test_config = load_config(test_args)
-    test_args.update(test_config)
+    config = load_config(test_args)
+    test_args.update(config)
+    print('test', test_args)
     test_data, test_iter, _ = load_dataset(test_args)
     
     # set seed
@@ -57,14 +58,6 @@ def main(**args):
         )
         if args['local_rank'] == 0:
             agent.save_model(f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best.pt')
-        # test after epoch
-        (r10_1, r10_2, r10_5), mrr, p1, MAP = agent.test_model(test_iter, test_args)
-        sum_writer.add_scalar(f'test-epoch/R10@1', r10_1, epoch_i)
-        sum_writer.add_scalar(f'test-epoch/R10@2', r10_2, epoch_i)
-        sum_writer.add_scalar(f'test-epoch/R10@5', r10_5, epoch_i)
-        sum_writer.add_scalar(f'test-epoch/MRR', mrr, epoch_i)
-        sum_writer.add_scalar(f'test-epoch/P@1', p1, epoch_i)
-        sum_writer.add_scalar(f'test-epoch/MAP', MAP, epoch_i)
     sum_writer.close()
 
 if __name__ == "__main__":

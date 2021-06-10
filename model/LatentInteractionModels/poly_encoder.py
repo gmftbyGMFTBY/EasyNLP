@@ -1,7 +1,4 @@
-from .header import *
-from .base import *
-from .utils import *
-
+from model.utils import *
 
 class BertEmbedding(nn.Module):
     
@@ -16,15 +13,6 @@ class BertEmbedding(nn.Module):
         return embd
 
     def load_bert_model(self, state_dict):
-        # new_state_dict = OrderedDict()
-        # for k, v in state_dict.items():
-        #     if k.startswith('_bert_model.cls.'):
-        #         continue
-        #    name = k.replace('_bert_model.bert.', '')
-        #     new_state_dict[name] = v
-        # self.model.load_state_dict(new_state_dict)
-
-        # load the post train checkpoint from BERT-FP (NAACL 2021)
         new_state_dict = OrderedDict()
         for k, v in state_dict.items():
             new_state_dict[k] = v
@@ -39,7 +27,6 @@ class PolyEncoder(nn.Module):
         super(PolyEncoder, self).__init__()
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
-        # m global queries
         self.poly_embd = nn.Embedding(m, 768)
         self.m = m
         
@@ -110,50 +97,16 @@ class PolyEncoder(nn.Module):
     
 class BERTPolyEncoderAgent(RetrievalBaseAgent):
     
-    def __init__(self, multi_gpu, total_step, warmup_step, run_mode='train', local_rank=0, dataset_name='ecommerce', pretrained_model='bert-base-chinese', pretrained_model_path=None):
+    def __init__(self, args):
         super(BERTPolyEncoderAgent, self).__init__()
-        try:
-            self.gpu_ids = list(range(len(multi_gpu.split(',')))) 
-        except:
-            raise Exception(f'[!] multi gpu ids are needed, but got: {multi_gpu}')
-        self.args = {
-            'lr': 5e-5,
-            'grad_clip': 1.0,
-            'multi_gpu': self.gpu_ids,
-            'model': pretrained_model,
-            'amp_level': 'O2',
-            'local_rank': local_rank,
-            'warmup_steps': warmup_step,
-            'total_step': total_step,
-            'max_len': 256,
-            'dataset': dataset_name,
-            'pretrained_model_path': pretrained_model_path,
-            'm': 16,
-            'test_interval': 0.05
-        }
-        self.args['test_step'] = [int(total_step*i) for i in np.arange(0, 1+self.args['test_interval'], self.args['test_interval'])]
-        self.test_step_counter = 0
-        self.vocab = BertTokenizer.from_pretrained(self.args['model'])
-        self.model = PolyEncoder(m=self.args['m'], model=self.args['model'])
-        if pretrained_model_path:
-            self.load_bert_model(pretrained_model_path)
+        self.args = args
+        self.set_test_interval()
+        self.vocab = BertTokenizer.from_pretrained(self.args['tokenizer'])
+        self.model = PolyEncoder(m=self.args['m'], model=self.args['pretrained_model'])
+        self.load_checkpoint()
         if torch.cuda.is_available():
             self.model.cuda()
-        self.optimizer = transformers.AdamW(
-            self.model.parameters(), 
-            lr=self.args['lr'],
-        )
-        if run_mode in ['train', 'train-post', 'train-dual-post']:
-            self.scaler = GradScaler()
-            self.scheduler = transformers.get_linear_schedule_with_warmup(
-                self.optimizer, 
-                num_warmup_steps=warmup_step, 
-                num_training_steps=total_step,
-            )
-            self.model = nn.parallel.DistributedDataParallel(
-                self.model, device_ids=[local_rank], output_device=local_rank,
-                find_unused_parameters=True,
-            )
+        self.set_optimizer_scheduler_ddp()
         self.show_parameters(self.args)
         
     def load_bert_model(self, path):
@@ -162,7 +115,7 @@ class BERTPolyEncoderAgent(RetrievalBaseAgent):
         self.model.can_encoder.load_bert_model(state_dict)
         print(f'[!] load pretrained BERT model from {path}')
         
-    def train_model(self, train_iter, mode='train', recoder=None, idx_=0):
+    def train_model(self, train_iter, test_iter, recoder=None, idx_=0):
         self.model.train()
         total_loss, total_acc, batch_num = 0, 0, 0
         pbar = tqdm(train_iter)
@@ -184,16 +137,7 @@ class BERTPolyEncoderAgent(RetrievalBaseAgent):
             batch_num += 1
 
             if batch_num in self.args['test_step']:
-                index = self.test_step_counter
-                (r10_1, r10_2, r10_5), avg_mrr, avg_p1, avg_map = self.test_model()
-                self.model.train()
-                recoder.add_scalar(f'train-test/R10@1', r10_1, index)
-                recoder.add_scalar(f'train-test/R10@2', r10_2, index)
-                recoder.add_scalar(f'train-test/R10@5', r10_5, index)
-                recoder.add_scalar(f'train-test/MRR', avg_mrr, index)
-                recoder.add_scalar(f'train-test/P@1', avg_p1, index)
-                recoder.add_scalar(f'train-test/MAP', avg_map, index)
-                self.test_step_counter += 1
+                self.test_now(test_iter, recoder)
             
             recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
             recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
@@ -206,16 +150,15 @@ class BERTPolyEncoderAgent(RetrievalBaseAgent):
         return round(total_loss / batch_num, 4)
         
     @torch.no_grad()
-    def test_model(self):
+    def test_model(self, test_iter):
         self.model.eval()
-        pbar = tqdm(self.test_iter)
+        pbar = tqdm(test_iter)
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
         total_examples, total_correct = 0, 0
         k_list = [1, 2, 5, 10]
         for idx, batch in tqdm(list(enumerate(pbar))):                
             cid, rids, rids_mask, label = batch
             batch_size = len(rids)
-            assert batch_size == 10, f'[!] {batch_size} isnot equal to 10'
             scores = self.model.module.predict(cid, rids, rids_mask).cpu().tolist()    # [B]
             
             rank_by_pred, pos_index, stack_scores = \

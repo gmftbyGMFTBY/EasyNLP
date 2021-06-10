@@ -1,6 +1,4 @@
-from .header import *
-from .base import *
-from .utils import *
+from model.utils import *
 
 '''Speraker-aware Bert Cross-encoder'''
 
@@ -36,48 +34,17 @@ class SABERTRetrieval(nn.Module):
     
 class SABERTFTAgent(RetrievalBaseAgent):
 
-    def __init__(self, multi_gpu, total_step, warmup_step, run_mode='train', pretrained_model='bert-base-chinese', local_rank=0, dataset_name='ecommerce', pretrained_model_path=None):
+    def __init__(self, args):
         super(SABERTFTAgent, self).__init__()
-        try:
-            self.gpu_ids = list(range(len(multi_gpu.split(',')))) 
-        except:
-            raise Exception(f'[!] multi gpu ids are needed, but got: {multi_gpu}')
-        self.args = {
-            'lr': 2e-5,
-            'grad_clip': 5.0,
-            'multi_gpu': self.gpu_ids,
-            'max_len': 256,
-            'model': pretrained_model,
-            'amp_level': 'O2',
-            'local_rank': local_rank,
-            'total_step': total_step,
-            'warmup_step': warmup_step,
-            'dataset': dataset_name,
-            'pretrained_model_path': pretrained_model_path,
-            'run_mode': run_mode,
-        }
-        self.vocab = BertTokenizer.from_pretrained(self.args['model'])
+        self.args = args
+        self.set_test_interval()
+        self.vocab = BertTokenizer.from_pretrained(self.args['tokenizer'])
         self.model = SABERTRetrieval(self.args['model'])
-        if pretrained_model_path:
-            self.load_bert_model(pretrained_model_path)
+        self.load_checkpoint()
+        self.criterion = nn.CrossEntropyLoss()
         if torch.cuda.is_available():
             self.model.cuda()
-        self.optimizer = transformers.AdamW(
-            self.model.parameters(), 
-            lr=self.args['lr'],
-        )
-        self.criterion = nn.CrossEntropyLoss()
-        if run_mode in ['train', 'train-post', 'train-dual-post']:
-            self.scaler = GradScaler()
-            self.scheduler = transformers.get_linear_schedule_with_warmup(
-                self.optimizer, 
-                num_warmup_steps=warmup_step, 
-                num_training_steps=total_step,
-            )
-            self.model = nn.parallel.DistributedDataParallel(
-                self.model, device_ids=[local_rank], output_device=local_rank,
-                find_unused_parameters=True,
-            )
+        self.set_optimizer_scheduler_ddp()
         self.show_parameters(self.args)
         
     def load_bert_model(self, path):
@@ -85,7 +52,7 @@ class SABERTFTAgent(RetrievalBaseAgent):
         self.model.load_bert_model(state_dict)
         print(f'[!] load pretrained BERT model from {path}')
 
-    def train_model(self, train_iter, mode='train', recoder=None, idx_=0):
+    def train_model(self, train_iter, test_iter, recoder=None, idx_=0):
         self.model.train()
         total_loss, batch_num, correct, s = 0, 0, 0, 0
         pbar = tqdm(train_iter)
@@ -108,6 +75,9 @@ class SABERTFTAgent(RetrievalBaseAgent):
 
             total_loss += loss.item()
             batch_num += 1
+
+            if batch_num in self.args['test_step']:
+                self.test_now(test_iter, recoder)
             
             now_correct = torch.max(F.softmax(output, dim=-1), dim=-1)[1]    # [batch]
             now_correct = torch.sum(now_correct == label).item()
@@ -124,9 +94,9 @@ class SABERTFTAgent(RetrievalBaseAgent):
         return round(total_loss / batch_num, 4)
     
     @torch.no_grad()
-    def test_model(self):
+    def test_model(self, test_iter):
         self.model.eval()
-        pbar = tqdm(self.test_iter)
+        pbar = tqdm(test_iter)
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
         total_examples, total_correct = 0, 0
         k_list = [1, 2, 5, 10]

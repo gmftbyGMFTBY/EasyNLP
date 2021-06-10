@@ -14,7 +14,7 @@ def main(**args):
     args['mode'] = 'test'
     config = load_config(args)
     args.update(config)
-    print(args)
+    print('test', args)
 
     random.seed(args['seed'])
     torch.manual_seed(args['seed'])
@@ -22,7 +22,6 @@ def main(**args):
         torch.cuda.manual_seed_all(args['seed'])
 
     test_data, test_iter, _ = load_dataset(args)
-    args['total_step'], args['warmup_step'] = 0, 0
     agent = load_model(args)
     agent.load_model(f'args["root_dir"]/ckpt/{args["dataset"]}/{args["model"]}/best.pt')
     (r10_1, r10_2, r10_5), mrr, p1, MAP = agent.test_model(test_iter, args)

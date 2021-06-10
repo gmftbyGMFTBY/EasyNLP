@@ -1,30 +1,4 @@
-from .header import *
-from .base import *
-from .utils import *
-
-
-class BertEmbedding(nn.Module):
-    
-    def __init__(self, model='bert-base-chinese'):
-        super(BertEmbedding, self).__init__()
-        self.model = BertModel.from_pretrained(model)
-        # bert-fp checkpoint has the special token: [EOS]
-        self.model.resize_token_embeddings(self.model.config.vocab_size + 1)
-
-    def forward(self, ids, attn_mask, speaker_type_ids=None):
-        embds = self.model(ids, attention_mask=attn_mask)[0]
-        embds = embds[:, 0, :]     # [CLS]
-        return embds
-
-    def load_bert_model(self, state_dict):
-        # load the post train checkpoint from BERT-FP (NAACL 2021)
-        new_state_dict = OrderedDict()
-        for k, v in state_dict.items():
-            new_state_dict[k] = v
-        # position_ids
-        new_state_dict['embeddings.position_ids'] = torch.arange(512).expand((1, -1))
-        self.model.load_state_dict(new_state_dict)
-    
+from model.utils import *
 
 class BERTDualEncoder(nn.Module):
 
@@ -32,8 +6,8 @@ class BERTDualEncoder(nn.Module):
     
     def __init__(self, model='bert-base-chinese', s=0.1):
         super(BERTDualEncoder, self).__init__()
-        self.ctx_encoder = BertEmbedding(model=model)
-        self.can_encoder = BertEmbedding(model=model)
+        self.ctx_encoder = PJBertEmbedding(model=model)
+        self.can_encoder = PJBertEmbedding(model=model)
         self.label_smooth_loss = LabelSmoothLoss(smoothing=s)
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
@@ -87,43 +61,17 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
     def __init__(self, args):
         super(BERTDualEncoderAgent, self).__init__()
         self.args = args
-        self.args['test_step'] = [int(self.args['total_step']*i) for i in np.arange(0, 1+self.args['test_interval'], self.args['test_interval'])]
-        self.test_step_counter = 0
+        self.set_test_interval()
 
-        self.vocab = BertTokenizer.from_pretrained(self.args['pretrained_model'])
+        self.vocab = PJBertTokenizer.from_pretrained(self.args['tokenizer'])
         self.model = BERTDualEncoder(
             model=self.args['pretrained_model'], 
             s=self.args['smoothing'],
         )
-        if self.args['checkpoint']['is_load']:
-            path = self.args['checkpoint']['path']
-            self.load_bert_model(f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/{path}')
+        self.load_checkpoint()
         if torch.cuda.is_available():
             self.model.cuda()
-        self.optimizer = transformers.AdamW(
-            self.model.parameters(), 
-            lr=self.args['lr'],
-        )
-        if self.args['mode'] in ['train']:
-            self.scaler = GradScaler()
-            self.scheduler = transformers.get_linear_schedule_with_warmup(
-                self.optimizer, 
-                num_warmup_steps=self.args['warmup_step'], 
-                num_training_steps=self.args['total_step'],
-            )
-            self.model = nn.parallel.DistributedDataParallel(
-                self.model, 
-                device_ids=[self.args['local_rank']], 
-                output_device=self.args['local_rank'],
-                find_unused_parameters=True,
-            )
-        elif self.args['mode'] in ['inference']:
-            self.model = nn.parallel.DistributedDataParallel(
-                self.model, 
-                device_ids=[self.args['local_rank']], 
-                output_device=self.args['local_rank'],
-                find_unused_parameters=True,
-            )
+        self.set_optimizer_scheduler_ddp()
         self.show_parameters(self.args)
         
     def load_bert_model(self, path):
@@ -132,7 +80,7 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
         self.model.can_encoder.load_bert_model(state_dict)
         print(f'[!] load pretrained BERT model from {path}')
         
-    def train_model(self, train_iter, test_iter, mode='train', recoder=None, idx_=0):
+    def train_model(self, train_iter, test_iter, recoder=None, idx_=0):
         self.model.train()
         total_loss, total_acc, batch_num = 0, 0, 0
         total_tloss, total_bloss = 0, 0
@@ -156,17 +104,7 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
             batch_num += 1
 
             if batch_num in self.args['test_step']:
-                # test in the training loop
-                index = self.test_step_counter
-                (r10_1, r10_2, r10_5), avg_mrr, avg_p1, avg_map = self.test_model(test_iter)
-                self.model.train()    # reset the train mode
-                recoder.add_scalar(f'train-test/R10@1', r10_1, index)
-                recoder.add_scalar(f'train-test/R10@2', r10_2, index)
-                recoder.add_scalar(f'train-test/R10@5', r10_5, index)
-                recoder.add_scalar(f'train-test/MRR', avg_mrr, index)
-                recoder.add_scalar(f'train-test/P@1', avg_p1, index)
-                recoder.add_scalar(f'train-test/MAP', avg_map, index)
-                self.test_step_counter += 1
+                self.test_now(test_iter, recoder)
             
             recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
             recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
@@ -181,7 +119,7 @@ class BERTDualEncoderAgent(RetrievalBaseAgent):
     @torch.no_grad()
     def test_model(self, test_iter):
         self.model.eval()
-        pbar = tqdm(self.test_iter)
+        pbar = tqdm(test_iter)
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
         total_examples, total_correct = 0, 0
         k_list = [1, 2, 5, 10]
