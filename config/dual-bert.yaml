@@ -12,10 +12,10 @@ train:
     epoch: 5
     warmup_ratio: 0.1
     tokenizer: 
-        zh: /apdcephfs/share_916081/pjli/bert_zh_300g_wordpiece_base/data/vocab.txt
+        zh: bert-base-chinese
         en: bert-base-uncased
     pretrained_model: 
-        zh: /apdcephfs/share_916081/pjli/bert_zh_300g_wordpiece_base/ckpt/epoch1_batch_1759999
+        zh: bert-base-chinese
         en: bert-base-uncased
     checkpoint: 
         path: bert-post/best_nspmlm.pt

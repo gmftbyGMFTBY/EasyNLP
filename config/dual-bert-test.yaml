@@ -1,6 +1,0 @@
-# train configuration
-seed: 50
-batch_size: 1 
-max_len: 256
-res_max_len: 64
-pretrained_model: bert-base-chinese
