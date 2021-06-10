@@ -1,0 +1,32 @@
+# train configuration
+train:
+    lr: 0.00005
+    grad_clip: 1.0
+    dropout: 0.1
+    test_interval: 0.05
+    smoothing: 0.1
+    seed: 50
+    batch_size: 32
+    max_len: 256
+    res_max_len: 64
+    epoch: 5
+    warmup_ratio: 0.1
+    tokenizer: 
+        zh: hfl/chinese-roberta-wwm-ext
+        en: bert-base-uncased
+    pretrained_model: 
+        zh: hfl/chinese-roberta-wwm-ext
+        en: bert-base-uncased
+    checkpoint: 
+        path: bert-post/best_nspmlm.pt
+        is_load: false
+
+# test configuration
+test:
+    seed: 50
+    batch_size: 1
+    max_len: 256
+    res_max_len: 64
+    tokenizer: 
+        zh: hfl/chinese-roberta-wwm-ext
+        en: bert-base-uncased
