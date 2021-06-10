@@ -10,15 +10,14 @@ if __name__ == "__main__":
 
     for folder in ['rest', 'ckpt']:
         path = f'{root_dir}/{folder}'
-        ipdb.set_trace()
         if not os.path.exists(path):
             os.mkdir(path)
         for dataset in datasets:
-            subpath = f'{path}/{dataset}'
-            if not os.path.exists(subpath):
+            path = f'{root_dir}/{folder}/{dataset}'
+            if not os.path.exists(path):
                 os.mkdir(path)
             for model in models:
-                subsubpath = f'{path}/{model}'
-                if os.path.exists(subsubpath):
-                    os.mkdir(subsubpath)
+                path = f'{root_dir}/{folder}/{dataset}/{model}'
+                if os.path.exists(path):
+                    os.mkdir(path)
     print(f'[!] init the folder under the {root_dir} over')
