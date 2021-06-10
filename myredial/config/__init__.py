@@ -4,10 +4,11 @@ def load_config(args):
     model = args['model']
     config_path = f'config/{model}.yaml'
     print(f'[!] load configuration: {config_path}')
-    configuration = yaml.load(open(config_path))[args['mode']]
+    with open(config_path) as f:
+        configuration = yaml.load(f, Loader=yaml.FullLoader)[args['mode']]
 
     # base config
-    base_configuration = yaml.load(open('config/base.yaml'))
+    base_configuration = load_base_config()
     configuration.update(base_configuration)
 
     # load by lang
@@ -19,7 +20,8 @@ def load_config(args):
 
 def load_base_config():
     config_path = f'config/base.yaml'
+    with open(config_path) as f:
+        configuration = yaml.load(f, Loader=yaml.FullLoader)
     print(f'[!] load base configuration: {config_path}')
-    configuration = yaml.load(open(config_path))
     return configuration
 
