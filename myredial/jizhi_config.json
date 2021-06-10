@@ -1,0 +1,8 @@
+{
+    "Token": "fP4dP31jEgm53c-qZqYd-A",
+    "business_flag": "nlpc",
+    "model_local_file_path": "/apdcephfs/private_johntianlan/MyReDial/myredial",
+    "host_num": 1,
+    "host_gpu_num": 8,
+    "image_full_name": "mirrors.tencent.com/johntianlan_demo/myredial:latest"
+}

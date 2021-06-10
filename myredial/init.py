@@ -8,7 +8,7 @@ if __name__ == "__main__":
     models = config['models']
     root_dir = config['root_dir']
 
-    for folder in ['rest', 'ckpt']:
+    for folder in ['rest', 'ckpt', 'log']:
         path = f'{root_dir}/{folder}'
         if not os.path.exists(path):
             os.mkdir(path)
@@ -18,6 +18,6 @@ if __name__ == "__main__":
                 os.mkdir(path)
             for model in models:
                 path = f'{root_dir}/{folder}/{dataset}/{model}'
-                if os.path.exists(path):
+                if not os.path.exists(path):
                     os.mkdir(path)
     print(f'[!] init the folder under the {root_dir} over')
