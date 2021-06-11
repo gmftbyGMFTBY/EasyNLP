@@ -12,16 +12,24 @@ def load_dataset(args):
         dataset_t = BERTDualInferenceDataset
 
     path = f'{args["root_dir"]}/data/{args["dataset"]}/{args["mode"]}.txt'
-    vocab = BertTokenizer.from_pretrained(args['tokenizer'])
+
+    # pj tokenizer
+    if 'pj-' in args['model']:
+        vocab = PJBertTokenizer.from_pretrained(args['tokenizer'])
+    else:
+        vocab = BertTokenizer.from_pretrained(args['tokenizer'])
         
     data = dataset_t(vocab, path, **args)
-    train_sampler = torch.utils.data.distributed.DistributedSampler(
-        data,
-        num_replicas=dist.get_world_size(),
-        rank=args['local_rank'],
-    )
-    iter_ = DataLoader(data, batch_size=args['batch_size'], collate_fn=data.collate, sampler=train_sampler)
-    sampler = train_sampler if args['mode'] == 'train' else None
+    if args['mode'] in ['train', 'inference']:
+        sampler = torch.utils.data.distributed.DistributedSampler(
+            data,
+            num_replicas=dist.get_world_size(),
+            rank=args['local_rank'],
+        )
+        iter_ = DataLoader(data, batch_size=args['batch_size'], collate_fn=data.collate, sampler=sampler)
+    else:
+        iter_ = DataLoader(data, batch_size=args['batch_size'], collate_fn=data.collate)
+        sampler = None
     if not os.path.exists(data.pp_path):
         data.save()
     return data, iter_, sampler

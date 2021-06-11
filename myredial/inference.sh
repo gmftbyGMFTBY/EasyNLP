@@ -11,6 +11,7 @@ CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=$
 
 python build_index.py \
     --dataset $dataset \
+    --model $model \
     --nums ${#gpu_ids[@]} \
-    --index_type IVF100, PQ16 \
+    --index_type IVF100,PQ16 \
     --dimension 768

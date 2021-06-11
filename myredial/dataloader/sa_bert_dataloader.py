@@ -1,4 +1,5 @@
 from header import *
+from .utils import *
 
 
 class SABERTWithNegDataset(Dataset):
@@ -18,10 +19,10 @@ class SABERTWithNegDataset(Dataset):
         self.data = []
         if self.args['mode'] == 'train':
             for context, response, candidates in tqdm(data):
-                if len(candidates) < 10:
-                    candidates += random.sample(responses, 10-len(candidates))
+                if len(candidates) < 9:
+                    candidates += random.sample(responses, 9-len(candidates))
                 else:
-                    candidates = candidates[:10]
+                    candidates = candidates[:9]
                 for idx, neg in enumerate([response] + candidates):
                     utterances = context + [neg]
                     ids, tids, sids = self.annotate(utterances)

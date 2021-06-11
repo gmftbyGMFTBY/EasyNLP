@@ -9,7 +9,7 @@ class SABERTRetrieval(nn.Module):
         model = args['pretrained_model']
         self.model = BertModel.from_pretrained(model)
         self.model.resize_token_embeddings(self.model.config.vocab_size+1)
-        self.head = nn.Linear(768, 2)
+        self.head = nn.Linear(768, 1)
         self.speaker_embedding = nn.Embedding(2, 768)
 
     def forward(self, batch):
@@ -27,7 +27,7 @@ class SABERTRetrieval(nn.Module):
             token_type_ids=token_type_ids,
             inputs_embeds=word_embeddings,
         )[0]    # [B, S, E]
-        logits = self.head(output[:, 0, :])    # [B, H] -> [B, 2]
+        logits = self.head(output[:, 0, :]).squeeze(-1)
         return logits
 
     def load_bert_model(self, state_dict):

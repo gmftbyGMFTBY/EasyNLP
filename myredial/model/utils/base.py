@@ -25,18 +25,6 @@ class RetrievalBaseAgent:
         torch.save(state_dict, path)
         print(f'[!] save model into {path}')
     
-    def load_model(self, path):
-        '''
-        add the `module.` before the state_dict keys if the error are raised,
-        which means that the DataParallel(self.model) are used to load the model
-        '''
-        state_dict = torch.load(path, map_location=torch.device('cpu'))
-        try:
-            self.model.module.load_state_dict(state_dict)
-        except:
-            self.model.load_state_dict(state_dict)
-        print(f'[!] load model from {path}')
-
     def train_model(self, train_iter, mode='train'):
         raise NotImplementedError
 
@@ -69,11 +57,11 @@ class RetrievalBaseAgent:
         raise NotImplementedError
 
     def set_optimizer_scheduler_ddp(self):
-        self.optimizer = transformers.AdamW(
-            self.model.parameters(), 
-            lr=self.args['lr'],
-        )
         if self.args['mode'] in ['train']:
+            self.optimizer = transformers.AdamW(
+                self.model.parameters(), 
+                lr=self.args['lr'],
+            )
             self.scaler = GradScaler()
             self.scheduler = transformers.get_linear_schedule_with_warmup(
                 self.optimizer, 
@@ -96,4 +84,13 @@ class RetrievalBaseAgent:
         else:
             # test doesn't need DDP
             pass
+
+    def load_model(self, path):
+        # for test and inference
+        state_dict = torch.load(path, map_location=torch.device('cpu'))
+        try:
+            self.model.module.load_state_dict(state_dict)
+        except:
+            self.model.load_state_dict(state_dict)
+        print(f'[!] load model from {path}')
 

@@ -1,4 +1,5 @@
 from header import *
+from .utils import *
 
 
 class BERTFTDataset(Dataset):
@@ -7,7 +8,10 @@ class BERTFTDataset(Dataset):
         self.args = args
         self.vocab = vocab
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
-        self.pp_path = f'{os.path.splitext(path)[0]}_ft.pt'
+        if 'pj-' in args['model']:
+            self.pp_path = f'{os.path.splitext(path)[0]}_pjft.pt'
+        else:
+            self.pp_path = f'{os.path.splitext(path)[0]}_ft.pt'
         if os.path.exists(self.pp_path):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
@@ -30,7 +34,12 @@ class BERTFTDataset(Dataset):
         else:
             for i in tqdm(range(0, len(data), 10)):
                 batch = data[i:i+10]
-                item = self.vocab.batch_encode_plus([[b[1], b[2]] for b in batch])
+                d_ = []
+                for b in batch:
+                    context = ' [SEP] '.join(b[1][:-1])
+                    response = b[1][-1]
+                    d_.append([context, response])
+                item = self.vocab.batch_encode_plus(d_)
                 ids = item['input_ids']
                 tids = item['token_type_ids']
                 ids, tids = [self._length_limit(ids_) for ids_ in ids], [self._length_limit(tids_) for tids_ in tids]
@@ -112,10 +121,10 @@ class BERTWithNegDataset(Dataset):
         self.data = []
         if self.args['mode'] == 'train':
             for context, response, candidates in tqdm(data):
-                if len(candidates) < 10:
-                    candidates += random.sample(responses, 10-len(candidates))
+                if len(candidates) < 9:
+                    candidates += random.sample(responses, 9-len(candidates))
                 else:
-                    candidates = candidates[:10]
+                    candidates = candidates[:9]
                 for idx, neg in enumerate([response] + candidates):
                     utterances = context + [neg]
                     ids, tids = self.annotate(utterances)

@@ -75,8 +75,14 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
         return cid_reps, cid_mask, pos_index, spk_index  # [B, S, E], [B, S], [B, S]
     
     @torch.no_grad()
-    def predict(self, cid, rid, cid_turn_length, cid_mask, rid_mask):
+    def predict(self, batch):
         '''batch size is 1'''
+        cid = batch['cids']
+        rid = batch['rids']
+        cid_turn_length = batch['cids_turn_length']
+        cid_mask = batch['cids_mask']
+        rid_mask = batch['rids_mask']
+
         batch_size = rid.shape[0]
         
         cid_rep = self.ctx_encoder(cid, cid_mask)
@@ -95,7 +101,14 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
         dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze()    # [10] 
         return dot_product
 
-    def forward(self, cid, rid, cid_turn_length, cid_mask, rid_mask, recover_mapping):
+    def forward(self, batch):
+        cid = batch['cids']
+        rid = batch['rids']
+        cid_turn_length = batch['cids_turn_length']
+        cid_mask = batch['cids_mask']
+        rid_mask = batch['rids_mask']
+        recover_mapping = batch['recover_mapping']
+
         batch_size = rid.shape[0]
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask, recover_mapping)
         cid_rep_base, cid_mask, pos_index, spk_index = self.reconstruct_tensor(cid_rep, cid_turn_length)

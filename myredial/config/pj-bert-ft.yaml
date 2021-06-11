@@ -1,16 +1,18 @@
-# model configuration
 embed_dim: 768
 ff_embed_dim: 3072
 num_heads: 12
 dropout: 0.1
 layers: 12
 approx: none
+tokenizer: 
+    zh: /apdcephfs/share_916081/pjli/bert_zh_300g_wordpiece_base/data/vocab.txt
+pretrained_model: 
+    zh: /apdcephfs/share_916081/pjli/bert_zh_300g_wordpiece_base/ckpt/epoch1_batch_1759999
 
 # train configuration
 train:
     lr: 0.00005
     grad_clip: 1.0
-    dropout: 0.1
     test_interval: 0.05
     smoothing: 0.1
     seed: 50
@@ -18,17 +20,9 @@ train:
     max_len: 320 
     epoch: 5
     warmup_ratio: 0.1
-    embed_dim: 768
-    ff_embed_dim: 3072
-    tokenizer: 
-        zh: /apdcephfs/share_916081/pjli/bert_zh_300g_wordpiece_base/data/vocab.txt
-    pretrained_model: 
-        zh: /apdcephfs/share_916081/pjli/bert_zh_300g_wordpiece_base/ckpt/epoch1_batch_1759999
 
 # test configuration
 test:
     seed: 50
     batch_size: 32
     max_len: 320 
-    tokenizer: 
-        zh: /apdcephfs/share_916081/pjli/bert_zh_300g_wordpiece_base/data/vocab.txt

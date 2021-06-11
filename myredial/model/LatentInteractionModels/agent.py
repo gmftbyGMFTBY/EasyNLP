@@ -5,12 +5,14 @@ class LatentInteractionAgent(RetrievalBaseAgent):
     def __init__(self, vocab, model, args):
         super(LatentInteractionAgent, self).__init__()
         self.args = args
-        self.set_test_interval()
         self.vocab, self.model = vocab, model
-        self.load_checkpoint()
+        if args['mode'] == 'train':
+            self.set_test_interval()
+            self.load_checkpoint()
         if torch.cuda.is_available():
             self.model.cuda()
-        self.set_optimizer_scheduler_ddp()
+        if args['mode'] in ['train', 'inference']:
+            self.set_optimizer_scheduler_ddp()
         self.show_parameters(self.args)
         
     def load_bert_model(self, path):
@@ -61,8 +63,10 @@ class LatentInteractionAgent(RetrievalBaseAgent):
         k_list = [1, 2, 5, 10]
         for idx, batch in tqdm(list(enumerate(pbar))):                
             label = batch['label']
-            batch_size = len(rids)
-            scores = self.model.module.predict(batch).cpu().tolist()    # [B]
+            if self.args['mode'] in ['train']:
+                scores = self.model.module.predict(batch).cpu().tolist()    # [B]
+            else:
+                scores = self.model.predict(batch).cpu().tolist()    # [B]
             
             rank_by_pred, pos_index, stack_scores = \
           calculate_candidates_ranking(

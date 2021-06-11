@@ -1,4 +1,5 @@
 from header import *
+from .utils import *
 
 class BERTDualInferenceDataset(Dataset):
     
@@ -11,9 +12,12 @@ class BERTDualInferenceDataset(Dataset):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
-        responses = read_response_data(path, lang=self.args['lang'])
+        if args['model'] in ['dual-bert-gray']:
+            responses = read_response_json_data(path, lang=self.args['lang'])
+        else:
+            responses = read_response_data(path, lang=self.args['lang'])
         self.data = []
-        for res in tqdm(response):
+        for res in tqdm(responses):
             item = self.vocab.encode(res)
             rids = self._length_limit(item)
             self.data.append({

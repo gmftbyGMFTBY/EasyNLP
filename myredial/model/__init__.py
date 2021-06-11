@@ -9,11 +9,11 @@ def load_model(args):
     elif model_type == 'Interaction':
         agent_t = InteractionAgent
     elif model_type == 'LatentInteraction':
-        agent_t = LatentInteraction
+        agent_t = LatentInteractionAgent
     else:
         raise Exception(f'[!] Unknown type {model_type} for {model_name}')
 
-    if 'pj-' in model_name:
+    if 'pj-' in args['model']:
         # load pj bert model
         vocab = PJBertTokenizer.from_pretrained(args['tokenizer'])
         args['vocab_size'] = vocab.size

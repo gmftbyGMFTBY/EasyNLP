@@ -5,12 +5,14 @@ class RepresentationAgent(RetrievalBaseAgent):
     def __init__(self, vocab, model, args):
         super(RepresentationAgent, self).__init__()
         self.args = args
-        self.set_test_interval()
         self.vocab, self.model = vocab, model
-        self.load_checkpoint()
+        if args['mode'] == 'train':
+            self.set_test_interval()
+            self.load_checkpoint()
         if torch.cuda.is_available():
             self.model.cuda()
-        self.set_optimizer_scheduler_ddp()
+        if args['mode'] in ['train', 'inference']:
+            self.set_optimizer_scheduler_ddp()
         self.show_parameters(self.args)
         
     def load_bert_model(self, path):
@@ -62,8 +64,7 @@ class RepresentationAgent(RetrievalBaseAgent):
         total_examples, total_correct = 0, 0
         k_list = [1, 2, 5, 10]
         for idx, batch in enumerate(pbar):                
-            label = abtch['label']
-            batch_size = len(rids)
+            label = batch['label']
             if self.args['mode'] in ['train']:
                 scores = self.model.module.predict(batch).cpu().tolist()    # [B]
             else:
@@ -102,10 +103,13 @@ class RepresentationAgent(RetrievalBaseAgent):
         pbar = tqdm(inf_iter)
         embds, texts = [], []
         for batch in pbar:
-            rid, rid_mask, text = batch
+            rid = batch['ids']
+            rid_mask = batch['mask']
+            text = batch['text']
+
             res = self.model.module.get_cand(rid, rid_mask).cpu()
             embds.append(res)
-            texts.extend(rid_text)
+            texts.extend(text)
         embds = torch.cat(embds, dim=0).numpy()
         torch.save(
             (embds, texts), 

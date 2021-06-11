@@ -1,8 +1,18 @@
+tokenizer: 
+    zh: bert-base-chinese
+    en: bert-base-uncased
+pretrained_model: 
+    zh: bert-base-chinese
+    en: bert-base-uncased
+dropout: 0.1
+nhead: 6
+nhide: 512
+nlayer: 2
+
 # train configuration
 train:
     lr: 0.00005
     grad_clip: 1.0
-    dropout: 0.1
     test_interval: 0.05
     smoothing: 0.1
     seed: 50
@@ -11,15 +21,6 @@ train:
     res_max_len: 64
     epoch: 5
     warmup_ratio: 0.1
-    nhead: 6
-    nhide: 512
-    nlayer: 2
-    tokenizer: 
-        zh: bert-base-chinese
-        en: bert-base-uncased
-    pretrained_model: 
-        zh: bert-base-chinese
-        en: bert-base-uncased
     checkpoint: 
         path: bert-post/best_nspmlm.pt
         is_load: false

@@ -5,13 +5,15 @@ class InteractionAgent(RetrievalBaseAgent):
     def __init__(self, vocab, model, args):
         super(InteractionAgent, self).__init__()
         self.args = args
-        self.set_test_interval()
         self.vocab, self.model = vocab, model
-        self.load_checkpoint()
+        if args['mode'] == 'train':
+            self.set_test_interval()
+            self.load_checkpoint()
         if torch.cuda.is_available():
             self.model.cuda()
+        if args['mode'] in ['train', 'inference']:
+            self.set_optimizer_scheduler_ddp()
         self.criterion = nn.BCEWithLogitsLoss()
-        self.set_optimizer_scheduler_ddp()
         self.show_parameters(self.args)
         
     def load_bert_model(self, path):
@@ -65,7 +67,6 @@ class InteractionAgent(RetrievalBaseAgent):
         total_examples, total_correct = 0, 0
         k_list = [1, 2, 5, 10]
         for idx, batch in enumerate(pbar):
-            batch_size = len(ids)
             label = batch['label']
             scores = F.sigmoid(self.model(batch)).cpu().tolist()
             

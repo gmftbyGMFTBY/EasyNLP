@@ -1,9 +1,11 @@
 from header import *
+from config import *
 
 
 def parser_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', type=str, default='ecommerce')
+    parser.add_argument('--model', type=str, default='dual-bert')
     parser.add_argument('--nums', default=4, type=int)
     parser.add_argument('--index_type', default='', type=str)
     parser.add_argument('--dimension', default=768, type=int)
@@ -44,7 +46,7 @@ if __name__ == "__main__":
     args['mode'] = 'inference'
     config = load_config(args)
     args.update(config)
-    print('build_index': args)
+    print('build_index', args)
 
     embds, texts = [], []
     for i in tqdm(range(args['nums'])):

@@ -236,7 +236,7 @@ class Vocab(object):
 
     def token2idx(self, x):
         if isinstance(x, list):
-            return [self.token2idx(i) for i in x]
+            return [self._token2idx(i) for i in x]
         if x in self._token2idx:
             return self._token2idx[x]
         return self.unk_idx
@@ -257,8 +257,15 @@ class PJBertTokenizer:
         tokenizer = PJBertTokenizer(file_name)
         return tokenizer
 
-    def convert_tokens_to_ids(token):
-        return self.token2idx(token)
+    def convert_tokens_to_ids(self, token):
+        return self.vocab.token2idx(token)
+
+    def add_tokens(tokens):
+        '''like huggingface, append the tokens'''
+        vocab_size = self.vocab.size
+        for idx, token in enumerate(tokens):
+            self.vocab._token2idx[token] = vocab_size + idx
+            self.vocab._idx2token.append(token)
 
     def batch_encode_plus(self, items):
         rest = {'input_ids': [], 'token_type_ids': []}

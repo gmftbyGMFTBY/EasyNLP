@@ -28,6 +28,7 @@ def read_text_data_utterances(path, lang='zh'):
             if lang == 'zh':
                 utterances = [''.join(u.split()) for u in utterances]
             dataset.append((label, utterances))
+    dataset = dataset[:1000]
     print(f'[!] load {len(dataset)} utterances from {path}')
     return dataset
 
@@ -56,6 +57,20 @@ def read_response_data(path, lang='zh'):
             if lang == 'zh':
                 utterance = ''.join(utterance.split())
             dataset.append(utterance)
+    # delete the duplicate responses
+    dataset = list(set(dataset))
+    print(f'[!] load {len(dataset)} responses from {path}')
+    return dataset
+
+
+def read_response_json_data(path, lang='zh'):
+    with open(path) as f:
+        dataset = []
+        for line in f.readlines():
+            line = line.strip()
+            item = json.loads(line)
+            utterance = [item['r']] + [i.strip() for i in item['nr'] if i.strip()]
+            dataset.extend(utterance)
     # delete the duplicate responses
     dataset = list(set(dataset))
     print(f'[!] load {len(dataset)} responses from {path}')
