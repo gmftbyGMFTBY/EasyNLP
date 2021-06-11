@@ -28,7 +28,6 @@ def read_text_data_utterances(path, lang='zh'):
             if lang == 'zh':
                 utterances = [''.join(u.split()) for u in utterances]
             dataset.append((label, utterances))
-    dataset = dataset[:1000]
     print(f'[!] load {len(dataset)} utterances from {path}')
     return dataset
 
@@ -39,8 +38,6 @@ def read_text_data_dual_bert(path, lang='zh'):
         for line in f.readlines():
             line = line.strip().split('\t')
             label, utterances = int(line[0]), line[1:]
-            if label == 0:
-                continue
             if lang == 'zh':
                 utterances = [''.join(u.split()) for u in utterances]
             context, response = ' [SEP] '.join(utterances[:-1]), utterances[-1]

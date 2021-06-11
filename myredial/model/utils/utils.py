@@ -19,22 +19,6 @@ class PositionEmbedding(nn.Module):
         return self.dropout(x)
 
 
-class PJBertEmbedding(nn.Module):
-
-    def __init__(self, model='bert-base-chinese'):
-        super(PJBertEmbedding, self).__init__()
-        ipdb.set_trace()
-        self.model = PJBertModel.from_pretrained(model)
-
-    def forward(self, ids, attn_mask, speaker_type_ids=None):
-        embds = self.model(ids, attention_mask=attn_mask)[0]
-        embds = embds[:, 0, :]     # [CLS]
-        return embds
-
-    def load_bert_model(self, state_dict):
-        pass
-
-
 class BertEmbedding(nn.Module):
     
     def __init__(self, model='bert-base-chinese'):

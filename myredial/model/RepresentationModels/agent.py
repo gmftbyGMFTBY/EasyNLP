@@ -69,10 +69,8 @@ class RepresentationAgent(RetrievalBaseAgent):
                 scores = self.model.module.predict(batch).cpu().tolist()    # [B]
             else:
                 scores = self.model.predict(batch).cpu().tolist()    # [B]
-
-
             rank_by_pred, pos_index, stack_scores = \
-          calculate_candidates_ranking(
+            calculate_candidates_ranking(
                 np.array(scores), 
                 np.array(label.cpu().tolist()),
                 10)

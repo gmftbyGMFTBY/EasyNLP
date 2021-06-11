@@ -20,6 +20,8 @@ class BERTDualDataset(Dataset):
         self.data = []
         if self.args['mode'] == 'train':
             for label, context, response in tqdm(data):
+                if label == 0:
+                    continue
                 item = self.vocab.batch_encode_plus([context, response])
                 ids, rids = item['input_ids'][0], item['input_ids'][1]
                 ids, rids = self._length_limit(ids), self._length_limit_res(rids)
