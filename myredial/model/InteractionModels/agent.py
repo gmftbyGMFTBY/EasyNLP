@@ -44,7 +44,7 @@ class InteractionAgent(RetrievalBaseAgent):
             if batch_num in self.args['test_step']:
                 self.test_now(test_iter, recoder)
             
-            output = F.sigmoid(output) > 0.5
+            output = torch.sigmoid(output) > 0.5
             now_correct = torch.sum(output == label).item()
             correct += now_correct
             s += len(label)
@@ -68,7 +68,7 @@ class InteractionAgent(RetrievalBaseAgent):
         k_list = [1, 2, 5, 10]
         for idx, batch in enumerate(pbar):
             label = batch['label']
-            scores = F.sigmoid(self.model(batch)).cpu().tolist()
+            scores = torch.sigmoid(self.model(batch)).cpu().tolist()
             
             rank_by_pred, pos_index, stack_scores = \
           calculate_candidates_ranking(

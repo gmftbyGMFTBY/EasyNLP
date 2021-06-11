@@ -223,7 +223,7 @@ class LearnedPositionalEmbedding(nn.Module):
     def forward(self, input, offset=0):
         """Input is expected to be of size [seq_len x bsz]."""
         seq_len, bsz = input.size()
-        positions = (offset + torch.arange(seq_len))
+        positions = (offset + torch.arange(seq_len).cuda())
         res = self.weights(positions).unsqueeze(1).expand(-1, bsz, -1)
         return res
 

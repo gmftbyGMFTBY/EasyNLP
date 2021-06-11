@@ -96,9 +96,6 @@ class BERTFTDataset(Dataset):
         label = torch.LongTensor(label)
         if torch.cuda.is_available():
             ids, tids, mask, label = ids.cuda(), tids.cuda(), mask.cuda(), label.cuda()
-        # ids: [B, S]
-        # tids: [B, S]
-        # mask: [B, S]
         return {
             'ids': ids, 
             'tids': tids, 

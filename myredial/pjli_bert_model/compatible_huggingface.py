@@ -312,9 +312,19 @@ class BERTLM(nn.Module):
         self.vocab_size = vocab_size
         self.padding_idx = padding_idx
         self.embed_dim =embed_dim
-        self.tok_embed = Embedding(self.vocab_size, embed_dim, self.vocab_padding_idx)
+        # self.tok_embed = Embedding(self.vocab_size, embed_dim, self.padding_idx)
+        self.tok_embed = nn.Embedding(
+            self.vocab_size, 
+            embed_dim, 
+            self.padding_idx
+        )
         self.pos_embed = LearnedPositionalEmbedding(embed_dim)
-        self.seg_embed = Embedding(2, embed_dim, None)
+        # self.seg_embed = Embedding(2, embed_dim, None)
+        self.seg_embed = Embedding(
+            2, 
+            embed_dim, 
+            None
+        )
 
         self.out_proj_bias = nn.Parameter(torch.Tensor(self.vocab_size))
 
@@ -354,12 +364,14 @@ class BERTLM(nn.Module):
         x = self.tok_embed(truth) + self.seg_embed(seg) + self.pos_embed(truth)
         x = self.emb_layer_norm(x)
         x = F.dropout(x, p=self.dropout, training=self.training)
-        padding_mask = torch.eq(truth, self.vocab_padding_idx)
+        padding_mask = torch.eq(truth, self.padding_idx)
         if not padding_mask.any():
             padding_mask = None
         for layer in self.layers:
             x, _ ,_ = layer(x, self_padding_mask=padding_mask)
-        return x
+        z_ = torch.tanh(self.one_more_nxt_snt(x[0]))    # [S, B, E] -> [B, E]
+        z = self.nxt_snt_pred(z_).squeeze(-1)    # [B]
+        return z_, z
 
 
 class PJBertModel(nn.Module):
@@ -385,14 +397,9 @@ class PJBertModel(nn.Module):
         print(f'[!] load checkpoint {file_name} to BERTLM over')
         return agent 
 
-    def forward(self, batch):
-        ids = batch['ids']
-        seg_ids = batch['tids']
-
+    def forward(self, ids, seg_ids):
         # padding mask are processed in the BERTLM
-        embd = self.model(ids, seg_ids)
-        # return [B, S, E]
-        embd = embd.permute(1, 0, 2)    # [S, B, E] -> [B, S, E]
+        _, embd = self.model(ids, seg_ids)     # [B]
         return embd
 
 

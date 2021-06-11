@@ -8,22 +8,13 @@ class PJBERTRetrieval(nn.Module):
         p = args['dropout']
 
         self.model = PJBertModel.from_pretrained(model, **args)
-        self.head = nn.Sequential(
-            nn.Dropout(p=p),
-            nn.Linear(768, 1)
-        )
 
     def forward(self, batch):
         inpt = batch['ids']
         token_type_ids = batch['tids']
         attn_mask = batch['mask']
 
-        output = self.model(
-            input_ids=inpt,
-            attention_mask=attn_mask,
-            token_type_ids=token_type_ids,
-        )[0]    # [B, S, E]
-        logits = self.head(output[:, 0, :]).squeeze(-1)    # [B, H] -> [B]
+        logits = self.model(inpt, token_type_ids)    # [B]
         return logits
 
     def load_bert_model(self, state_dict):
