@@ -7,7 +7,7 @@ approx: none
 tokenizer: 
     zh: /apdcephfs/share_916081/pjli/bert_zh_300g_wordpiece_base/data/vocab.txt
 pretrained_model: 
-    zh: /apdcephfs/share_916081/pjli/bert_zh_300g_wordpiece_base/ckpt/epoch1_batch_1759999
+    zh: /apdcephfs/share_916081/pjli/bert_zh_300g_wordpiece_base/ckpt/epoch1_batch_1819999
 
 # train configuration
 train:
