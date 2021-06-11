@@ -6,11 +6,7 @@ class BERTDualDataset(Dataset):
     
     def __init__(self, vocab, path, **args):
         self.args = args
-
-        # ipdb.set_trace()
-        # self.vocab = PJBertTokenizer.from_pretrained('/apdcephfs/share_916081/pjli/bert_zh_300g_wordpiece_base/data/vocab.txt')
         self.vocab = vocab
-        self.vocab.add_tokens(['[EOS]'])
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
 
@@ -92,7 +88,12 @@ class BERTDualDataset(Dataset):
             rids_mask = self.generate_mask(rids)
             if torch.cuda.is_available():
                 ids, rids, ids_mask, rids_mask = ids.cuda(), rids.cuda(), ids_mask.cuda(), rids_mask.cuda()
-            return ids, rids, ids_mask, rids_mask
+            return {
+                'ids': ids, 
+                'rids': rids, 
+                'ids_mask': ids_mask, 
+                'rids_mask': rids_mask
+            }
         else:
             # batch size is batch_size * 10
             assert len(batch) == 1
@@ -103,7 +104,12 @@ class BERTDualDataset(Dataset):
             label = torch.LongTensor(label)
             if torch.cuda.is_available():
                 ids, rids, rids_mask, label = ids.cuda(), rids.cuda(), rids_mask.cuda(), label.cuda()
-            return ids, rids, rids_mask, label
+            return {
+                'ids': ids, 
+                'rids': rids, 
+                'rids_mask': rids_mask, 
+                'label': label
+            }
 
 
 class BERTDualHierarchicalDataset(Dataset):
@@ -202,7 +208,14 @@ class BERTDualHierarchicalDataset(Dataset):
             rids_mask = self.generate_mask(rids)
             if torch.cuda.is_available():
                 rids, rids_mask = rids.cuda(), rids_mask.cuda()
-            return cids, rids, cids_turn_length, cids_mask, rids_mask, recover_mapping
+            return {
+                'cids': cids, 
+                'rids': rids, 
+                'cid_turn_length': cids_turn_length, 
+                'cids_mask': cids_mask, 
+                'rids_mask': rids_mask, 
+                'recover_mapping': recover_mapping
+            }
         else:
             # batch size is batch_size * 10
             assert len(batch) == 1
@@ -215,7 +228,14 @@ class BERTDualHierarchicalDataset(Dataset):
             label = torch.LongTensor(label)
             if torch.cuda.is_available():
                 cids, rids, cids_mask, rids_mask, label = cids.cuda(), rids.cuda(), cids_mask.cuda(), rids_mask.cuda(), label.cuda()
-            return cids, rids, cids_turn_length, cids_mask, rids_mask, label
+            return {
+                'cids': cids, 
+                'rids': rids, 
+                'cids_turn_length': cids_turn_length, 
+                'cids_mask': cids_mask, 
+                'rids_mask': rids_mask, 
+                'label': label
+            }
 
 class BERTDualInferenceContextResponseDataset(Dataset):
     
@@ -285,8 +305,15 @@ class BERTDualInferenceContextResponseDataset(Dataset):
         rid_mask = self.generate_mask(rid)
         if torch.cuda.is_available():
             cid, rid, cid_mask, rid_mask = cid.cuda(), rid.cuda(), cid_mask.cuda(), rid_mask.cuda()
-        return cid, cid_mask, rid, rid_mask, cid_text, rid_text, order
-
+        return {
+            'cid': cid, 
+            'cid_mask': cid_mask, 
+            'rid': rid, 
+            'rid_mask': rid_mask, 
+            'cid_text': cid_text, 
+            'rid_text': rid_text, 
+            'order': order
+        }
 
 class BERTDualWithNegDataset(Dataset):
     
@@ -391,4 +418,9 @@ class BERTDualWithNegDataset(Dataset):
             label = torch.LongTensor(label)
             if torch.cuda.is_available():
                 ids, rids, rids_mask, label = ids.cuda(), rids.cuda(), rids_mask.cuda(), label.cuda()
-            return ids, rids, rids_mask, label
+            return {
+                'ids': ids, 
+                'rids': rids, 
+                'rids_mask': rids_mask, 
+                'label': label
+            }

@@ -3,15 +3,24 @@ from .RepresentationModels import *
 from .LatentInteractionModels import *
 
 def load_model(args):
-    MAP = {
-        'bert-ft': BERTFTAgent,
-        'sa-bert': SABERTFTAgent,
-        'dual-bert-gray': BERTDualWriterEncoderAgent,
-        'dual-bert': BERTDualEncoderAgent,
-        'poly-encoder': BERTPolyEncoderAgent,
-        'dual-bert-hierarchical-trs': BERTDualHierarchicalTrsEncoderAgent,
-    }
-    if args['model'] in MAP:
-        return MAP[args['model']](args)
+    model_type, model_name = args['models'][args['model']]['type'], args['models'][args['model']]['model_name']
+    if model_type == 'Representation':
+        agent_t = RepresentationAgent
+    elif model_type == 'Interaction':
+        agent_t = InteractionAgent
+    elif model_type == 'LatentInteraction':
+        agent_t = LatentInteraction
     else:
-        raise Exception(f'[!] cannot find the model: {args["model"]}')
+        raise Exception(f'[!] Unknown type {model_type} for {model_name}')
+
+    if 'pj-' in model_name:
+        # load pj bert model
+        vocab = PJBertTokenizer.from_pretrained(args['tokenizer'])
+        args['vocab_size'] = vocab.size
+        args['padding_idx'] = vocab.padding_idx
+        model = globals()[model_name](**args)
+    else:
+        vocab = BertTokenizer.from_pretrained(args['tokenizer'])
+        model = globals()[model_name](**args)
+    agent = agent_t(vocab, model, args)
+    return agent

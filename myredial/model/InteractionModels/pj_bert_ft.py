@@ -1,14 +1,13 @@
 from model.utils import *
 
-class BERTRetrieval(nn.Module):
+class PJBERTRetrieval(nn.Module):
 
     def __init__(self, **args):
-        super(BERTRetrieval, self).__init__()
+        super(PJBERTRetrieval, self).__init__()
         model = args['pretrained_model']
         p = args['dropout']
 
-        self.model = BertModel.from_pretrained(model)
-        self.model.resize_token_embeddings(self.model.config.vocab_size+1)
+        self.model = PJBertModel.from_pretrained(model, **args)
         self.head = nn.Sequential(
             nn.Dropout(p=p),
             nn.Linear(768, 1)

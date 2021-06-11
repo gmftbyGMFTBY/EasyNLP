@@ -2,27 +2,19 @@ from header import *
 from .dual_bert_dataloader import *
 from .sa_bert_dataloader import *
 from .bert_ft_dataloader import *
+from .inference_dataloader import *
 
 def load_dataset(args):
-    MAP_ITEM = {
-        'sa-bert': SABERTWithNegDataset,
-        'bert-ft': BERTFTDataset,
-        'dual-bert': BERTDualDataset,
-        'poly-encoder': BERTDualDataset,
-        'dual-bert-gray': BERTDualWithNegDataset,
-        'dual-bert-hierarchical-trs': BERTDualHierarchicalDataset,
-    }
-    MAP = {
-        'train': deepcopy(MAP_ITEM),
-        'test': deepcopy(MAP_ITEM),
-        'inference': deepcopy(MAP_ITEM),
-    } 
-    MAP['inference']['dual-bert'] = BERTDualInferenceContextResponseDataset
+    if args['mode'] in ['train', 'test']:
+        dataset_name = args['models'][args['model']]['dataset_name']
+        dataset_t = globals()[dataset_name]
+    else:
+        dataset_t = BERTDualInferenceDataset
 
     path = f'{args["root_dir"]}/data/{args["dataset"]}/{args["mode"]}.txt'
     vocab = BertTokenizer.from_pretrained(args['tokenizer'])
         
-    data = MAP[args['mode']][args['model']](vocab, path, **args)
+    data = dataset_t(vocab, path, **args)
     train_sampler = torch.utils.data.distributed.DistributedSampler(
         data,
         num_replicas=dist.get_world_size(),

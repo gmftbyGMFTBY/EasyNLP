@@ -7,7 +7,6 @@ def read_json_data(path, lang='zh'):
         for line in tqdm(list(f.readlines())):
             line = line.strip()
             item = json.loads(line)
-            # context = ' [SEP] '.join(item['q']).strip()
             context = item['q']
             response = item['r'].strip()
             # NOTE: the candidates may not be 10 (less than 10)
@@ -61,23 +60,3 @@ def read_response_data(path, lang='zh'):
     dataset = list(set(dataset))
     print(f'[!] load {len(dataset)} responses from {path}')
     return dataset
-
-
-def read_context_data(path, lang='zh'):
-    # also build the map from the context to response
-    with open(path) as f:
-        ctx, res = [], []
-        for line in f.readlines():
-            items = line.strip().split('\t')
-            utterance = items[1:]
-            label = items[0]
-            if label == '0':
-                continue
-            if lang == 'zh':
-                utterance = [''.join(u.split()) for u in utterance]
-            context, response = utterance[:-1], utterance[-1]
-            context = ' [SEP] '.join(context)
-            ctx.append(context)
-            res.append(response)
-    print(f'[!] load {len(ctx)} context from {path}')
-    return ctx, res

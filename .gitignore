@@ -128,6 +128,8 @@ rest/
 # data/
 bak/
 ckpt/
+log/
+rest/
 benchmarks/*.md
 *pretrained
 indexdir/

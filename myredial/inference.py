@@ -7,17 +7,20 @@ def parser_args():
     parser = argparse.ArgumentParser(description='train parameters')
     parser.add_argument('--dataset', default='ecommerce', type=str)
     parser.add_argument('--model', type=str)
+    parser.add_argument('--local_rank', type=int)
     return parser.parse_args()
 
 
 def main(**args):
     torch.cuda.set_device(args['local_rank'])
     torch.distributed.init_process_group(backend='nccl', init_method='env://')
-    _, data_iter, _ = load_dataset(args)
+
     args['mode'] = 'inference'
     config = load_config(args)
     args.update(config)
-    print(args)
+    print('inference', args)
+
+    _, data_iter, _ = load_dataset(args)
     
     random.seed(args['seed'])
     torch.manual_seed(args['seed'])

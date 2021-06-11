@@ -9,7 +9,8 @@ CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=$
     --dataset $dataset \
     --model $model
 
-# reconstruct
-python searcher.py \
+python build_index.py \
     --dataset $dataset \
-    --nums ${#gpu_ids[@]}
+    --nums ${#gpu_ids[@]} \
+    --index_type IVF100, PQ16 \
+    --dimension 768

@@ -3,8 +3,8 @@ from header import *
 
 class SABERTWithNegDataset(Dataset):
 
-    def __init__(self, vocab, path, lang='zh', mode='train', max_len=300):
-        self.mode, self.max_len = mode, max_len
+    def __init__(self, vocab, path, **args):
+        self.args = args
         self.vocab = vocab
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.pp_path = f'{os.path.splitext(path)[0]}_sa_neg.pt'
@@ -14,9 +14,9 @@ class SABERTWithNegDataset(Dataset):
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
 
-        data, responses = read_json_data(path, lang=lang)
+        data, responses = read_json_data(path, lang=self.args['lang'])
         self.data = []
-        if mode == 'train':
+        if self.args['mode'] == 'train':
             for context, response, candidates in tqdm(data):
                 if len(candidates) < 10:
                     candidates += random.sample(responses, 10-len(candidates))
@@ -78,8 +78,8 @@ class SABERTWithNegDataset(Dataset):
         return ids, tids, sids
 
     def _length_limit(self, ids):
-        if len(ids) > self.max_len:
-            ids = [ids[0]] + ids[-(self.max_len-1):]
+        if len(ids) > self.args['max_len']:
+            ids = [ids[0]] + ids[-(self.args['max_len']-1):]
         return ids
 
     def __len__(self):
@@ -87,7 +87,7 @@ class SABERTWithNegDataset(Dataset):
 
     def __getitem__(self, i):
         bundle = self.data[i]
-        if self.mode == 'train':
+        if self.args['mode'] == 'train':
             ids = torch.LongTensor(bundle['ids'])
             tids = torch.LongTensor(bundle['tids'])
             sids = torch.LongTensor(bundle['sids'])
@@ -111,7 +111,7 @@ class SABERTWithNegDataset(Dataset):
         return attn_mask
 
     def collate(self, batch):
-        if self.mode == 'train':
+        if self.args['mode'] == 'train':
             ids, tids, sids, label = [i[0] for i in batch], [i[1] for i in batch], [i[2] for i in batch], [i[3] for i in batch]
         else:
             ids, tids, sids, label = [], [], [], []
@@ -127,14 +127,20 @@ class SABERTWithNegDataset(Dataset):
         label = torch.LongTensor(label)
         if torch.cuda.is_available():
             ids, tids, sids, mask, label = ids.cuda(), tids.cuda(), sids.cuda(), mask.cuda(), label.cuda()
-        return ids, tids, sids, mask, label
+        return {
+            'ids': ids, 
+            'tids': tids, 
+            'sids': sids, 
+            'mask': mask, 
+            'label': label
+        }
 
 
 # ========== SABERT FT Dataset ========== #
 class SABERTFTDataset(Dataset):
 
-    def __init__(self, vocab, path, lang='zh', mode='train', max_len=300):
-        self.mode, self.max_len = mode, max_len
+    def __init__(self, vocab, path, **args):
+        self.args = args
         self.vocab = vocab
 
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
@@ -144,9 +150,9 @@ class SABERTFTDataset(Dataset):
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
 
-        data = read_text_data_utterances(path, lang=lang)
+        data = read_text_data_utterances(path, lang=self.args['lang'])
         self.data = []
-        if mode == 'train':
+        if self.args['mode'] == 'train':
             for label, utterances in tqdm(data):
                 ids, tids, sids = self.annotate(utterances)
                 self.data.append({'label': label, 'ids': ids, 'tids': tids, 'sids': sids})
@@ -191,8 +197,8 @@ class SABERTFTDataset(Dataset):
         return ids, tids, sids
 
     def _length_limit(self, ids):
-        if len(ids) > self.max_len:
-            ids = [ids[0]] + ids[-(self.max_len-1):]
+        if len(ids) > self.args['max_len']:
+            ids = [ids[0]] + ids[-(self.args['max_len']-1):]
         return ids
 
     def __len__(self):
@@ -200,7 +206,7 @@ class SABERTFTDataset(Dataset):
 
     def __getitem__(self, i):
         bundle = self.data[i]
-        if self.mode == 'train':
+        if self.args['mode'] == 'train':
             ids = torch.LongTensor(bundle['ids'])
             tids = torch.LongTensor(bundle['tids'])
             sids = torch.LongTensor(bundle['sids'])
@@ -224,7 +230,7 @@ class SABERTFTDataset(Dataset):
         return attn_mask
 
     def collate(self, batch):
-        if self.mode == 'train':
+        if self.args['mode'] == 'train':
             ids, tids, sids, label = [i[0] for i in batch], [i[1] for i in batch], [i[2] for i in batch], [i[3] for i in batch]
         else:
             # batch size is batch_size * 10
@@ -241,4 +247,10 @@ class SABERTFTDataset(Dataset):
         label = torch.LongTensor(label)
         if torch.cuda.is_available():
             ids, tids, sids, mask, label = ids.cuda(), tids.cuda(), sids.cuda(), mask.cuda(), label.cuda()
-        return ids, tids, sids, mask, label
+        return {
+            'ids': ids, 
+            'tids': tids, 
+            'sids': sids, 
+            'mask': mask, 
+            'label': label
+        }

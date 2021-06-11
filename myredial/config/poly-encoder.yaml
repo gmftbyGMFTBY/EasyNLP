@@ -11,7 +11,7 @@ train:
     res_max_len: 64
     epoch: 5
     warmup_ratio: 0.1
-    m: 32
+    poly_m: 32
     tokenizer: 
         zh: bert-base-chinese
         en: bert-base-uncased

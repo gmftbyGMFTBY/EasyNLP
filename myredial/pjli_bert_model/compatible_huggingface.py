@@ -300,15 +300,16 @@ class PJBertTokenizer:
 
 # ========== BertModel ========== #
 class BERTLM(nn.Module):
-    def __init__(self, vocab, embed_dim, ff_embed_dim, num_heads, dropout, layers, approx):
+    def __init__(self, vocab_size, padding_idx, embed_dim, ff_embed_dim, num_heads, dropout, layers, approx):
         super(BERTLM, self).__init__()
-        self.vocab = vocab
+        self.vocab_size = vocab_size
+        self.padding_idx = padding_idx
         self.embed_dim =embed_dim
-        self.tok_embed = Embedding(self.vocab.size, embed_dim, self.vocab.padding_idx)
+        self.tok_embed = Embedding(self.vocab_size, embed_dim, self.vocab_padding_idx)
         self.pos_embed = LearnedPositionalEmbedding(embed_dim)
         self.seg_embed = Embedding(2, embed_dim, None)
 
-        self.out_proj_bias = nn.Parameter(torch.Tensor(self.vocab.size))
+        self.out_proj_bias = nn.Parameter(torch.Tensor(self.vocab_size))
 
         self.layers = nn.ModuleList()
         for i in range(layers):
@@ -323,7 +324,7 @@ class BERTLM(nn.Module):
         if approx == "none":
             self.approx = None
         elif approx == "adaptive":
-            self.approx = nn.AdaptiveLogSoftmaxWithLoss(self.embed_dim, self.vocab.size, [10000, 20000, 200000])
+            self.approx = nn.AdaptiveLogSoftmaxWithLoss(self.embed_dim, self.vocab_size, [10000, 20000, 200000])
         else:
             raise NotImplementedError("%s has not been implemented"%approx)
         self.reset_parameters()
@@ -346,7 +347,7 @@ class BERTLM(nn.Module):
         x = self.tok_embed(truth) + self.seg_embed(seg) + self.pos_embed(truth)
         x = self.emb_layer_norm(x)
         x = F.dropout(x, p=self.dropout, training=self.training)
-        padding_mask = torch.eq(truth, self.vocab.padding_idx)
+        padding_mask = torch.eq(truth, self.vocab_padding_idx)
         if not padding_mask.any():
             padding_mask = None
         for layer in self.layers:
@@ -356,9 +357,18 @@ class BERTLM(nn.Module):
 
 class PJBertModel(nn.Module):
 
-    def __init__(self, vocab=None, embed_dim=768, ff_embed_dim=3072, num_heads=12, dropout=0.1, layers=12, approx='none'):
+    def __init__(self, **args):
         super(PJBertModel, self).__init__()
-        self.model = BERTLM(vocab, embed_dim, ff_embed_dim, num_heads, dropout, layers, approx)
+        vocab_size = args['vocab_size']
+        padding_idx = args['padding_idx']
+        embed_dim = args['embed_dim']
+        ff_embed_dim = args['ff_embed_dim']
+        num_heads = args['num_heads']
+        dropout = args['dropout']
+        layers = args['layers']
+        approx = args['approx']
+
+        self.model = BERTLM(vocab_size, padding_idx, embed_dim, ff_embed_dim, num_heads, dropout, layers, approx)
 
     @classmethod
     def from_pretrained(cls, file_name, **args):
@@ -368,7 +378,10 @@ class PJBertModel(nn.Module):
         print(f'[!] load checkpoint {file_name} to BERTLM over')
         return agent 
 
-    def forward(self, ids, seg_ids):
+    def forward(self, batch):
+        ids = batch['ids']
+        seg_ids = batch['tids']
+
         # padding mask are processed in the BERTLM
         embd = self.model(ids, seg_ids)
         # return [B, S, E]

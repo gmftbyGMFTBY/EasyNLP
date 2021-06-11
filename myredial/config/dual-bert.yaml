@@ -30,3 +30,8 @@ test:
     tokenizer: 
         zh: hfl/chinese-roberta-wwm-ext
         en: bert-base-uncased
+
+inference:
+    seed: 50
+    batch_size: 128
+    max_len: 64

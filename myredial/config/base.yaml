@@ -5,19 +5,35 @@ datasets:
     ubuntu: en
 
 models:
-    - dual-bert
-    - dual-bert-gray
-    - bert-ft
-    - sa-bert
-    - poly-encoder
-    - dual-bert-hierarchical
+    dual-bert: 
+        type: Representation
+        model_name: BERTDualEncoder
+        dataset_name: BERTDualDataset
+    dual-bert-gray: 
+        type: Representation
+        model_name: BERTDualGrayEncoder
+        dataset_name: BERTDualWithNegDataset
+    dual-bert-hierarchical: 
+        type: Representation
+        model_name: BERTDualHierarchicalTrsEncoder
+        dataset_name: BERTDualHierarchicalDataset
+    bert-ft: 
+        type: Interaction
+        model_name: BERTRetrieval
+        dataset_name: BERTFTDataset
+    pj-bert-ft:
+        type: Interaction
+        model_name: PJBERTRetrieval
+        dataset_name: BERTFTDataset
+    sa-bert: 
+        type: Interaction
+        model_name: SABERTRetrieval 
+        dataset_name: SABERTFTDataset
+    poly-encoder: 
+        type: LatentInteraction
+        model_name: PolyEncoder
+        dataset_name: BERTDualDataset
 
 # huge file are saved in the root dir
 # root_dir: /apdcephfs/private_johntianlan/MyReDial
 root_dir: /dockerdata/johntianlan/sources/MyReDial
-
-# pjli bert model
-pj:
-    is_used: true
-    tokenizer: /apdcephfs/share_916081/pjli/bert_zh_300g_wordpiece_base/data/vocab.txt
-    pretrained_model: /apdcephfs/share_916081/pjli/bert_zh_300g_wordpiece_base/ckpt/epoch1_batch_1759999
