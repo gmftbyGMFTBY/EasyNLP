@@ -2,6 +2,9 @@ import random
 from tqdm import tqdm
 import os
 
+# set the seed
+random.seed(50)
+
 # load
 with open('train_full.txt') as f, open('train.txt', 'w') as fw:
     dataset = []
