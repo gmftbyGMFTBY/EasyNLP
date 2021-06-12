@@ -14,4 +14,15 @@ do
 done
 str=${str%?}
 
-./train.sh douban dual-bert $str
+# obtain the dataset and model name
+names=$(cat jizhi_config.json | python -c "import sys, json; print(json.load(sys.stdin)['readable_name'])")
+OLD_IFS=$IFS
+IFS='|'
+names=($names)
+IFS=$OLD_IFS
+
+dataset_name=${names[0]}
+model_name=${names[1]}
+
+echo "RUN $model_name on $dataset_name"
+./train.sh $dataset_name $model_name $str

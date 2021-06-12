@@ -5,5 +5,5 @@
     "host_num": 1,
     "host_gpu_num": 8,
     "image_full_name": "mirrors.tencent.com/johntianlan_demo/myredial:latest",
-    "readable_name": "douban/dual-bert"
+    "readable_name": "douban|dual-bert"
 }
