@@ -303,7 +303,7 @@ class PJBertTokenizer:
         return ids
 
     def tokenize(self, text):
-        return self.basic_tokenizer.tokenize(item)
+        return self.basic_tokenizer.tokenize(text)
 
 # ========== BertModel ========== #
 class BERTLM(nn.Module):

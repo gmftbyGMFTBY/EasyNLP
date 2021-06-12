@@ -12,8 +12,6 @@ class PJBERTRetrieval(nn.Module):
     def forward(self, batch):
         inpt = batch['ids']
         token_type_ids = batch['tids']
-        attn_mask = batch['mask']
-
         logits = self.model(inpt, token_type_ids)    # [B]
         return logits
 

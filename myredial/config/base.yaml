@@ -24,7 +24,7 @@ models:
     pj-bert-ft:
         type: Interaction
         model_name: PJBERTRetrieval
-        dataset_name: BERTFTDataset
+        dataset_name: BERTWithNegDataset
     sa-bert: 
         type: Interaction
         model_name: SABERTRetrieval 

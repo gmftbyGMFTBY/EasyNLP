@@ -11,7 +11,7 @@ class BERTFTDataset(Dataset):
         if 'pj-' in args['model']:
             self.pp_path = f'{os.path.splitext(path)[0]}_pjft.pt'
         else:
-            self.pp_path = f'{os.path.splitext(path)[0]}_ft.pt'
+            self.pp_path = f'{os.path.splitext(path)[0]}_ft_{args["tokenizer"]}.pt'
         if os.path.exists(self.pp_path):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
@@ -109,7 +109,10 @@ class BERTWithNegDataset(Dataset):
         self.args = args
         self.vocab = vocab
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
-        self.pp_path = f'{os.path.splitext(path)[0]}_ft_neg.pt'
+        if 'pj-' in args['model']:
+            self.pp_path = f'{os.path.splitext(path)[0]}_pjft_neg.pt'
+        else:
+            self.pp_path = f'{os.path.splitext(path)[0]}_ft_neg_{args["tokenizer"]}.pt'
         if os.path.exists(self.pp_path):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
