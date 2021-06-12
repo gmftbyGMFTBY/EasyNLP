@@ -8,7 +8,8 @@ class SABERTWithNegDataset(Dataset):
         self.args = args
         self.vocab = vocab
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
-        self.pp_path = f'{os.path.splitext(path)[0]}_sa_neg_{args["tokenizer"]}.pt'
+        suffix = args['tokenizer'].replace('/', '_')
+        self.pp_path = f'{os.path.splitext(path)[0]}_sa_neg_{suffix}.pt'
 
         if os.path.exists(self.pp_path):
             self.data = torch.load(self.pp_path)
@@ -145,7 +146,8 @@ class SABERTFTDataset(Dataset):
         self.vocab = vocab
 
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
-        self.pp_path = f'{os.path.splitext(path)[0]}_sa_ft_[args["tokenizer"]].pt'
+        suffix = args['tokenizer'].replace('/', '_')
+        self.pp_path = f'{os.path.splitext(path)[0]}_sa_ft_{suffix}.pt'
         if os.path.exists(self.pp_path):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
