@@ -40,3 +40,6 @@ models:
 
 # huge file are saved in the root dir
 root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
+
+# test interval: higher than 1 means that we donot test during training procedure, which is necessary for the corpus which has the big test set
+test_interval: 1.1

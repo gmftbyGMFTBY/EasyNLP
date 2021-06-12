@@ -24,5 +24,9 @@ IFS=$OLD_IFS
 dataset_name=${names[0]}
 model_name=${names[1]}
 
+# train
 echo "RUN $model_name on $dataset_name"
 ./train.sh $dataset_name $model_name $str
+
+# test on one gpu
+./test.sh $dataset_name $model_name 0

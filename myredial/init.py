@@ -8,7 +8,7 @@ if __name__ == "__main__":
     models = config['models']
     root_dir = config['root_dir']
 
-    for folder in ['rest', 'ckpt', 'log']:
+    for folder in ['rest', 'ckpt', 'log', 'bak']:
         path = f'{root_dir}/{folder}'
         if not os.path.exists(path):
             os.mkdir(path)

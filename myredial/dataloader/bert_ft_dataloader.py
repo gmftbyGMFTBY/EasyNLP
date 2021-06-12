@@ -224,6 +224,6 @@ class BERTWithNegDataset(Dataset):
         return {
             'ids': ids, 
             'tids': tids, 
-            'msak': mask, 
+            'mask': mask, 
             'label': label
         }

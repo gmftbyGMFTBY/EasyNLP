@@ -10,7 +10,6 @@ train:
     lr: 0.00005
     grad_clip: 1.0
     dropout: 0.1
-    test_interval: 0.05
     smoothing: 0.1
     seed: 50
     batch_size: 32
