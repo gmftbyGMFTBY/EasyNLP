@@ -144,4 +144,3 @@ post_train/runs
 !data/run.sh
 !data/runbert.sh
 !requirements.txt
-!myredial/jizhi_config.json

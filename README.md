@@ -325,9 +325,9 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 
 | Models                              | R10@1 | R10@2 | R10@5 | MRR  |
 | ----------------------------------- | ----- | ----- | ----- | ---- |
-| bert-base-chinese (dual-encoder)    |       |       |       |      |
-| bert-base-chinese (cross-encoder)   |       |       |       |      |
-| hfl-roberta-chinese (dual-encoder)  |       |       |       |      |
-| hfl-roberta-chinese (cross-encoder) |       |       |       |      |
+| bert-base-chinese (dual-bert)    |       |       |       |      |
+| bert-base-chinese (bert-ft)   |       |       |       |      |
+| hfl-roberta-chinese (dual-bert)  |       |       |       |      |
+| hfl-roberta-chinese (bert-ft) |       |       |       |      |
 | pijili-bert-base (dual-encoder)     |       |       |       |      |
 | pijili-bert-base (cross-encoder)    |       |       |       |      |

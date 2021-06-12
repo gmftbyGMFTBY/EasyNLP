@@ -39,5 +39,4 @@ models:
         dataset_name: BERTDualDataset
 
 # huge file are saved in the root dir
-# root_dir: /apdcephfs/private_johntianlan/MyReDial
-root_dir: /dockerdata/johntianlan/sources/MyReDial
+root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
