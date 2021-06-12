@@ -24,7 +24,7 @@ models:
     bert-ft: 
         type: Interaction
         model_name: BERTRetrieval
-        dataset_name: BERTFTDataset
+        dataset_name: BERTWithNegDataset
     pj-bert-ft:
         type: Interaction
         model_name: PJBERTRetrieval
@@ -39,7 +39,8 @@ models:
         dataset_name: BERTDualDataset
 
 # huge file are saved in the root dir
-root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
+# root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
+root_dir: /home/johntianlan/sources/MyReDial
 
 # test interval: higher than 1 means that we donot test during training procedure, which is necessary for the corpus which has the big test set
-test_interval: 1.1
+test_interval: 0.05

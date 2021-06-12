@@ -30,7 +30,7 @@ def main(**args):
     with open(f'{args["root_dir"]}/rest/{args["dataset"]}/{args["model"]}/test_result.txt') as f:
         pprint.pprint(
             f'R10@1: {round(r10_1, 4)}; R10@2: {round(r10_2, 4)}; R10@5: {round(r10_5, 4)}; MRR: {mrr}; P@1: {p1}; MAP: {MAP}',
-            stream=f
+            stream=f,
         )
 
 if __name__ == "__main__":

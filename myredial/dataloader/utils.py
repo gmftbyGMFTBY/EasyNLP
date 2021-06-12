@@ -43,7 +43,6 @@ def read_text_data_dual_bert(path, lang='zh'):
             context, response = ' [SEP] '.join(utterances[:-1]), utterances[-1]
             dataset.append((label, context, response))
     print(f'[!] load {len(dataset)} utterances from {path}')
-    dataset = dataset[:1000]
     return dataset
 
 
