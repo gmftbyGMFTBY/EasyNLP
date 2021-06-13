@@ -6,20 +6,23 @@ datasets:
 
 # pretrained model and tokenizer
 tokenizer:
-    # zh: hfl/chinese-roberta-wwm-ext
-    zh: bert-base-chinese
+    zh: hfl/chinese-roberta-wwm-ext
+    # zh: bert-base-chinese
     en: bert-base-uncased
 
 pretrained_model:
-    # zh: hfl/chinese-roberta-wwm-ext
-    zh: bert-base-chinese
+    zh: hfl/chinese-roberta-wwm-ext
+    # zh: bert-base-chinese
     en: bert-base-uncased
+
+# the number of the gray negative samples (writer dataset)
+gray_cand_num: 2
 
 models:
     dual-bert: 
         type: Representation
         model_name: BERTDualEncoder
-        dataset_name: BERTDualWithNegDataset
+        dataset_name: BERTDualDataset
     dual-bert-gen: 
         type: Representation
         model_name: BERTSeq2SeqDualEncoder

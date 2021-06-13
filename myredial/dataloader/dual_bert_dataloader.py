@@ -233,7 +233,7 @@ class BERTDualHierarchicalDataset(Dataset):
             if torch.cuda.is_available():
                 cids, rids, cids_mask, rids_mask, label = cids.cuda(), rids.cuda(), cids_mask.cuda(), rids_mask.cuda(), label.cuda()
             return {
-                'cids': cids, 
+                'ids': cids, 
                 'rids': rids, 
                 'cids_turn_length': cids_turn_length, 
                 'cids_mask': cids_mask, 
@@ -259,9 +259,13 @@ class BERTDualWithNegDataset(Dataset):
         if self.args['mode'] == 'train':
             for context, response, candidates in tqdm(data):
                 context = ' [SEP] '.join(context).strip()
-                item = self.vocab.batch_encode_plus([context, response])
-                ids, rids = item['input_ids'][0], item['input_ids'][1]
-                ids, rids = self._length_limit(ids), self._length_limit_res(rids)
+                if len(candidates) < 10:
+                    candidates += random.sample(responses, 10-len(candidates))
+                else:
+                    candidates = candidates[:10]
+                item = self.vocab.batch_encode_plus([context, response] + candidates)
+                ids, rids = item['input_ids'][0], item['input_ids'][1:]
+                ids, rids = self._length_limit(ids), [self._length_limit_res(i) for i in rids]
                 self.data.append({
                     'ids': ids,
                     'rids': rids,
@@ -302,7 +306,9 @@ class BERTDualWithNegDataset(Dataset):
         bundle = self.data[i]
         if self.args['mode'] == 'train':
             ids = torch.LongTensor(bundle['ids'])
-            rids = torch.LongTensor(bundle['rids'])
+            # sample based on the gray_cand_num parameter
+            rids = random.sample(bundle['rids'], self.args['gray_cand_num'])
+            rids = torch.LongTensor(rids)
             return ids, rids
         else:
             ids = torch.LongTensor(bundle['ids'])

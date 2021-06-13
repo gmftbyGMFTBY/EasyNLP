@@ -250,6 +250,7 @@ class PJBertTokenizer:
         self.vocab = Vocab(file_name, self.min_occur_cnt, self.specials)
         self.size = self.vocab.size
         self.padding_idx = self.vocab.padding_idx
+        self.pad_token_id = self.vocab.padding_idx
         print(f'[!] load the vocab from {file_name} over, vocab size: {self.size}')
 
     @classmethod
@@ -259,6 +260,9 @@ class PJBertTokenizer:
 
     def convert_tokens_to_ids(self, token):
         return self.vocab.token2idx(token)
+    
+    def convert_ids_to_tokens(self, ids):
+        return self.vocab.idx2token(ids)
 
     def add_tokens(tokens):
         '''like huggingface, append the tokens'''

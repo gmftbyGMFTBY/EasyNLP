@@ -9,6 +9,11 @@ class InteractionAgent(RetrievalBaseAgent):
         if args['mode'] == 'train':
             self.set_test_interval()
             self.load_checkpoint()
+        else:
+            # open the test save scores file handler
+            pretrained_model_name = self.args['pretrained_model']
+            path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}.txt'
+            self.log_save_file = open(path, 'w')
         if torch.cuda.is_available():
             self.model.cuda()
         if args['mode'] in ['train', 'inference']:
@@ -60,7 +65,7 @@ class InteractionAgent(RetrievalBaseAgent):
         return round(total_loss / batch_num, 4)
     
     @torch.no_grad()
-    def test_model(self, test_iter):
+    def test_model(self, test_iter, print_output=False):
         self.model.eval()
         pbar = tqdm(test_iter)
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
@@ -69,6 +74,14 @@ class InteractionAgent(RetrievalBaseAgent):
         for idx, batch in enumerate(pbar):
             label = batch['label']
             scores = torch.sigmoid(self.model(batch)).cpu().tolist()
+            
+            # print output
+            if print_output:
+                for ids, score in zip(batch['ids'], scores):
+                    text = self.convert_to_text(ids)
+                    score = round(score, 4)
+                    self.log_save_file.write(f'[Score {score}] {text}\n')
+                self.log_save_file.write('\n')
             
             rank_by_pred, pos_index, stack_scores = \
           calculate_candidates_ranking(

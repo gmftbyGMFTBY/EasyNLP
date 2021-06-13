@@ -28,7 +28,7 @@ def main(**args):
     pretrained_model_name = args['pretrained_model'].replace('/', '_')
     save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}.pt'
     agent.load_model(save_path)
-    (r10_1, r10_2, r10_5), mrr, p1, MAP = agent.test_model(test_iter)
+    (r10_1, r10_2, r10_5), mrr, p1, MAP = agent.test_model(test_iter, print_output=True)
 
     with open(f'{args["root_dir"]}/rest/{args["dataset"]}/{args["model"]}/test_result_{pretrained_model_name}.txt', 'w') as f:
         pprint.pprint(

@@ -9,6 +9,11 @@ class RepresentationAgent(RetrievalBaseAgent):
         if args['mode'] == 'train':
             self.set_test_interval()
             self.load_checkpoint()
+        else:
+            # open the test save scores file handler
+            pretrained_model_name = self.args['pretrained_model']
+            path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}.txt'
+            self.log_save_file = open(path, 'w')
         if torch.cuda.is_available():
             self.model.cuda()
         if args['mode'] in ['train', 'inference']:
@@ -112,7 +117,7 @@ class RepresentationAgent(RetrievalBaseAgent):
         return round(total_loss / batch_num, 4)
     
     @torch.no_grad()
-    def test_model(self, test_iter):
+    def test_model(self, test_iter, print_output=False):
         self.model.eval()
         pbar = tqdm(test_iter)
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
@@ -124,6 +129,17 @@ class RepresentationAgent(RetrievalBaseAgent):
                 scores = self.model.module.predict(batch).cpu().tolist()    # [B]
             else:
                 scores = self.model.predict(batch).cpu().tolist()    # [B]
+
+            # print output
+            if print_output:
+                ctext = self.convert_to_text(batch['ids'])
+                self.log_save_file.write(f'[CTX] {ctext}\n')
+                for rid, score in zip(batch['rids'], scores):
+                    rtext = self.convert_to_text(rid)
+                    score = round(score, 4)
+                    self.log_save_file.write(f'[Score {score}] {rtext}\n')
+                self.log_save_file.write('\n')
+
             rank_by_pred, pos_index, stack_scores = \
             calculate_candidates_ranking(
                 np.array(scores), 

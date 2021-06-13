@@ -7,8 +7,7 @@ Base Agent
 class RetrievalBaseAgent:
 
     def __init__(self):
-        # NOTE: for torch.cuda.amp
-        # self.scaler = GradScaler()
+        # open the test save scores file handler
         pass
 
     def show_parameters(self, args):
@@ -98,4 +97,10 @@ class RetrievalBaseAgent:
         except:
             self.model.load_state_dict(state_dict)
         print(f'[!] load model from {path}')
+
+    def convert_to_text(self, ids):
+        '''convert to text and ignore the padding token'''
+        tokens = [self.vocab.convert_ids_to_tokens(i) for i in ids.cpu().tolist() if i != self.vocab.pad_token_id]
+        text = ''.join(tokens)
+        return text
 
