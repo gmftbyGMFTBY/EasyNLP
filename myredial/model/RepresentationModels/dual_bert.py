@@ -63,5 +63,5 @@ class BERTDualEncoder(nn.Module):
         # acc
         acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
         acc = acc_num / batch_size
-        
+
         return loss, acc

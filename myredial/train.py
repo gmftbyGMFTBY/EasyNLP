@@ -45,8 +45,12 @@ def main(**args):
     obtain_steps_parameters(train_data, args)
     agent = load_model(args)
     
+    # 
+    pretrained_model_name = args['pretrained_model'].replace('/', '_')
+    
     sum_writer = SummaryWriter(
-        log_dir=f'{args["root_dir"]}/rest/{args["dataset"]}/{args["model"]}'
+        log_dir=f'{args["root_dir"]}/rest/{args["dataset"]}/{args["model"]}',
+        comment=pretrained_model_name,
     )
     for epoch_i in range(args['epoch']):
         sampler.set_epoch(epoch_i)    # shuffle for DDP
@@ -57,7 +61,8 @@ def main(**args):
             idx_=epoch_i,
         )
         if args['local_rank'] == 0:
-            agent.save_model(f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best.pt')
+            save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}.pt'
+            agent.save_model(save_path)
     sum_writer.close()
 
 if __name__ == "__main__":

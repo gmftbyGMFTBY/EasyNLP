@@ -9,6 +9,9 @@ class Seq2SeqModel(nn.Module):
     def __init__(self, model):
         super(Seq2SeqModel, self).__init__()
         self.model = EncoderDecoderModel.from_encoder_decoder_pretrained(model, model)
+        # bert-ft
+        self.model.encoder.resize_token_embeddings(self.model.encoder.config.vocab_size+1)
+        self.model.decoder.resize_token_embeddings(self.model.decoder.config.vocab_size+1)
 
     def forward(self, cid, cid_mask, rid, rid_mask):
         outputs = self.model(
@@ -102,6 +105,11 @@ class BERTSeq2SeqDualEncoder(nn.Module):
 
         # token acc
         chosen_tokens = torch.max(shift_logits, dim=-1)[1]    # [B, S-1]
-        gen_acc = torch.mean((chosen_tokens.view(-1) == shift_labels.view(-1)).to(torch.float)).item()
-        
+        gen_acc = (chosen_tokens.view(-1) == shift_labels.view(-1)).to(torch.float)
+        counter, sum_ = 0, 0
+        for i, j in zip(shift_labels, gen_acc):
+            if i != 0:
+                sum_ += 1
+                counter += j.item()
+        gen_acc = counter/sum_
         return (cl_loss, gen_loss, loss), (acc, gen_acc)

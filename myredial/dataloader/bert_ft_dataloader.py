@@ -123,11 +123,11 @@ class BERTWithNegDataset(Dataset):
         self.data = []
         if self.args['mode'] == 'train':
             for context, response, candidates in tqdm(data):
-                if len(candidates) < 9:
-                    candidates += random.sample(responses, 9-len(candidates))
+                if len(candidates) > 0:
+                    candidate = random.choice(candidates)
                 else:
-                    candidates = candidates[:9]
-                for idx, neg in enumerate([response] + candidates):
+                    candidate = random.choice(responses)
+                for idx, neg in enumerate([response, candidate]):
                     utterances = context + [neg]
                     ids, tids = self.annotate(utterances)
                     self.data.append({

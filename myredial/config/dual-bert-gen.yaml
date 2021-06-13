@@ -1,9 +1,3 @@
-tokenizer: 
-    zh: bert-base-chinese
-    en: bert-base-uncased
-pretrained_model: 
-    zh: bert-base-chinese
-    en: bert-base-uncased
 smoothing: 0.1
 
 # train configuration

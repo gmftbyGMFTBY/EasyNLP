@@ -28,7 +28,8 @@ def main(**args):
         torch.cuda.manual_seed_all(args['seed'])
 
     agent = load_model(args)
-    agent.load_model(f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best.pt')
+    pretrained_model_name = args['pretrained_model'].replace('/', '_')
+    agent.load_model(f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}.pt')
     agent.inference(data_iter)
 
 if __name__ == "__main__":

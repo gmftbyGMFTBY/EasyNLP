@@ -4,6 +4,14 @@ datasets:
     writer: zh
     ubuntu: en
 
+# pretrained model and tokenizer
+tokenizer:
+    zh: bert-base-chinese
+    en: bert-base-uncased
+pretrained_model:
+    zh: bert-base-chinese
+    en: bert-base-uncased
+
 models:
     dual-bert: 
         type: Representation
@@ -43,4 +51,5 @@ models:
 root_dir: /home/johntianlan/sources/MyReDial
 
 # test interval: higher than 1 means that we donot test during training procedure, which is necessary for the corpus which has the big test set
-test_interval: 0.05
+test_interval: 1.1
+# test_interval: 0.05

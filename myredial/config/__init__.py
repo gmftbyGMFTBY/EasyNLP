@@ -1,6 +1,10 @@
 import yaml, ipdb
 
 def load_config(args):
+    # base config
+    base_configuration = load_base_config()
+
+    # load special config for each model
     model = args['model']
     config_path = f'config/{model}.yaml'
     print(f'[!] load configuration: {config_path}')
@@ -16,8 +20,7 @@ def load_config(args):
                 new_config[key] = value
         configuration = new_config
 
-    # base config
-    base_configuration = load_base_config()
+    # update and append the special config for base config
     configuration.update(base_configuration)
 
     # load by lang

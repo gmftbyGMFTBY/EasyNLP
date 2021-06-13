@@ -48,6 +48,8 @@ class BERTDualGrayEncoder(nn.Module):
         dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, 10*B]
         dot_product /= np.sqrt(768)
 
+        ipdb.set_trace()
+
         mask = torch.zeros_like(dot_product).cuda()
         # NOTE: pos:neg = 1:9 (10 candidates)
         mask[torch.arange(batch_size), torch.arange(0, len(rid), 10)] = 1.

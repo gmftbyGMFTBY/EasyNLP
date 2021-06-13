@@ -52,7 +52,9 @@ class RetrievalBaseAgent:
         try:
             if self.args['checkpoint']['is_load']:
                 path = self.args['checkpoint']['path']
-                self.load_bert_model(f'{args["root_dir"]}/ckpt/{args["dataset"]}/{path}')
+                path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{path}'
+                self.load_bert_model(path)
+                print(f'[!] load checkpoint from {path}')
         except:
             pass
 
