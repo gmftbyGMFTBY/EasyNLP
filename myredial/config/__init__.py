@@ -21,10 +21,11 @@ def load_config(args):
         configuration = new_config
 
     # update and append the special config for base config
-    configuration.update(base_configuration)
+    base_configuration.update(configuration)
+    configuration = base_configuration
 
     # load by lang
-    args['lang'] = base_configuration['datasets'][args['dataset']]
+    args['lang'] = configuration['datasets'][args['dataset']]
     configuration['tokenizer'] = configuration['tokenizer'][args['lang']]
     configuration['pretrained_model'] = configuration['pretrained_model'][args['lang']]
     return configuration

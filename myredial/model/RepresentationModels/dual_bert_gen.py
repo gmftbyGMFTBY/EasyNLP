@@ -107,7 +107,7 @@ class BERTSeq2SeqDualEncoder(nn.Module):
         chosen_tokens = torch.max(shift_logits, dim=-1)[1]    # [B, S-1]
         gen_acc = (chosen_tokens.view(-1) == shift_labels.view(-1)).to(torch.float)
         counter, sum_ = 0, 0
-        for i, j in zip(shift_labels, gen_acc):
+        for i, j in zip(shift_labels.view(-1), gen_acc):
             if i != 0:
                 sum_ += 1
                 counter += j.item()

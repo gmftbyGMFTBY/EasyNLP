@@ -29,4 +29,4 @@ echo "RUN $model_name on $dataset_name"
 ./train.sh $dataset_name $model_name $str
 
 # test on one gpu
-# ./test.sh $dataset_name $model_name 0
+./test.sh $dataset_name $model_name 0

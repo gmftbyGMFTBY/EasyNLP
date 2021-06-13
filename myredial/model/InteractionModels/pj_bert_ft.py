@@ -5,8 +5,6 @@ class PJBERTRetrieval(nn.Module):
     def __init__(self, **args):
         super(PJBERTRetrieval, self).__init__()
         model = args['pretrained_model']
-        p = args['dropout']
-
         self.model = PJBertModel.from_pretrained(model, **args)
 
     def forward(self, batch):

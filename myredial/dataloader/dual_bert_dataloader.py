@@ -259,13 +259,9 @@ class BERTDualWithNegDataset(Dataset):
         if self.args['mode'] == 'train':
             for context, response, candidates in tqdm(data):
                 context = ' [SEP] '.join(context).strip()
-                if len(candidates) < 9:
-                    candidates += random.sample(responses, 9-len(candidates))
-                else:
-                    candidates = candidates[:9]
-                item = self.vocab.batch_encode_plus([context, response] + candidates)
-                ids, rids = item['input_ids'][0], item['input_ids'][1:]
-                ids, rids = self._length_limit(ids), [self._length_limit_res(i) for i in rids]
+                item = self.vocab.batch_encode_plus([context, response])
+                ids, rids = item['input_ids'][0], item['input_ids'][1]
+                ids, rids = self._length_limit(ids), self._length_limit_res(rids)
                 self.data.append({
                     'ids': ids,
                     'rids': rids,
@@ -306,7 +302,7 @@ class BERTDualWithNegDataset(Dataset):
         bundle = self.data[i]
         if self.args['mode'] == 'train':
             ids = torch.LongTensor(bundle['ids'])
-            rids = [torch.LongTensor(i) for i in bundle['rids']]
+            rids = torch.LongTensor(bundle['rids'])
             return ids, rids
         else:
             ids = torch.LongTensor(bundle['ids'])
@@ -327,9 +323,7 @@ class BERTDualWithNegDataset(Dataset):
     def collate(self, batch):
         if self.args['mode'] == 'train':
             ids = [i[0] for i in batch]
-            rids = []
-            for i in batch:
-                rids.extend(i[1])
+            rids = [i[1] for i in batch]
             ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
             rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
             ids_mask = self.generate_mask(ids)

@@ -6,7 +6,7 @@ train:
     smoothing: 0.1
     seed: 50
     batch_size: 32
-    max_len: 512
+    max_len: 320
     epoch: 5
     warmup_ratio: 0.1
     checkpoint: 
@@ -16,8 +16,8 @@ train:
 # test configuration
 test:
     seed: 50
-    batch_size: 32
-    max_len: 512 
+    batch_size: 128
+    max_len: 320
     tokenizer: 
         zh: bert-base-chinese
         en: bert-base-uncased

@@ -17,5 +17,5 @@ train:
 # test configuration
 test:
     seed: 50
-    batch_size: 32
+    batch_size: 128
     max_len: 320 

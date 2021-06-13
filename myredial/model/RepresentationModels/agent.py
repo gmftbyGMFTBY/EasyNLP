@@ -16,7 +16,9 @@ class RepresentationAgent(RetrievalBaseAgent):
         # choose the train_model function
         if args['model'] == 'dual-bert-gen':
             self.train_model = self.train_model_gen
-            print(f'[!] switch the train_model fct for dual-ber-gen model')
+            # for generation
+            self.model.model.config.decoder_start_token_id = self.vocab.cls_token_id
+            print(f'[!] switch the fct for dual-ber-gen model')
         self.show_parameters(self.args)
         
     def load_bert_model(self, path):
@@ -73,7 +75,7 @@ class RepresentationAgent(RetrievalBaseAgent):
         recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
         recoder.add_scalar(f'train-whole/LMAcc', total_gen_acc/batch_num, idx_)
         return round(total_loss / batch_num, 4)
-        
+    
     def train_model(self, train_iter, test_iter, recoder=None, idx_=0):
         self.model.train()
         total_loss, total_acc, batch_num = 0, 0, 0
@@ -108,7 +110,7 @@ class RepresentationAgent(RetrievalBaseAgent):
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
         return round(total_loss / batch_num, 4)
-
+    
     @torch.no_grad()
     def test_model(self, test_iter):
         self.model.eval()

@@ -6,9 +6,12 @@ datasets:
 
 # pretrained model and tokenizer
 tokenizer:
+    # zh: hfl/chinese-roberta-wwm-ext
     zh: bert-base-chinese
     en: bert-base-uncased
+
 pretrained_model:
+    # zh: hfl/chinese-roberta-wwm-ext
     zh: bert-base-chinese
     en: bert-base-uncased
 
@@ -16,7 +19,7 @@ models:
     dual-bert: 
         type: Representation
         model_name: BERTDualEncoder
-        dataset_name: BERTDualDataset
+        dataset_name: BERTDualWithNegDataset
     dual-bert-gen: 
         type: Representation
         model_name: BERTSeq2SeqDualEncoder
@@ -47,8 +50,8 @@ models:
         dataset_name: BERTDualDataset
 
 # huge file are saved in the root dir
-# root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
-root_dir: /home/johntianlan/sources/MyReDial
+root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
+# root_dir: /home/johntianlan/sources/MyReDial
 
 # test interval: higher than 1 means that we donot test during training procedure, which is necessary for the corpus which has the big test set
 test_interval: 1.1
