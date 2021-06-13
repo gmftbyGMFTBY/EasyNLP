@@ -17,7 +17,7 @@ class RepresentationAgent(RetrievalBaseAgent):
         if args['model'] == 'dual-bert-gen':
             self.train_model = self.train_model_gen
             # for generation
-            self.model.model.config.decoder_start_token_id = self.vocab.cls_token_id
+            # self.model.model.config.decoder_start_token_id = self.vocab.cls_token_id
             print(f'[!] switch the fct for dual-ber-gen model')
         self.show_parameters(self.args)
         
@@ -68,7 +68,7 @@ class RepresentationAgent(RetrievalBaseAgent):
             recoder.add_scalar(f'train-epoch-{idx_}/LMAcc', total_gen_acc/batch_num, idx)
             recoder.add_scalar(f'train-epoch-{idx_}/RunLMAcc', gen_acc, idx)
              
-            pbar.set_description(f'[!] loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
+            pbar.set_description(f'[!] loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(gen_acc, 4)}|{round(total_acc/batch_num, 4)}')
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/CLLoss', total_cl_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/GenLoss', total_gen_loss/batch_num, idx_)

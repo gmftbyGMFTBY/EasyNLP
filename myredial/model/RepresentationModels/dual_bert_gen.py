@@ -21,7 +21,7 @@ class Seq2SeqModel(nn.Module):
             decoder_attention_mask=rid_mask
         )
         logits = outputs.logits    # [B, S, V]
-        hidden = outputs.encoder_last_hidden_state[:, 0, :]    # [B, E]
+        hidden = outputs.encoder_last_hidden_state[:, 0, :]
         return logits, hidden
 
 
@@ -35,7 +35,7 @@ class BERTSeq2SeqDualEncoder(nn.Module):
         self.ctx_encoder = Seq2SeqModel(model)
         self.can_encoder = BertEmbedding(model=model)
         self.label_smooth_loss_fct = LabelSmoothLoss(smoothing=s)
-        # bert-base-chinese, bert-base-uncased, hfl/chinese-roberta-wwm-ext use 0 for padding token
+        # pj-bert-ft, bert-base-chinese, bert-base-uncased, hfl/chinese-roberta-wwm-ext use 0 for padding token
         self.gen_loss_fct = nn.CrossEntropyLoss(ignore_index=0)
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
