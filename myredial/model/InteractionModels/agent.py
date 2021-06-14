@@ -11,7 +11,7 @@ class InteractionAgent(RetrievalBaseAgent):
             self.load_checkpoint()
         else:
             # open the test save scores file handler
-            pretrained_model_name = self.args['pretrained_model']
+            pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
             path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}.txt'
             self.log_save_file = open(path, 'w')
         if torch.cuda.is_available():

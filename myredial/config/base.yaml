@@ -6,13 +6,13 @@ datasets:
 
 # pretrained model and tokenizer
 tokenizer:
-    zh: hfl/chinese-roberta-wwm-ext
-    # zh: bert-base-chinese
+    # zh: hfl/chinese-roberta-wwm-ext
+    zh: bert-base-chinese
     en: bert-base-uncased
 
 pretrained_model:
-    zh: hfl/chinese-roberta-wwm-ext
-    # zh: bert-base-chinese
+    # zh: hfl/chinese-roberta-wwm-ext
+    zh: bert-base-chinese
     en: bert-base-uncased
 
 # the number of the gray negative samples (writer dataset)

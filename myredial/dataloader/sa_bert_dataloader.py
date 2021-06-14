@@ -16,6 +16,8 @@ class SABERTWithNegDataset(Dataset):
 
         if os.path.exists(self.pp_path):
             self.data = torch.load(self.pp_path)
+            if self.args['mode'] == 'train':
+                self.extract_by_gray_num()
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
 
@@ -40,6 +42,7 @@ class SABERTWithNegDataset(Dataset):
                     'tids': tids, 
                     'sids': sids
                 })
+                self.extract_by_gray_num()
         else:
             for context, response, candidates in tqdm(data):
                 # we only need 10 candidates, pos:neg = 1:9
@@ -61,6 +64,33 @@ class SABERTWithNegDataset(Dataset):
                     'tids': tids, 
                     'sids': sids,
                 })
+
+    def extract_by_gray_num(self):
+        # process self.data (after loaded)
+        num = self.args['gray_cand_num']
+        dataset = []
+        for sample in tqdm(self.data):
+            dataset.append({
+                'label': 1,
+                'ids': sample['ids'][0],
+                'tids': sample['tids'][0],
+                'sids': sample['sids'][0],
+            })
+            # neg
+            neg_idx = random.sample(range(1, 11), num)
+            neg_ids = [sample['ids'][i] for i in neg_idx]
+            neg_tids = [sample['tids'][i] for i in neg_idx]
+            neg_sids = [sample['sids'][i] for i in neg_idx]
+            for i, j, k in zip(neg_ids, neg_tids, neg_sids):
+                dataset.append({
+                    'label': 0,
+                    'ids': i,
+                    'tids': j,
+                    'sids': k,
+                })
+        self.data = dataset
+        # shuffle
+        random.shuffle(self.data)
 
     def annotate(self, utterances):
         tokens = [self.vocab.tokenize(utt) for utt in utterances]
@@ -97,25 +127,10 @@ class SABERTWithNegDataset(Dataset):
     def __getitem__(self, i):
         bundle = self.data[i]
         if self.args['mode'] == 'train':
-            num = self.args['gray_cand_num']
-            pos_ids = bundle['ids'][0]
-            pos_tids = bundle['tids'][0]
-            pos_sids = bundle['sids'][0]
-
-            random_idx = random.sample(range(1, 11), num)
-            neg_ids = [bundle['ids'][i] for i in random_idx]
-            neg_tids = [bundle['tids'][i] for i in random_idx]
-            neg_sids = [bundle['sids'][i] for i in random_idx]
-
-            ids = [pos_ids] + neg_ids
-            tids = [pos_tids] + neg_tids
-            sids = [pos_sids] + neg_sids
-
-            ids = [torch.LongTensor(i) for i in ids]
-            tids = [torch.LongTensor(i) for i in tids]
-            sids = [torch.LongTensor(i) for i in sids]
-            label = [1] + [0] * num
-            return ids, tids, sids, label
+            ids = torch.LongTensor(bundle['ids'])
+            tids = torch.LongTensor(bundle['tids'])
+            sids = torch.LongTensor(bundle['sids'])
+            return ids, tids, sids, bundle['label']
         else:
             ids = [torch.LongTensor(i) for i in bundle['ids']]
             tids = [torch.LongTensor(i) for i in bundle['tids']]
@@ -135,19 +150,10 @@ class SABERTWithNegDataset(Dataset):
 
     def collate(self, batch):
         if self.args['mode'] == 'train':
-            ids, tids, sids, label = []
-            for i in batch:
-                ids.extend(i[0])
-                tids.extend(i[1])
-                sids.extend(i[2])
-                label.extend(i[3])
-            # shuffle
-            random_idx = np.arange(len(ids))
-            random.shuffle(random_idx)
-            ids = [ids[i] for i in random_idx]
-            sids = [sids[i] for i in random_idx]
-            tids = [tids[i] for i in random_idx]
-            label = [label[i] for i in random_idx]
+            ids = [i[0] for i in batch]
+            tids = [i[1] for i in batch]
+            sids = [i[2] for i in batch]
+            label = [i[3] for i in batch]
         else:
             ids, tids, sids, label = [], [], [], []
             for b in batch:

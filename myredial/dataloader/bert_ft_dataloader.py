@@ -117,6 +117,8 @@ class BERTWithNegDataset(Dataset):
             self.pp_path = f'{os.path.splitext(path)[0]}_ft_neg_{suffix}.pt'
         if os.path.exists(self.pp_path):
             self.data = torch.load(self.pp_path)
+            if self.args['mode'] == 'train':
+                self.extract_by_gray_num()
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
         data, responses = read_json_data(path, lang=self.args['lang'])
@@ -137,6 +139,7 @@ class BERTWithNegDataset(Dataset):
                     'ids': ids, 
                     'tids': tids, 
                 })
+            self.extract_by_gray_num()
         else:
             for context, response, candidates in tqdm(data):
                 # we only need 10 candidates, pos:neg = 1:9
@@ -156,6 +159,30 @@ class BERTWithNegDataset(Dataset):
                     'ids': ids, 
                     'tids': tids, 
                 })
+
+    def extract_by_gray_num(self):
+        # process self.data (after loaded)
+        num = self.args['gray_cand_num']
+        dataset = []
+        for sample in tqdm(self.data):
+            dataset.append({
+                'label': 1,
+                'ids': sample['ids'][0],
+                'tids': sample['tids'][0]
+            })
+            # neg
+            neg_idx = random.sample(range(1, 11), num)
+            neg_ids = [sample['ids'][i] for i in neg_idx]
+            neg_tids = [sample['tids'][i] for i in neg_idx]
+            for i, j in zip(neg_ids, neg_tids):
+                dataset.append({
+                    'label': 0,
+                    'ids': i,
+                    'tids': j,
+                })
+        self.data = dataset
+        # shuffle
+        random.shuffle(self.data)
 
     def annotate(self, utterances):
         tokens = [self.vocab.tokenize(utt) for utt in utterances]
@@ -188,22 +215,9 @@ class BERTWithNegDataset(Dataset):
     def __getitem__(self, i):
         bundle = self.data[i]
         if self.args['mode'] == 'train':
-            # positive must be used
-            num = self.args['gray_cand_num']
-            pos_ids = bundle['ids'][0]
-            pos_tids = bundle['tids'][0]
-
-            random_idx = random.sample(range(1, 11), num)
-            neg_ids = [bundle['ids'][i] for i in random_idx]
-            neg_tids = [bundle['tids'][i] for i in random_idx]
-
-            ids = [pos_ids] + neg_ids
-            tids = [pos_tids] + neg_tids
-
-            ids = [torch.LongTensor(i) for i in ids]
-            tids = [torch.LongTensor(i) for i in tids]
-            label = [1] + [0] * num
-            return ids, tids, label
+            ids = torch.LongTensor(bundle['ids'])
+            tids = torch.LongTensor(bundle['tids'])
+            return ids, tids, bundle['label']
         else:
             ids = [torch.LongTensor(i) for i in bundle['ids']]
             tids = [torch.LongTensor(i) for i in bundle['tids']]
@@ -222,19 +236,11 @@ class BERTWithNegDataset(Dataset):
 
     def collate(self, batch):
         if self.args['mode'] == 'train':
-            ids, tids, label = [], [], []
-            for i in batch:
-                ids.extend(i[0])
-                tids.extend(i[1])
-                label.extend(i[2])
-            # shuffle
-            random_idx = np.arange(len(ids))
-            random.shuffle(random_idx)
-            ids = [ids[i] for i in random_idx]
-            tids = [tids[i] for i in random_idx]
-            label = [label[i] for i in random_idx]
+            ids = [i[0] for i in batch]
+            tids = [i[1] for i in batch]
+            label = [i[2] for i in batch]
         else:
-            ids, tids, sids, label = [], [], [], []
+            ids, tids, label = [], [], []
             for b in batch:
                 ids.extend(b[0])
                 tids.extend(b[1])

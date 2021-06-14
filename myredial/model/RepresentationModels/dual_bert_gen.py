@@ -24,6 +24,14 @@ class Seq2SeqModel(nn.Module):
         hidden = outputs.encoder_last_hidden_state[:, 0, :]
         return logits, hidden
 
+    def load_bert_model(self, state_dict):
+        # decoder has the different parameters
+        new_state_dict = OrderedDict()
+        for k, v in state_dict.items():
+            new_state_dict[k] = v
+        new_state_dict['embeddings.position_ids'] = torch.arange(512).expand((1, -1))
+        self.model.encoder.load_state_dict(new_state_dict)
+
 
 class BERTSeq2SeqDualEncoder(nn.Module):
 

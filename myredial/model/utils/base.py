@@ -48,14 +48,16 @@ class RetrievalBaseAgent:
         self.test_step_counter += 1
 
     def load_checkpoint(self):
-        try:
+        if 'checkpoint' in self.args:
             if self.args['checkpoint']['is_load']:
                 path = self.args['checkpoint']['path']
-                path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{path}'
+                path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{path}'
                 self.load_bert_model(path)
                 print(f'[!] load checkpoint from {path}')
-        except:
-            pass
+            else:
+                print(f'[!] DONOT load checkpoint')
+        else:
+            print(f'[!] No checkpoint information found')
 
     def load_bert_model(self, path):
         raise NotImplementedError
