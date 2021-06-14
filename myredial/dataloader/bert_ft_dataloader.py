@@ -123,18 +123,20 @@ class BERTWithNegDataset(Dataset):
         self.data = []
         if self.args['mode'] == 'train':
             for context, response, candidates in tqdm(data):
-                if len(candidates) > 0:
-                    candidate = random.choice(candidates)
+                if len(candidates) < 10:
+                    candidates += random.sample(responses, 10-len(candidates))
                 else:
-                    candidate = random.choice(responses)
-                for idx, neg in enumerate([response, candidate]):
+                    candidates = candidates[:10]
+                ids, tids = [], []
+                for idx, neg in enumerate([response] + candidates):
                     utterances = context + [neg]
-                    ids, tids = self.annotate(utterances)
-                    self.data.append({
-                        'label': 1 if idx == 0 else 0, 
-                        'ids': ids, 
-                        'tids': tids, 
-                    })
+                    ids_, tids_ = self.annotate(utterances)
+                    ids.append(ids_), tids.append(tids_)
+                self.data.append({
+                    'label': [1] + [0] * 10, 
+                    'ids': ids, 
+                    'tids': tids, 
+                })
         else:
             for context, response, candidates in tqdm(data):
                 # we only need 10 candidates, pos:neg = 1:9
@@ -186,9 +188,21 @@ class BERTWithNegDataset(Dataset):
     def __getitem__(self, i):
         bundle = self.data[i]
         if self.args['mode'] == 'train':
-            ids = torch.LongTensor(bundle['ids'])
-            tids = torch.LongTensor(bundle['tids'])
-            label = bundle['label']
+            # positive must be used
+            num = self.args['gray_cand_num']
+            pos_ids = bundle['ids'][0]
+            pos_tids = bundle['tids'][0]
+
+            random_idx = random.sample(range(1, 11), num)
+            neg_ids = [bundle['ids'][i] for i in random_idx]
+            neg_tids = [bundle['tids'][i] for i in random_idx]
+
+            ids = [pos_ids] + neg_ids
+            tids = [pos_tids] + neg_tids
+
+            ids = [torch.LongTensor(i) for i in ids]
+            tids = [torch.LongTensor(i) for i in tids]
+            label = [1] + [0] * num
             return ids, tids, label
         else:
             ids = [torch.LongTensor(i) for i in bundle['ids']]
@@ -208,7 +222,17 @@ class BERTWithNegDataset(Dataset):
 
     def collate(self, batch):
         if self.args['mode'] == 'train':
-            ids, tids, label = [i[0] for i in batch], [i[1] for i in batch], [i[2] for i in batch]
+            ids, tids, label = [], [], []
+            for i in batch:
+                ids.extend(i[0])
+                tids.extend(i[1])
+                label.extend(i[2])
+            # shuffle
+            random_idx = np.arange(len(ids))
+            random.shuffle(random_idx)
+            ids = [ids[i] for i in random_idx]
+            tids = [tids[i] for i in random_idx]
+            label = [label[i] for i in random_idx]
         else:
             ids, tids, sids, label = [], [], [], []
             for b in batch:

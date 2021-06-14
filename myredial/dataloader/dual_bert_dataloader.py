@@ -306,9 +306,10 @@ class BERTDualWithNegDataset(Dataset):
         bundle = self.data[i]
         if self.args['mode'] == 'train':
             ids = torch.LongTensor(bundle['ids'])
+            pos_rids = bundle['rids'][0]
             # sample based on the gray_cand_num parameter
-            rids = random.sample(bundle['rids'], self.args['gray_cand_num'])
-            rids = torch.LongTensor(rids)
+            rids = [pos_rids] + random.sample(bundle['rids'][1:], self.args['gray_cand_num'])
+            rids = [torch.LongTensor(i) for i in rids]
             return ids, rids
         else:
             ids = torch.LongTensor(bundle['ids'])
@@ -329,7 +330,9 @@ class BERTDualWithNegDataset(Dataset):
     def collate(self, batch):
         if self.args['mode'] == 'train':
             ids = [i[0] for i in batch]
-            rids = [i[1] for i in batch]
+            rids = []
+            for i in batch:
+                rids.extend(i[1])
             ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
             rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
             ids_mask = self.generate_mask(ids)

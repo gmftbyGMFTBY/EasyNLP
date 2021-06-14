@@ -8,6 +8,7 @@ class BERTDualGrayEncoder(nn.Module):
     def __init__(self, **args):
         super(BERTDualGrayEncoder, self).__init__()
         model = args['pretrained_model']
+        self.gray_num = args['gray_cand_num']
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
 
@@ -48,17 +49,14 @@ class BERTDualGrayEncoder(nn.Module):
         dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, 10*B]
         dot_product /= np.sqrt(768)
 
-        ipdb.set_trace()
-
         mask = torch.zeros_like(dot_product).cuda()
-        # NOTE: pos:neg = 1:9 (10 candidates)
-        mask[torch.arange(batch_size), torch.arange(0, len(rid), 10)] = 1.
+        mask[torch.arange(batch_size), torch.arange(0, len(rid), self.gray_num+1)] = 1.
         # loss
         loss_ = F.log_softmax(dot_product, dim=-1) * mask
         loss = (-loss_.sum(dim=1)).mean()
 
         # acc
-        acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
+        acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(0, len(rid), self.gray_num+1)).cuda()).sum().item()
         acc = acc_num / batch_size
         
         return loss, acc
