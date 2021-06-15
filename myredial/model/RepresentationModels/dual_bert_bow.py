@@ -57,21 +57,23 @@ class BERTDualBOWEncoder(nn.Module):
         dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, B]
         dot_product /= np.sqrt(768)     # scale dot product
 
-        # bow loss
-        cid_bow = F.log_softmax(self.bow_head(cid_rep))
-        rid_bow = F.log_softmax(self.bow_head(rid_rep))
-        ## sum (not include the [PAD])
-        
-
-        # constrastive loss
-        # mask = torch.zeros_like(dot_product).cuda()
-        # mask[range(batch_size), range(batch_size)] = 1. 
-        # loss = F.log_softmax(dot_product, dim=-1) * mask
-        # loss = (-loss.sum(dim=1)).mean()
+        # bow loss (ignore [PAD] and duplicate tokens)
+        cid_bow = F.log_softmax(self.bow_head(cid_rep, dim=-1))
+        rid_bow = F.log_softmax(self.bow_head(rid_rep, dim=-1))
+        bow_loss = 0
+        for cid_bow_, cid_, rid_bow_, rid_ in zip(cid_bow, cid, rid_bow, rid):
+            cid_ = [i for i in list(set(cid_.tolist())) if i not in [0]]
+            rid_ = [i for i in list(set(rid_.tolist())) if i not in [0]]
+            cid_, rid_ = torch.LongTensor(cid_), torch.LongTensor(rid_)
+            if torch.cuda.is_available():
+                cid_, rid_ = cid_.cuda(), rid_.cuda()
+            loss = torch.index_select(cid_bow_, 0, cid_).mean() + torch.index_select(rid_bow_, 0, rid_).mean()
+            bow_loss -= loss
+        loss = bow_loss / len(cid)
 
         # label smooth loss
         gold = torch.arange(batch_size).cuda()
-        loss = self.label_smooth_loss(dot_product, gold)
+        loss += self.label_smooth_loss(dot_product, gold)
 
         # acc
         acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()

@@ -20,7 +20,7 @@ def load_model(args):
         args['padding_idx'] = vocab.padding_idx
         model = globals()[model_name](**args)
     else:
-        vocab = BertTokenizer.from_pretrained(args['tokenizer'])
+        vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
         args['vocab_size'] = vocab.vocab_size
         model = globals()[model_name](**args)
     agent = agent_t(vocab, model, args)

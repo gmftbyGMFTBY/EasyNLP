@@ -125,35 +125,36 @@ class BERTWithNegDataset(Dataset):
         self.data = []
         if self.args['mode'] == 'train':
             for context, response, candidates in tqdm(data):
+                context = ' [SEP] '.join(context)
                 if len(candidates) < 10:
                     candidates += random.sample(responses, 10-len(candidates))
                 else:
                     candidates = candidates[:10]
-                ids, tids = [], []
-                for idx, neg in enumerate([response] + candidates):
-                    utterances = context + [neg]
-                    ids_, tids_ = self.annotate(utterances)
-                    ids.append(ids_), tids.append(tids_)
+
+                item = self.vocab.batch_encode_plus([
+                    [context, res] for res in [response] + candidates
+                ])
+                ids = item['input_ids']
+                tids = item['token_type_ids']
                 self.data.append({
                     'label': [1] + [0] * 10, 
                     'ids': ids, 
                     'tids': tids, 
                 })
-            self.extract_by_gray_num()
         else:
             for context, response, candidates in tqdm(data):
+                context = ' [SEP] '.join(context)
                 # we only need 10 candidates, pos:neg = 1:9
                 # compatible with the douban, ecommerce, ubuntu-v1 corpus
                 if len(candidates) < 9:
                     candidates += random.sample(responses, 9-len(candidates))
                 else:
                     candidates = candidates[:9]
-                ids, tids = [], []
-                for neg in [response] + candidates:
-                    utterances = context + [neg]
-                    ids_, tids_ = self.annotate(utterances)
-                    ids.append(ids_)
-                    tids.append(tids_)
+                item = self.vocab.batch_encode_plus([
+                    [context, res] for res in [response] + candidates
+                ])
+                ids = item['input_ids']
+                tids = item['token_type_ids']
                 self.data.append({
                     'label': [1] + [0] * 9, 
                     'ids': ids, 
@@ -181,28 +182,6 @@ class BERTWithNegDataset(Dataset):
                     'tids': j,
                 })
         self.data = dataset
-        # shuffle
-        random.shuffle(self.data)
-
-    def annotate(self, utterances):
-        tokens = [self.vocab.tokenize(utt) for utt in utterances]
-        ids, tids, tcache, l = ['[CLS]'], [0], 0, len(tokens)
-        for idx, tok in enumerate(tokens):
-            if idx < l - 1:
-                ids.extend(tok)
-                ids.append('[SEP]')
-                tids.extend([tcache] * (len(tok) + 1))
-                tcache = 0
-            else:
-                tcache = 1
-                ids.extend(tok)
-                tids.extend([tcache] * len(tok))
-        ids.append('[SEP]')
-        tids.append(tcache)
-        ids = self.vocab.encode(ids, add_special_tokens=False)
-        assert len(ids) == len(tids)
-        ids, tids = self._length_limit(ids), self._length_limit(tids)
-        return ids, tids
 
     def _length_limit(self, ids):
         if len(ids) > self.args['max_len']:

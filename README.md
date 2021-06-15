@@ -333,17 +333,17 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 
 | Models                              | R10@1 | R10@2 | R10@5 | MRR   |
 | ----------------------------------- | ----- | ----- | ----- | ----- |
-| bert-base-chinese (dual-bert)       | 53.12 | 69.94 | 89.89 | 68.52 |
-| bert-base-chinese (dual-bert|g=2)   | 57.03 | 74.2  | 92.94 | 71.9  |
-| bert-base-chinese (dual-bert|g=5)   | 57.26 | 74.18 | 92.84 | 71.98 |
+| bert-base-chinese (dual-bert)       |  |  |  |  |
+| bert-base-chinese (dual-bert|g=2)   |  |  |  |  |
+| bert-base-chinese (dual-bert|g=5)   |  |  |  |  |
 | bert-base-chinese (dual-bert|g=10)  |  |  |  |  |
-| bert-base-chinese (bert-ft)         | 34.24 | 47.83 | 72.2  | 51.29 |
-| bert-base-chinese (bert-ft|g=2)     | 37.11 | 51.81 | 77.75 | 54.51 |
-| hfl-roberta-chinese (dual-bert)     | 53.38 | 69.9  | 89.91 | 68.64 |
-| hfl-roberta-chinese (dual-bert|g=2) | 57.46 | 73.95 | 92.63 | 72.02 |
-| hfl-roberta-chinese (dual-bert|g=5) | 58.05 | 74.18 | 92.73 | 72.73 |
-| hfl-roberta-chinese (dual-bert|g=10)| |  |  |  |
-| hfl-roberta-chinese (bert-ft)       | 31.95 | 44.43 | 63.77 | 47.93 |
-| hfl-roberta-chinese (bert-ft|g=2)   | 35.13 | 48.23 | 71.96 | 51.79 |
-| pijili-bert-base (dual-bert)        |       |       |       |       |
-| pijili-bert-base (bert-ft)          | 20.77 | 35.85 | 71.88 | 41.93 |
+| bert-base-chinese (bert-ft)         |  |  |  |  |
+| bert-base-chinese (bert-ft|g=2)     |  |  |  |  |
+| hfl-roberta-chinese (dual-bert)     |  |  |  |  |
+| hfl-roberta-chinese (dual-bert|g=2) |  |  |  |  |
+| hfl-roberta-chinese (dual-bert|g=5) |  |  |  |  |
+| hfl-roberta-chinese (dual-bert|g=10)|  |  |  |  |
+| hfl-roberta-chinese (bert-ft)       |  |  |  |  |
+| hfl-roberta-chinese (bert-ft|g=2)   |  |  |  |  |
+| pijili-bert-base (dual-bert)        |  |  |  |  |
+| pijili-bert-base (bert-ft)          |  |  |  |  |

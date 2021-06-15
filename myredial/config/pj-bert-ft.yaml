@@ -5,9 +5,9 @@ dropout: 0.1
 layers: 12
 approx: none
 tokenizer: 
-    zh: /apdcephfs/share_916081/pjli/bert_zh_300g_wordpiece_base/data/vocab.txt
+    zh: /apdcephfs/share_916081/johntianlan/bert-news200g-char/vocab.txt
 pretrained_model: 
-    zh: /apdcephfs/share_916081/pjli/bert_zh_300g_wordpiece_base/ckpt/epoch1_batch_1899999
+    zh: /apdcephfs/share_916081/johntianlan/bert-news200g-char/bert_1559999
 
 # train configuration
 train:

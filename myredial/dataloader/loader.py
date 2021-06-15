@@ -17,7 +17,7 @@ def load_dataset(args):
     if 'pj-' in args['model']:
         vocab = PJBertTokenizer.from_pretrained(args['tokenizer'])
     else:
-        vocab = BertTokenizer.from_pretrained(args['tokenizer'])
+        vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
         
     data = dataset_t(vocab, path, **args)
     if args['mode'] in ['train', 'inference']:

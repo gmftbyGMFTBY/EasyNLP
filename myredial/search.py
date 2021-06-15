@@ -37,10 +37,13 @@ if __name__ == "__main__":
         f'{args["root_dir"]}/data/{args["dataset"]}/train.txt',
         lang='zh',
     )
-    for i in range(0, len(dataset), 32):
-        texts = [sample[1] for sample in dataset[i:i+32]]
-        responses = [sample[2] for sample in dataset[i:i+32]]
-        ipdb.set_trace()
-        vectors = agent.encode_queries(texts) 
-        rests = searcher._search(vectors, topk=args['topk'])
+    dataset = random.sample(dataset, 128)
+    texts = [sample[1] for sample in dataset]
+    responses = [sample[2] for sample in dataset]
+    vectors = agent.encode_queries(texts) 
+    rests = searcher._search(vectors, topk=args['topk'])
+
+    # save
+    log = [(c, r, cands) for c, r, cands in zip(texts, responses, rests)]
+    torch.save(log, f'{args["root_dir"]}/data/{args["dataset"]}/log.pt')
 

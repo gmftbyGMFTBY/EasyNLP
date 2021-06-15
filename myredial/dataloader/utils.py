@@ -101,3 +101,6 @@ def read_response_json_data(path, lang='zh'):
         dataset = [line.strip() for line in f.readlines()]
     print(f'[!] load {len(dataset)} responses from {path}')
     return dataset
+
+
+# ========== =========== ========== #

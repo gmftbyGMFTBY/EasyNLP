@@ -23,6 +23,10 @@ models:
         type: Representation
         model_name: BERTDualEncoder
         dataset_name: BERTDualDataset
+    dual-bert-bow: 
+        type: Representation
+        model_name: BERTDualBOWEncoder
+        dataset_name: BERTDualDataset
     dual-bert-gen: 
         type: Representation
         model_name: BERTSeq2SeqDualEncoder
