@@ -27,3 +27,6 @@ inference:
     seed: 50
     batch_size: 128
     max_len: 64
+    topk: 100
+    index_type: IVF100,PQ16
+    dimension: 768

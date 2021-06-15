@@ -17,7 +17,12 @@ class BERTDualDataset(Dataset):
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
 
-        data = read_text_data_dual_bert(path, lang=self.args['lang'])
+        # NOTE: different datasets have different data reader
+        if args['dataset'] in ['writer']:
+            data = read_json_data_dual_bert(path, lang=self.args['lang'])
+        else:
+            data = read_text_data_dual_bert(path, lang=self.args['lang'])
+
         self.data = []
         if self.args['mode'] == 'train':
             for label, context, response in tqdm(data):
@@ -254,9 +259,13 @@ class BERTDualWithNegDataset(Dataset):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
-        data, responses = read_json_data(path, lang=self.args['lang'])
         self.data = []
         if self.args['mode'] == 'train':
+            if self.args['dataset'] in ['writer']:
+                data, responses = read_json_data(path, lang=self.args['lang'])
+            else:
+                # gray from the candidates
+                data, responses = read_text_data_with_neg(path, lang=self.args['lang'])
             for context, response, candidates in tqdm(data):
                 context = ' [SEP] '.join(context).strip()
                 if len(candidates) < 10:
@@ -271,21 +280,39 @@ class BERTDualWithNegDataset(Dataset):
                     'rids': rids,
                 })
         else:
-            for context, response, candidates in tqdm(data):
-                context = ' [SEP] '.join(context).strip()
-                if len(candidates) < 9:
-                    candidates += random.sample(responses, 9-len(candidates))
-                else:
-                    candidates = candidates[:9]
-                item = self.vocab.batch_encode_plus([context, response] + candidates)
-                ids = item['input_ids'][0]
-                rids = item['input_ids'][1:]
-                ids, rids = self._length_limit(ids), [self._length_limit_res(rids_) for rids_ in rids]
-                self.data.append({
-                    'label': [1] + [0] * 9,
-                    'ids': ids,
-                    'rids': rids,
-                })    
+            if self.args['dataset'] in ['writer']:
+                data, _ = read_json_data(path, lang=self.args['lang'])
+                for context, response, candidates in tqdm(data):
+                    context = ' [SEP] '.join(context).strip()
+                    if len(candidates) < 9:
+                        candidates += random.sample(responses, 9-len(candidates))
+                    else:
+                        candidates = candidates[:9]
+                    item = self.vocab.batch_encode_plus([context, response] + candidates)
+                    ids = item['input_ids'][0]
+                    rids = item['input_ids'][1:]
+                    ids, rids = self._length_limit(ids), [self._length_limit_res(rids_) for rids_ in rids]
+                    self.data.append({
+                        'label': [1] + [0] * 9,
+                        'ids': ids,
+                        'rids': rids,
+                    })
+            else:
+                data = read_text_data_dual_bert(path, lang='zh')
+                for i in tqdm(range(0, len(data), 10)):
+                    batch = data[i:i+10]
+                    rids = []
+                    for item in batch:
+                        item = self.vocab.batch_encode_plus([item[1], item[2]])
+                        ids = item['input_ids'][0]
+                        rids.append(item['input_ids'][1])
+                    ids, rids = self._length_limit(ids), [self._length_limit_res(rids_) for rids_ in rids]
+                    self.data.append({
+                        'label': [b[0] for b in batch],
+                        'ids': ids, 
+                        'rids': rids,
+                    })
+
                 
     def _length_limit(self, ids):
         # also return the speaker embeddings

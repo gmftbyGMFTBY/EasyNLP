@@ -184,3 +184,22 @@ class RepresentationAgent(RetrievalBaseAgent):
             (embds, texts), 
             f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["local_rank"]}.pt'
         )
+
+    def generate_mask(self, ids):
+        attn_mask_index = ids.nonzero().tolist()   # [PAD] IS 0
+        attn_mask_index_x, attn_mask_index_y = [i[0] for i in attn_mask_index], [i[1] for i in attn_mask_index]
+        attn_mask = torch.zeros_like(ids)
+        attn_mask[attn_mask_index_x, attn_mask_index_y] = 1
+        return attn_mask
+
+    @torch.no_grad()
+    def encode_queries(self, texts):
+        self.model.eval()
+        ids = [torch.LongTensor(self.vocab.encode(text)) for text in texts]
+        ids = pad_sequence(ids, batch_first=True, padding_value=self.vocab.pad_token_id)
+        ids_mask = self.generate_mask(ids)
+        if torch.cuda.is_available():
+            ids, ids_mask = ids.cuda(), ids_mask.cuda()
+
+        vectors = self.model.get_ctx(ids, ids_mask)    # [B, E]
+        return vectors.cpu().numpy()

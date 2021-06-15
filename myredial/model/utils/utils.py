@@ -19,6 +19,38 @@ class PositionEmbedding(nn.Module):
         return self.dropout(x)
 
 
+class BertMLEmbedding(nn.Module):
+
+    '''bert model which returns multi layer'''
+    
+    def __init__(self, model='bert-base-chinese', layer=5):
+        super(BertMLEmbedding, self).__init__()
+        self.model = BertModel.from_pretrained(model)
+        # bert-fp checkpoint has the special token: [EOS]
+        self.model.resize_token_embeddings(self.model.config.vocab_size + 1)
+        self.layer = layer
+
+    def forward(self, ids, attn_mask, speaker_type_ids=None):
+        embds = self.model(
+            ids, 
+            attention_mask=attn_mask, 
+            output_hidden_states=True
+        )
+        layers = embds.hidden_states[-self.layer:]
+        # L * [B, E]
+        layers = [i[:, 0, :] for i in layers]
+        return layers
+
+    def load_bert_model(self, state_dict):
+        # load the post train checkpoint from BERT-FP (NAACL 2021)
+        new_state_dict = OrderedDict()
+        for k, v in state_dict.items():
+            new_state_dict[k] = v
+        # position_ids
+        new_state_dict['embeddings.position_ids'] = torch.arange(512).expand((1, -1))
+        self.model.load_state_dict(new_state_dict)
+
+
 class BertEmbedding(nn.Module):
     
     def __init__(self, model='bert-base-chinese'):

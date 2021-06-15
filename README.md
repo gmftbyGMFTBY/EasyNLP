@@ -219,6 +219,14 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 | HCL                | 33.0  | 53.1  | 85.8  | 68.1  | 51.4  | 63.9   |
 | BERT-FP(512)       | 32.4  | 54.2  | 87.0  | 68.0  | 51.2  | 64.4   |
 | bert-ft(512)       | 32.27 | 53.87 | 85.64 | 67.86 | 50.52 | 64.24  |
+| dual-bert(bsz=32, epoch=5) | 30.55 | 46.93 | 81.16 | 64.45 | 48.43  | 60.34 |
+| dual-bert-layer(bsz=32, epoch=5, bert-fp) | 28.95 | 50.41 | 83.2 | 64.99 | 46.93  | 60.7 |
+| dual-bert(bsz=32, epoch=5, bert-fp) | 31.42 | 51.6 | 83.46 | 66.41 | 49.48  | 62.22 |
+| dual-bert-gen(bsz=32, epoch=10) | 29.68 | 47.08 | 79.65 | 63.6 | 46.78  | 59.37 |
+| dual-bert-gen(bsz=32, epoch=10, bert-fp) | 29.51 | 48.64 | 81.13 | 64.13 | 46.63  | 60.1 |
+| dual-bert-gen(bsz=32, epoch=5, bert-fp) | 29.48 | 49.69 | 80.74 | 64.31 | 46.48  | 60.24 |
+| dual-bert-gen(bsz=32, epoch=5) | |  | |  |  | |
+| dual-bert-gen(bsz=32, epoch=5, bert-fp) | | | | | | |
 | dual-bert(bsz=16, epoch=5, bert-post) | 27.85 | 49.26 | 85.99 | 63.88 | 44.83 | 60.73 |
 | dual-bert(bsz=16, epoch=5, bert-post, extra_t=16) | 30.26 | 51.2 | 85.71 | 65.93 | 47.98 | 62.22  |
 | dual-bert(bsz=16, epoch=5, bert-post, extra_t=32) | 31.36 | 51.32 | 85.82 | 66.63 | 49.33 | 62.91 |

@@ -21,6 +21,7 @@ def load_model(args):
         model = globals()[model_name](**args)
     else:
         vocab = BertTokenizer.from_pretrained(args['tokenizer'])
+        args['vocab_size'] = vocab.vocab_size
         model = globals()[model_name](**args)
     agent = agent_t(vocab, model, args)
     return agent

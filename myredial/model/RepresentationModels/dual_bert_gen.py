@@ -72,7 +72,7 @@ class BERTSeq2SeqDualEncoder(nn.Module):
         dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
         dot_product /= np.sqrt(768)     # scale dot product
         return dot_product
-    
+
     def forward(self, batch):
         cid = batch['ids']
         rid = batch['rids']
