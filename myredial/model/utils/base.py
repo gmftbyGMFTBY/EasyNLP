@@ -106,3 +106,7 @@ class RetrievalBaseAgent:
         text = ''.join(tokens)
         return text
 
+    @torch.no_grad()
+    def rerank(self, contexts, candidates):
+        raise NotImplementedError
+

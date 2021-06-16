@@ -94,18 +94,12 @@ class BERTSeq2SeqDualEncoder(nn.Module):
             shift_labels.view(-1)
         )
 
-        # constrastive loss
-        # mask = torch.zeros_like(dot_product).cuda()
-        # mask[range(batch_size), range(batch_size)] = 1. 
-        # loss = F.log_softmax(dot_product, dim=-1) * mask
-        # loss = (-loss.sum(dim=1)).mean()
-
         # label smooth loss
         gold = torch.arange(batch_size).cuda()
         cl_loss = self.label_smooth_loss_fct(dot_product, gold)
         
         # total loss
-        loss = cl_loss + gen_loss
+        loss = cl_loss + 0.1 * gen_loss
 
         # cl acc
         acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()

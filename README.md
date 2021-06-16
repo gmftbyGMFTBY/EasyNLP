@@ -222,6 +222,9 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 | dual-bert(bsz=32, epoch=5) | 30.55 | 46.93 | 81.16 | 64.45 | 48.43  | 60.34 |
 | dual-bert-layer(bsz=32, epoch=5, bert-fp) | 28.95 | 50.41 | 83.2 | 64.99 | 46.93  | 60.7 |
 | dual-bert(bsz=32, epoch=5, bert-fp) | 31.42 | 51.6 | 83.46 | 66.41 | 49.48  | 62.22 |
+| dual-bert-cb(bsz=32, epoch=5, bert-fp) | 31.29 | 49.45 | 81.51 | 65.92 | 49.18  | 61.39 |
+| dual-bert(bsz=32, epoch=5, bert-fp, proj_dim=1024) | 31.57 | 51.67 | 83.41 | 66.48 | 49.63  | 62.26 |
+| dual-bert(bsz=32, epoch=5, bert-fp, lambda(gen)=0.1) | 30.95 | 50.65 | 82.95 | 65.98 | 49.03  | 61.82 |
 | dual-bert-gen(bsz=32, epoch=10) | 29.68 | 47.08 | 79.65 | 63.6 | 46.78  | 59.37 |
 | dual-bert-gen(bsz=32, epoch=10, bert-fp) | 29.51 | 48.64 | 81.13 | 64.13 | 46.63  | 60.1 |
 | dual-bert-gen(bsz=32, epoch=5, bert-fp) | 29.48 | 49.69 | 80.74 | 64.31 | 46.48  | 60.24 |
@@ -317,8 +320,9 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 | -------------- | ----- | ----- | ----- | ------ |
 | SOTA           | 0.884 | 0.946 | 0.990 | 0.975  |
 | HCL            | 0.867 | 0.940 | 0.992 | 0.977  |
+| BERT-FP        | 91.1  | 96.2  | 99.4  | 0.977  |
 | dual-bert(bsz=16, epoch=5, bert-post) | 84.69 | 92.66 | 98.51 | - |
-| dual-bert(bsz=32, epoch=5, bert-post) | | | | - |
+| dual-bert(bsz=32, epoch=5, bert-fp) | 87.44 | 94.12 | 98.5  | - |
 | dual-gru(bsz=64, epoch=5) | 72.51 | 85.22 | 96.41 | - |
 | dual-bert-hier(bsz=32, epoch=5, bert-post) | 67.71 | 81.33 | 95.36 | - |
 | dual-bert-hier(bsz=32, epoch=5, bert-dual-post) | | | | |
@@ -334,7 +338,7 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 | Models                              | R10@1 | R10@2 | R10@5 | MRR   |
 | ----------------------------------- | ----- | ----- | ----- | ----- |
 | bert-base-chinese (dual-bert)       |  |  |  |  |
-| bert-base-chinese (dual-bert|g=2)   |  |  |  |  |
+| bert-base-chinese (dual-bert|g=2)   | 56.32 | 73.06 | 92.67 | 71.22 |
 | bert-base-chinese (dual-bert|g=5)   |  |  |  |  |
 | bert-base-chinese (dual-bert|g=10)  |  |  |  |  |
 | bert-base-chinese (bert-ft)         |  |  |  |  |

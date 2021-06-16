@@ -37,3 +37,27 @@ def load_base_config():
     print(f'[!] load base configuration: {config_path}')
     return configuration
 
+def load_deploy_config(api_name):
+    # base config
+    args = load_base_config()
+
+    # load deploy parameters from base config
+    args.update(args['deploy'])
+    args.update(args['deploy'][api_name])
+    model = args['model']
+    config_path = f'config/{model}.yaml'
+    with open(config_path) as f:
+        configuration = yaml.load(f, Loader=yaml.FullLoader)
+    print(f'[!] load configuration: {config_path}')
+    
+    # update and append the special config for base config
+    args.update(configuration)
+
+    # load by lang
+    args['lang'] = args['datasets'][args['dataset']]
+    args['tokenizer'] = args['tokenizer'][args['lang']]
+    args['pretrained_model'] = args['pretrained_model'][args['lang']]
+
+    # mode (test: single GPU)
+    args['mode'] = 'test'
+    return args

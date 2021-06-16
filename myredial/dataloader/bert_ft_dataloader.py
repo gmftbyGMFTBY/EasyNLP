@@ -136,6 +136,8 @@ class BERTWithNegDataset(Dataset):
                 ])
                 ids = item['input_ids']
                 tids = item['token_type_ids']
+                ids = self._length_limit(ids)
+                tids = self._length_limit(tids)
                 self.data.append({
                     'label': [1] + [0] * 10, 
                     'ids': ids, 
@@ -155,6 +157,8 @@ class BERTWithNegDataset(Dataset):
                 ])
                 ids = item['input_ids']
                 tids = item['token_type_ids']
+                ids = self._length_limit(ids)
+                tids = self._length_limit(tids)
                 self.data.append({
                     'label': [1] + [0] * 9, 
                     'ids': ids, 
@@ -194,7 +198,10 @@ class BERTWithNegDataset(Dataset):
     def __getitem__(self, i):
         bundle = self.data[i]
         if self.args['mode'] == 'train':
-            ids = torch.LongTensor(bundle['ids'])
+            try:
+                ids = torch.LongTensor(bundle['ids'])
+            except:
+                ipdb.set_trace()
             tids = torch.LongTensor(bundle['tids'])
             return ids, tids, bundle['label']
         else:

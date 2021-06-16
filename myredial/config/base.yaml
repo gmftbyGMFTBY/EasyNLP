@@ -23,9 +23,9 @@ models:
         type: Representation
         model_name: BERTDualEncoder
         dataset_name: BERTDualDataset
-    dual-bert-bow: 
+    dual-bert-cb: 
         type: Representation
-        model_name: BERTDualBOWEncoder
+        model_name: BERTDualCBEncoder
         dataset_name: BERTDualDataset
     dual-bert-gen: 
         type: Representation
@@ -63,3 +63,17 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test interval: higher than 1 means that we donot test during training procedure, which is necessary for the corpus which has the big test set
 test_interval: 1.1
 # test_interval: 0.05
+
+
+# ========== deploy parameters ========== #
+deploy:
+    host: '0.0.0.0'
+    port: 22335
+    dataset: writer
+    recall:
+        model: dual-bert
+        topk: 100
+        index_type: IVF100,PQ16
+        dimension: 768
+    rerank:
+        model: dual-bert

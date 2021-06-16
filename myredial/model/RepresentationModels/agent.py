@@ -203,3 +203,47 @@ class RepresentationAgent(RetrievalBaseAgent):
 
         vectors = self.model.get_ctx(ids, ids_mask)    # [B, E]
         return vectors.cpu().numpy()
+
+    @torch.no_grad()
+    def encode_candidates(self, texts):
+        self.model.eval()
+        ids = [torch.LongTensor(self.vocab.encode(text)) for text in texts]
+        ids = pad_sequence(ids, batch_first=True, padding_value=self.vocab.pad_token_id)
+        ids_mask = self.generate_mask(ids)
+        if torch.cuda.is_available():
+            ids, ids_mask = ids.cuda(), ids_mask.cuda()
+
+        vectors = self.model.get_cand(ids, ids_mask)    # [B, E]
+        return vectors.cpu().numpy()
+
+    @torch.no_grad()
+    def rerank_one_sample(self, batch):
+        self.model.eval()
+        context_text = batch['context']
+        candidates_text = batch['candidates']
+
+        ids = torch.LongTensor(self.vocab.encode(context_text))
+            
+        rids = [torch.LongTensor(self.vocab.encode(text)) for text in candidates_text]
+        rids = pad_sequence(rids, batch_first=True, padding_value=self.vocab.pad_token_id)
+        rids_mask = self.generate_mask(rids)
+        if torch.cuda.is_available():
+            ids, rids, rids_mask = ids.cuda(), rids.cuda(), rids_mask.cuda()
+
+        # scores
+        batch = {
+            'ids': ids,
+            'rids': rids,
+            'rids_mask': rids_mask,
+        }
+        scores = self.model.predict(batch)
+        return scores
+
+    @torch.no_grad()
+    def rerank(self, batches):
+        self.model.eval()
+        scores = []
+        for batch in batches:
+            scores.append(self.rerank_one_sample(batch).tolist())
+        return scores
+
