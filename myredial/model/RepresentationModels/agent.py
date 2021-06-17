@@ -42,6 +42,8 @@ class RepresentationAgent(RetrievalBaseAgent):
         correct, s, oom_t = 0, 0, 0
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
+
+
             with autocast():
                 (cl_loss, gen_loss, loss), (acc, gen_acc) = self.model(batch)
             self.scaler.scale(loss).backward()
@@ -87,8 +89,16 @@ class RepresentationAgent(RetrievalBaseAgent):
         total_tloss, total_bloss = 0, 0
         pbar = tqdm(train_iter)
         correct, s, oom_t = 0, 0, 0
+
+        counter = 0
+        collector = []
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
+
+            counter += len(batch['context'])
+            collector.extend(batch['context'])
+            continue
+
             with autocast():
                 loss, acc = self.model(batch)
             self.scaler.scale(loss).backward()
@@ -112,6 +122,13 @@ class RepresentationAgent(RetrievalBaseAgent):
             recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
              
             pbar.set_description(f'[!] loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
+
+        # debug
+        print(f'[!] local rank {self.args["local_rank"]}: load {counter} dataset')
+        torch.save(collector, f'{self.args["root_dir"]}/data/writer/{self.args["local_rank"]}.pt')
+        exit()
+        return 0
+
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
         return round(total_loss / batch_num, 4)
