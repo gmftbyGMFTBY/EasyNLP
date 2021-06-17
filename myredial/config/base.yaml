@@ -34,7 +34,11 @@ models:
     dual-bert-gray: 
         type: Representation
         model_name: BERTDualGrayEncoder
-        dataset_name: BERTDualWithNegDataset
+        dataset_name: BERTDualFullWithNegDataset
+    dual-bert-gray-writer: 
+        type: Representation
+        model_name: BERTDualGrayFullEncoder
+        dataset_name: BERTDualFullWithNegDataset
     dual-bert-hierarchical: 
         type: Representation
         model_name: BERTDualHierarchicalTrsEncoder
@@ -42,10 +46,6 @@ models:
     bert-ft: 
         type: Interaction
         model_name: BERTRetrieval
-        dataset_name: BERTWithNegDataset
-    pj-bert-ft:
-        type: Interaction
-        model_name: PJBERTRetrieval
         dataset_name: BERTWithNegDataset
     sa-bert: 
         type: Interaction
@@ -71,7 +71,7 @@ deploy:
     port: 22335
     dataset: writer
     recall:
-        model: dual-bert
+        model: dual-bert-gray-full
         topk: 100
         index_type: IVF100,PQ16
         dimension: 768

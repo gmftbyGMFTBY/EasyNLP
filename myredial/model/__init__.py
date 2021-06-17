@@ -13,15 +13,8 @@ def load_model(args):
     else:
         raise Exception(f'[!] Unknown type {model_type} for {model_name}')
 
-    if 'pj-' in args['model']:
-        # load pj bert model
-        vocab = PJBertTokenizer.from_pretrained(args['tokenizer'])
-        args['vocab_size'] = vocab.size
-        args['padding_idx'] = vocab.padding_idx
-        model = globals()[model_name](**args)
-    else:
-        vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
-        args['vocab_size'] = vocab.vocab_size
-        model = globals()[model_name](**args)
+    vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
+    args['vocab_size'] = vocab.vocab_size
+    model = globals()[model_name](**args)
     agent = agent_t(vocab, model, args)
     return agent

@@ -1,5 +1,6 @@
 from header import *
 from .dual_bert_dataloader import *
+from .dual_bert_full_dataloader import *
 from .sa_bert_dataloader import *
 from .bert_ft_dataloader import *
 from .inference_dataloader import *
@@ -13,11 +14,7 @@ def load_dataset(args):
 
     path = f'{args["root_dir"]}/data/{args["dataset"]}/{args["mode"]}.txt'
 
-    # pj tokenizer
-    if 'pj-' in args['model']:
-        vocab = PJBertTokenizer.from_pretrained(args['tokenizer'])
-    else:
-        vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
+    vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
         
     data = dataset_t(vocab, path, **args)
     if args['mode'] in ['train', 'inference']:
@@ -30,6 +27,9 @@ def load_dataset(args):
     else:
         iter_ = DataLoader(data, batch_size=args['batch_size'], collate_fn=data.collate)
         sampler = None
-    if not os.path.exists(data.pp_path):
-        data.save()
+    try:
+        if not os.path.exists(data.pp_path):
+            data.save()
+    except:
+        pass
     return data, iter_, sampler
