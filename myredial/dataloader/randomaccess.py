@@ -59,3 +59,5 @@ if __name__ == "__main__":
         except:
             error += 1
     print(f'[!] error num: {error}')
+    if error == 0:
+        print(f'[!] test perfectly with no errors')

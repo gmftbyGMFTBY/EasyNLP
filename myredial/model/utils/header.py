@@ -25,7 +25,7 @@ from collections import Counter, OrderedDict
 from torch.nn.utils import clip_grad_norm_
 import random
 from transformers import BertTokenizer
-from transformers import BertForSequenceClassification, BertModel, BertForPreTraining, EncoderDecoderModel
+from transformers import BertForSequenceClassification, BertModel, BertForPreTraining, EncoderDecoderModel, XLMRobertaModel
 import transformers
 from sklearn.metrics import label_ranking_average_precision_score
 import argparse

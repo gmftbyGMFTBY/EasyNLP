@@ -4,17 +4,24 @@ from .dual_bert_full_dataloader import *
 from .sa_bert_dataloader import *
 from .bert_ft_dataloader import *
 from .inference_dataloader import *
+from .inference_full_dataloader import *
 
 def load_dataset(args):
     if args['mode'] in ['train', 'test']:
         dataset_name = args['models'][args['model']]['dataset_name']
         dataset_t = globals()[dataset_name]
     else:
-        dataset_t = BERTDualInferenceDataset
+        if args['dataset'] in ['writer']:
+            dataset_t = BERTDualFullInferenceDataset
+        else:
+            dataset_t = BERTDualInferenceDataset
 
     path = f'{args["root_dir"]}/data/{args["dataset"]}/{args["mode"]}.txt'
 
-    vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
+    if args['xlm']:
+        vocab = XLMRobertaTokenizerFast.from_pretrained(args['tokenizer'])
+    else:
+        vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
         
     data = dataset_t(vocab, path, **args)
     if args['mode'] in ['train', 'inference']:

@@ -1,27 +1,26 @@
 from header import *
 from .utils import *
+from .randomaccess import *
 
-class BERTDualInferenceDataset(Dataset):
+class BERTDualFullInferenceDataset(Dataset):
     
     def __init__(self, vocab, path, **args):
         self.args = args
         self.vocab = vocab
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
-        suffix = args['tokenizer'].replace('/', '_')
-        self.pp_path = f'{os.path.splitext(path)[0]}_{suffix}.pt'
-        if os.path.exists(self.pp_path):
-            self.data = torch.load(self.pp_path)
-            print(f'[!] load preprocessed file from {self.pp_path}')
-            return None
-        responses = read_response_data(path, lang=self.args['lang'])
-        self.data = []
-        for res in tqdm(responses):
-            item = self.vocab.encode(res)
-            rids = self._length_limit(item)
-            self.data.append({
-                'ids': rids, 
-                'text': res
-            })
+        self.path = f'{args["root_dir"]}/data/{args["dataset"]}/inference.txt'
+        rar_path = f'{args["root_dir"]}/data/{args["dataset"]}/inference.rar'
+        if os.path.exists(rar_path):
+            self.reader = torch.load(rar_path)
+            print(f'[!] load RandomAccessReader Object over')
+        else:
+            self.reader = RandomAccessReader(self.path)
+            self.reader.init()
+            torch.save(self.reader, rar_path)
+            print(f'[!] save the random access reader file into {rar_path}')
+        self.reader.init_file_handler()
+        self.size = self.reader.size
+        print(f'[!] dataset size: {self.size}')
                 
     def _length_limit(self, ids):
         if len(ids) > self.args['max_len']:
@@ -29,17 +28,17 @@ class BERTDualInferenceDataset(Dataset):
         return ids
                 
     def __len__(self):
-        return len(self.data)
+        return self.size
 
     def __getitem__(self, i):
-        bundle = self.data[i]
-        rid = torch.LongTensor(bundle['ids'])
-        rid_text = bundle['text']
-        return rid, rid_text
+        line = self.reader.get_line(i).strip()
+        ids = self.vocab.encode(line)
+        ids = self._length_limit(ids)
+        ids = torch.LongTensor(ids)
+        return ids, line
 
     def save(self):
-        data = torch.save(self.data, self.pp_path)
-        print(f'[!] save preprocessed dataset into {self.pp_path}')
+        pass
         
     def generate_mask(self, ids):
         attn_mask_index = ids.nonzero().tolist()   # [PAD] IS 0

@@ -23,7 +23,7 @@ test:
 
 inference:
     seed: 50
-    batch_size: 256
+    batch_size: 512
     max_len: 64
     index_type: IVF100,PQ16
     dimension: 768

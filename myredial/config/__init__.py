@@ -1,6 +1,7 @@
 import yaml, ipdb
 
 def load_config(args):
+    '''the configuration of each model can rewrite the base configuration'''
     # base config
     base_configuration = load_base_config()
 
@@ -26,8 +27,9 @@ def load_config(args):
 
     # load by lang
     args['lang'] = configuration['datasets'][args['dataset']]
-    configuration['tokenizer'] = configuration['tokenizer'][args['lang']]
-    configuration['pretrained_model'] = configuration['pretrained_model'][args['lang']]
+    if not configuration['xlm']:
+        configuration['tokenizer'] = configuration['tokenizer'][args['lang']]
+        configuration['pretrained_model'] = configuration['pretrained_model'][args['lang']]
     return configuration
 
 def load_base_config():

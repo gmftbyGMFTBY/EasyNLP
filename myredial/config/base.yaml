@@ -17,11 +17,16 @@ pretrained_model:
 
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 2
+xlm: false
 
 models:
     dual-bert: 
         type: Representation
         model_name: BERTDualEncoder
+        dataset_name: BERTDualDataset
+    xlm-dual-bert: 
+        type: XLM
+        model_name: XLMDualEncoder
         dataset_name: BERTDualDataset
     dual-bert-cb: 
         type: Representation
@@ -30,6 +35,10 @@ models:
     dual-bert-gen: 
         type: Generation
         model_name: BERTSeq2SeqDualEncoder
+        dataset_name: BERTDualDataset
+    seq2seq: 
+        type: Generation
+        model_name: BERTSeq2SeqEncoder
         dataset_name: BERTDualDataset
     dual-bert-gray: 
         type: Representation

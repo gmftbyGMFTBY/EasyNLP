@@ -45,9 +45,7 @@ def main(**args):
     obtain_steps_parameters(train_data, args)
     agent = load_model(args)
     
-    # 
     pretrained_model_name = args['pretrained_model'].replace('/', '_')
-    
     sum_writer = SummaryWriter(
         log_dir=f'{args["root_dir"]}/rest/{args["dataset"]}/{args["model"]}',
         comment=pretrained_model_name,

@@ -1,5 +1,4 @@
 smoothing: 0.1
-cl_lambda: 0.1
 
 # train configuration
 train:
@@ -22,9 +21,6 @@ test:
     batch_size: 1
     max_len: 256
     res_max_len: 64
+    max_generate_length: 64
+    min_generate_length: 12
 
-# inference configuration
-inference:
-    seed: 50
-    batch_size: 128
-    max_len: 64

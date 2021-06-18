@@ -28,13 +28,12 @@ def main(**args):
     pretrained_model_name = args['pretrained_model'].replace('/', '_')
     save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}.pt'
     agent.load_model(save_path)
-    (r10_1, r10_2, r10_5), mrr, p1, MAP = agent.test_model(test_iter, print_output=True)
+    # (r10_1, r10_2, r10_5), mrr, p1, MAP = agent.test_model(test_iter, print_output=True)
+    outputs = agent.test_model(test_iter, print_output=True)
 
     with open(f'{args["root_dir"]}/rest/{args["dataset"]}/{args["model"]}/test_result_{pretrained_model_name}.txt', 'w') as f:
-        print(
-            f'R10@1: {round(r10_1, 4)}\nR10@2: {round(r10_2, 4)}\nR10@5: {round(r10_5, 4)}\nMRR: {round(mrr, 4)}\nP@1: {round(p1, 4)}\nMAP: {round(MAP, 4)}\n',
-            file=f,
-        )
+        for key, value in outputs.items():
+            print(f'{key}: {value}', file=f)
 
 if __name__ == "__main__":
     args = parser_args()

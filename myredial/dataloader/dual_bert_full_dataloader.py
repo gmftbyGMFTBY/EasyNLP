@@ -51,6 +51,7 @@ class BERTDualFullWithNegDataset(Dataset):
                     'context': context,
                     'responses': [response] + candidates,
                 })
+            self.size = len(self.data)
 
     def _length_limit(self, ids):
         # also return the speaker embeddings

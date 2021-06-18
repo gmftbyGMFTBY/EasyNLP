@@ -1,9 +1,9 @@
 from model.utils import *
 
-class RepresentationAgent(RetrievalBaseAgent):
+class XLMAgent(RetrievalBaseAgent):
     
     def __init__(self, vocab, model, args):
-        super(RepresentationAgent, self).__init__()
+        super(XLMAgent, self).__init__()
         self.args = args
         self.vocab, self.model = vocab, model
         if args['mode'] == 'train':
@@ -21,10 +21,7 @@ class RepresentationAgent(RetrievalBaseAgent):
         self.show_parameters(self.args)
         
     def load_bert_model(self, path):
-        state_dict = torch.load(path, map_location=torch.device('cpu'))
-        self.model.ctx_encoder.load_bert_model(state_dict)
-        self.model.can_encoder.load_bert_model(state_dict)
-        print(f'[!] load pretrained BERT model from {path}')
+        pass
     
     def train_model(self, train_iter, test_iter, recoder=None, idx_=0):
         self.model.train()

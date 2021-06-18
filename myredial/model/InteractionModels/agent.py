@@ -101,10 +101,11 @@ class InteractionAgent(RetrievalBaseAgent):
         avg_mrr = float(total_mrr / total_examples)
         avg_prec_at_one = float(total_prec_at_one / total_examples)
         avg_map = float(total_map / total_examples)
-        
-        for i in range(len(k_list)):
-            print(f"R10@{k_list[i]}: {round(((total_correct[i] / total_examples) * 100), 2)}")
-        print(f"MRR: {round(avg_mrr, 4)}")
-        print(f"P@1: {round(avg_prec_at_one, 4)}")
-        print(f"MAP: {round(avg_map, 4)}")
-        return (total_correct[0]/total_examples, total_correct[1]/total_examples, total_correct[2]/total_examples), avg_mrr, avg_prec_at_one, avg_map
+        return {
+            'R10@{k_list[0]}': round(((total_correct[0]/total_examples)*100), 2),        
+            'R10@{k_list[1]}': round(((total_correct[1]/total_examples)*100), 2),        
+            'R10@{k_list[2]}': round(((total_correct[2]/total_examples)*100), 2),        
+            'MRR': {round(avg_mrr, 4)},
+            'P@1': {round(avg_prec_at_one, 4)},
+            'MAP': {round(avg_map, 4)},
+        }

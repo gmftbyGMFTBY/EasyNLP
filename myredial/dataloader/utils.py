@@ -68,7 +68,8 @@ def read_text_data_with_neg(path, lang='zh'):
     return dataset, responses
 
 
-def read_text_data_dual_bert(path, lang='zh'):
+def read_text_data_dual_bert(path, lang='zh', xlm=False):
+    sep = ' </s> ' if xlm else ' [SEP] '
     with open(path) as f:
         dataset = []
         for line in f.readlines():
@@ -76,7 +77,7 @@ def read_text_data_dual_bert(path, lang='zh'):
             label, utterances = int(line[0]), line[1:]
             if lang == 'zh':
                 utterances = [''.join(u.split()) for u in utterances]
-            context, response = ' [SEP] '.join(utterances[:-1]), utterances[-1]
+            context, response = sep.join(utterances[:-1]), utterances[-1]
             dataset.append((label, context, response))
     print(f'[!] load {len(dataset)} utterances from {path}')
     return dataset
@@ -98,9 +99,9 @@ def read_response_data(path, lang='zh'):
 
 def read_response_json_data(path, lang='zh'):
     with open(path) as f:
-        dataset = [line.strip() for line in f.readlines()]
-    print(f'[!] load {len(dataset)} responses from {path}')
+        dataset = []
+        pbar = tqdm(f.readlines())
+        for line in pbar: 
+            dataset.append(line.strip())
+        print(f'[!] already collect {len(dataset)} utterances for inference')
     return dataset
-
-
-# ========== =========== ========== #

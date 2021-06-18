@@ -338,7 +338,7 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 
 | Models                              | R10@1 | R10@2 | R10@5 | MRR   |
 | ----------------------------------- | ----- | ----- | ----- | ----- |
-| bert-base-chinese (dual-bert)       |  |  |  |  |
+| bert-base-chinese (dual-bert-gray-writer) | 61.73 | 76.8 | 93.51 | 74.87 |
 | bert-base-chinese (dual-bert|g=2)   | 56.32 | 73.06 | 92.67 | 71.22 |
 | bert-base-chinese (dual-bert|g=5)   |  |  |  |  |
 | bert-base-chinese (dual-bert|g=10)  |  |  |  |  |

@@ -1,11 +1,17 @@
 from model.utils import *
 
+
 class GenerationAgent(RetrievalBaseAgent):
     
     def __init__(self, vocab, model, args):
         super(GenerationAgent, self).__init__()
         self.args = args
         self.vocab, self.model = vocab, model
+        
+        if args['model'] in ['dual-bert-gen']:
+            self.train_model = self.train_model_2
+            self.load_bert_model = self.load_bert_model_2
+
         if args['mode'] == 'train':
             self.set_test_interval()
             self.load_checkpoint()
@@ -19,8 +25,13 @@ class GenerationAgent(RetrievalBaseAgent):
         if args['mode'] in ['train', 'inference']:
             self.set_optimizer_scheduler_ddp()
         self.show_parameters(self.args)
-        
+    
     def load_bert_model(self, path):
+        state_dict = torch.load(path, map_location=torch.device('cpu'))
+        self.model.model.load_bert_model(state_dict)
+        print(f'[!] load pretrained BERT model from {path}')
+        
+    def load_bert_model_2(self, path):
         state_dict = torch.load(path, map_location=torch.device('cpu'))
         self.model.ctx_encoder.load_bert_model(state_dict)
         self.model.can_encoder.load_bert_model(state_dict)
@@ -31,13 +42,47 @@ class GenerationAgent(RetrievalBaseAgent):
     ):
         self.model.train()
         total_loss, total_acc, batch_num = 0, 0, 0
+        pbar = tqdm(train_iter)
+        correct, s, oom_t = 0, 0, 0
+        for idx, batch in enumerate(pbar):
+            self.optimizer.zero_grad()
+            with autocast():
+                loss, acc = self.model(batch)
+            self.scaler.scale(loss).backward()
+            self.scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            
+            self.scheduler.step()
+
+            total_loss += loss.item()
+            total_acc += acc
+            batch_num += 1
+
+            if batch_num in self.args['test_step']:
+                self.test_now(test_iter, recoder)
+            
+            recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
+             
+            pbar.set_description(f'[!] loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
+        recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
+        recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
+        return round(total_loss / batch_num, 4)
+    
+    def train_model_2(
+        self, train_iter, test_iter, recoder=None, idx_=0
+    ):
+        self.model.train()
+        total_loss, total_acc, batch_num = 0, 0, 0
         total_cl_loss, total_gen_loss, total_gen_acc = 0, 0, 0
         pbar = tqdm(train_iter)
         correct, s, oom_t = 0, 0, 0
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
-
-
             with autocast():
                 (cl_loss, gen_loss, loss), (acc, gen_acc) = self.model(batch)
             self.scaler.scale(loss).backward()
@@ -78,18 +123,26 @@ class GenerationAgent(RetrievalBaseAgent):
         return round(total_loss / batch_num, 4)
     
     @torch.no_grad()
-    def test_model(self, test_iter, print_output=False):
+    def test_model(self, test_iter, print_output=True):
+        # generation must print the output
+        assert print_output is True
         self.model.eval()
         pbar = tqdm(test_iter)
         for idx, batch in enumerate(pbar):                
             if self.args['mode'] in ['train']:
-                output = self.model.module.predict(batch).cpu().tolist()    # [B]
+                output = self.model.module.predict(batch) 
             else:
-                output = self.model.predict(batch).cpu().tolist()    # [B]
+                output = self.model.predict(batch)
+
             ctext = self.convert_to_text(batch['ids'])
             self.log_save_file.write(f'[Context] {ctext}\n')
+
             gt = self.convert_to_text(batch['rids'][0])
             self.log_save_file.write(f'[Ground-Truth] {gt}\n')
-            text = self.convert_to_text(inf)
+
+            text = self.convert_to_text(output)
             self.log_save_file.write(f'[Pred] {text}\n')
             self.log_save_file.write('\n')
+
+        # generation metric
+        return {}
