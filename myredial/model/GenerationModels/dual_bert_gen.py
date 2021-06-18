@@ -6,10 +6,11 @@ from model.utils import *
 
 class Seq2SeqModel(nn.Module):
 
-    def __init__(self, model):
+    def __init__(self, model, cls):
         super(Seq2SeqModel, self).__init__()
+        self.cls_token_id = cls
         self.model = EncoderDecoderModel.from_encoder_decoder_pretrained(model, model)
-        # bert-ft
+        # bert-ft pretrained checkpoint
         self.model.encoder.resize_token_embeddings(self.model.encoder.config.vocab_size+1)
         self.model.decoder.resize_token_embeddings(self.model.decoder.config.vocab_size+1)
 
@@ -24,6 +25,15 @@ class Seq2SeqModel(nn.Module):
         hidden = outputs.encoder_last_hidden_state[:, 0, :]
         return logits, hidden
 
+    def predict(self, cid):
+        # Greedy Decoding
+        output = self.model.generate(
+            cid, 
+            do_sample=True,
+            decoder_start_token_id=self.cls_token_id,
+        )
+        return output[0]
+
     def load_bert_model(self, state_dict):
         # decoder has the different parameters
         new_state_dict = OrderedDict()
@@ -35,15 +45,16 @@ class Seq2SeqModel(nn.Module):
 
 class BERTSeq2SeqDualEncoder(nn.Module):
 
-    def __init__(self, **args):
+    def __init__(self, vocab, **args):
         super(BERTSeq2SeqDualEncoder, self).__init__()
         model = args['pretrained_model']
         s = args['smoothing']
+        self.cl_lambda = args['cl_lambda']
+        self.vocab = vocab
 
-        self.ctx_encoder = Seq2SeqModel(model)
+        self.ctx_encoder = Seq2SeqModel(model, self.vocab.cls_token_id)
         self.can_encoder = BertEmbedding(model=model)
         self.label_smooth_loss_fct = LabelSmoothLoss(smoothing=s)
-        # pj-bert-ft, bert-base-chinese, bert-base-uncased, hfl/chinese-roberta-wwm-ext use 0 for padding token
         self.gen_loss_fct = nn.CrossEntropyLoss(ignore_index=0)
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
@@ -52,26 +63,14 @@ class BERTSeq2SeqDualEncoder(nn.Module):
         return gen_logits, cid_rep, rid_rep
 
     @torch.no_grad()
-    def get_cand(self, ids, attn_mask):
-        rid_rep = self.can_encoder(ids, attn_mask)
-        return rid_rep
-
-    @torch.no_grad()
-    def get_ctx(self, ids, attn_mask, rid, rid_mask):
-        cid_rep = self.ctx_encoder(ids, attn_mask, rid, rid_mask)
-        return cid_rep
-
-    @torch.no_grad()
     def predict(self, batch):
-        cid = batch['ids']
+        # generate
+        cid = batch['ids'].unsqueeze(0)    # [1, S]
         rid = batch['rids']
         rid_mask = batch['rids_mask']
 
-        batch_size = rid.shape[0]
-        _, cid_rep, rid_rep = self._encode(cid.unsqueeze(0), rid, None, rid_mask)
-        dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
-        dot_product /= np.sqrt(768)     # scale dot product
-        return dot_product
+        output = self.ctx_encoder.predict(cid)
+        return output
 
     def forward(self, batch):
         cid = batch['ids']
@@ -99,7 +98,7 @@ class BERTSeq2SeqDualEncoder(nn.Module):
         cl_loss = self.label_smooth_loss_fct(dot_product, gold)
         
         # total loss
-        loss = cl_loss + 0.1 * gen_loss
+        loss = self.cl_lambda * cl_loss + gen_loss
 
         # cl acc
         acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()

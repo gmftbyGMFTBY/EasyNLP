@@ -28,7 +28,7 @@ models:
         model_name: BERTDualCBEncoder
         dataset_name: BERTDualDataset
     dual-bert-gen: 
-        type: Representation
+        type: Generation
         model_name: BERTSeq2SeqDualEncoder
         dataset_name: BERTDualDataset
     dual-bert-gray: 

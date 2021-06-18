@@ -13,20 +13,21 @@ class BERTDualFullWithNegDataset(Dataset):
         self.data = []
         if self.args['mode'] == 'train':
             self.path_name = path
-            self.size = 0
             responses = []
             with open(path) as f:
-                for line in tqdm(f.readlines()):
-                    self.size += 1
+                pbar = tqdm(f.readlines())
+                for line in pbar:
                     line = [i.strip() for i in json.loads(line.strip())['nr'] if i.strip()]
                     responses.extend(line)
-            self.responses = list(set(responses))[:10000000]
+                    if len(responses) > 1000000:
+                        break
+                    pbar.set_description(f'[!] already collect {len(responses)} utterances for candidates')
+            self.responses = list(set(responses))
             print(f'[!] load {len(self.responses)} utterances')
-            print(f'[!] dataset size: {self.size}')
-            
             rar_path = f'{args["root_dir"]}/data/{args["dataset"]}/train.rar'
             if os.path.exists(rar_path):
                 self.reader = torch.load(rar_path)
+                print(f'[!] load RandomAccessReader Object over')
             else:
                 # init the random access reader
                 self.reader = RandomAccessReader(self.path_name)
@@ -35,6 +36,8 @@ class BERTDualFullWithNegDataset(Dataset):
                 torch.save(self.reader, rar_path)
                 print(f'[!] save the random access reader file into {rar_path}')
             self.reader.init_file_handler()
+            self.size = self.reader.size
+            print(f'[!] dataset size: {self.size}')
         else:
             data, responses = read_json_data(path, lang=self.args['lang'])
             for context, response, candidates in tqdm(data):
