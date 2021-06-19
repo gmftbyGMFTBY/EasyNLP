@@ -15,7 +15,14 @@ def parser_args():
 class Searcher:
 
     def __init__(self, index_type, dimension=768):
-        self.searcher = faiss.index_factory(dimension, index_type)
+        if index_type in ['BFlat']:
+            binary = True
+        else:
+            bianry = False
+        if binary:
+            self.searcher = faiss.index_binary_factory(dimension, index_type)
+        else:
+            self.searcher = faiss.index_factory(dimension, index_type)
         self.corpus = []
 
     def _build(self, matrix, corpus):

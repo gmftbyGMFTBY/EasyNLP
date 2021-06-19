@@ -1,9 +1,16 @@
-smoothing: 0.1
+hash_code_size: 512
+hidden_size: 768
+dropout: 0.1
+trainable_bert_layers: 11
+q_alpha: 0.0001
+q_alpha_max: 0.1
+hash_loss_scale: 0.001
 
 # train configuration
 train:
     lr: 0.00005
     grad_clip: 1.0
+    smoothing: 0.1
     seed: 50
     batch_size: 64
     max_len: 256
@@ -11,8 +18,8 @@ train:
     epoch: 5
     warmup_ratio: 0.1
     checkpoint: 
-        path: bert-post/best_nspmlm.pt
-        is_load: true
+        path: dual-bert-gray-writer/best_bert-base-chinese.pt
+        is_load: false
 
 # test configuration
 test:
@@ -21,11 +28,10 @@ test:
     max_len: 256
     res_max_len: 64
 
-# inference configuration
 inference:
     seed: 50
-    batch_size: 128
+    batch_size: 512
     max_len: 64
+    index_type: BFlat
+    dimension: 512
     topk: 100
-    index_type: IVF100,PQ16
-    dimension: 768

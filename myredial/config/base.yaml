@@ -24,6 +24,10 @@ models:
         type: Representation
         model_name: BERTDualEncoder
         dataset_name: BERTDualDataset
+    hash-bert: 
+        type: Representation
+        model_name: HashBERTDualEncoder
+        dataset_name: BERTDualFullWithNegDataset
     xlm-dual-bert: 
         type: XLM
         model_name: XLMDualEncoder

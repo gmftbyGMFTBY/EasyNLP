@@ -23,6 +23,7 @@ class BERTDualFullInferenceDataset(Dataset):
         print(f'[!] dataset size: {self.size}')
                 
     def _length_limit(self, ids):
+        # only inference the responses
         if len(ids) > self.args['max_len']:
             ids = ids[:self.args['max_len']:]
         return ids
