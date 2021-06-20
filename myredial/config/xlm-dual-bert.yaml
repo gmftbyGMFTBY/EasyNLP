@@ -5,7 +5,7 @@ xlm: true
 
 # train configuration
 train:
-    lr: 0.00005
+    lr: 0.0005
     grad_clip: 1.0
     seed: 50
     batch_size: 64

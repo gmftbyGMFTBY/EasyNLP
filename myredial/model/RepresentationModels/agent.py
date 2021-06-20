@@ -7,14 +7,13 @@ class RepresentationAgent(RetrievalBaseAgent):
         self.args = args
         self.vocab, self.model = vocab, model
 
-        # hash-bert parameter settting
-        if self.args['model'] == 'hash-bert':
-            self.q_alpha = self.args['q_alpha']
-            self.q_alpha_step = (self.args['q_alpha_max'] - self.args['q_alpha']) / int(self.args['total_step'] / torch.distributed.get_world_size())
-            self.load_bert_model = self.load_bert_model_hash
-            self.train_model = self.train_model_hash
-
         if args['mode'] == 'train':
+            # hash-bert parameter setting
+            if self.args['model'] in ['hash-bert', 'hash-bert-poly']:
+                self.q_alpha = self.args['q_alpha']
+                self.q_alpha_step = (self.args['q_alpha_max'] - self.args['q_alpha']) / int(self.args['total_step'] / torch.distributed.get_world_size())
+                self.load_bert_model = self.load_bert_model_hash
+                self.train_model = self.train_model_hash
             self.set_test_interval()
             self.load_checkpoint()
         else:
@@ -29,10 +28,7 @@ class RepresentationAgent(RetrievalBaseAgent):
         self.show_parameters(self.args)
 
     def load_bert_model_hash(self, path):
-        # TODO:
-        return 
         state_dict = torch.load(path, map_location=torch.device('cpu'))
-        # collect ctx_encoder and can_encoder parameters
         ctx_state_dict = OrderedDict()
         can_state_dict = OrderedDict()
         for k, v in state_dict.items():
@@ -44,7 +40,6 @@ class RepresentationAgent(RetrievalBaseAgent):
                 can_state_dict[k] = v
             else:
                 raise Exception(f'[!] Unexcepted parameter: {k}')
-
         self.model.ctx_encoder.load_state_dict(ctx_state_dict)
         self.model.can_encoder.load_state_dict(can_state_dict)
         # freeze some layers in hash bert (only fine-tune partial parameters)
@@ -58,17 +53,17 @@ class RepresentationAgent(RetrievalBaseAgent):
     
     def train_model_hash(self, train_iter, test_iter, recoder=None, idx_=0):
         self.model.train()
-        total_loss, total_hash_acc, batch_num = 0, 0, 0
-        total_p_loss, total_h_loss, total_q_loss, total_ref_loss = 0, 0, 0, 0
-        total_ref_acc = 0
+        total_loss, batch_num = 0, 0
+        total_h_loss, total_q_loss = 0, 0 
+        total_acc = 0
         pbar = tqdm(train_iter)
         correct, s, oom_t = 0, 0, 0
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
             with autocast():
-                ref_loss, preserved_loss, hash_loss, quantization_loss, ref_acc, hash_acc = self.model(batch)
+                hash_loss, quantization_loss, acc = self.model(batch)
                 quantization_loss *= self.q_alpha
-                loss = ref_loss + preserved_loss + hash_loss + quantization_loss
+                loss = hash_loss + quantization_loss
                 self.q_alpha += self.q_alpha_step
             self.scaler.scale(loss).backward()
             self.scaler.unscale_(self.optimizer)
@@ -79,12 +74,9 @@ class RepresentationAgent(RetrievalBaseAgent):
             self.scheduler.step()
 
             total_loss += loss.item()
-            total_ref_loss += ref_loss.item()
-            total_p_loss += preserved_loss.item()
             total_q_loss += quantization_loss.item()
             total_h_loss += hash_loss.item()
-            total_hash_acc += hash_acc
-            total_ref_acc += ref_acc
+            total_acc += acc
             batch_num += 1
 
             if batch_num in self.args['test_step']:
@@ -93,28 +85,19 @@ class RepresentationAgent(RetrievalBaseAgent):
             recoder.add_scalar(f'train-epoch-{idx_}/q_alpha', self.q_alpha, idx)
             recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
             recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/RefLoss', total_ref_loss/batch_num, idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/RunRefLoss', ref_loss.item(), idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/PreservedLoss', total_p_loss/batch_num, idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/RunPreservedLoss', preserved_loss.item(), idx)
             recoder.add_scalar(f'train-epoch-{idx_}/HashLoss', total_h_loss/batch_num, idx)
             recoder.add_scalar(f'train-epoch-{idx_}/RunHashLoss', hash_loss.item(), idx)
             recoder.add_scalar(f'train-epoch-{idx_}/QuantizationLoss', total_q_loss/batch_num, idx)
             recoder.add_scalar(f'train-epoch-{idx_}/RunQuantizationLoss', quantization_loss.item(), idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/HashAcc', total_hash_acc/batch_num, idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/RunHashAcc', hash_acc, idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/RefAcc', total_ref_acc/batch_num, idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/RunRefAcc', ref_acc, idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
              
-            pbar.set_description(f'[!] loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(ref_acc, 4)}|{round(total_ref_acc/batch_num, 4)}')
+            pbar.set_description(f'[!] loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
 
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
-        recoder.add_scalar(f'train-whole/RefLoss', total_ref_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/QLoss', total_q_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/HLoss', total_h_loss/batch_num, idx_)
-        recoder.add_scalar(f'train-whole/PLoss', total_p_loss/batch_num, idx_)
-        recoder.add_scalar(f'train-whole/HashAcc', total_hash_acc/batch_num, idx_)
-        recoder.add_scalar(f'train-whole/RefAcc', total_ref_acc/batch_num, idx_)
+        recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
         return round(total_loss / batch_num, 4)
     
     def train_model(self, train_iter, test_iter, recoder=None, idx_=0):

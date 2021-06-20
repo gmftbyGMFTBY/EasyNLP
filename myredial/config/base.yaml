@@ -16,7 +16,7 @@ pretrained_model:
     en: bert-base-uncased
 
 # the number of the gray negative samples (writer dataset)
-gray_cand_num: 2
+gray_cand_num: 0
 xlm: false
 
 models:
@@ -27,7 +27,13 @@ models:
     hash-bert: 
         type: Representation
         model_name: HashBERTDualEncoder
-        dataset_name: BERTDualFullWithNegDataset
+        # dataset_name: BERTDualFullWithNegDataset
+        dataset_name: BERTDualDataset
+    hash-bert-poly: 
+        type: Representation
+        model_name: HashBERTPolyDualEncoder
+        # dataset_name: BERTDualFullWithNegDataset
+        dataset_name: BERTDualDataset
     xlm-dual-bert: 
         type: XLM
         model_name: XLMDualEncoder

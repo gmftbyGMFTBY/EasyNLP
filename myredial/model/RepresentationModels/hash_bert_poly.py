@@ -1,11 +1,33 @@
 from model.utils import *
 
-class HashBERTDualEncoder(nn.Module):
+class BertEmbedding(nn.Module):
+    
+    def __init__(self, model='bert-base-chinese'):
+        super(BertEmbedding, self).__init__()
+        self.model = BertModel.from_pretrained(model)
+        self.model.resize_token_embeddings(self.model.config.vocab_size+1)
+
+    def forward(self, ids, attn_mask, speaker_type_ids=None):
+        embds = self.model(ids, attention_mask=attn_mask)[0]
+        return embds    # [B, S, E]
+
+    def load_bert_model(self, state_dict):
+        # load the post train checkpoint from BERT-FP (NAACL 2021)
+        new_state_dict = OrderedDict()
+        for k, v in state_dict.items():
+            new_state_dict[k] = v
+        # position_ids
+        new_state_dict['embeddings.position_ids'] = torch.arange(512).expand((1, -1))
+        self.model.load_state_dict(new_state_dict)
+
+
+class HashBERTPolyDualEncoder(nn.Module):
     
     def __init__(self, **args):
-        super(HashBERTDualEncoder, self).__init__()
+        super(HashBERTPolyDualEncoder, self).__init__()
         self.args = args
         self.hash_code_size = args['hash_code_size']
+        self.hash_head_num = args['hash_head_num']
         self.hidden_size = args['hidden_size']
         model = args['pretrained_model']
         self.gray_num = args['gray_cand_num']
@@ -18,10 +40,12 @@ class HashBERTDualEncoder(nn.Module):
         # dual bert pre-trained model
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
+        self.queries = nn.Embedding(self.hash_head_num, 768)
+        self.register_buffer('queries_index', torch.arange(self.hash_head_num))
         
         gpu_ids = str(args['trainable_bert_layers'])
         self.trainable_layers = [f'encoder.layer.{i}' for i in gpu_ids.split(',')]
-        inpt_size = self.ctx_encoder.model.config.hidden_size
+        inpt_size = self.ctx_encoder.model.config.hidden_size * self.hash_head_num
         self.ctx_hash_encoder = nn.Sequential(
             nn.Linear(inpt_size, self.hidden_size),
             nn.LeakyReLU(),
@@ -122,8 +146,11 @@ class HashBERTDualEncoder(nn.Module):
         else:
             raise Exception(f'[!] Unknow batch data')
 
-        cid_rep = self.ctx_encoder(cid.unsqueeze(0), None)
+        cid = cid.unsqueeze(0)
+        cid_rep = self.ctx_encoder(cid, None)
         rid_rep = self.can_encoder(rid, rid_mask)
+        cid_rep = self._encode(cid_rep, torch.ones_like(cid))
+        rid_rep = self._encode(rid_rep, rid_mask)
 
         # [768]; [B, 768] -> [H]; [B, H]
         ctx_hash_code = torch.sign(self.ctx_hash_encoder(cid_rep))    # [1, Hash]
@@ -132,6 +159,27 @@ class HashBERTDualEncoder(nn.Module):
         # minimal distance -> better performance 
         distance = -0.5 * (self.hash_code_size - matrix)    # hamming distance: ||b_i, b_j||_{H} = 0.5 * (K - b_i^Tb_j); distance: [B]
         return distance
+
+    def _encode(self, rep, mask):
+        # rep: [B, S, E], ids/mask: [B, S]
+        queries = self.queries(self.queries_index)     # [M, E]
+        scores = torch.matmul(rep, queries.transpose(0, 1))
+        scores = scores.permute(0, 2, 1)    # [B, M, S]
+
+        padding_mask = torch.where(
+            mask == 0,
+            torch.ones_like(mask),
+            torch.zeros_like(mask),
+        )
+        padding_mask = padding_mask.unsqueeze(1).repeat(1, self.hash_head_num, 1).to(torch.float)    # [B, M, S]
+        padding_mask *= -1e3
+        scores += padding_mask
+        scores = F.softmax(scores, dim=-1)
+        embds = torch.bmm(scores, rep)    # [B, M, E]
+        
+        batch_size = embds.shape[0]
+        embds = embds.view(batch_size, -1)    # [B, M*E]
+        return embds
         
     def forward(self, batch):
         if 'context' in batch and 'responses' in batch:
@@ -149,6 +197,8 @@ class HashBERTDualEncoder(nn.Module):
 
         cid_rep = self.ctx_encoder(cid, cid_mask)
         rid_rep = self.can_encoder(rid, rid_mask)
+        cid_rep = self._encode(cid_rep, cid_mask)    # [B, M*E]
+        rid_rep = self._encode(rid_rep, rid_mask)
         
         batch_size = cid_rep.shape[0]
 
