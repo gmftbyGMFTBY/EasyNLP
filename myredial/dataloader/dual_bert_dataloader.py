@@ -40,15 +40,19 @@ class BERTDualDataset(Dataset):
             for i in tqdm(range(0, len(data), 10)):
                 batch = data[i:i+10]
                 rids = []
-                for item in batch:
-                    item = self.vocab.batch_encode_plus([item[1], item[2]])
+                gt_text = []
+                for item_ in batch:
+                    item = self.vocab.batch_encode_plus([item_[1], item_[2]])
                     ids = item['input_ids'][0]
                     rids.append(item['input_ids'][1])
+                    if item_[0] == 1:
+                        gt_text.append(item_[2])
                 ids, rids = self._length_limit(ids), [self._length_limit_res(rids_) for rids_ in rids]
                 self.data.append({
                     'label': [b[0] for b in batch],
                     'ids': ids,
                     'rids': rids,
+                    'text': gt_text,
                 })    
                 
     def _length_limit(self, ids):
@@ -75,7 +79,7 @@ class BERTDualDataset(Dataset):
         else:
             ids = torch.LongTensor(bundle['ids'])
             rids = [torch.LongTensor(i) for i in bundle['rids']]
-            return ids, rids, bundle['label']
+            return ids, rids, bundle['label'], bundle['text']
 
     def save(self):
         data = torch.save(self.data, self.pp_path)
@@ -108,6 +112,7 @@ class BERTDualDataset(Dataset):
             assert len(batch) == 1
             batch = batch[0]
             ids, rids, label = batch[0], batch[1], batch[2]
+            text = batch[3]
             rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
             rids_mask = self.generate_mask(rids)
             label = torch.LongTensor(label)
@@ -117,7 +122,8 @@ class BERTDualDataset(Dataset):
                 'ids': ids, 
                 'rids': rids, 
                 'rids_mask': rids_mask, 
-                'label': label
+                'label': label,
+                'text': text
             }
 
 

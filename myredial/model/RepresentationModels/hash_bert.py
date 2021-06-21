@@ -11,6 +11,7 @@ class HashBERTDualEncoder(nn.Module):
         self.gray_num = args['gray_cand_num']
         dropout = args['dropout']
         self.hash_loss_scale = args['hash_loss_scale']
+        self.kl_loss_scale = args['kl_loss_scale']
         self.vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
@@ -27,17 +28,34 @@ class HashBERTDualEncoder(nn.Module):
             nn.LeakyReLU(),
             nn.Dropout(p=dropout),
             nn.Linear(self.hidden_size, self.hash_code_size),
-            # nn.Tanh(),
+            nn.Tanh(),
         )
         self.can_hash_encoder = nn.Sequential(
             nn.Linear(inpt_size, self.hidden_size),
             nn.LeakyReLU(),
             nn.Dropout(p=dropout),
             nn.Linear(self.hidden_size, self.hash_code_size),
-            # nn.Tanh(),
+            nn.Tanh(),
+        )
+        self.ctx_hash_decoder = nn.Sequential(
+            nn.Linear(self.hash_code_size, self.hidden_size),
+            nn.LeakyReLU(),
+            nn.Dropout(p=dropout),
+            nn.Linear(self.hidden_size, inpt_size),
+            nn.Tanh(),
+        )
+        self.can_hash_decoder = nn.Sequential(
+            nn.Linear(self.hash_code_size, self.hidden_size),
+            nn.LeakyReLU(),
+            nn.Dropout(p=dropout),
+            nn.Linear(self.hidden_size, inpt_size),
+            nn.Tanh(),
         )
 
     def freeze_some_layers(self):
+        if self.args['trainable_bert_layers'] == 'all':
+            print(f'[!] DONOT Freeze the parameters of the bert')
+            return
         # freeze context encoder parameters
         for key, param in self.ctx_encoder.named_parameters():
             for trainable_name in self.trainable_layers:
@@ -54,6 +72,17 @@ class HashBERTDualEncoder(nn.Module):
                 param.requires_grad_(False)
         print(f'[!] freeze the paremeters in some layers')
 
+    def compact_binary_vectors(self, ids):
+        # ids: [B, D]
+        ids = ids.cpu().numpy().astype('int')
+        ids = np.split(ids, int(ids.shape[-1]/8), axis=-1)
+        ids = np.ascontiguousarray(
+            np.stack(
+                [np.packbits(i) for i in ids]    
+            ).transpose().astype('uint8')
+        )
+        return ids
+
     @torch.no_grad()
     def get_cand(self, ids, ids_mask):
         self.can_encoder.eval()
@@ -64,6 +93,8 @@ class HashBERTDualEncoder(nn.Module):
             torch.zeros_like(hash_code), 
             hash_code,
         )
+        hash_code = self.compact_binary_vectors(hash_code)
+        hash_code = torch.from_numpy(hash_code)
         return hash_code
     
     @torch.no_grad()
@@ -76,6 +107,7 @@ class HashBERTDualEncoder(nn.Module):
             torch.zeros_like(hash_code), 
             hash_code,
         )
+        hash_code = self.compact_binary_vectors(hash_code)
         return hash_code
 
     def _length_limit(self, ids):
@@ -154,6 +186,13 @@ class HashBERTDualEncoder(nn.Module):
 
         ctx_hash_code = self.ctx_hash_encoder(cid_rep)    # [B, H]
         can_hash_code = self.can_hash_encoder(rid_rep)    # [B*gray, H]
+        ctx_hash_code_re = self.ctx_hash_decoder(ctx_hash_code)    # [B, H]
+        can_hash_code_re = self.can_hash_decoder(can_hash_code)    # [B*gray, H]
+
+        # ===== KL Divergence ===== #
+        kl_loss = F.cosine_similarity(ctx_hash_code_re, cid_rep, -1).mean()
+        kl_loss += F.cosine_similarity(can_hash_code_re, rid_rep, -1).mean()
+        kl_loss = - kl_loss * self.kl_loss_scale
 
         # ===== calculate quantization loss ===== #
         ctx_hash_code_h, can_hash_code_h = torch.sign(ctx_hash_code).detach(), torch.sign(can_hash_code).detach()
@@ -172,4 +211,4 @@ class HashBERTDualEncoder(nn.Module):
         acc_num = (hamming_distance.min(dim=-1)[1] == torch.LongTensor(torch.arange(0, len(rid), self.gray_num+1)).cuda()).sum().item()
         acc = acc_num / batch_size
 
-        return hash_loss, quantization_loss, acc
+        return kl_loss, hash_loss, quantization_loss, acc

@@ -6,7 +6,7 @@ trainable_bert_layers: 12
 q_alpha: 0.0001
 q_alpha_max: 0.1
 hash_loss_scale: 1
-hash_head_num: 10
+hash_head_num: 5
 
 # train configuration
 train:

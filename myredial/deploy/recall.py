@@ -7,9 +7,11 @@ from inference import Searcher
 
 def init_recall(args):
     searcher = Searcher(args['index_type'], dimension=args['dimension'])
+    model_name = args['model_name']
+    pretrained_model_name = args['pretrained_model']
     searcher.load(
-        f'{args["root_dir"]}/data/{args["dataset"]}/context_faiss.ckpt',
-        f'{args["root_dir"]}/data/{args["dataset"]}/context_corpus.ckpt',
+        f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_faiss.ckpt',
+        f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt',
     )
     print(f'[!] load faiss over')
     agent = load_model(args) 

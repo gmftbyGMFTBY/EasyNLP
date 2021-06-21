@@ -54,16 +54,16 @@ class RepresentationAgent(RetrievalBaseAgent):
     def train_model_hash(self, train_iter, test_iter, recoder=None, idx_=0):
         self.model.train()
         total_loss, batch_num = 0, 0
-        total_h_loss, total_q_loss = 0, 0 
+        total_h_loss, total_q_loss, total_kl_loss = 0, 0, 0
         total_acc = 0
         pbar = tqdm(train_iter)
         correct, s, oom_t = 0, 0, 0
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
             with autocast():
-                hash_loss, quantization_loss, acc = self.model(batch)
+                kl_loss, hash_loss, quantization_loss, acc = self.model(batch)
                 quantization_loss *= self.q_alpha
-                loss = hash_loss + quantization_loss
+                loss = kl_loss + hash_loss + quantization_loss
                 self.q_alpha += self.q_alpha_step
             self.scaler.scale(loss).backward()
             self.scaler.unscale_(self.optimizer)
@@ -74,6 +74,7 @@ class RepresentationAgent(RetrievalBaseAgent):
             self.scheduler.step()
 
             total_loss += loss.item()
+            total_kl_loss += kl_loss.item()
             total_q_loss += quantization_loss.item()
             total_h_loss += hash_loss.item()
             total_acc += acc
@@ -85,6 +86,8 @@ class RepresentationAgent(RetrievalBaseAgent):
             recoder.add_scalar(f'train-epoch-{idx_}/q_alpha', self.q_alpha, idx)
             recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
             recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/KLLoss', total_kl_loss/batch_num, idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/RunKLLoss', kl_loss.item(), idx)
             recoder.add_scalar(f'train-epoch-{idx_}/HashLoss', total_h_loss/batch_num, idx)
             recoder.add_scalar(f'train-epoch-{idx_}/RunHashLoss', hash_loss.item(), idx)
             recoder.add_scalar(f'train-epoch-{idx_}/QuantizationLoss', total_q_loss/batch_num, idx)
@@ -92,9 +95,10 @@ class RepresentationAgent(RetrievalBaseAgent):
             recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
             recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
              
-            pbar.set_description(f'[!] loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
+            pbar.set_description(f'[!] kl_loss: {round(kl_loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
 
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
+        recoder.add_scalar(f'train-whole/KLLoss', total_kl_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/QLoss', total_q_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/HLoss', total_h_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
@@ -202,7 +206,6 @@ class RepresentationAgent(RetrievalBaseAgent):
             rid = batch['ids']
             rid_mask = batch['mask']
             text = batch['text']
-
             res = self.model.module.get_cand(rid, rid_mask).cpu()
             embds.append(res)
             texts.extend(text)

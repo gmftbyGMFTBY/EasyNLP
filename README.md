@@ -208,6 +208,12 @@ _Note:_
 * good candidates (pre-extract=20, topk=10) provide  better R10@1 and R10@2, hopeful!
 * context max length 256, response max length 128
 
+| Model (CPU)            | Top-20 | Top-100 | Average Time(20) ms |
+| ---------------------- | ------ | ------- | ------------------- |
+| dual-bert-flat         | 0.078  | 0.1634  | 255.63              |
+| dual-bert-IVF8192,Flat | 0.057  | 0.0795  | 16.91               |
+| hash-bert-flat         | 0.045  | 0.1109  | 13.43               |
+
 <!--the influence of the number of the negative samples, max_len=256/64
 It can be found that the number of the negative samples has the limited performance gain
 it can also be found that the hard negative samples seems has the limited performance gain on the dual-encoder model
@@ -216,10 +222,17 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 | Original           | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   |
 | ------------------ | ----- | ----- | ----- | ----- | ----- | ------ |
 | dual-bert          | 30.42 | 50.61 | 82.6  | 65.64 | 48.28 | 61.46  |
+| hash-bert-poly(head=10)    | 25.67 | 42.65 | 75.36 | 59.78 | 41.68 | 54.83  |
+| hash-bert-poly(head=5)     | 25.96 | 43.24 | 75.01 | 59.64 | 41.23 | 55.15  |
 | hash-bert-256      | 26.49 | 44.53 | 77.27 | 60.79 | 42.58 | 56.63  |
+| hash-bert-128-(q_alpha=0.1)| 27.81 | 44.47 | 78.17 | 61.6 | 44.23 | 57.25  |
 | hash-bert-128      | 27.9  | 45.01 | 77.44 | 61.95 | 44.23 | 57.55  |
+| hash-bert-128-hsz(1024) | 27.3 | 44.15 | 77.54 | 61.3 | 43.63 | 57.04  |
+| hash-bert-64-kl-div| 28.7 | 44.75 | 77.09 | 62.11 | 44.83 | 57.67 |
+| hash-bert-64-kl-div(scale=50)| 27.85 | 45.71 | 78.18 | 62.04 | 43.93 | 57.65 |
+| hash-bert-64-ft(11)| 27.37 | 43.19 | 78.31 | 61.24 | 43.93 | 56.48  |
 | hash-bert-128-epoch10 | 27.6 | 45.51 | 77.79 | 61.58 | 43.48 | 57.33|
-| hash-bert-128-5e-3 |  | | | | |  |
+| hash-bert-128-5e-3-epoch10 | 26.57 | 42.11 | 73.56 | 59.26 | 41.68 |55.11  |
 | hash-bert-128-tanh | 26.62 | 44.56 | 76.67 | 60.81 | 42.57 | 56.64  |
 | hash-bert-ft(5e-4) | 26.19 | 44.63 | 76.49 | 60.35 | 42.13 | 56     |
 | hash-bert-ft(5e-5) | 27.89 | 43.53 | 76.54 | 61.69 | 44.83 | 56.8   |
