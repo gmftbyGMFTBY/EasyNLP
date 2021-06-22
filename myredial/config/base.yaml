@@ -89,10 +89,12 @@ deploy:
     host: '0.0.0.0'
     port: 22335
     dataset: writer
+    max_len: 256
+    res_max_len: 64
     recall:
-        model: dual-bert-gray-full
+        model: dual-bert-gray-writer
         topk: 100
-        index_type: IVF100,PQ16
+        index_type: LSH
         dimension: 768
     rerank:
-        model: dual-bert
+        model: dual-bert-gray-writer

@@ -52,26 +52,20 @@ def create_app():
             ]
         }
         '''
-        time_begin = time.time()
-        core_time_begin = time.time()
         try:
             data = request.json
-            rest = rerankagent.work(data['segment_list'])
+            rest, core_time = rerankagent.work(data['segment_list'])
             succ = True
         except Exception as error:
+            core_time = 0
             print(error)
             succ = False
-        core_time_end = time.time()
-        time_end = time.time()
-
 
         # packup
         result = {
             'header': {
-                'time_cost_ms': 1000 * (time_end - time_begin),
-                'time_cost': time_end - time_begin,
-                'core_time_cost_ms': 1000 * (core_time_end - core_time_begin),
-                'core_time_cost': core_time_end - core_time_begin,
+                'core_time_cost_ms': 1000 * core_time,
+                'core_time_cost': core_time,
                 'ret_code': 'succ' if succ else 'fail',
             }, 
         }
@@ -120,29 +114,25 @@ def create_app():
             ]
         }
         '''
-        time_begin = time.time()
-        core_time_begin = time.time()
         try:
             data = request.json
-            candidates = recallagent.work(data['segment_list'])
+            candidates, core_time = recallagent.work(data['segment_list'])
             succ = True
         except Exception as error:
+            core_time = 0
             print(error)
             succ = False
-        core_time_end = time.time()
-        time_end = time.time()
 
         # packup
         result = {
             'header': {
-                'time_cost_ms': 1000 * (time_end - time_begin),
-                'time_cost': time_end - time_begin,
-                'core_time_cost_ms': 1000 * (core_time_end - core_time_begin),
-                'core_time_cost': core_time_end - core_time_begin,
+                'core_time_cost_ms': 1000 * core_time,
+                'core_time_cost': core_time,
                 'ret_code': 'succ' if succ else 'fail',
             }, 
         }
         if succ:
+            contexts = [i['str'] for i in data['segment_list']]
             rest = [{'context': c, 'candidates': rs} for c, rs in zip(contexts, candidates)]
             result['item_list'] = rest
         else:

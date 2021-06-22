@@ -3,11 +3,12 @@ from model import *
 from config import *
 from dataloader import *
 from inference import Searcher
+from .utils import *
 
 
 def init_recall(args):
     searcher = Searcher(args['index_type'], dimension=args['dimension'])
-    model_name = args['model_name']
+    model_name = args['model']
     pretrained_model_name = args['pretrained_model']
     searcher.load(
         f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_faiss.ckpt',
@@ -28,9 +29,11 @@ class RecallAgent:
         self.searcher, self.agent = init_recall(args)
         self.args = args
 
-    def work(self, batch):
+    @timethis
+    def work(self, batch, topk=None):
         '''batch: a list of string (query)'''
         batch = [i['str'] for i in batch]
         vectors = self.agent.encode_queries(batch)    # [B, E]
-        rest = self.searcher._search(vectors, topk=self.args['topk'])
+        topk = topk if topk else self.args['topk']
+        rest = self.searcher._search(vectors, topk=topk)
         return rest

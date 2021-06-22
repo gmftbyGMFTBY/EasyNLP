@@ -9,6 +9,7 @@ def parser_args():
     parser.add_argument('--model', type=str)
     parser.add_argument('--local_rank', type=int)
     parser.add_argument('--nums', type=int)
+    parser.add_argument('--cut_size', type=int, default=500000)
     return parser.parse_args()
 
 
@@ -54,6 +55,11 @@ class Searcher:
         with open(path_corpus, 'rb') as f:
             self.corpus = joblib.load(f)
 
+    def add(self, vectors, texts):
+        self.searcher.add(vectors)
+        self.corpus.extend(texts)
+        print(f'[!] add {len(texts)} dataset over')
+
 
 def inference(**args):
     torch.cuda.set_device(args['local_rank'])
@@ -74,8 +80,7 @@ def inference(**args):
     agent = load_model(args)
     pretrained_model_name = args['pretrained_model'].replace('/', '_')
     agent.load_model(f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}.pt')
-    agent.inference(data_iter)
-
+    agent.inference(data_iter, size=args['cut_size'])
 
 if __name__ == "__main__":
     args = vars(parser_args())
@@ -84,23 +89,48 @@ if __name__ == "__main__":
     args.update(config)
     print('inference', args) 
     
-    inference(**args)
+    # inference(**args)
 
     # barries
-    torch.distributed.barrier()
-
-    if args['local_rank'] == 0:
+    # torch.distributed.barrier()
+    args['local_rank'] = -1
+    if args['local_rank'] == -1:
         embds, texts = [], []
+        already_added = []
         for i in tqdm(range(args['nums'])):
-            embd, text = torch.load(
-                f'{args["root_dir"]}/data/{args["dataset"]}/inference_{i}.pt'
-            )
-            embds.append(embd)
-            texts.extend(text)
-        embds = np.concatenate(embds)
-        
+            for idx in range(100):
+                try:
+                    embd, text = torch.load(
+                        f'{args["root_dir"]}/data/{args["dataset"]}/inference_{i}_{idx}.pt'
+                    )
+                    print(f'[!] load {args["root_dir"]}/data/{args["dataset"]}/inference_{i}_{idx}.pt')
+                except:
+                    break
+                embds.append(embd)
+                texts.extend(text)
+                already_added.append((i, idx))
+            if len(embds) > 10000000:
+                break
+        embds = np.concatenate(embds) 
         searcher = Searcher(args['index_type'], dimension=args['dimension'])
         searcher._build(embds, texts)
+        print(f'[!] train the searcher over')
+
+        # add the external dataset
+        for i in tqdm(range(args['nums'])):
+            for idx in range(100):
+                if (i, idx) in already_added:
+                    continue
+                try:
+                    embd, text = torch.load(
+                        f'{args["root_dir"]}/data/{args["dataset"]}/inference_{i}_{idx}.pt'
+                    )
+                    print(f'[!] load {args["root_dir"]}/data/{args["dataset"]}/inference_{i}_{idx}.pt')
+                except:
+                    break
+                searcher.add(embd, text)
+        print(f'[!] total samples: {searcher.searcher.ntotal}')
+
         model_name = args['model']
         pretrained_model_name = args['pretrained_model']
         searcher.save(

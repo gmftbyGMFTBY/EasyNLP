@@ -10,13 +10,12 @@ train:
     smoothing: 0.1
     seed: 50
     batch_size: 32
-    max_len: 256
-    res_max_len: 64
-    epoch: 5
+    max_len: 64
+    epoch: 10
     warmup_ratio: 0.1
     checkpoint: 
         path: bert-post/best_nspmlm.pt
-        is_load: false
+        is_load: true
 
 # test configuration
 test:

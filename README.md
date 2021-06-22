@@ -208,10 +208,12 @@ _Note:_
 * good candidates (pre-extract=20, topk=10) provide  better R10@1 and R10@2, hopeful!
 * context max length 256, response max length 128
 
-| Model (CPU)            | Top-20 | Top-100 | Average Time(20) ms |
+| Model (CPU/68w)        | Top-20 | Top-100 | Average Time(20) ms |
 | ---------------------- | ------ | ------- | ------------------- |
 | dual-bert-flat         | 0.078  | 0.1634  | 255.63              |
 | dual-bert-IVF8192,Flat | 0.057  | 0.0795  | 16.91               |
+| dual-bert-IVF100,Flat  | 0.0675 | 0.1199  | 29.62               |
+| dual-bert-LSH          | 0.1139 | 0.1934  | 20.36               |
 | hash-bert-flat         | 0.045  | 0.1109  | 13.43               |
 
 <!--the influence of the number of the negative samples, max_len=256/64
@@ -363,7 +365,7 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 
 | Models                              | R10@1 | R10@2 | R10@5 | MRR   |
 | ----------------------------------- | ----- | ----- | ----- | ----- |
-| bert-base-chinese (dual-bert-gray-writer) | 61.73 | 76.8 | 93.51 | 74.87 |
+| bert-base-chinese (dual-bert-gray-writer) | 66.12 | 79.9 | 94.37 | 77.88 |
 | bert-base-chinese (dual-bert|g=2)   | 56.32 | 73.06 | 92.67 | 71.22 |
 | bert-base-chinese (dual-bert|g=5)   |  |  |  |  |
 | bert-base-chinese (dual-bert|g=10)  |  |  |  |  |

@@ -32,6 +32,22 @@ class BERTDualGrayFullEncoder(nn.Module):
     def get_ctx(self, ids, attn_mask):
         cid_rep = self.ctx_encoder(ids, attn_mask)
         return cid_rep
+    
+    @torch.no_grad()
+    def predict_batch(self, batch, num_cand=10):
+        '''predict batch; big test dataset must use batch predict, or test procedure is so slow'''
+        context = batch['context']
+        responses = batch['responses']
+        cid, cid_mask = self.totensor(context, ctx=True)
+        rid, rid_mask = self.totensor(responses, ctx=False) 
+
+        cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
+        # cid_rep: [B, E]; rid_rep: [B*10, E]
+        rid_reps = torch.stack(torch.split(rid_rep, num_cand, dim=0))   # [B, 10, E]
+        cid_rep = cid_rep.unsqueeze(1)    # [B, 1, E]
+        rid_reps = rid_reps.permute(0, 2, 1)    # [B, E, 10]
+        dot_product = torch.bmm(cid_rep, rid_reps).squeeze(1)    # [B, 10]
+        return dot_product.view(-1)
 
     @torch.no_grad()
     def predict(self, batch):

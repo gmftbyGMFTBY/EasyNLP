@@ -3,6 +3,7 @@ from model import *
 from config import *
 from dataloader import *
 from inference import Searcher
+from .utils import *
 
 
 class RerankAgent:
@@ -14,6 +15,7 @@ class RerankAgent:
         self.agent.load_model(save_path)
         self.args = args
 
-    def work(self, batch):
-        scores = self.agent.rerank(batch)
+    @timethis
+    def work(self, batches):
+        scores = self.agent.rerank(batches)
         return scores

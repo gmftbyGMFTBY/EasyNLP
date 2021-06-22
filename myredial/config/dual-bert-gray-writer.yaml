@@ -25,6 +25,6 @@ inference:
     seed: 50
     batch_size: 512
     max_len: 64
-    index_type: IVF100,PQ16
+    index_type: LSH
     dimension: 768
     topk: 100

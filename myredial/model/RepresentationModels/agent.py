@@ -198,7 +198,8 @@ class RepresentationAgent(RetrievalBaseAgent):
         }
 
     @torch.no_grad()
-    def inference(self, inf_iter):
+    def inference(self, inf_iter, size=500000):
+        '''1 million cut'''
         self.model.eval()
         pbar = tqdm(inf_iter)
         embds, texts = [], []
@@ -210,10 +211,14 @@ class RepresentationAgent(RetrievalBaseAgent):
             embds.append(res)
             texts.extend(text)
         embds = torch.cat(embds, dim=0).numpy()
-        torch.save(
-            (embds, texts), 
-            f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["local_rank"]}.pt'
-        )
+
+        for idx, i in enumerate(range(0, len(embds), size)):
+            embd = embds[i:i+size]
+            text = texts[i:i+size]
+            torch.save(
+                (embd, text), 
+                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["local_rank"]}_{idx}.pt'
+            )
 
     def generate_mask(self, ids):
         attn_mask_index = ids.nonzero().tolist()   # [PAD] IS 0
@@ -247,33 +252,14 @@ class RepresentationAgent(RetrievalBaseAgent):
         return vectors.cpu().numpy()
 
     @torch.no_grad()
-    def rerank_one_sample(self, batch):
-        self.model.eval()
-        context_text = batch['context']
-        candidates_text = batch['candidates']
-
-        ids = torch.LongTensor(self.vocab.encode(context_text))
-            
-        rids = [torch.LongTensor(self.vocab.encode(text)) for text in candidates_text]
-        rids = pad_sequence(rids, batch_first=True, padding_value=self.vocab.pad_token_id)
-        rids_mask = self.generate_mask(rids)
-        if torch.cuda.is_available():
-            ids, rids, rids_mask = ids.cuda(), rids.cuda(), rids_mask.cuda()
-
-        # scores
-        batch = {
-            'ids': ids,
-            'rids': rids,
-            'rids_mask': rids_mask,
-        }
-        scores = self.model.predict(batch)
-        return scores
-
-    @torch.no_grad()
     def rerank(self, batches):
         self.model.eval()
         scores = []
         for batch in batches:
-            scores.append(self.rerank_one_sample(batch).tolist())
+            # compatible for the predict function
+            batch['responses'] = batch['candidates']
+            scores.append(
+                self.model.predict(batch).tolist()
+            )
         return scores
 
