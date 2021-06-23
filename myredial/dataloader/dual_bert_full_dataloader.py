@@ -117,5 +117,6 @@ class BERTDualFullWithNegDataset(Dataset):
             return {
                 'context': context, 
                 'responses': responses, 
-                'label': label
+                'label': label,
+                'text': [responses[0]],    # this item will be used for test_recall script
             }

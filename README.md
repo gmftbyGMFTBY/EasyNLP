@@ -208,8 +208,10 @@ _Note:_
 * good candidates (pre-extract=20, topk=10) provide  better R10@1 and R10@2, hopeful!
 * context max length 256, response max length 128
 
-| Model (CPU/68w)        | Top-20 | Top-100 | Average Time(20) ms |
+| Model (CPU/684208)     | Top-20 | Top-100 | Average Time(20) ms |
 | ---------------------- | ------ | ------- | ------------------- |
+| dual-bert-cl-flat      | 0.1124 | 0.2129  | 204.85              |
+| dual-bert-cl-LSH       | 0.099  | 0.1994  | 13.51               |
 | dual-bert-flat         | 0.078  | 0.1634  | 255.63              |
 | dual-bert-IVF8192,Flat | 0.057  | 0.0795  | 16.91               |
 | dual-bert-IVF100,Flat  | 0.0675 | 0.1199  | 29.62               |
@@ -249,8 +251,9 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 | bert-ft(512)       | 32.27 | 53.87 | 85.64 | 67.86 | 50.52 | 64.24  |
 | poly encoder(poly-m=32)  | 31.76 | 50.59 | 85.72 | 66.49 | 49.48 | 62.84  |
 | dual-bert(bsz=32, epoch=5, poly-m=32) | 30.55 | 46.93 | 81.16 | 64.45 | 48.43  | 60.34 |
-| dual-bert-layer(bsz=32, epoch=5, bert-fp) | 28.95 | 50.41 | 83.2 | 64.99 | 46.93  | 60.7 |
 | dual-bert(bsz=32, epoch=5, bert-fp) | 31.42 | 51.6 | 83.46 | 66.41 | 49.48  | 62.22 |
+| dual-bert-cl(bsz=48, epoch=5, bert-fp) | 30.25 | 50.69| 82.44 | 65.49 | 48.13  | 61.25 |
+| dual-bert-cl(bsz=32, epoch=5, bert-fp) |  | | |  |  | |
 | dual-bert-cb(bsz=32, epoch=5, bert-fp) | 31.29 | 49.45 | 81.51 | 65.92 | 49.18  | 61.39 |
 | dual-bert(bsz=32, epoch=5, bert-fp, proj_dim=1024) | 31.57 | 51.67 | 83.41 | 66.48 | 49.63  | 62.26 |
 | dual-bert(bsz=32, epoch=5, bert-fp, lambda(gen)=0.1) | 30.95 | 50.65 | 82.95 | 65.98 | 49.03  | 61.82 |
@@ -367,8 +370,8 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 <!-- Inference -->
 | Models                              | Top-20 | Top-100 | Time Cost   |
 | ----------------------------------- | ------ | ------- | ----------- |
-| dual-bert-gray-writer-LSH           |        |         |             |
-| dual-bert-gray-writer-IVF100,PQ16   |        |         |             |
+| dual-bert-gray-writer-LSH           | 0.126  | 0.193   | 529.10      |
+| dual-bert-gray-writer-HNSW32        |        |         |             |
 | hash-bert-gray-writer-BHash512      |        |         |             |
 
 | Models                              | R10@1 | R10@2 | R10@5 | MRR   |

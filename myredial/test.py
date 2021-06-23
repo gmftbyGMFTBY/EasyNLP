@@ -80,9 +80,15 @@ def main_recall(**args):
     counter, acc = 0, 0
     cost_time = []
     for batch in pbar:
-        ids = batch['ids'].unsqueeze(0)
-        ids_mask = torch.ones_like(ids)
+        if 'ids' in batch:
+            ids = batch['ids'].unsqueeze(0)
+            ids_mask = torch.ones_like(ids)
+        elif 'context' in batch:
+            ids, ids_mask = agent.model.totensor([batch['context']], ctx=True)
+        else:
+            raise Exception(f'[!] process test dataset error')
         vector = agent.model.get_ctx(ids, ids_mask)   # [E]
+
         if not searcher.binary:
             vector = vector.cpu().numpy()
 
@@ -99,6 +105,12 @@ def main_recall(**args):
                 acc += 1
                 break
         counter += 1
+        pbar.set_description(f'[!] Top-{inf_args["topk"]}: {round(acc/counter, 4)}')
+
+        # for very large corpus (test set)
+        # if counter >= 1000:
+        #     break
+
     topk_metric = round(acc/counter, 4)
     avg_time = round(np.mean(cost_time)*1000, 2)    # ms
     print(f'[!] Top-{inf_args["topk"]}: {topk_metric}')
