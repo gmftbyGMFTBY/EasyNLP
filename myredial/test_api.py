@@ -1,4 +1,5 @@
 import http.client
+import torch
 import random
 import numpy as np
 from tqdm import tqdm
@@ -90,18 +91,24 @@ if __name__ == '__main__':
 
     # recall test begin
     avg_times = []
+    recall_collections = []
     for data in tqdm(recall_data):
         data = json.dumps(data)
         rest = SendPOST('9.91.66.241', 22335, '/recall', data)
+        recall_collections.append(rest)
         avg_times.append(rest['header']['core_time_cost_ms'])
     avg_t = round(np.mean(avg_times), 4)
     print(f'[!] avg recall time cost: {avg_t} ms')
     
     # rerank test begin
     avg_times = []
+    rerank_collections = []
     for data in tqdm(rerank_data):
         data = json.dumps(data)
         rest = SendPOST('9.91.66.241', 22335, '/rerank', data)
+        rerank_collections.append(rest)
         avg_times.append(rest['header']['core_time_cost_ms'])
     avg_t = round(np.mean(avg_times), 4)
     print(f'[!] avg rerank time cost: {avg_t} ms')
+
+    torch.save((recall_collections, rerank_collections), f'{args["root_dir"]}/data/writer/test_api_log.pt')

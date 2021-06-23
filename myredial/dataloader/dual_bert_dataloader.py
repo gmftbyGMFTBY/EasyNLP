@@ -372,3 +372,141 @@ class BERTDualWithNegDataset(Dataset):
                 'rids_mask': rids_mask, 
                 'label': label
             }
+
+class BERTDualCLDataset(Dataset):
+    
+    def __init__(self, vocab, path, **args):
+        self.args = args
+        self.vocab = vocab
+
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+
+        suffix = args['tokenizer'].replace('/', '_')
+        self.pp_path = f'{os.path.splitext(path)[0]}_dualCL_{suffix}.pt'
+        if os.path.exists(self.pp_path):
+            self.data = torch.load(self.pp_path)
+            print(f'[!] load preprocessed file from {self.pp_path}')
+            return None
+
+        self.data = []
+        if self.args['mode'] == 'train':
+            data = read_text_data_utterances(path, lang=self.args['lang'])
+            for label, utterances in tqdm(data):
+                if label == 0:
+                    continue
+                context_utterances = utterances[:-1]
+                response = utterances[-1]
+                context = ' [SEP] '.join(context_utterances)
+
+                item = self.vocab.batch_encode_plus([context, response])
+                ids, rids = item['input_ids']
+                ids, rids = self._length_limit(ids), self._length_limit_res(rids)
+                self.data.append({
+                    'ids': ids,
+                    'context_utterances': context_utterances,
+                    'rids': rids,
+                })
+        else:
+            data = read_text_data_dual_bert(path, lang=self.args['lang'], xlm=self.args['xlm'])
+            for i in tqdm(range(0, len(data), 10)):
+                batch = data[i:i+10]
+                rids = []
+                gt_text = []
+                for item_ in batch:
+                    item = self.vocab.batch_encode_plus([item_[1], item_[2]])
+                    ids = item['input_ids'][0]
+                    rids.append(item['input_ids'][1])
+                    if item_[0] == 1:
+                        gt_text.append(item_[2])
+                ids, rids = self._length_limit(ids), [self._length_limit_res(rids_) for rids_ in rids]
+                self.data.append({
+                    'label': [b[0] for b in batch],
+                    'ids': ids,
+                    'rids': rids,
+                    'text': gt_text,
+                })    
+                
+    def _length_limit(self, ids):
+        # also return the speaker embeddings
+        if len(ids) > self.args['max_len']:
+            ids = [ids[0]] + ids[-(self.args['max_len']-1):]
+        return ids
+    
+    def _length_limit_res(self, ids):
+        # cut tail
+        if len(ids) > self.args['res_max_len']:
+            ids = ids[:self.args['res_max_len']-1] + [self.sep]
+        return ids
+                
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, i):
+        bundle = self.data[i]
+        if self.args['mode'] == 'train':
+            ids = torch.LongTensor(bundle['ids'])
+            rids = torch.LongTensor(bundle['rids'])
+            # random
+            context_utterances = bundle['context_utterances']
+            length = len(context_utterances) - 1
+            candidate_context_l = random.randint(0, length)
+            candidate_context = context_utterances[-1-candidate_context_l:]
+            candidate_context = ' [SEP] '.join(candidate_context)
+            ids_cand = self._length_limit(self.vocab.encode(candidate_context))
+            ids_cand = torch.LongTensor(ids_cand)
+            return ids, ids_cand, rids
+        else:
+            ids = torch.LongTensor(bundle['ids'])
+            rids = [torch.LongTensor(i) for i in bundle['rids']]
+            return ids, rids, bundle['label'], bundle['text']
+
+    def save(self):
+        data = torch.save(self.data, self.pp_path)
+        print(f'[!] save preprocessed dataset into {self.pp_path}')
+        
+    def generate_mask(self, ids):
+        attn_mask_index = ids.nonzero().tolist()   # [PAD] IS 0
+        attn_mask_index_x, attn_mask_index_y = [i[0] for i in attn_mask_index], [i[1] for i in attn_mask_index]
+        attn_mask = torch.zeros_like(ids)
+        attn_mask[attn_mask_index_x, attn_mask_index_y] = 1
+        return attn_mask
+        
+    def collate(self, batch):
+        if self.args['mode'] == 'train':
+            ids, ids_cand, rids = [i[0] for i in batch], [i[1] for i in batch], [i[2] for i in batch]
+            ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+            ids_cand = pad_sequence(ids_cand, batch_first=True, padding_value=self.pad)
+            rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
+            ids_mask = self.generate_mask(ids)
+            ids_cand_mask = self.generate_mask(ids_cand)
+            rids_mask = self.generate_mask(rids)
+            if torch.cuda.is_available():
+                ids, rids, ids_mask, rids_mask = ids.cuda(), rids.cuda(), ids_mask.cuda(), rids_mask.cuda()
+                ids_cand, ids_cand_mask = ids_cand.cuda(), ids_cand_mask.cuda()
+            return {
+                'ids': ids, 
+                'rids': rids, 
+                'ids_cand': ids_cand,
+                'ids_cand_mask': ids_cand_mask,
+                'ids_mask': ids_mask, 
+                'rids_mask': rids_mask
+            }
+        else:
+            # batch size is batch_size * 10
+            assert len(batch) == 1
+            batch = batch[0]
+            ids, rids, label = batch[0], batch[1], batch[2]
+            text = batch[3]
+            rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
+            rids_mask = self.generate_mask(rids)
+            label = torch.LongTensor(label)
+            if torch.cuda.is_available():
+                ids, rids, rids_mask, label = ids.cuda(), rids.cuda(), rids_mask.cuda(), label.cuda()
+            return {
+                'ids': ids, 
+                'rids': rids, 
+                'rids_mask': rids_mask, 
+                'label': label,
+                'text': text
+            }

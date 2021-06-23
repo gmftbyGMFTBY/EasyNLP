@@ -16,7 +16,7 @@ pretrained_model:
     en: bert-base-uncased
 
 # the number of the gray negative samples (writer dataset)
-gray_cand_num: 0
+gray_cand_num: 2
 xlm: false
 
 models:
@@ -24,56 +24,80 @@ models:
         type: Representation
         model_name: BERTDualEncoder
         dataset_name: BERTDualDataset
+        inference_dataset_name: BERTDualInferenceDataset
+    dual-bert-cl: 
+        type: Representation
+        model_name: BERTDualCLEncoder
+        dataset_name: BERTDualCLDataset
+        inference_dataset_name: BERTDualInferenceDataset
+    simcse: 
+        type: Representation
+        model_name: SimCSE
+        dataset_name: SimCSEDataset
+        inference_dataset_name: SimCSEInferenceDataset
     hash-bert: 
         type: Representation
         model_name: HashBERTDualEncoder
-        # dataset_name: BERTDualFullWithNegDataset
-        dataset_name: BERTDualDataset
+        dataset_name: BERTDualFullWithNegDataset
+        # dataset_name: BERTDualDataset
+        inference_dataset_name: BERTDualFullInferenceDataset
+        # inference_dataset_name: BERTDualInferenceDataset
     hash-bert-poly: 
         type: Representation
         model_name: HashBERTPolyDualEncoder
         # dataset_name: BERTDualFullWithNegDataset
         dataset_name: BERTDualDataset
+        inference_dataset_name: BERTDualInferenceDataset
     xlm-dual-bert: 
         type: XLM
         model_name: XLMDualEncoder
         dataset_name: BERTDualDataset
+        inference_dataset_name: BERTDualInferenceDataset
     dual-bert-cb: 
         type: Representation
         model_name: BERTDualCBEncoder
         dataset_name: BERTDualDataset
+        inference_dataset_name: BERTDualInferenceDataset
     dual-bert-gen: 
         type: Generation
         model_name: BERTSeq2SeqDualEncoder
         dataset_name: BERTDualDataset
+        inference_dataset_name: none 
     seq2seq: 
         type: Generation
         model_name: BERTSeq2SeqEncoder
         dataset_name: BERTDualDataset
+        inference_dataset_name: none 
     dual-bert-gray: 
         type: Representation
         model_name: BERTDualGrayEncoder
         dataset_name: BERTDualFullWithNegDataset
+        inference_dataset_name: BERTDualInferenceDataset
     dual-bert-gray-writer: 
         type: Representation
         model_name: BERTDualGrayFullEncoder
         dataset_name: BERTDualFullWithNegDataset
+        inference_dataset_name: BERTDualFullInferenceDataset
     dual-bert-hierarchical: 
         type: Representation
         model_name: BERTDualHierarchicalTrsEncoder
         dataset_name: BERTDualHierarchicalDataset
+        inference_dataset_name: BERTDualInferenceDataset
     bert-ft: 
         type: Interaction
         model_name: BERTRetrieval
         dataset_name: BERTWithNegDataset
+        inference_dataset_name: none
     sa-bert: 
         type: Interaction
         model_name: SABERTRetrieval 
         dataset_name: SABERTFTDataset
+        inference_dataset_name: none
     poly-encoder: 
         type: LatentInteraction
         model_name: PolyEncoder
         dataset_name: BERTDualDataset
+        inference_dataset_name: none
 
 # huge file are saved in the root dir
 root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
@@ -94,7 +118,7 @@ deploy:
     recall:
         model: dual-bert-gray-writer
         topk: 100
-        index_type: LSH
+        index_type: BHash512
         dimension: 768
     rerank:
         model: dual-bert-gray-writer

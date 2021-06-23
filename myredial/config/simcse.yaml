@@ -1,0 +1,29 @@
+smoothing: 0.1
+
+# train configuration
+train:
+    lr: 0.00005
+    grad_clip: 1.0
+    seed: 50
+    batch_size: 64
+    max_len: 256
+    epoch: 5
+    warmup_ratio: 0.1
+    checkpoint: 
+        path: bert-post/best_nspmlm.pt
+        is_load: true
+
+# test configuration
+test:
+    seed: 50
+    batch_size: 1
+    max_len: 256
+
+# inference configuration
+inference:
+    seed: 50
+    batch_size: 128
+    max_len: 256
+    topk: 100
+    index_type: Flat
+    dimension: 768

@@ -215,6 +215,7 @@ _Note:_
 | dual-bert-IVF100,Flat  | 0.0675 | 0.1199  | 29.62               |
 | dual-bert-LSH          | 0.1139 | 0.1934  | 20.36               |
 | hash-bert-flat         | 0.045  | 0.1109  | 13.43               |
+| hash-bert-BHash512     | 0.0435 | 0.1064  | 7.26                |
 
 <!--the influence of the number of the negative samples, max_len=256/64
 It can be found that the number of the negative samples has the limited performance gain
@@ -363,9 +364,17 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 
 ### 5. Writer Dataset
 
+<!-- Inference -->
+| Models                              | Top-20 | Top-100 | Time Cost   |
+| ----------------------------------- | ------ | ------- | ----------- |
+| dual-bert-gray-writer-LSH           |        |         |             |
+| dual-bert-gray-writer-IVF100,PQ16   |        |         |             |
+| hash-bert-gray-writer-BHash512      |        |         |             |
+
 | Models                              | R10@1 | R10@2 | R10@5 | MRR   |
 | ----------------------------------- | ----- | ----- | ----- | ----- |
 | bert-base-chinese (dual-bert-gray-writer) | 66.12 | 79.9 | 94.37 | 77.88 |
+| bert-base-chinese (hash-bert-gray-writer) | | | | |
 | bert-base-chinese (dual-bert|g=2)   | 56.32 | 73.06 | 92.67 | 71.22 |
 | bert-base-chinese (dual-bert|g=5)   |  |  |  |  |
 | bert-base-chinese (dual-bert|g=10)  |  |  |  |  |

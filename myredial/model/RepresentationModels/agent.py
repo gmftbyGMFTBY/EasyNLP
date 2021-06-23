@@ -48,7 +48,11 @@ class RepresentationAgent(RetrievalBaseAgent):
     def load_bert_model(self, path):
         state_dict = torch.load(path, map_location=torch.device('cpu'))
         self.model.ctx_encoder.load_bert_model(state_dict)
-        self.model.can_encoder.load_bert_model(state_dict)
+        try:
+            # simcse model doesn't have can_encoder
+            self.model.can_encoder.load_bert_model(state_dict)
+        except Exception as error:
+            print(error)
         print(f'[!] load pretrained BERT model from {path}')
     
     def train_model_hash(self, train_iter, test_iter, recoder=None, idx_=0):
@@ -147,6 +151,10 @@ class RepresentationAgent(RetrievalBaseAgent):
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
         total_examples, total_correct = 0, 0
         k_list = [1, 2, 5, 10]
+
+        if self.args['model'] in ['simcse']:
+            return
+
         for idx, batch in enumerate(pbar):                
             label = batch['label']
             if self.args['mode'] in ['train']:
@@ -217,7 +225,7 @@ class RepresentationAgent(RetrievalBaseAgent):
             text = texts[i:i+size]
             torch.save(
                 (embd, text), 
-                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["local_rank"]}_{idx}.pt'
+                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
             )
 
     def generate_mask(self, ids):

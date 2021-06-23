@@ -16,7 +16,7 @@ def parser_args():
 class Searcher:
 
     def __init__(self, index_type, dimension=768):
-        if index_type in ['BFlat']:
+        if index_type.startswith('BHash') or index_type in ['BFlat']:
             binary = True
         else:
             binary = False
@@ -89,21 +89,21 @@ if __name__ == "__main__":
     args.update(config)
     print('inference', args) 
     
-    # inference(**args)
+    inference(**args)
 
     # barries
-    # torch.distributed.barrier()
-    args['local_rank'] = -1
-    if args['local_rank'] == -1:
+    torch.distributed.barrier()
+
+    if args['local_rank'] == 0:
         embds, texts = [], []
         already_added = []
         for i in tqdm(range(args['nums'])):
             for idx in range(100):
                 try:
                     embd, text = torch.load(
-                        f'{args["root_dir"]}/data/{args["dataset"]}/inference_{i}_{idx}.pt'
+                        f'{args["root_dir"]}/data/{args["dataset"]}/inference_{args["model"]}_{i}_{idx}.pt'
                     )
-                    print(f'[!] load {args["root_dir"]}/data/{args["dataset"]}/inference_{i}_{idx}.pt')
+                    print(f'[!] load {args["root_dir"]}/data/{args["dataset"]}/inference_{args["model"]}_{i}_{idx}.pt')
                 except:
                     break
                 embds.append(embd)
