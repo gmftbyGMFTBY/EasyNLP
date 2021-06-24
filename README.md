@@ -1,101 +1,83 @@
-## State-of-the-art retrieval-based multi-turn response selection baselines
+# Easy-to-use toolkit for retrieval-based Chatbot
 
 ## How to Use
 
-Before using the repo, please run the following command to init:
 
 1. Init the repo
+Before using the repo, please run the following command to init:
 
 ```bash
-./run.sh init
+python init.py
 ```
 
-2. create post data from the orignial dataset (optional)
+2. train the model
 
 ```bash
-cd data;
-python create_post_data.py
+./train.sh <dataset_name> <model_name> <cuda_ids>
+# or, noted that start.sh read the config from jizhi_config.json to start the training task
+./start.sh 
 ```
 
-3. create data for post training (optional)
+3. test the model [rerank]
 
 ```bash
-# dataset saved in data/ecommerce/train_post.hdf5
-./data/create_post_train_dataset.sh ecommerce
+./test_rerank.sh <dataset_name> <model_name> <cuda_id>
 ```
 
-4. post train (optional)
+4. test the model [recal]
 
 ```bash
-# checkpoint are saved in ckpt/ecommerce/bert-post/*
-./post_train/post-train.sh ecommerce <nspmlm/mlm/nsp> <gpu_ids>
+./test_recall.sh <dataset_name> <model_name> <cuda_id>
 ```
 
-5. load post train checkpoint and fine-tuning on response selection corpus
-
-    It should be noted that, the newest post train checkpoint can be directly loaded from the [BERT-FP model](https://github.com/hanjanghoon/BERT_FP). Just put it into `ckpt/<dataset_name>/<model_name>/best_nspmlm.pt`.
+5. inference the responses and save into the faiss index
 
 ```bash
-./run.sh train-post ecommerce bert-ft <gpu_ids>
+# work_mode=response, inference the response and save into faiss
+# work_mode=context, inference the context; read the faiss(work_mode=response), search the topk hard negative samples
+./inference <dataset_name> <model_name> <cuda_ids>
 ```
 
-6. inference on the train dataset, save in FAISS index
+6. deploy the rerank and recall model
 
 ```bash
-# save the extended train dataset into data/<dataset>/candidates.pt
-./run.sh inference ecommerce dual-bert <gpu_ids>
+# load the model on the cuda:0(can be changed in deploy.sh script)
+./deploy.sh
+```
+at the same time, you can test the deployed model by using:
 
-# if you need to save the context and response (qa) into the FAISS index
-# run the following command
-./run.sh inference_qa ecommerce dual-bert <gpu_ids>
+```bash
+./test_api.sh
 ```
 
-7. train the model, test after each epoch
-
-    after training, the log information during the training procedure are saved in the tensorboard file, which can be found under `rest/<dataset_name>/<model_name>/`
+7. jizhi start (just for tencent)
 
 ```bash
-./run.sh train ecommerce dual-bert <gpu_ids>
-
-# writer dataset now support two kinds of models: dual-bert-writer, sa-bert-neg
-./run.sh train writer dual-bert-writer 0,1,2,3,4,5,6,7
-./run.sh train writer bert-ft-writer 0,1,2,3,4,5,6,7
-```
-8. test the model
-
-```bash
-./run.sh test ecommerce dual-bert <gpu_ids>
+# need to edit the configuration in jizhi_config.json
+./jizhi_start.sh
 ```
 
 ## Ready models and datasets
 
 ### 1. Models
+1. bert-ft
+2. dual-bert
+3. dual-bert-cl
+4. dual-bert-cl-gate
+5. poly-encoder
+6. dual-bert-gray-writer 
+7. hash-bert
+8. sa-bert
 
 ### 2. Datasets
 1. E-Commerce
 2. Douban
 3. Ubuntu-v1
-4. LCCC
-5. Writer (智能写作助手数据集)
+4. Writer (智能写作助手数据集)
 
 
 ## Experiment Results
 ### 1. E-Commerce Dataset
-
-_Note:_
-* Bi-Encoder and Poly-Encoder use in-batch negative approach during training procedure, and the number of negative samples is equal to the bsz (default 16) minus 1.
-* batch size is 16
-* for Bi-Encoder-VAE, max strategy is better than mean
-* sequence length is 256
-* Compared with Bi-Encoder-CL, Bi-Encoder-CL2 fully leverage the variant response represeantion
-* more negative samples, better performance
-* google position embedding is better than absolute position embedding
-* max strategy is equal to mean strategy
-* worse quality (bi-encoder-one2many-bad) of the candidates could bring better performance (test whether the number of the negative samples matter, rather than the quality)
-* the number of the samples and the quality of samples matter!!!
-* adding the number of the positive samples doesn't improve the performance!!!
-* context max length 256, response max length 128
-
 
 | Original       | R10@1 | R10@2 | R10@5 | MRR    |
 | -------------- | ----- | ----- | ----- | ------ |
@@ -165,10 +147,7 @@ _Note:_
 
 ### 2. Douban Dataset
 
-* one2many performance is worse than dual-bert on douban corpus, which is very different from the ecommerce corpus. The reason maybe: the dual-bert performance is worse than that on ecommerce corpus, which lead to bad candidate samples for dual-bert-one2many model, e.g., the quality of the candidates matter!
-* max-sequence-length and PLMs (hfl/chinese-bert-wwm is slightly worse than bert-base-chinese) is not the core, but max-sequence-length do improve some metrics
-* good candidates (pre-extract=20, topk=10) provide  better R10@1 and R10@2, hopeful!
-* context max length 256, response max length 128
+* Recall Performance
 
 | Model (CPU/684208)     | Top-20 | Top-100 | Average Time(20) ms |
 | ---------------------- | ------ | ------- | ------------------- |
@@ -204,6 +183,7 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 | hash-bert-ft(5e-4) | 26.19 | 44.63 | 76.49 | 60.35 | 42.13 | 56     |
 | hash-bert-ft(5e-5) | 27.89 | 43.53 | 76.54 | 61.69 | 44.83 | 56.8   |
 
+* Rerank performance
 
 | Original           | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   |
 | ------------------ | ----- | ----- | ----- | ----- | ----- | ------ |
@@ -296,21 +276,7 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 | BERT-FT+MLM    |       |       |       |       |       |       |
 | BERT-FT+NSP    |       |       |       |       |       |       |
 
-### 3. LCCC Dataset
-
-* max sequence length: 256
-
-| Original       | R10@1 | R10@2 | R10@5 | R2@1   |
-| -------------- | ----- | ----- | ----- | ------ |
-| SOTA           | -     | -     | -     | -      |
-| Bi-Encoder(bsz=16) | 21.5  | 31.2      | 47.1   | 36.65   |
-| Bi-Encoder-one2many(bsz=16,max,pre-extract=50) | 27.0 | 36.7 | 54.0 | 41.85 |
-| BERT-FT        | 23.1  | 72.1  | 94.2  | 54.9   |
-| BERT-FT+MLM+NSP|       |       |       |        |
-| BERT-FT+MLM    |       |       |       |        |
-| BERT-FT+NSP    |       |       |       |        |
-
-### 4. Ubuntu V1 Dataset
+### 3. Ubuntu V1 Dataset
 
 | Original       | R10@1 | R10@2 | R10@5 | R2@1   |
 | -------------- | ----- | ----- | ----- | ------ |
@@ -332,11 +298,15 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 ### 5. Writer Dataset
 
 <!-- Inference -->
+* Recall performance
+
 | Models                              | Top-20 | Top-100 | Time Cost   |
 | ----------------------------------- | ------ | ------- | ----------- |
 | dual-bert-gray-writer-LSH           | 0.126  | 0.193   | 529.10      |
 | dual-bert-gray-writer-HNSW32        |        |         |             |
 | hash-bert-gray-writer-BHash512      |        |         |             |
+
+* Rerank performance
 
 | Models                              | R10@1 | R10@2 | R10@5 | MRR   |
 | ----------------------------------- | ----- | ----- | ----- | ----- |
