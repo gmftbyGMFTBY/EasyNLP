@@ -97,6 +97,23 @@ def read_response_data(path, lang='zh'):
     return dataset
 
 
+def read_cl_response_data(path, lang='zh'):
+    with open(path) as f:
+        dataset = {}
+        for line in f.readlines():
+            utterances = line.strip().split('\t')
+            if lang == 'zh':
+                utterances = [''.join(i.split()) for i in utterances]
+            context = ' [SEP] '.join(utterances[:-1])
+            response = utterances[-1]
+            if response in dataset:
+                dataset[response].append(context)
+            else:
+                dataset[response] = [context]
+        print(f'[!] load {len(dataset)} responses from {path}')
+        return dataset
+            
+
 def read_response_json_data(path, lang='zh'):
     with open(path) as f:
         dataset = []

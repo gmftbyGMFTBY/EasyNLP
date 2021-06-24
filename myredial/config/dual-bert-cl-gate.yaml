@@ -1,4 +1,5 @@
 smoothing: 0.1
+dropout: 0.1
 
 # train configuration
 train:

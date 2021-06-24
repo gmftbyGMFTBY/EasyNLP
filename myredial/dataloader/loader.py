@@ -7,6 +7,7 @@ from .sa_bert_dataloader import *
 from .bert_ft_dataloader import *
 from .inference_dataloader import *
 from .inference_full_dataloader import *
+from .inference_ctx_dataloader import *
 
 def load_dataset(args):
     if args['mode'] in ['train', 'test']:

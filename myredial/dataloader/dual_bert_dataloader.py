@@ -35,6 +35,8 @@ class BERTDualDataset(Dataset):
                 self.data.append({
                     'ids': ids,
                     'rids': rids,
+                    'ctext': context,
+                    'rtext': response,
                 })
         else:
             for i in tqdm(range(0, len(data), 10)):
@@ -75,7 +77,7 @@ class BERTDualDataset(Dataset):
         if self.args['mode'] == 'train':
             ids = torch.LongTensor(bundle['ids'])
             rids = torch.LongTensor(bundle['rids'])
-            return ids, rids
+            return ids, rids, bundle['ctext'], bundle['rtext']
         else:
             ids = torch.LongTensor(bundle['ids'])
             rids = [torch.LongTensor(i) for i in bundle['rids']]
@@ -95,6 +97,8 @@ class BERTDualDataset(Dataset):
     def collate(self, batch):
         if self.args['mode'] == 'train':
             ids, rids = [i[0] for i in batch], [i[1] for i in batch]
+            ctext = [i[2] for i in batch]
+            rtext = [i[3] for i in batch]
             ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
             rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
             ids_mask = self.generate_mask(ids)
@@ -105,7 +109,9 @@ class BERTDualDataset(Dataset):
                 'ids': ids, 
                 'rids': rids, 
                 'ids_mask': ids_mask, 
-                'rids_mask': rids_mask
+                'rids_mask': rids_mask,
+                'ctext': ctext,
+                'rtext': rtext,
             }
         else:
             # batch size is batch_size * 10

@@ -2,6 +2,7 @@ from .agent import *
 from .simcse import *
 from .dual_bert import *
 from .dual_bert_cl import *
+from .dual_bert_cl_gate import *
 from .hash_bert import *
 from .hash_bert_poly import *
 from .dual_bert_gray import *

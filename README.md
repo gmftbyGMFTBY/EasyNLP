@@ -1,37 +1,5 @@
 ## State-of-the-art retrieval-based multi-turn response selection baselines
 
-Constrastive Learning for dual-encoder model, leveraging the memory bank to enlarge the number of the negative samples. Besides, the FAISS memory bank can be used to recall better samples, so these better samples can be used as the medium samples (not so good and not so bad).
-
-Constrastive Learning, context is the q, and response is the jey. Ground-truth response is positive k, and other responses are negative k.
-
-NOTE:
-- [ ] Constrastive learning on huge dataset, LCCC, and fine-tuning on ecommerce and douban corpus. But need to compared with the dual-bert pre-trained model
-- [x] test on Ubuntu v1 corpus
-- [x] for Ubuntu v1 corpus, add the special tokens for the BertTokenizer during fine-tuning
-- [x] larger batch size for dual-bert-hierarchical model on ecommerce, douban, ubuntu (128)
-- [x] speaker embedding in dual-bert-hierarchical (necessary?)
-- [x] fully use all the utterances, the sequence length more than 64 will be cut.
-- [x] refer to MSN, IoI, ... for turn-aware aggregation
-- [x] jump connection is essential
-- [x] dual post train for the dual-bert-hierarchical. The bert-post checkpoint may not be appripriate for the dual-encoder architecture. So, the dual-bert-post should be used for dual-bert-hierarchical or dual-bert-hierarchical-trs model, which train the dual-bert model with the bert-post initilized.
-- [x] pytorch 1.5.1+cu92 (CUDA 9.2), apex 0.1, NVIDIA driver: 410.78 (CUDA Version: 10.0)
-- [ ] test cross-encoder-hierarchical (bert-ft-hierarchical) further
-- [ ] new idea: during training, dual encoder architecture doesn't memory the former training samples, which leads to the 较低的样本利用率，这个强化学习是一样的。改进低样本利用率。样本利用率还是负样本的数目？
-- [ ] 把检索式对话系统做成QA的选择题，而不是现在的对错题
-- [ ] 基于文档的对话系统使用层次化方法，充分考虑所有对话句子以及文档信息，可以看成embedding方法全部从word embedding换成了bert
-- [ ] 仔细对比以下dual encoder架构和cross-encoder架构，传统的方法也用dual encoder架构复现以下，主要是证明一下in-batch negative sample方法的有效性。
-- [ ] test the difference between 5 and 10
-- [ ] 测试蒸馏学习解决层次化的无法建模细粒度信息的问题
-- [ ] 测试不同step下的dual-bert-hier和dual-bert的效果（检测训练效率，同bsz e.g. negative samplers）
-- [ ] 直接继承 dual-bert-hier 的dataloader写bert-ft-hier
-- [ ] dual-bert-hier 之前用 last utterance 作为 key 重新获得细粒度的 history 在做 contextual transformer encoding
-- [x] dual-bert-hier-trs-poly and dual-bert-hier-trs-poly2 sucks
-- [ ] 换个角度思考，就算dual encoder architecture效果不如cross encoder，但是dual encoder因为独有的有点可以作为粗筛的一个有效方法，那么只要改进在dual encoder architecture是显著的就行，不一定要打败SOTA，只要比dual encoder本身好就行
-- [x] the hard negative seems not work as well
-- [ ] test the short conversation context (multiple samples) for dual-bert
-- [x] Conlusion of the hard negative samples: (1) BERT-FP (utterance in the context); (2) BERT-HCL (semantic recall); (3) WorldNotBinary (Generation, retrieval[BM25], random sample)
-- [ ] remove label smoothing and test
-
 ## How to Use
 
 Before using the repo, please run the following command to init:
@@ -102,12 +70,6 @@ python create_post_data.py
 ## Ready models and datasets
 
 ### 1. Models
-1. BERT-ft
-2. BERT-ft-gen
-3. Bi-Encoder
-4. Poly-Encoder
-5. Bi-Encoder+one2many
-
 
 ### 2. Datasets
 1. E-Commerce
@@ -212,10 +174,10 @@ _Note:_
 | ---------------------- | ------ | ------- | ------------------- |
 | dual-bert-cl-flat      | 0.1124 | 0.2129  | 204.85              |
 | dual-bert-cl-LSH       | 0.099  | 0.1994  | 13.51               |
-| dual-bert-flat         | 0.078  | 0.1634  | 255.63              |
+| dual-bert-flat         | 0.1079 | 0.1919  | 197.65              |
 | dual-bert-IVF8192,Flat | 0.057  | 0.0795  | 16.91               |
 | dual-bert-IVF100,Flat  | 0.0675 | 0.1199  | 29.62               |
-| dual-bert-LSH          | 0.1139 | 0.1934  | 20.36               |
+| dual-bert-LSH          | 0.0825 | 0.1723  | 12.05               |
 | hash-bert-flat         | 0.045  | 0.1109  | 13.43               |
 | hash-bert-BHash512     | 0.0435 | 0.1064  | 7.26                |
 
@@ -252,8 +214,10 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 | poly encoder(poly-m=32)  | 31.76 | 50.59 | 85.72 | 66.49 | 49.48 | 62.84  |
 | dual-bert(bsz=32, epoch=5, poly-m=32) | 30.55 | 46.93 | 81.16 | 64.45 | 48.43  | 60.34 |
 | dual-bert(bsz=32, epoch=5, bert-fp) | 31.42 | 51.6 | 83.46 | 66.41 | 49.48  | 62.22 |
+| dual-bert(bsz=48, epoch=5, bert-fp) | 31.13 | 51.32 | 83.25 | 66.2 | 49.18  | 61.96 |
 | dual-bert-cl(bsz=48, epoch=5, bert-fp) | 30.25 | 50.69| 82.44 | 65.49 | 48.13  | 61.25 |
 | dual-bert-cl(bsz=32, epoch=5, bert-fp) |  | | |  |  | |
+| dual-bert-cl2(bsz=48, epoch=5, bert-fp) |  | | |  |  | |
 | dual-bert-cb(bsz=32, epoch=5, bert-fp) | 31.29 | 49.45 | 81.51 | 65.92 | 49.18  | 61.39 |
 | dual-bert(bsz=32, epoch=5, bert-fp, proj_dim=1024) | 31.57 | 51.67 | 83.41 | 66.48 | 49.63  | 62.26 |
 | dual-bert(bsz=32, epoch=5, bert-fp, lambda(gen)=0.1) | 30.95 | 50.65 | 82.95 | 65.98 | 49.03  | 61.82 |

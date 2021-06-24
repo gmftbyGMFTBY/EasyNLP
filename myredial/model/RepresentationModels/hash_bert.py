@@ -28,28 +28,24 @@ class HashBERTDualEncoder(nn.Module):
             nn.LeakyReLU(),
             nn.Dropout(p=dropout),
             nn.Linear(self.hidden_size, self.hash_code_size),
-            nn.Tanh(),
         )
         self.can_hash_encoder = nn.Sequential(
             nn.Linear(inpt_size, self.hidden_size),
             nn.LeakyReLU(),
             nn.Dropout(p=dropout),
             nn.Linear(self.hidden_size, self.hash_code_size),
-            nn.Tanh(),
         )
         self.ctx_hash_decoder = nn.Sequential(
             nn.Linear(self.hash_code_size, self.hidden_size),
             nn.LeakyReLU(),
             nn.Dropout(p=dropout),
             nn.Linear(self.hidden_size, inpt_size),
-            nn.Tanh(),
         )
         self.can_hash_decoder = nn.Sequential(
             nn.Linear(self.hash_code_size, self.hidden_size),
             nn.LeakyReLU(),
             nn.Dropout(p=dropout),
             nn.Linear(self.hidden_size, inpt_size),
-            nn.Tanh(),
         )
 
     def freeze_some_layers(self):
@@ -150,11 +146,13 @@ class HashBERTDualEncoder(nn.Module):
             rid, rid_mask = self.totensor(responses, ctx=False)
         elif 'ids' in batch and 'rids' in batch:
             cid, rid = batch['ids'], batch['rids']
+            cid = cid.unsqueeze(0)
+            cid_mask = None
             rid_mask = batch['rids_mask']
         else:
             raise Exception(f'[!] Unknow batch data')
 
-        cid_rep = self.ctx_encoder(cid.unsqueeze(0), None)
+        cid_rep = self.ctx_encoder(cid, cid_mask)
         rid_rep = self.can_encoder(rid, rid_mask)
 
         # [768]; [B, 768] -> [H]; [B, H]

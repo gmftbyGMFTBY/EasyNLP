@@ -10,4 +10,4 @@ CUDA_VISIBLE_DEVICES=$cuda python test.py \
     --dataset $dataset \
     --model $model \
     --multi_gpu $cuda \
-    --no-recall
+    --mode rerank

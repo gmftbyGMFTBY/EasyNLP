@@ -21,6 +21,9 @@ class RepresentationAgent(RetrievalBaseAgent):
             pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
             path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}.txt'
             self.log_save_file = open(path, 'w')
+            if args['model'] in ['dual-bert-cl2']:
+                self.inference = self.inference2
+                print(f'[!] switch the inference function')
         if torch.cuda.is_available():
             self.model.cuda()
         if args['mode'] in ['train', 'inference']:
@@ -164,7 +167,7 @@ class RepresentationAgent(RetrievalBaseAgent):
 
             # print output
             if print_output:
-                if self.args['model'] in ['dual-bert-gray-writer']:
+                if 'responses' in batch:
                     self.log_save_file.write(f'[CTX] {batch["context"]}\n')
                     for rtext, score in zip(batch['responses'], scores):
                         score = round(score, 4)
@@ -216,6 +219,51 @@ class RepresentationAgent(RetrievalBaseAgent):
             rid_mask = batch['mask']
             text = batch['text']
             res = self.model.module.get_cand(rid, rid_mask).cpu()
+            embds.append(res)
+            texts.extend(text)
+        embds = torch.cat(embds, dim=0).numpy()
+
+        for idx, i in enumerate(range(0, len(embds), size)):
+            embd = embds[i:i+size]
+            text = texts[i:i+size]
+            torch.save(
+                (embd, text), 
+                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
+            )
+
+    def inference_context(self, inf_iter):
+        '''inference the context for searching the hard negative data'''
+        self.model.eval()
+        pbar = tqdm(inf_iter)
+        embds, contexts, responses = [], [], []
+        for batch in pbar:
+            ids = batch['ids']
+            ids_mask = batch['mask']
+            context = batch['context']
+            response = batch['response']
+            embd = self.model.module.get_ctx(ids, ids_mask).cpu()
+            embds.append(embd)
+            contexts.extend(context)
+            responses.extend(response)
+        embds = torch.cat(embds, dim=0).numpy()
+
+        torch.save(
+            (embds, contexts, responses), 
+            f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_context_{self.args["model"]}_{self.args["local_rank"]}.pt'
+        )
+    
+    @torch.no_grad()
+    def inference2(self, inf_iter, size=500000):
+        self.model.eval()
+        pbar = tqdm(inf_iter)
+        embds, texts = [], []
+        for batch in pbar:
+            rid = batch['ids']
+            rid_mask = batch['mask']
+            cid = batch['cid']
+            cid_mask = batch['cids_mask']
+            text = batch['text']
+            res = self.model.module.get_cand(cid, cid_mask, rid, rid_mask).cpu()
             embds.append(res)
             texts.extend(text)
         embds = torch.cat(embds, dim=0).numpy()

@@ -24,12 +24,18 @@ models:
         type: Representation
         model_name: BERTDualEncoder
         dataset_name: BERTDualDataset
-        inference_dataset_name: BERTDualInferenceDataset
+        # inference_dataset_name: BERTDualInferenceDataset
+        inference_dataset_name: BERTDualInferenceContextDataset
     dual-bert-cl: 
         type: Representation
         model_name: BERTDualCLEncoder
         dataset_name: BERTDualCLDataset
         inference_dataset_name: BERTDualInferenceDataset
+    dual-bert-cl-gate: 
+        type: Representation
+        model_name: BERTDualCL2Encoder
+        dataset_name: BERTDualCLDataset
+        inference_dataset_name: BERTDualCLInferenceDataset
     simcse: 
         type: Representation
         model_name: SimCSE
