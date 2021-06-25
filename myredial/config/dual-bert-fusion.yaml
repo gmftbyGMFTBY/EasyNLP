@@ -26,7 +26,8 @@ test:
 inference:
     seed: 50
     batch_size: 128
-    max_len: 64
+    max_len: 256
+    res_max_len: 64
     topk: 100
     index_type: LSH
     dimension: 768

@@ -21,7 +21,7 @@ class RepresentationAgent(RetrievalBaseAgent):
             pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
             path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}.txt'
             self.log_save_file = open(path, 'w')
-            if args['model'] in ['dual-bert-cl2']:
+            if args['model'] in ['dual-bert-fusion']:
                 self.inference = self.inference2
                 print(f'[!] switch the inference function')
         if torch.cuda.is_available():
@@ -230,7 +230,8 @@ class RepresentationAgent(RetrievalBaseAgent):
                 (embd, text), 
                 f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
             )
-
+    
+    @torch.no_grad()
     def inference_context(self, inf_iter):
         '''inference the context for searching the hard negative data'''
         self.model.eval()

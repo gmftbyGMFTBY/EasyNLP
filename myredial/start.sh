@@ -29,7 +29,7 @@ model_name=${names[1]}
 ./train.sh $dataset_name $model_name $str
 
 # test on one gpu
-./test.sh $dataset_name $model_name 0
+./test_rerank.sh $dataset_name $model_name 0
 
 # inference
 # echo "IFNERENCE $model_name on $dataset_name"

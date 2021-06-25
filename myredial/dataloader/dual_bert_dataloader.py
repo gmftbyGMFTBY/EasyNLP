@@ -274,7 +274,7 @@ class BERTDualWithNegDataset(Dataset):
             return None
         self.data = []
         if self.args['mode'] == 'train':
-            data, responses = read_text_data_with_neg(path, lang=self.args['lang'])
+            data, responses = read_text_data_with_neg_q_r_neg(path, lang=self.args['lang'])
             for context, response, candidates in tqdm(data):
                 context = ' [SEP] '.join(context).strip()
                 if len(candidates) < 10:
@@ -303,16 +303,13 @@ class BERTDualWithNegDataset(Dataset):
                     'ids': ids, 
                     'rids': rids,
                 })
-
                 
     def _length_limit(self, ids):
-        # also return the speaker embeddings
         if len(ids) > self.args['max_len']:
             ids = [ids[0]] + ids[-(self.args['max_len']-1):]
         return ids
     
     def _length_limit_res(self, ids):
-        # cut tail
         if len(ids) > self.args['res_max_len']:
             ids = ids[:self.args['res_max_len']-1] + [self.sep]
         return ids

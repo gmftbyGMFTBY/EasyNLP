@@ -8,9 +8,8 @@ from inference import *
 Test script:
     1. test the rerank performance [test]
     2. test the recall performance [recall]
-    3. select the top-k hard negative samples [topk]
 
-If you use the [recall] and [topk] mode, make sure the inference.sh has already been done
+If you use the [recall], make sure the inference.sh has already been done
 '''
 
 
@@ -20,10 +19,12 @@ def parser_args():
     parser.add_argument('--model', type=str)
     parser.add_argument('--multi_gpu', type=str, default=None)
     parser.add_argument('--mode', type=str, default='test')
+    parser.add_argument('--recall_mode', type=str, default='q-r')
     return parser.parse_args()
 
 
 def prepare_inference(**args):
+    '''prepare the dataloader and the faiss index for recall test'''
     # use test mode args load test dataset and model
     inf_args = deepcopy(args)
     args['mode'] = 'test'
@@ -50,15 +51,20 @@ def prepare_inference(**args):
     print(f'inference', inf_args)
 
     # load faiss index
-    searcher = Searcher(inf_args['index_type'], dimension=inf_args['dimension'])
     model_name = inf_args['model']
     pretrained_model_name = inf_args['pretrained_model']
-    searcher.load(
-        f'{inf_args["root_dir"]}/data/{inf_args["dataset"]}/{model_name}_{pretrained_model_name}_faiss.ckpt',        
-        f'{inf_args["root_dir"]}/data/{inf_args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt',        
-    )
+    if inf_args['recall_mode'] == 'q-q':
+        q_q = True
+        faiss_ckpt_path = f'{inf_args["root_dir"]}/data/{inf_args["dataset"]}/{model_name}_{pretrained_model_name}_q_q_faiss.ckpt'        
+        corpus_ckpt_path = f'{inf_args["root_dir"]}/data/{inf_args["dataset"]}/{model_name}_{pretrained_model_name}_q_q_corpus.ckpt'        
+    else:
+        q_q = False
+        faiss_ckpt_path = f'{inf_args["root_dir"]}/data/{inf_args["dataset"]}/{model_name}_{pretrained_model_name}_faiss.ckpt'        
+        corpus_ckpt_path = f'{inf_args["root_dir"]}/data/{inf_args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt'        
+    searcher = Searcher(inf_args['index_type'], dimension=inf_args['dimension'], q_q=q_q)
+    searcher.load(faiss_ckpt_path, corpus_ckpt_path)
     print(f'[!] load faiss over')
-    return test_iter, inf_args, searcher
+    return test_iter, inf_args, searcher, agent
 
 
 def main_rerank(**args):
@@ -88,7 +94,7 @@ def main_rerank(**args):
 def main_recall(**args):
     '''test the recall with the faiss index'''
     # use test mode args load test dataset and model
-    test_iter, inf_args, searcher = prepare_inference(**args)
+    test_iter, inf_args, searcher, agent = prepare_inference(**args)
 
     # test recall (Top-20, Top-100)
     pbar = tqdm(test_iter)
@@ -107,6 +113,7 @@ def main_recall(**args):
         if not searcher.binary:
             vector = vector.cpu().numpy()
 
+        ipdb.set_trace()
         bt = time.time()
         rest = searcher._search(vector, topk=inf_args['topk'])[0]
         et = time.time()
@@ -128,9 +135,10 @@ def main_recall(**args):
 
     topk_metric = round(acc/counter, 4)
     avg_time = round(np.mean(cost_time)*1000, 2)    # ms
+    pretrained_model_name = inf_args['pretrained_model'].replace('/', '_')
     print(f'[!] Top-{inf_args["topk"]}: {topk_metric}')
     print(f'[!] Average Times: {avg_time} ms')
-    with open(f'{args["root_dir"]}/rest/{args["dataset"]}/{args["model"]}/test_result_recall_{pretrained_model_name}.txt', 'w') as f:
+    with open(f'{inf_args["root_dir"]}/rest/{inf_args["dataset"]}/{inf_args["model"]}/test_result_recall_{pretrained_model_name}.txt', 'w') as f:
         print(f'Top-{inf_args["topk"]}: {topk_metric}', file=f)
         print(f'Average Times: {avg_time} ms', file=f)
 
@@ -141,7 +149,5 @@ if __name__ == "__main__":
         main_recall(**args)
     elif args['mode'] == 'rerank':
         main_rerank(**args)
-    elif args['mode'] == 'topk':
-        main_topk(**args)
     else:
         raise Exception(f'[!] Unknown mode: {args["mode"]}')

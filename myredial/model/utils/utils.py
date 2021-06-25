@@ -51,6 +51,27 @@ class BertMLEmbedding(nn.Module):
         self.model.load_state_dict(new_state_dict)
 
 
+class BertFullEmbedding(nn.Module):
+    
+    def __init__(self, model='bert-base-chinese'):
+        super(BertFullEmbedding, self).__init__()
+        self.model = BertModel.from_pretrained(model)
+        # bert-fp checkpoint has the special token: [EOS]
+        self.model.resize_token_embeddings(self.model.config.vocab_size + 1)
+
+    def forward(self, ids, attn_mask, speaker_type_ids=None):
+        embds = self.model(ids, attention_mask=attn_mask)[0]
+        return embds
+
+    def load_bert_model(self, state_dict):
+        # load the post train checkpoint from BERT-FP (NAACL 2021)
+        new_state_dict = OrderedDict()
+        for k, v in state_dict.items():
+            new_state_dict[k] = v
+        # position_ids
+        new_state_dict['embeddings.position_ids'] = torch.arange(512).expand((1, -1))
+
+
 class BertEmbedding(nn.Module):
     
     def __init__(self, model='bert-base-chinese'):

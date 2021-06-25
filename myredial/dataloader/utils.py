@@ -47,7 +47,7 @@ def read_text_data_utterances(path, lang='zh'):
     return dataset
 
 
-def read_text_data_with_neg(path, lang='zh'):
+def read_text_data_with_neg_inner_session_neg(path, lang='zh'):
     with open(path) as f:
         dataset, responses = [], []
         for line in f.readlines():
@@ -67,6 +67,22 @@ def read_text_data_with_neg(path, lang='zh'):
     print(f'[!] load {len(responses)} utterances from {path}')
     return dataset, responses
 
+
+def read_text_data_with_neg_q_r_neg(path, lang='zh'):
+    path = f'{os.path.splitext(path)[0]}_gray.txt'
+    with open(path) as f:
+        dataset, responses = [], []
+        for line in f.readlines():
+            line = json.loads(line.strip())
+            context = line['q']
+            response = line['r']
+            candidates = line['nr']
+            dataset.append((context, response, candidates))
+            responses.extend(context + [response] + candidates)
+        responses = list(set(responses))
+    print(f'[!] load {len(dataset)} samples from {path}')
+    print(f'[!] load {len(responses)} utterances from {path}')
+    return dataset, responses
 
 def read_text_data_dual_bert(path, lang='zh', xlm=False):
     sep = ' </s> ' if xlm else ' [SEP] '
@@ -102,6 +118,9 @@ def read_cl_response_data(path, lang='zh'):
         dataset = {}
         for line in f.readlines():
             utterances = line.strip().split('\t')
+            if int(utterances[0]) == 0:
+                continue
+            utterances = utterances[1:]
             if lang == 'zh':
                 utterances = [''.join(i.split()) for i in utterances]
             context = ' [SEP] '.join(utterances[:-1])

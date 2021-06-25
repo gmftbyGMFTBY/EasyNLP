@@ -10,4 +10,5 @@ CUDA_VISIBLE_DEVICES=$cuda python test.py \
     --dataset $dataset \
     --model $model \
     --multi_gpu $cuda \
-    --mode recall
+    --mode recall \
+    --recall_mode q-q

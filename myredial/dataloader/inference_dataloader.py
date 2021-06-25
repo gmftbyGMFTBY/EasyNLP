@@ -81,10 +81,10 @@ class BERTDualCLInferenceDataset(Dataset):
         # except the response in the train dataset, test dataset responses are included for inference test
         responses = read_cl_response_data(path, lang=self.args['lang'])
         test_path = f'{os.path.split(path)[0]}/test.txt'
-        test_responses = read_response_data(test_path, lang=self.args['lang'])
+        test_responses = read_cl_response_data(test_path, lang=self.args['lang'])
         for res, ctxs in test_responses.items():
             if res in responses:
-                responses.extend(ctxs)
+                responses[res].extend(ctxs)
             else:
                 responses[res] = ctxs
         self.data = []

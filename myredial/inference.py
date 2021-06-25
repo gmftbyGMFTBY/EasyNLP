@@ -18,7 +18,10 @@ def parser_args():
 
 class Searcher:
 
-    def __init__(self, index_type, dimension=768):
+    '''If q-q is true, the corpus is a list of tuple(context, response);
+    If q-r is true, the corpus is a list of strings'''
+
+    def __init__(self, index_type, dimension=768, q_q=False):
         if index_type.startswith('BHash') or index_type in ['BFlat']:
             binary = True
         else:
@@ -29,6 +32,7 @@ class Searcher:
             self.searcher = faiss.index_factory(dimension, index_type)
         self.corpus = []
         self.binary = binary
+        self.if_q_q = q_q
 
     def _build(self, matrix, corpus):
         '''dataset: a list of tuple (vector, utterance)'''
@@ -39,7 +43,11 @@ class Searcher:
 
     def _search(self, vector, topk=20):
         D, I = self.searcher.search(vector, topk)
-        rest = [[self.corpus[i] for i in N] for N in I]
+        if self.if_q_q:
+            # the response is the second item in the tuple
+            rest = [[self.corpus[i][1] for i in N] for N in I]
+        else:
+            rest = [[self.corpus[i] for i in N] for N in I]
         return rest
 
     def save(self, path_faiss, path_corpus):
@@ -85,7 +93,7 @@ def inference(**args):
     agent.load_model(f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}.pt')
     if work_mode == 'response':
         agent.inference(data_iter, size=args['cut_size'])
-    else:
+    elif work_mode in ['context', 'gray']:
         agent.inference_context(data_iter)
 
 
@@ -96,10 +104,10 @@ if __name__ == "__main__":
     args.update(config)
     print('inference', args) 
     
-    # inference(**args)
+    inference(**args)
 
     # barries
-    # torch.distributed.barrier()
+    torch.distributed.barrier()
 
     if args['local_rank'] != 0:
         exit()
@@ -149,7 +157,7 @@ if __name__ == "__main__":
             f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt',
         )
         print(f'[!] save faiss index over')
-    elif args['work_mode'] == 'context':
+    elif args['work_mode'] == 'gray':
         # collect the gray negative dataset
         embds, contexts, responses = [], [], []
         for i in tqdm(range(args['nums'])):
@@ -184,11 +192,8 @@ if __name__ == "__main__":
             for c, r, rest in zip(context, response, result):
                 if r in rest:
                     rest.remove(r)
-                collection.append({
-                    'q': c,
-                    'r': r,
-                    'nr': rest[-args['topk']:],
-                })
+                nr = random.sample(rest, args['topk'])
+                collection.append({'q': c, 'r': r, 'nr': nr})
 
         # write into new file
         path = f'{args["root_dir"]}/data/{args["dataset"]}/train_gray.txt'
@@ -196,3 +201,26 @@ if __name__ == "__main__":
             for item in tqdm(collection):
                 string = json.dumps(item)
                 f.write(f'{string}\n')
+    elif args['work_mode'] == 'context':
+        # inference the context and do the q-q matching
+        embds, corpus = [], []
+        for i in tqdm(range(args['nums'])):
+            embd, context, response = torch.load(
+                f'{args["root_dir"]}/data/{args["dataset"]}/inference_context_{args["model"]}_{i}.pt'        
+            )
+            embds.append(embd)
+            corpus.extend([(c, r) for c, r in zip(context, response)])
+        embds = np.concatenate(embds) 
+        # write into faiss index
+        model_name = args['model']
+        pretrained_model_name = args['pretrained_model'].replace('/', '_')
+        searcher = Searcher(args['index_type'], dimension=args['dimension'], q_q=True)
+        searcher._build(embds, corpus)
+        searcher.save(
+            f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_q_q_faiss.ckpt',
+            f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_q_q_corpus.ckpt',
+        )
+        print(f'[!] save the q-q matching faiss over')
+    else:
+        raise Exception(f'[!] Unknown work mode: {args["work_mode"]}')
+

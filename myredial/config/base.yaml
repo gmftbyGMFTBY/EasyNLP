@@ -31,11 +31,16 @@ models:
         model_name: BERTDualCLEncoder
         dataset_name: BERTDualCLDataset
         inference_dataset_name: BERTDualInferenceDataset
-    dual-bert-cl-gate: 
+    dual-bert-fusion: 
         type: Representation
-        model_name: BERTDualCL2Encoder
-        dataset_name: BERTDualCLDataset
+        model_name: BERTDualFusionEncoder
+        dataset_name: BERTDualDataset
         inference_dataset_name: BERTDualCLInferenceDataset
+    dual-bert-compare: 
+        type: LatentInteraction
+        model_name: BERTDualCompEncoder
+        dataset_name: BERTDualWithNegDataset
+        inference_dataset_name: BERTDualInferenceDataset
     simcse: 
         type: Representation
         model_name: SimCSE

@@ -27,14 +27,16 @@ python init.py
 4. test the model [recal]
 
 ```bash
+# different recall_modes are available: q-q, q-r
 ./test_recall.sh <dataset_name> <model_name> <cuda_id>
 ```
 
 5. inference the responses and save into the faiss index
 
 ```bash
-# work_mode=response, inference the response and save into faiss
-# work_mode=context, inference the context; read the faiss(work_mode=response), search the topk hard negative samples
+# work_mode=response, inference the response and save into faiss (for q-r matching)
+# work_mode=context, inference the context to do q-q matching
+# work_mode=gray, inference the context; read the faiss(work_mode=response), search the topk hard negative samples
 ./inference <dataset_name> <model_name> <cuda_ids>
 ```
 
@@ -159,6 +161,19 @@ at the same time, you can test the deployed model by using:
 | dual-bert-LSH          | 0.0825 | 0.1723  | 12.05               |
 | hash-bert-flat         | 0.045  | 0.1109  | 13.43               |
 | hash-bert-BHash512     | 0.0435 | 0.1064  | 7.26                |
+
+<!-- 
+It should be noted that the difference between q-q and q-r is the index.
+If the index is based on the responses, it is q-r matching;
+If the index is based on the contexts, it is q-q matching
+
+q-q: the constrastive loss is used for context context pair;
+q-r: the constrastive loss is used for context response pair
+-->
+| Model (CPU/684208)     | Top-20 | Top-100 | Average Time(20) ms |
+| ---------------------- | ------ | ------- | ------------------- |
+| dual-bert-flat(q-r)    | 0.1124 | 0.2129  | 204.85              |
+| dual-bert-fusion(q-r)  |        |         |                     |
 
 <!--the influence of the number of the negative samples, max_len=256/64
 It can be found that the number of the negative samples has the limited performance gain
