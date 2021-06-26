@@ -29,5 +29,5 @@ inference:
     max_len: 256
     res_max_len: 64
     topk: 100
-    index_type: LSH
+    index_type: Flat
     dimension: 768

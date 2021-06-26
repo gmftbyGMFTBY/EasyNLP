@@ -1,17 +1,21 @@
 smoothing: 0.1
+radius: 10
+ssl_interval: 0.01
+# rewrite this gray_cand_num parameter in the base.yaml
+gray_cand_num: 5
 
 # train configuration
 train:
     lr: 0.00005
     grad_clip: 1.0
     seed: 50
-    batch_size: 48
+    batch_size: 32
     max_len: 256
     res_max_len: 64
-    epoch: 5
+    epoch: 10
     warmup_ratio: 0.1
     checkpoint: 
-        path: bert-post/best_nspmlm.pt
+        path: dual-bert/best_bert-base-chinese.pt
         is_load: true
 
 # test configuration
@@ -27,5 +31,5 @@ inference:
     batch_size: 128
     max_len: 64
     topk: 20
-    index_type: Flat
+    index_type: LSH
     dimension: 768

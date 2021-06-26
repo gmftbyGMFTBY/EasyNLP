@@ -113,7 +113,6 @@ def main_recall(**args):
         if not searcher.binary:
             vector = vector.cpu().numpy()
 
-        ipdb.set_trace()
         bt = time.time()
         rest = searcher._search(vector, topk=inf_args['topk'])[0]
         et = time.time()

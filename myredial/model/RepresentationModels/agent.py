@@ -9,11 +9,16 @@ class RepresentationAgent(RetrievalBaseAgent):
 
         if args['mode'] == 'train':
             # hash-bert parameter setting
-            if self.args['model'] in ['hash-bert', 'hash-bert-poly']:
+            if self.args['model'] in ['hash-bert', 'has-bert-poly']:
                 self.q_alpha = self.args['q_alpha']
                 self.q_alpha_step = (self.args['q_alpha_max'] - self.args['q_alpha']) / int(self.args['total_step'] / torch.distributed.get_world_size())
                 self.load_bert_model = self.load_bert_model_hash
                 self.train_model = self.train_model_hash
+            elif self.args['model'] in ['dual-bert-ssl']:
+                self.load_bert_model = self.load_bert_model_ssl
+                self.train_model = self.train_model_ssl
+                # set hyperparameters
+                self.model.ssl_interval_step = int(self.args['total_step'] * self.args['ssl_interval'])
             self.set_test_interval()
             self.load_checkpoint()
         else:
@@ -47,6 +52,21 @@ class RepresentationAgent(RetrievalBaseAgent):
         self.model.can_encoder.load_state_dict(can_state_dict)
         # freeze some layers in hash bert (only fine-tune partial parameters)
         self.model.freeze_some_layers()
+
+    def load_bert_model_ssl(self, path):
+        state_dict = torch.load(path, map_location=torch.device('cpu'))
+        new_state_dict = OrderedDict()
+        for k, v in state_dict.items():
+            new_state_dict[k] = v
+            if k.startswith('ctx_encoder'):
+                new_k = k.replace('ctx_encoder', 'ctx_encoder_shadow')
+                new_state_dict[new_k] = v
+            elif k.startswith('can_encoder'):
+                new_k = k.replace('can_encoder', 'can_encoder_shadow')
+                new_state_dict[new_k] = v
+            else:
+                raise Exception(f'[!] {k} parameters cannot be used')
+        self.model.load_state_dict(new_state_dict)
 
     def load_bert_model(self, path):
         state_dict = torch.load(path, map_location=torch.device('cpu'))
@@ -108,6 +128,45 @@ class RepresentationAgent(RetrievalBaseAgent):
         recoder.add_scalar(f'train-whole/KLLoss', total_kl_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/QLoss', total_q_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/HLoss', total_h_loss/batch_num, idx_)
+        recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
+        return round(total_loss / batch_num, 4)
+    
+    def train_model_ssl(self, train_iter, test_iter, recoder=None, idx_=0):
+        self.model.train()
+        total_loss, total_acc, batch_num = 0, 0, 0
+        total_tloss, total_bloss = 0, 0
+        pbar = tqdm(train_iter)
+        correct, s, oom_t = 0, 0, 0
+        for idx, batch in enumerate(pbar):
+            self.optimizer.zero_grad()
+            with autocast():
+                loss, acc = self.model(batch)
+            self.scaler.scale(loss).backward()
+            self.scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            
+            self.scheduler.step()
+
+            # update may copy the parameters from original model to shadow model
+            self.model.module.update()
+
+            total_loss += loss.item()
+            total_acc += acc
+            batch_num += 1
+
+            if batch_num in self.args['test_step']:
+                self.test_now(test_iter, recoder)
+            
+            recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
+             
+            pbar.set_description(f'[!] loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
+
+        recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
         return round(total_loss / batch_num, 4)
     
@@ -262,7 +321,7 @@ class RepresentationAgent(RetrievalBaseAgent):
             rid = batch['ids']
             rid_mask = batch['mask']
             cid = batch['cid']
-            cid_mask = batch['cids_mask']
+            cid_mask = batch['cid_mask']
             text = batch['text']
             res = self.model.module.get_cand(cid, cid_mask, rid, rid_mask).cpu()
             embds.append(res)

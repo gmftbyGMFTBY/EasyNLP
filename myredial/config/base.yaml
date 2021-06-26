@@ -24,8 +24,14 @@ models:
         type: Representation
         model_name: BERTDualEncoder
         dataset_name: BERTDualDataset
-        # inference_dataset_name: BERTDualInferenceDataset
-        inference_dataset_name: BERTDualInferenceContextDataset
+        inference_dataset_name: BERTDualInferenceDataset
+        # inference_dataset_name: BERTDualInferenceContextDataset
+    dual-bert-ssl: 
+        type: Representation
+        model_name: BERTDualSSLEncoder
+        dataset_name: BERTDualWithNegDataset
+        inference_dataset_name: BERTDualInferenceDataset
+        # inference_dataset_name: BERTDualInferenceContextDataset
     dual-bert-cl: 
         type: Representation
         model_name: BERTDualCLEncoder
@@ -35,6 +41,11 @@ models:
         type: Representation
         model_name: BERTDualFusionEncoder
         dataset_name: BERTDualDataset
+        inference_dataset_name: BERTDualCLInferenceDataset
+    dual-bert-fusion-gray-writer: 
+        type: Representation
+        model_name: BERTDualFusionGrayFullEncoder
+        dataset_name: BERTDualFullWithNegDataset
         inference_dataset_name: BERTDualCLInferenceDataset
     dual-bert-compare: 
         type: LatentInteraction

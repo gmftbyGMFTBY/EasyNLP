@@ -103,7 +103,10 @@ def read_response_data(path, lang='zh'):
     with open(path) as f:
         dataset = []
         for line in f.readlines():
-            utterance = line.strip().split('\t')[-1]
+            utterance = line.strip().split('\t')
+            if int(utterance[0]) == 0:
+                continue
+            utterance = utterance[-1]
             if lang == 'zh':
                 utterance = ''.join(utterance.split())
             dataset.append(utterance)

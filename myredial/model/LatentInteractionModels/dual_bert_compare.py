@@ -84,7 +84,7 @@ class BERTDualCompEncoder(nn.Module):
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
         dot_product = torch.einsum('ijk,jk->ij', rid_rep, cid_rep).t()    # [B_c, G]
         dot_product /= np.sqrt(768)     # scale dot product
-        return dot_product.squeeze(1)    # [G] = [B_r*gray]
+        return dot_product.squeeze(0)    # [G] = [B_r*gray]
     
     def forward(self, batch):
         cid = batch['ids']

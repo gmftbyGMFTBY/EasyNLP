@@ -33,6 +33,10 @@ python init.py
 
 5. inference the responses and save into the faiss index
 
+It should be noted that:
+1. For writer dataset, use `extract_inference.py` script to generate the inference.txt
+2. For other datasets(douban, ecommerce, ubuntu), just `cp train.txt inference.txt`. The dataloader will automatically read the test.txt to supply the corpus. 
+
 ```bash
 # work_mode=response, inference the response and save into faiss (for q-r matching)
 # work_mode=context, inference the context to do q-q matching
@@ -80,6 +84,21 @@ at the same time, you can test the deployed model by using:
 
 ## Experiment Results
 ### 1. E-Commerce Dataset
+
+* recall performance
+| Model (CPU/109105)     | Top-20 | Top-100 | Average Time(20) ms |
+| ---------------------- | ------ | ------- | ------------------- |
+| dual-bert-flat(q-r)    |  0.567 | 0.791   | 29.51               |
+| dual-bert-fusion(q-r)  |  0.561 | 0.645   | -              |
+
+* rerank performance
+| Original       | R10@1 | R10@2 | R10@5 | MRR    |
+| -------------- | ----- | ----- | ----- | ------ |
+| SOTA           | 77.6  | 91.9  | 99.1  | -      |
+| BERT-FP        | 87.0  | 95.6  | 99.3  | -      |
+| dual-bert      | 91.7  | 96.0  | 99.2  | 94.85  |
+| dual-bert-fusion | 84.7  | 93.9 | 98.7  | 90.0  |
+
 
 | Original       | R10@1 | R10@2 | R10@5 | MRR    |
 | -------------- | ----- | ----- | ----- | ------ |
@@ -170,10 +189,10 @@ If the index is based on the contexts, it is q-q matching
 q-q: the constrastive loss is used for context context pair;
 q-r: the constrastive loss is used for context response pair
 -->
-| Model (CPU/684208)     | Top-20 | Top-100 | Average Time(20) ms |
+| Model (CPU/442787)     | Top-20 | Top-100 | Average Time(20) ms |
 | ---------------------- | ------ | ------- | ------------------- |
-| dual-bert-flat(q-r)    | 0.1124 | 0.2129  | 204.85              |
-| dual-bert-fusion(q-r)  |        |         |                     |
+| dual-bert-flat(q-r)    | 0.1229 | 0.2339  | 124.06              |
+| dual-bert-fusion(q-r)  | 0.7826 | 0.8111  | 170.83              |
 
 <!--the influence of the number of the negative samples, max_len=256/64
 It can be found that the number of the negative samples has the limited performance gain
@@ -210,6 +229,7 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 | dual-bert(bsz=32, epoch=5, poly-m=32) | 30.55 | 46.93 | 81.16 | 64.45 | 48.43  | 60.34 |
 | dual-bert(bsz=32, epoch=5, bert-fp) | 31.42 | 51.6 | 83.46 | 66.41 | 49.48  | 62.22 |
 | dual-bert(bsz=48, epoch=5, bert-fp) | 31.13 | 51.32 | 83.25 | 66.2 | 49.18  | 61.96 |
+| dual-bert-fusion(bsz=48, epoch=5, bert-fp) | 27.95 | 48.27 | 81.93 | 63.75 | 45.58 | 59.66 |
 | dual-bert-cl(bsz=48, epoch=5, bert-fp) | 30.25 | 50.69| 82.44 | 65.49 | 48.13  | 61.25 |
 | dual-bert-cl(bsz=32, epoch=5, bert-fp) |  | | |  |  | |
 | dual-bert-cl2(bsz=48, epoch=5, bert-fp) |  | | |  |  | |
@@ -318,7 +338,7 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 | Models                              | Top-20 | Top-100 | Time Cost   |
 | ----------------------------------- | ------ | ------- | ----------- |
 | dual-bert-gray-writer-LSH           | 0.126  | 0.193   | 529.10      |
-| dual-bert-gray-writer-HNSW32        |        |         |             |
+| dual-bert-fusion-gray-writer-LSH    |        |         |             |
 | hash-bert-gray-writer-BHash512      |        |         |             |
 
 * Rerank performance

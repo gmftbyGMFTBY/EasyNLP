@@ -1,19 +1,23 @@
 from model.utils import *
 
-class BERTDualFusionEncoder(nn.Module):
+class BERTDualFusionGrayFullEncoder(nn.Module):
 
     '''fusion the context information into the response representation to improve the recall performance:
     However, the very long context will bring the noise into the response representation. Thus, the response information is used to select the useful information in the conversation context and fuse them into the final response representations.
     '''
 
     def __init__(self, **args):
-        super(BERTDualFusionEncoder, self).__init__()
+        super(BERTDualFusionGrayFullEncoder, self).__init__()
         model = args['pretrained_model']
+        self.gray_num = args['gray_cand_num']
         s = args['smoothing']
         p = args['dropout']
         self.ctx_encoder = BertFullEmbedding(model=model)
         self.can_encoder = BertFullEmbedding(model=model)
-        self.label_smooth_loss = LabelSmoothLoss(smoothing=s)
+        self.vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.args = args
 
         # Gated module
         self.select_gate = nn.Sequential(
@@ -23,6 +27,37 @@ class BERTDualFusionEncoder(nn.Module):
             nn.Linear(768, 768),
             nn.Sigmoid(),
         )
+    
+    def _length_limit(self, ids):
+        # also return the speaker embeddings
+        if len(ids) > self.args['max_len']:
+            ids = [ids[0]] + ids[-(self.args['max_len']-1):]
+        return ids
+    
+    def _length_limit_res(self, ids):
+        # cut tail
+        if len(ids) > self.args['res_max_len']:
+            ids = ids[:self.args['res_max_len']-1] + [self.sep]
+        return ids
+
+    def totensor(self, texts, ctx=True):
+        items = self.vocab.batch_encode_plus(texts)['input_ids']
+        if ctx:
+            ids = [torch.LongTensor(self._length_limit(i)) for i in items]
+        else:
+            ids = [torch.LongTensor(self._length_limit_res(i)) for i in items]
+        ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+        mask = self.generate_mask(ids)
+        if torch.cuda.is_available():
+            ids, mask = ids.cuda(), mask.cuda()
+        return ids, mask
+        
+    def generate_mask(self, ids):
+        attn_mask_index = ids.nonzero().tolist()   # [PAD] IS 0
+        attn_mask_index_x, attn_mask_index_y = [i[0] for i in attn_mask_index], [i[1] for i in attn_mask_index]
+        attn_mask = torch.zeros_like(ids)
+        attn_mask[attn_mask_index_x, attn_mask_index_y] = 1
+        return attn_mask
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
@@ -51,11 +86,9 @@ class BERTDualFusionEncoder(nn.Module):
 
     @torch.no_grad()
     def predict(self, batch):
-        cid = batch['ids']
-        rid = batch['rids']
-        rid_mask = batch['rids_mask']
-        cid = cid.unsqueeze(0)    # [1, S]
-        cid_mask = torch.ones_like(cid)    # [1, S]
+        context, responses = batch['context'], batch['responses']
+        cid, cid_mask = self.totensor([context], ctx=True)
+        rid, rid_mask = self.totensor(responses, ctx=False)
 
         b_c, b_r = len(cid), len(rid)
 
@@ -73,7 +106,7 @@ class BERTDualFusionEncoder(nn.Module):
         # rid: [1, B_c, E]; cid: [B_c, E]
         dot_product = torch.einsum('ijk,jk->ij', rid_rep, cid_rep[:, 0, :]).squeeze(0)   # [B_c]
         dot_product /= np.sqrt(768)     # scale dot product
-        return dot_product.squeeze(1)
+        return dot_product
 
     def attack(self, rep):
         '''add the noise to pertubation'''
@@ -99,10 +132,9 @@ class BERTDualFusionEncoder(nn.Module):
         return rep
     
     def forward(self, batch):
-        cid = batch['ids']
-        rid = batch['rids']
-        cid_mask = batch['ids_mask']
-        rid_mask = batch['rids_mask']
+        context, responses = batch['context'], batch['responses']
+        cid, cid_mask = self.totenosr(context, ctx=True)
+        rid, rid_mask = self.totenosr(responses, ctx=False)
 
         b_c, b_r = len(cid), len(rid)
 
@@ -122,11 +154,13 @@ class BERTDualFusionEncoder(nn.Module):
         dot_product /= np.sqrt(768)     # scale dot product
 
         # label smooth loss
-        gold = torch.arange(b_c).cuda()
-        loss = self.label_smooth_loss(dot_product, gold)
+        mask = torch.zeros_like(dot_product).cuda()
+        msak[torch.arange(batch_size), torch.arange(0, len(rid), self.gray_num+1)] = 1.
+        loss_ = F.log_softmax(dot_product, dim=-1) * mask
+        loss = (-loss_.sum(dim=1)).mean()
 
         # acc
-        acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(b_c)).cuda()).sum().item()
+        acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(0, len(rid), self.gray_num+1)).cuda()).sum().item()
         acc = acc_num / b_c
 
         return loss, acc

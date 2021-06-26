@@ -67,6 +67,8 @@ class BERTDualInferenceDataset(Dataset):
 
 
 class BERTDualCLInferenceDataset(Dataset):
+
+    '''for dual-bert-fusion model, which need response and context to generate the response representations'''
     
     def __init__(self, vocab, path, **args):
         self.args = args
@@ -92,7 +94,7 @@ class BERTDualCLInferenceDataset(Dataset):
             item = self.vocab.batch_encode_plus([res] + ctxs)
             res_ids = item['input_ids'][0]
             ctx_ids = item['input_ids'][1:]
-            rids = self._length_limit_res(item)
+            rids = self._length_limit_res(res_ids)
             cids = [self._length_limit(i) for i in ctx_ids]
             self.data.append({
                 'ids': rids, 
@@ -102,7 +104,7 @@ class BERTDualCLInferenceDataset(Dataset):
                 
     def _length_limit_res(self, ids):
         if len(ids) > self.args['res_max_len']:
-            ids = ids[:self.args['res_max_len']-1] + [self.sep]
+            ids = ids[:self.args['res_max_len']]
         return ids
     
     def _length_limit(self, ids):
