@@ -67,25 +67,18 @@ class BERTDualFusionEncoder(nn.Module):
             torch.cat([ext_cid_rep, rid_rep], dim=-1)        
         )     # [1, B_c, E]
         rid_rep = gate_score * ext_cid_rep + (1 - gate_score) * rid_rep    # [1, B_c, E]
-        # attack
-        # rid_rep = self.attack(rid_rep)
 
         # rid: [1, B_c, E]; cid: [B_c, E]
         dot_product = torch.einsum('ijk,jk->ij', rid_rep, cid_rep[:, 0, :]).squeeze(0)   # [B_c]
         dot_product /= np.sqrt(768)     # scale dot product
         return dot_product.squeeze(1)
 
-    def attack(self, rep):
-        '''add the noise to pertubation'''
-        noise = torch.randn_like(rep)
-        return rep + noise
-
     def extract_from_context(self, query, key, value, padding_mask):
         # query(from response): [B_r, E]; value/key(from context): [B_c, S, E]
         # padding_mask: [B_c, S]
         # return the tensor [B_r, B_c, E]
         b_c, b_r = len(key), len(query)
-        weights = torch.matmul(
+        weights = torch.bmm(
             query.unsqueeze(0).repeat(b_c, 1, 1),     # [B_c, B_r, E]
             key.permute(0, 2, 1),      # [B_c, E, S]
         ).permute(1, 0, 2)    # [B_r, B_c, S]
@@ -114,8 +107,6 @@ class BERTDualFusionEncoder(nn.Module):
             torch.cat([ext_cid_rep, rid_rep], dim=-1)        
         )     # [B_r, B_c, E]
         rid_rep = gate_score * ext_cid_rep + (1 - gate_score) * rid_rep    # [B_r, B_c, E]
-        # attack
-        # rid_rep = self.attack(rid_rep)
 
         # rid: [B_r, B_c, E]; cid: [B_c, E] => [B_r, B_c]
         dot_product = torch.einsum('ijk,jk->ij', rid_rep, cid_rep[:, 0, :]).t()    # [B_c, B_r]

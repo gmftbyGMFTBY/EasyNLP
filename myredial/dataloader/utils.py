@@ -116,7 +116,7 @@ def read_response_data(path, lang='zh'):
     return dataset
 
 
-def read_cl_response_data(path, lang='zh'):
+def read_cl_response_data(path, lang='zh', max_context_turn=0):
     with open(path) as f:
         dataset = {}
         for line in f.readlines():
@@ -126,7 +126,12 @@ def read_cl_response_data(path, lang='zh'):
             utterances = utterances[1:]
             if lang == 'zh':
                 utterances = [''.join(i.split()) for i in utterances]
-            context = ' [SEP] '.join(utterances[:-1])
+
+            if max_context_turn == 0:
+                context = ' [SEP] '.join(utterances[:-1])
+            else:
+                context = ' [SEP] '.join(utterances[-max_context_turn-1:-1])
+
             response = utterances[-1]
             if response in dataset:
                 dataset[response].append(context)

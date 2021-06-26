@@ -28,6 +28,8 @@ inference:
     batch_size: 128
     max_len: 256
     res_max_len: 64
-    topk: 100
+    topk: 20
     index_type: Flat
     dimension: 768
+    # 0 means all the context utterances are included
+    max_context_turn: 0

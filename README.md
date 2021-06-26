@@ -192,7 +192,8 @@ q-r: the constrastive loss is used for context response pair
 | Model (CPU/442787)     | Top-20 | Top-100 | Average Time(20) ms |
 | ---------------------- | ------ | ------- | ------------------- |
 | dual-bert-flat(q-r)    | 0.1229 | 0.2339  | 124.06              |
-| dual-bert-fusion(q-r)  | 0.7826 | 0.8111  | 170.83              |
+| dual-bert-fusion(q-r, ctx=full)  | 0.7826 | 0.8111  | 170.83              |
+| dual-bert-fusion(q-r, ctx=1)  | 0.6087  | 0.6837 | 172.2              |
 
 <!--the influence of the number of the negative samples, max_len=256/64
 It can be found that the number of the negative samples has the limited performance gain
@@ -313,13 +314,20 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 
 ### 3. Ubuntu V1 Dataset
 
+# recall performance
+ Because of the very large test set, we use the LSH other than the Flat
+| Originali (545868)       | Top-20 | Top-100 | Time |
+| -------------- | ----- | ----- | ------ |
+| dual-bert-LSH | 0.1374 | 0.2565 | 8.59  |
+| dual-bert-fusion-LSH | |  |   |
+
 | Original       | R10@1 | R10@2 | R10@5 | R2@1   |
 | -------------- | ----- | ----- | ----- | ------ |
 | SOTA           | 0.884 | 0.946 | 0.990 | 0.975  |
 | HCL            | 0.867 | 0.940 | 0.992 | 0.977  |
 | BERT-FP        | 91.1  | 96.2  | 99.4  | 0.977  |
 | dual-bert(bsz=16, epoch=5, bert-post) | 84.69 | 92.66 | 98.51 | - |
-| dual-bert(bsz=32, epoch=5, bert-fp) | 87.44 | 94.12 | 98.5  | - |
+| dual-bert(bsz=64, epoch=5, bert-fp) | 87.64 | 94.22 | 98.57  | - |
 | dual-gru(bsz=64, epoch=5) | 72.51 | 85.22 | 96.41 | - |
 | dual-bert-hier(bsz=32, epoch=5, bert-post) | 67.71 | 81.33 | 95.36 | - |
 | dual-bert-hier(bsz=32, epoch=5, bert-dual-post) | | | | |
@@ -346,7 +354,7 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 | Models                              | R10@1 | R10@2 | R10@5 | MRR   |
 | ----------------------------------- | ----- | ----- | ----- | ----- |
 | bert-base-chinese (dual-bert-gray-writer) | 66.12 | 79.9 | 94.37 | 77.88 |
-| bert-base-chinese (hash-bert-gray-writer) | | | | |
+| bert-base-chinese (hash-bert-gray-writer) | 54.16 | 75.72 | 94.78 | 71.13 |
 | bert-base-chinese (dual-bert|g=2)   | 56.32 | 73.06 | 92.67 | 71.22 |
 | bert-base-chinese (dual-bert|g=5)   |  |  |  |  |
 | bert-base-chinese (dual-bert|g=10)  |  |  |  |  |
