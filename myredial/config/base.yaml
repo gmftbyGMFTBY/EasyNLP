@@ -109,7 +109,7 @@ models:
     bert-ft: 
         type: Interaction
         model_name: BERTRetrieval
-        dataset_name: BERTWithNegDataset
+        dataset_name: BERTFTDataset
         inference_dataset_name: none
     sa-bert: 
         type: Interaction

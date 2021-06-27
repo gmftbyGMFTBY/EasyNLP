@@ -6,7 +6,6 @@ import ipdb
 import sys
 import pickle
 from collections import Counter
-from gensim.summarization import bm25
 from elasticsearch import Elasticsearch, helpers
 import argparse
 
@@ -24,7 +23,7 @@ def parse_args():
 class ESUtils:
 
     def __init__(self, index_name, create_index=False):
-        self.es = Elasticsearch(hosts=['localhost:9200'], http_auth=('elastic', 'elastic123'))
+        self.es = Elasticsearch(hosts=['localhost:9200'])
         self.index = index_name
         if create_index:
             mapping = {
@@ -108,8 +107,6 @@ def write_file(dialogs, mode='train', samples=10):
 def read_file(path, mode='train'):
     with open(path, encoding='utf-8') as f:
         data = json.load(f)
-        if mode == 'train':
-            data = data['train']
         dialogs = []
         for utterances in data:
             utterances = [''.join(i.split()) for i in utterances]
@@ -124,9 +121,8 @@ if __name__ == "__main__":
     args = vars(parse_args())
     random.seed(args['seed'])
     if args['mode'] == 'init':
-        train_data = read_file('LCCC-base.json', mode='train')
+        train_data = read_file('LCCC-base_train.json', mode='train')
         write_file(train_data, mode='train')
-
         esutils = ESUtils(args['name'], create_index=True)
         train_data_ = random.sample(train_data, args['database_size'])
         responses = [i[1] for i in train_data_]

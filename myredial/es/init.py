@@ -21,7 +21,7 @@ if __name__ == "__main__":
 
     random.seed(args['seed'])
 
-    train_path = f'{args["root_dir"]}/data/{args["dataset"]}/train.txt'
+    train_path = f'{args["root_dir"]}/data/{args["dataset"]}/inference.txt'
     test_path = f'{args["root_dir"]}/data/{args["dataset"]}/test.txt'
 
     train_data = load_qa_pair(train_path, lang=args['lang'])

@@ -7,6 +7,7 @@ class BERTRetrieval(nn.Module):
         model = args['pretrained_model']
         p = args['dropout']
 
+        # bert-fp pre-trained model need to resize the token embedding
         self.model = BertModel.from_pretrained(model)
         self.model.resize_token_embeddings(self.model.config.vocab_size+1)
         self.head = nn.Sequential(

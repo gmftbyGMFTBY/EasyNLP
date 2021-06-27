@@ -12,7 +12,7 @@ train:
     warmup_ratio: 0.1
     checkpoint: 
         path: bert-post/best_nspmlm.pt
-        is_load: false
+        is_load: true
 
 # test configuration
 test:
@@ -26,6 +26,6 @@ inference:
     seed: 50
     batch_size: 128
     max_len: 64
-    topk: 100
-    index_type: Flat
+    topk: 20
+    index_type: LSH
     dimension: 768

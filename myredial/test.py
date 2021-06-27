@@ -22,6 +22,8 @@ def parser_args():
     parser.add_argument('--multi_gpu', type=str, default=None)
     parser.add_argument('--mode', type=str, default='test')
     parser.add_argument('--recall_mode', type=str, default='q-r')
+    parser.add_argument('--log', action='store_true', dest='log')
+    parser.add_argument('--no-log', action='store_false', dest='log')
     return parser.parse_args()
 
 
@@ -126,6 +128,7 @@ def main_es_recall(**args):
     pbar = tqdm(test_iter)
     counter, acc = 0, 0
     cost_time = []
+    log_collector = []
     for batch in pbar:
         if 'ids' in batch:
             context = agent.convert_to_text(batch['ids'])
@@ -138,6 +141,12 @@ def main_es_recall(**args):
         rest = searcher.search(context, topk=inf_args['topk'])
         et = time.time()
         cost_time.append(et - bt)
+
+        # print output
+        log_collector.append({
+            'context': context,
+            'rest': rest,
+        })
 
         gt_candidate = batch['text']
         if len(gt_candidate) == 0:
@@ -157,6 +166,14 @@ def main_es_recall(**args):
     with open(f'{inf_args["root_dir"]}/rest/{inf_args["dataset"]}/{inf_args["model"]}/test_result_es_recall_{pretrained_model_name}.txt', 'w') as f:
         print(f'Top-{inf_args["topk"]}: {topk_metric}', file=f)
         print(f'Average Times: {avg_time} ms', file=f)
+    if args['log']:
+        with open(f'{inf_args["root_dir"]}/rest/{inf_args["dataset"]}/{inf_args["model"]}/recall_es_log.txt', 'w') as f:
+            for item in log_collector:
+                f.write(f'[Context] {item["context"]}\n')
+                # DO NOT SAVE ALL THE RESULTS INTO THE LOG FILE (JUST TOP-10)
+                for neg in item['rest'][:10]:
+                    f.write(f'{neg}\n')
+                f.write('\n')
 
 
 def main_recall(**args):
@@ -168,6 +185,7 @@ def main_recall(**args):
     pbar = tqdm(test_iter)
     counter, acc = 0, 0
     cost_time = []
+    log_collector = []
     for batch in pbar:
         if 'ids' in batch:
             ids = batch['ids'].unsqueeze(0)
@@ -185,6 +203,16 @@ def main_recall(**args):
         rest = searcher._search(vector, topk=inf_args['topk'])[0]
         et = time.time()
         cost_time.append(et - bt)
+
+        #
+        if 'context' in batch:
+            context = batch['context']
+        elif 'ids' in batch:
+            context = agent.convert_to_text(batch['ids'])
+        log_collector.append({
+            'context': context,
+            'rest': rest
+        })
 
         gt_candidate = batch['text']
         if len(gt_candidate) == 0:
@@ -204,6 +232,16 @@ def main_recall(**args):
     with open(f'{inf_args["root_dir"]}/rest/{inf_args["dataset"]}/{inf_args["model"]}/test_result_recall_{pretrained_model_name}.txt', 'w') as f:
         print(f'Top-{inf_args["topk"]}: {topk_metric}', file=f)
         print(f'Average Times: {avg_time} ms', file=f)
+    if args['log']:
+        model_name = args['model']
+        with open(f'{inf_args["root_dir"]}/rest/{inf_args["dataset"]}/{inf_args["model"]}/recall_{model_name}_log.txt', 'w') as f:
+            for item in log_collector:
+                f.write(f'[Context] {item["context"]}\n')
+                # DO NOT SAVE ALL THE RESULTS INTO THE LOG FILE (JUST TOP-10)
+                for neg in item['rest'][:10]:
+                    f.write(f'{neg}\n')
+                f.write('\n')
+
 
 if __name__ == "__main__":
     args = vars(parser_args())

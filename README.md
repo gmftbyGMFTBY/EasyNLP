@@ -46,7 +46,7 @@ It should be noted that:
 2. For other datasets(douban, ecommerce, ubuntu), just `cp train.txt inference.txt`. The dataloader will automatically read the test.txt to supply the corpus. 
 
 ```bash
-# work_mode=response, inference the response and save into faiss (for q-r matching)
+# work_mode=response, inference the response and save into faiss (for q-r matching) [dual-bert/dual-bert-fusion]
 # work_mode=context, inference the context to do q-q matching
 # work_mode=gray, inference the context; read the faiss(work_mode=response), search the topk hard negative samples
 ./inference <dataset_name> <model_name> <cuda_ids>
@@ -253,7 +253,7 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 | poly encoder(poly-m=32)  | 31.76 | 50.59 | 85.72 | 66.49 | 49.48 | 62.84  |
 | dual-bert(bsz=32, epoch=5, poly-m=32) | 30.55 | 46.93 | 81.16 | 64.45 | 48.43  | 60.34 |
 | dual-bert(bsz=32, epoch=5, bert-fp) | 31.42 | 51.6 | 83.46 | 66.41 | 49.48  | 62.22 |
-| dual-bert(bsz=48, epoch=5, bert-fp) | 31.13 | 51.32 | 83.25 | 66.2 | 49.18  | 61.96 |
+| dual-bert(bsz=48, epoch=5, bert-fp) | 31.63 | 51.22 | 83.23 | 66.47 | 49.78  | 62.22 |
 | dual-bert-fusion(bsz=48, epoch=5, bert-fp) | 27.95 | 48.27 | 81.93 | 63.75 | 45.58 | 59.66 |
 | dual-bert-cl(bsz=48, epoch=5, bert-fp) | 30.25 | 50.69| 82.44 | 65.49 | 48.13  | 61.25 |
 | dual-bert-cl(bsz=32, epoch=5, bert-fp) |  | | |  |  | |
@@ -344,8 +344,8 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 | -------------- | ----- | ----- | ------ |
 | dual-bert-LSH | 0.1374 | 0.2565 | 8.59  |
 | dual-bert-fusion-LSH | 0.7934 | 0.8147 | 7.89  |
-| ES(q-q) | | | |
-| ES(q-r) | | | |
+| ES(q-q) | 0.0101 | 0.0202 | 22.13 |
+| ES(q-r) | 0.0014 | 0.0083 | 9.79 |
 
 | Original       | R10@1 | R10@2 | R10@5 | R2@1   |
 | -------------- | ----- | ----- | ----- | ------ |
@@ -398,10 +398,14 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 ### LCCC Dataset
 
 * recall performance
-| Models(CPU/394740)    | Top-20 | Top-100 | Time   |
+| Models(CPU/394740/full-4769532)    | Top-20 | Top-100 | Time   |
 | ---------- | ----- | ----- | --- |
 | dual-bert-flat  | 0.105 | 0.195 | 112.39 | 
 | dual-bert-fusion-flat  | 0.571 | 0.624  | 110.5 |
+| dual-bert-full-LSH  | 0.038 | - | 68.76 | 
+| dual-bert-full-fusion-LSH  | 0.417 | 0.475 | 68.92 |
+| ES-full(q-q) |  |  |  |
+| ES-full(q-r) |  |  |  |
 | ES(q-q) | 0.979 | 0.995 | 16.96 |
 | ES(q-r) | 0.051 | 0.099 | 9.4 |
 

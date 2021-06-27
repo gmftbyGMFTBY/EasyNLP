@@ -8,11 +8,8 @@ class BERTFTDataset(Dataset):
         self.args = args
         self.vocab = vocab
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
-        if 'pj-' in args['model']:
-            self.pp_path = f'{os.path.splitext(path)[0]}_pjft.pt'
-        else:
-            suffix = args['tokenizer'].replace('/', '_')
-            self.pp_path = f'{os.path.splitext(path)[0]}_ft_{suffix}.pt'
+        suffix = args['tokenizer'].replace('/', '_')
+        self.pp_path = f'{os.path.splitext(path)[0]}_ft_{suffix}.pt'
         if os.path.exists(self.pp_path):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
@@ -110,11 +107,8 @@ class BERTWithNegDataset(Dataset):
         self.args = args
         self.vocab = vocab
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
-        if 'pj-' in args['model']:
-            self.pp_path = f'{os.path.splitext(path)[0]}_pjft_neg.pt'
-        else:
-            suffix = args['tokenizer'].replace('/', '_')
-            self.pp_path = f'{os.path.splitext(path)[0]}_ft_neg_{suffix}.pt'
+        suffix = args['tokenizer'].replace('/', '_')
+        self.pp_path = f'{os.path.splitext(path)[0]}_ft_neg_{suffix}.pt'
         if os.path.exists(self.pp_path):
             self.data = torch.load(self.pp_path)
             if self.args['mode'] == 'train':

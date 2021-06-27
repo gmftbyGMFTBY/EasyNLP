@@ -60,16 +60,16 @@ class BERTDualFusionEncoder(nn.Module):
         b_c, b_r = len(cid), len(rid)
 
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
-        ext_cid_rep = self.extract_from_context(rid_rep, cid_rep, cid_rep, cid_mask)    # [1, B_c, E]
-        rid_rep = rid_rep.unsqueeze(1).repeat(1, b_c, 1)    # [1, B_c, E]
+        ext_cid_rep = self.extract_from_context(rid_rep, cid_rep, cid_rep, cid_mask)    # [B_r, 1, E]
+        rid_rep = rid_rep.unsqueeze(1).repeat(1, b_c, 1)    # [B_r, 1, E]
 
         gate_score = self.select_gate(
             torch.cat([ext_cid_rep, rid_rep], dim=-1)        
-        )     # [1, B_c, E]
-        rid_rep = gate_score * ext_cid_rep + (1 - gate_score) * rid_rep    # [1, B_c, E]
+        )     # [B_r, 1, E]
+        rid_rep = gate_score * ext_cid_rep + (1 - gate_score) * rid_rep    # [B_r, 1, E]
 
-        # rid: [1, B_c, E]; cid: [B_c, E]
-        dot_product = torch.einsum('ijk,jk->ij', rid_rep, cid_rep[:, 0, :]).squeeze(0)   # [B_c]
+        # rid: [B_r, 1, E]; cid: [1, E]
+        dot_product = torch.einsum('ijk,jk->ij', rid_rep, cid_rep[:, 0, :]).squeeze(0)   # [B_r]
         dot_product /= np.sqrt(768)     # scale dot product
         return dot_product.squeeze(1)
 

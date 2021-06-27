@@ -64,7 +64,7 @@ class ESUtils:
 class ESChat:
 
     def __init__(self, index_name):
-        self.es = Elasticsearch(hosts=['localhost:9200'], http_auth=('elastic', 'elastic123'))
+        self.es = Elasticsearch(hosts=['localhost:9200'])
         self.index = index_name
 
     def search(self, query, samples=10):

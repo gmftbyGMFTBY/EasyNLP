@@ -15,7 +15,6 @@ class BERTDualCompEncoder(nn.Module):
         num_encoder_layers = args['num_encoder_layers']
 
         # ====== Model ====== #
-
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
 

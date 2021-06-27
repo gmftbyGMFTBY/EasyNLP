@@ -29,11 +29,7 @@ def load_dataset(args):
         
     data = dataset_t(vocab, path, **args)
     if args['mode'] in ['train', 'inference']:
-        sampler = torch.utils.data.distributed.DistributedSampler(
-            data,
-            num_replicas=dist.get_world_size(),
-            rank=args['local_rank'],
-        )
+        sampler = torch.utils.data.distributed.DistributedSampler(data)
         iter_ = DataLoader(data, batch_size=args['batch_size'], collate_fn=data.collate, sampler=sampler)
     else:
         iter_ = DataLoader(data, batch_size=args['batch_size'], collate_fn=data.collate)

@@ -14,4 +14,5 @@ CUDA_VISIBLE_DEVICES=$cuda python test.py \
     --model dual-bert \
     --multi_gpu $cuda \
     --mode es_recall \
-    --recall_mode $recall_mode
+    --recall_mode $recall_mode \
+    --log
