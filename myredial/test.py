@@ -3,11 +3,13 @@ from dataloader import *
 from model import *
 from config import *
 from inference import *
+from es import *
 
 '''
 Test script:
     1. test the rerank performance [test]
     2. test the recall performance [recall]
+    3. test the es recall performance [es_recall]
 
 If you use the [recall], make sure the inference.sh has already been done
 '''
@@ -91,6 +93,72 @@ def main_rerank(**args):
             print(f'{key}: {value}', file=f)
 
 
+def main_es_recall(**args):
+    '''test the recall with the faiss index'''
+    # use test mode args load test dataset and model
+    inf_args = deepcopy(args)
+    args['mode'] = 'test'
+    config = load_config(args)
+    args.update(config)
+    test_data, test_iter, _ = load_dataset(args)
+    agent = load_model(args)
+
+    random.seed(args['seed'])
+    torch.manual_seed(args['seed'])
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args['seed'])
+
+    pretrained_model_name = args['pretrained_model'].replace('/', '_')
+    save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}.pt'
+    agent.load_model(save_path)
+
+    # inference
+    inf_args['mode'] = 'inference'
+    config = load_config(inf_args)
+    inf_args.update(config)
+
+    searcher = ESSearcher(
+        f'{inf_args["dataset"]}_{inf_args["recall_mode"]}', 
+        q_q=True if inf_args['recall_mode'] == 'q-q' else False
+    )
+
+    # test recall (Top-20, Top-100)
+    pbar = tqdm(test_iter)
+    counter, acc = 0, 0
+    cost_time = []
+    for batch in pbar:
+        if 'ids' in batch:
+            context = agent.convert_to_text(batch['ids'])
+        elif 'context' in batch:
+            context = batch['context']
+        else:
+            raise Exception(f'[!] Error during test es recall')
+
+        bt = time.time()
+        rest = searcher.search(context, topk=inf_args['topk'])
+        et = time.time()
+        cost_time.append(et - bt)
+
+        gt_candidate = batch['text']
+        if len(gt_candidate) == 0:
+            continue
+        for text in gt_candidate:
+            if text in rest:
+                acc += 1
+                break
+        counter += 1
+        pbar.set_description(f'[!] Top-{inf_args["topk"]}: {round(acc/counter, 4)}')
+
+    topk_metric = round(acc/counter, 4)
+    avg_time = round(np.mean(cost_time)*1000, 2)    # ms
+    pretrained_model_name = inf_args['pretrained_model'].replace('/', '_')
+    print(f'[!] Top-{inf_args["topk"]}: {topk_metric}')
+    print(f'[!] Average Times: {avg_time} ms')
+    with open(f'{inf_args["root_dir"]}/rest/{inf_args["dataset"]}/{inf_args["model"]}/test_result_es_recall_{pretrained_model_name}.txt', 'w') as f:
+        print(f'Top-{inf_args["topk"]}: {topk_metric}', file=f)
+        print(f'Average Times: {avg_time} ms', file=f)
+
+
 def main_recall(**args):
     '''test the recall with the faiss index'''
     # use test mode args load test dataset and model
@@ -128,10 +196,6 @@ def main_recall(**args):
         counter += 1
         pbar.set_description(f'[!] Top-{inf_args["topk"]}: {round(acc/counter, 4)}')
 
-        # for very large corpus (test set)
-        # if counter >= 1000:
-        #     break
-
     topk_metric = round(acc/counter, 4)
     avg_time = round(np.mean(cost_time)*1000, 2)    # ms
     pretrained_model_name = inf_args['pretrained_model'].replace('/', '_')
@@ -146,6 +210,8 @@ if __name__ == "__main__":
     if args['mode'] == 'recall':
         print(f'[!] Make sure that the inference script of model({args["model"]}) on dataset({args["dataset"]}) has been done.')
         main_recall(**args)
+    elif args['mode'] == 'es_recall':
+        main_es_recall(**args)
     elif args['mode'] == 'rerank':
         main_rerank(**args)
     else:

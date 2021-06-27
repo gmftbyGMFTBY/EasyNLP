@@ -1,13 +1,21 @@
 # Easy-to-use toolkit for retrieval-based Chatbot
 
-## How to Use
+## Note
 
+1. The rerank performance of dual-bert-fusion is bad, the reason maybe that the context information is only for ground-truth, but the other negative samples lost their corresponding context, and during rerank procedure, we use the context of the ground-truth for all the candidates, which may pertubate the decison of the model.
+
+## How to Use
 
 1. Init the repo
 Before using the repo, please run the following command to init:
 
 ```bash
+# create the necessay folders
 python init.py
+
+# prepare the environment
+# if some package cannot be installed, just google and install it from other ways
+pip install -r requirements.txt
 ```
 
 2. train the model
@@ -63,6 +71,19 @@ at the same time, you can test the deployed model by using:
 ./jizhi_start.sh
 ```
 
+8. test the recall performance of the elasticsearch
+
+Before testing the es recall, make sure the es index has been built:
+```bash
+# recall_mode: q-q/q-r
+./build_es_index.sh <dataset_name> <recall_mode>
+```
+
+```bash
+# recall_mode: q-q/q-r
+./test_es_recall.sh <dataset_name> <recall_mode> 0
+```
+
 ## Ready models and datasets
 
 ### 1. Models
@@ -80,6 +101,7 @@ at the same time, you can test the deployed model by using:
 2. Douban
 3. Ubuntu-v1
 4. Writer (智能写作助手数据集)
+5. LCCC
 
 
 ## Experiment Results
@@ -194,6 +216,8 @@ q-r: the constrastive loss is used for context response pair
 | dual-bert-flat(q-r)    | 0.1229 | 0.2339  | 124.06              |
 | dual-bert-fusion(q-r, ctx=full)  | 0.7826 | 0.8111  | 170.83              |
 | dual-bert-fusion(q-r, ctx=1)  | 0.6087  | 0.6837 | 172.2              |
+| ES(q-q) | 1.0 | 1.0 | 123.19 |
+| ES(q-r) | 0.1034 | 0.1514 | 39.95 |
 
 <!--the influence of the number of the negative samples, max_len=256/64
 It can be found that the number of the negative samples has the limited performance gain
@@ -319,7 +343,9 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 | Originali (545868)       | Top-20 | Top-100 | Time |
 | -------------- | ----- | ----- | ------ |
 | dual-bert-LSH | 0.1374 | 0.2565 | 8.59  |
-| dual-bert-fusion-LSH | |  |   |
+| dual-bert-fusion-LSH | 0.7934 | 0.8147 | 7.89  |
+| ES(q-q) | | | |
+| ES(q-r) | | | |
 
 | Original       | R10@1 | R10@2 | R10@5 | R2@1   |
 | -------------- | ----- | ----- | ----- | ------ |
@@ -368,3 +394,19 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 | hfl-roberta-chinese (bert-ft|g=2)   |  |  |  |  |
 | pijili-bert-base (dual-bert)        |  |  |  |  |
 | pijili-bert-base (bert-ft)          |  |  |  |  |
+
+### LCCC Dataset
+
+* recall performance
+| Models(CPU/394740)    | Top-20 | Top-100 | Time   |
+| ---------- | ----- | ----- | --- |
+| dual-bert-flat  | 0.105 | 0.195 | 112.39 | 
+| dual-bert-fusion-flat  | 0.571 | 0.624  | 110.5 |
+| ES(q-q) | 0.979 | 0.995 | 16.96 |
+| ES(q-r) | 0.051 | 0.099 | 9.4 |
+
+* rerank performance
+| Models                              | R10@1 | R10@2 | R10@5 | MRR   |
+| ----------------------------------- | ----- | ----- | ----- | ----- |
+| dual-bert | 40.5 | 75.0 | 92.8 | 63.88 |
+| dual-bert-fusion | 40.7 | 73.9 | 92.5 | 63.77 |

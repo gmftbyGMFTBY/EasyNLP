@@ -2,6 +2,7 @@ datasets:
     ecommerce: zh
     douban: zh
     writer: zh
+    lccc: zh
     ubuntu: en
 
 # pretrained model and tokenizer

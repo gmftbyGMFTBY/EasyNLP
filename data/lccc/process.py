@@ -6,9 +6,11 @@ import ipdb
 import sys
 import pickle
 from collections import Counter
-from gensim.summarization import bm25
 from elasticsearch import Elasticsearch, helpers
 import argparse
+
+
+'''Make sure the elasticsearch has been runned for searching the hard negative samples for test set'''
 
 
 def parse_args():
@@ -26,7 +28,7 @@ def parse_args():
 class ESUtils:
 
     def __init__(self, index_name, create_index=False):
-        self.es = Elasticsearch(hosts=['localhost:9200'], http_auth=('elastic', 'elastic123'))
+        self.es = Elasticsearch(hosts=['localhost:9200'])
         self.index = index_name
         if create_index:
             mapping = {
@@ -115,10 +117,8 @@ def write_file(dialogs, mode='train', samples=10):
 def read_file(path, mode='train'):
     with open(path, encoding='utf-8') as f:
         data = json.load(f)
-        if mode == 'train':
-            data = data['train']
         dialogs = []
-        for utterances in data:
+        for utterances in tqdm(data):
             utterances = [''.join(i.split()) for i in utterances]
             context = '\t'.join(utterances[:-1])
             response = utterances[-1]
@@ -131,7 +131,8 @@ if __name__ == "__main__":
     args = vars(parse_args())
     random.seed(args['seed'])
     if args['mode'] == 'init':
-        train_data = read_file('LCCC-base.json', mode='train')
+        # process the train set and save into elasticsearch index
+        train_data = read_file('LCCC-base_train.json', mode='train')
         train_data_ = random.sample(train_data, args['train_size'])
         write_file(train_data_, mode='train')
 
@@ -140,6 +141,7 @@ if __name__ == "__main__":
         responses = [i[1] for i in train_data_]
         esutils.insert(responses)
     elif args['mode'] == 'retrieval':
+        # build the test set
         test_data = read_file('LCCC-base_test.json', mode='test')
         test_data = random.sample(test_data, args['test_size'])
         write_file(test_data, mode='test', samples=args['samples'])
