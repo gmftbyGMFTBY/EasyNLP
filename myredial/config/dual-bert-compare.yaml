@@ -1,8 +1,10 @@
 smoothing: 0.1
 nhead: 6
-dim_feedforward: 1024
+dim_feedforward: 512
 dropout: 0.1
 num_encoder_layers: 2
+bce_loss_scale: 5
+gray_cand_num: 2
 
 # train configuration
 train:

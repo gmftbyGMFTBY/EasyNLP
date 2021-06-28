@@ -17,7 +17,7 @@ pretrained_model:
     en: bert-base-uncased
 
 # the number of the gray negative samples (writer dataset)
-gray_cand_num: 2
+gray_cand_num: 5
 xlm: false
 
 models:
@@ -25,8 +25,8 @@ models:
         type: Representation
         model_name: BERTDualEncoder
         dataset_name: BERTDualDataset
-        inference_dataset_name: BERTDualInferenceDataset
-        # inference_dataset_name: BERTDualInferenceContextDataset
+        # inference_dataset_name: BERTDualInferenceDataset
+        inference_dataset_name: BERTDualInferenceContextDataset
     dual-bert-ssl: 
         type: Representation
         model_name: BERTDualSSLEncoder
@@ -134,14 +134,14 @@ test_interval: 1.1
 # ========== deploy parameters ========== #
 deploy:
     host: '0.0.0.0'
-    port: 22335
+    port: 8095
     dataset: writer
     max_len: 256
     res_max_len: 64
     recall:
         model: dual-bert-gray-writer
         topk: 100
-        index_type: BHash512
+        index_type: LSH 
         dimension: 768
     rerank:
         model: dual-bert-gray-writer

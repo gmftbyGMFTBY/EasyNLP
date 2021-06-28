@@ -1,5 +1,6 @@
 from tqdm import tqdm
 import ipdb
+import json
 from elasticsearch import Elasticsearch, helpers
 
 
@@ -9,6 +10,7 @@ class ESBuilder:
         self.es = Elasticsearch(hosts=['localhost:9200'])
         self.index = index_name
         self.q_q = q_q
+
         if create_index:
             if q_q is False:
                 mapping = {
@@ -16,7 +18,7 @@ class ESBuilder:
                         'response': {
                             'type': 'text',
                             'analyzer': 'ik_max_word',
-                            'search_analyzer': 'ik_max_word'
+                            'search_analyzer': 'ik_max_word',
                         },
                         'keyword': {
                             'type': 'keyword'
@@ -29,7 +31,7 @@ class ESBuilder:
                         'context': {
                             'type': 'text',
                             'analyzer': 'ik_max_word',
-                            'search_analyzer': 'ik_max_word'
+                            'search_analyzer': 'ik_max_word',
                         },
                         'response': {
                             'type': 'keyword',
@@ -69,6 +71,55 @@ class ESSearcher:
         self.es = Elasticsearch(hosts=['localhost:9200'])
         self.index = index_name
         self.q_q = q_q
+
+    def msearch(self, queries, topk=10, limit=128):
+        # limit the queries length
+        queries = [query[-limit:] for query in queries]
+
+        search_arr = []
+        for query in queries:
+            search_arr.append({'index': self.index})
+            if self.q_q:
+                search_arr.append({
+                    'query': {
+                        'match': {
+                            'context': query
+                        }
+                    },
+                    'collapse': {
+                        'field': 'response'    
+                    },
+                    'size': topk,
+                })
+            else:
+                search_arr.append({
+                    'query': {
+                        'match': {
+                            'response': query
+                        }
+                    },
+                    'collapse': {
+                        'field': 'keyword'    
+                    },
+                    'size': topk,
+                })
+
+        # prepare for searching
+        request = ''
+        for each in search_arr:
+            request += f'{json.dumps(each)} \n'
+        rest = self.es.msearch(body=request)
+
+        results = []
+        for each in rest['responses']:
+            p = []
+            try:
+                for utterance in each['hits']['hits']:
+                    p.append(utterance['fields']['response'][0])
+            except:
+                ipdb.set_trace()
+            results.append(p)
+        return results
 
     def search(self, query, topk=10):
         if self.q_q:

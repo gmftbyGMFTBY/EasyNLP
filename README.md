@@ -3,6 +3,7 @@
 ## Note
 
 1. The rerank performance of dual-bert-fusion is bad, the reason maybe that the context information is only for ground-truth, but the other negative samples lost their corresponding context, and during rerank procedure, we use the context of the ground-truth for all the candidates, which may pertubate the decison of the model.
+2. test the simcse for the only one conversation context utterance, q-q matching (context similarity)
 
 ## How to Use
 
@@ -48,7 +49,7 @@ It should be noted that:
 ```bash
 # work_mode=response, inference the response and save into faiss (for q-r matching) [dual-bert/dual-bert-fusion]
 # work_mode=context, inference the context to do q-q matching
-# work_mode=gray, inference the context; read the faiss(work_mode=response), search the topk hard negative samples
+# work_mode=gray, inference the context; read the faiss(work_mode=response), search the topk hard negative samples; remember to set the BERTDualInferenceContextDataloader in config/base.yaml
 ./inference <dataset_name> <model_name> <cuda_ids>
 ```
 
@@ -254,6 +255,7 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 | dual-bert(bsz=32, epoch=5, poly-m=32) | 30.55 | 46.93 | 81.16 | 64.45 | 48.43  | 60.34 |
 | dual-bert(bsz=32, epoch=5, bert-fp) | 31.42 | 51.6 | 83.46 | 66.41 | 49.48  | 62.22 |
 | dual-bert(bsz=48, epoch=5, bert-fp) | 31.63 | 51.22 | 83.23 | 66.47 | 49.78  | 62.22 |
+| dual-bert-compare(bsz=48, epoch=5, bert-fp) | 31.05 | 49.63 | 83.84 | 65.54 | 47.53  | 61.74 |
 | dual-bert-fusion(bsz=48, epoch=5, bert-fp) | 27.95 | 48.27 | 81.93 | 63.75 | 45.58 | 59.66 |
 | dual-bert-cl(bsz=48, epoch=5, bert-fp) | 30.25 | 50.69| 82.44 | 65.49 | 48.13  | 61.25 |
 | dual-bert-cl(bsz=32, epoch=5, bert-fp) |  | | |  |  | |

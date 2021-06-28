@@ -274,7 +274,8 @@ class BERTDualWithNegDataset(Dataset):
             return None
         self.data = []
         if self.args['mode'] == 'train':
-            data, responses = read_text_data_with_neg_q_r_neg(path, lang=self.args['lang'])
+            # data, responses = read_text_data_with_neg_q_r_neg(path, lang=self.args['lang'])
+            data, responses = read_text_data_with_neg_inner_session_neg(path, lang=self.args['lang'])
             for context, response, candidates in tqdm(data):
                 context = ' [SEP] '.join(context).strip()
                 if len(candidates) < 10:
