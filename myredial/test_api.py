@@ -14,10 +14,14 @@ def parser_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--size', type=int, default=1000)
     parser.add_argument('--block_size', type=int, default=10)
+    parser.add_argument('--mode', type=str, default='rerank/recall/pipeline')
+    parser.add_argument('--url', type=str, default='9.91.66.241')
+    parser.add_argument('--port', type=int, default=22335)
+    parser.add_argument('--dataset', type=str, default='douban')
     return parser.parse_args()
 
 def load_fake_rerank_data(path, size=1000):
-    # test dataset test
+    # make sure the data reader
     dataset, _ = read_json_data(path, lang='zh')
     data = []
     cache, block_size = [], random.randint(1, args['block_size'])
@@ -42,7 +46,12 @@ def load_fake_rerank_data(path, size=1000):
     return data
 
 def load_fake_recall_data(path, size=1000):
-    dataset, _ = read_json_data(path, lang='zh')
+    '''for pipeline and recall test'''
+    if args['dataset'] in ['douban', 'ecommerce', 'ubuntu', 'lccc', 'lccc-large']:
+        dataset = read_text_data_utterances(path, lang='zh')
+        dataset = [(utterances[:-1], utterances[-1], None) for _, utterances in dataset]
+    else:
+        dataset, _ = read_json_data(path, lang='zh')
     data = []
     cache, block_size = [], random.randint(1, args['block_size'])
     current_num = 0
@@ -85,39 +94,111 @@ def SendPOST(url, port, method, params):
     conn.close()
     return data
 
+def test_recall(args):
+    data = load_fake_recall_data(
+        f'{args["root_dir"]}/data/{args["dataset"]}/test.txt',
+        size=args['size'],
+    )
+    # recall test begin
+    avg_times = []
+    collections = []
+    error_counter = 0
+    pbar = tqdm(data)
+    for data in pbar:
+        data = json.dumps(data)
+        rest = SendPOST(args['url'], args['port'], '/recall', data)
+        if rest['header']['ret_code'] == 'fail':
+            error_counter += 1
+        else:
+            collections.append(rest)
+            avg_times.append(rest['header']['core_time_cost_ms'])
+            pbar.set_description(f'[!] time: {round(np.mean(avg_times), 2)} ms')
+    avg_t = round(np.mean(avg_times), 4)
+    print(f'[!] avg recall time cost: {avg_t} ms; error ratio: {round(error_counter/len(data), 4)}')
+    return collections
+
+
+def test_rerank(args):
+    data = load_fake_rerank_data(
+        f'{args["root_dir"]}/data/{args["dataset"]}/test.txt',
+        size=args['size'],
+    )
+    # rerank test begin
+    avg_times = []
+    collections = []
+    error_counter = 0
+    pbar = tqdm(data)
+    for data in pbar:
+        data = json.dumps(data)
+        rest = SendPOST(args['url'], args['port'], '/rerank', data)
+        if rest['header']['ret_code'] == 'fail':
+            error_counter += 1
+        else:
+            collections.append(rest)
+            avg_times.append(rest['header']['core_time_cost_ms'])
+            pbar.set_description(f'[!] time: {round(np.mean(avg_times), 2)} ms')
+    avg_t = round(np.mean(avg_times), 4)
+    print(f'[!] avg rerank time cost: {avg_t} ms; error ratio: {round(error_counter/len(data), 4)}')
+    return collections
+
+def test_pipeline(args):
+    data = load_fake_recall_data(
+        f'{args["root_dir"]}/data/{args["dataset"]}/test.txt',
+        size=args['size'],
+    )
+    # pipeline test begin
+    avg_times = []
+    collections = []
+    error_counter = 0
+    pbar = tqdm(data)
+    for data in pbar:
+        data = json.dumps(data)
+        rest = SendPOST(args['url'], args['port'], '/pipeline', data)
+        if rest['header']['ret_code'] == 'fail':
+            error_counter += 1
+        else:
+            collections.append(rest)
+            avg_times.append(rest['header']['core_time_cost_ms'])
+            pbar.set_description(f'[!] time: {round(np.mean(avg_times), 2)} ms')
+    avg_t = round(np.mean(avg_times), 4)
+    print(f'[!] avg rerank time cost: {avg_t} ms; error ratio: {round(error_counter/len(data), 4)}')
+    return collections
+
+
 if __name__ == '__main__':
     args = vars(parser_args())
     args['root_dir'] = '/apdcephfs/share_916081/johntianlan/MyReDial'
-
-    recall_data = load_fake_recall_data(
-        f'{args["root_dir"]}/data/writer/test.txt',
-        size=args['size'],
-    )
-    rerank_data = load_fake_rerank_data(
-        f'{args["root_dir"]}/data/writer/test.txt',
-        size=args['size'],
-    )
-
-    # recall test begin
-    avg_times = []
-    recall_collections = []
-    for data in tqdm(recall_data):
-        data = json.dumps(data)
-        rest = SendPOST('9.91.66.241', 8095, '/recall', data)
-        recall_collections.append(rest)
-        avg_times.append(rest['header']['core_time_cost_ms'])
-    avg_t = round(np.mean(avg_times), 4)
-    print(f'[!] avg recall time cost: {avg_t} ms')
+    MAP = {
+        'recall': test_recall,
+        'rerank': test_rerank,
+        'pipeline': test_pipeline,
+    }
+    collections = MAP[args['mode']](args)
     
-    # rerank test begin
-    avg_times = []
-    rerank_collections = []
-    for data in tqdm(rerank_data):
-        data = json.dumps(data)
-        rest = SendPOST('9.91.66.241', 8095, '/rerank', data)
-        rerank_collections.append(rest)
-        avg_times.append(rest['header']['core_time_cost_ms'])
-    avg_t = round(np.mean(avg_times), 4)
-    print(f'[!] avg rerank time cost: {avg_t} ms')
+    # write into log file
+    write_path = f'{args["root_dir"]}/data/{args["dataset"]}/test_api_{args["mode"]}_log.txt'
+    with open(write_path, 'w') as f:
+        for sample in tqdm(collections):
+            data = sample['item_list']
+            if sample['header']['ret_code'] == 'fail':
+                continue
+            if args['mode'] == 'pipeline':
+                for item in data:
+                    f.write(f'[Context ] {item["context"]}\n')
+                    f.write(f'[Response] {item["response"]}\n\n')
+            elif args['mode'] == 'recall':
+                for item in data:
+                    f.write(f'[Context ] {item["context"]}\n')
+                    for idx, neg in enumerate(item['candidates'][:5]):
+                        f.write(f'[Cands-{idx}] {neg}\n')
+                    f.write('\n')
+            elif args['mode'] == 'rerank':
+                for item in data:
+                    f.write(f'[Context] {item["context"]}\n')
+                    for i in item['candidates']:
+                        f.write(f'[Score {round(i["score"], 2)}] {i["str"]}\n')
+                    f.write('\n')
+            else:
+                raise Exception(f'[!] Unkown mode: {args["mode"]}')
 
-    torch.save((recall_collections, rerank_collections), f'{args["root_dir"]}/data/writer/test_api_log.pt')
+    print(f'[!] write the log into file: {write_path}')

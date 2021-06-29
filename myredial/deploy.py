@@ -11,6 +11,61 @@ def create_app():
     recall_args = load_deploy_config('recall')
     rerankagent = RerankAgent(rerank_args)
     recallagent = RecallAgent(recall_args)
+    pipelineagent = PipelineAgent(recall_args, rerank_args)
+    
+    @app.route('/pipeline', methods=['POST'])
+    def pipeline_api():
+        '''
+        {
+            'segment_list': [
+                {'str': 'context sentence1', 'status': 'editing'},
+                ...
+            ]
+            'lang': 'zh',
+            'uuid': '',
+            'user': '',
+        }
+
+        {
+            'header': {
+                'time_cost_ms': 0.01,
+                'time_cost': 0.01,
+                'core_time_cost_ms': 0.01,
+                'core_time_cost': 0.01,
+                'ret_code': 'succ'
+            },
+            'item_list': [
+                {
+                    'context': 'context sentence1',
+                    'response': 'candidates1',
+                }
+            ]
+        }
+        '''
+        try:
+            data = request.json
+            responses, core_time = pipelineagent.work(data['segment_list'])
+            succ = True
+        except Exception as error:
+            core_time = 0
+            print(error)
+            succ = False
+
+        # packup
+        result = {
+            'header': {
+                'core_time_cost_ms': 1000 * core_time,
+                'core_time_cost': core_time,
+                'ret_code': 'succ' if succ else 'fail',
+            }, 
+        }
+        if succ:
+            contexts = [i['str'] for i in data['segment_list']]
+            rest = [{'context': c, 'response': r} for c, r in zip(contexts, responses)]
+            result['item_list'] = rest
+        else:
+            result['item_list'] = None
+        return jsonify(result)
 
     @app.route('/rerank', methods=['POST'])
     def rerank_api():

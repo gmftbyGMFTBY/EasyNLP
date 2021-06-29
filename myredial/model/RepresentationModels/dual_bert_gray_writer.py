@@ -10,10 +10,6 @@ class BERTDualGrayFullEncoder(nn.Module):
         model = args['pretrained_model']
         self.gray_num = args['gray_cand_num']
 
-        self.vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
-        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
-        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
-
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
         self.args = args
@@ -35,46 +31,17 @@ class BERTDualGrayFullEncoder(nn.Module):
     
     @torch.no_grad()
     def predict(self, batch):
-        context = batch['context']
-        responses = batch['responses']
-        cid, cid_mask = self.totensor([context], ctx=True)
-        rid, rid_mask = self.totensor(responses, ctx=False)
+        cid, cid_mask = batch['ids'], batch['ids_mask']
+        rid, rid_mask = batch['rids'], batch['rids_mask'] 
 
         batch_size = rid.shape[0]
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
         dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
-        return dot_product
-    
-    def _length_limit(self, ids):
-        # also return the speaker embeddings
-        if len(ids) > self.args['max_len']:
-            ids = [ids[0]] + ids[-(self.args['max_len']-1):]
-        return ids
-    
-    def _length_limit_res(self, ids):
-        # cut tail
-        if len(ids) > self.args['res_max_len']:
-            ids = ids[:self.args['res_max_len']-1] + [self.sep]
-        return ids
 
-    def totensor(self, texts, ctx=True):
-        items = self.vocab.batch_encode_plus(texts)['input_ids']
-        if ctx:
-            ids = [torch.LongTensor(self._length_limit(i)) for i in items]
-        else:
-            ids = [torch.LongTensor(self._length_limit_res(i)) for i in items]
-        ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
-        mask = self.generate_mask(ids)
-        if torch.cuda.is_available():
-            ids, mask = ids.cuda(), mask.cuda()
-        return ids, mask
-        
-    def generate_mask(self, ids):
-        attn_mask_index = ids.nonzero().tolist()   # [PAD] IS 0
-        attn_mask_index_x, attn_mask_index_y = [i[0] for i in attn_mask_index], [i[1] for i in attn_mask_index]
-        attn_mask = torch.zeros_like(ids)
-        attn_mask[attn_mask_index_x, attn_mask_index_y] = 1
-        return attn_mask
+        # during deploy, add the softmax
+        dot_product /= np.sqrt(768)
+        dot_product = (dot_product - dot_product.min()) / (dot_product.max() - dot_product.min())
+        return dot_product
     
     def forward(self, batch):
         context = batch['context']

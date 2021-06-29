@@ -1,13 +1,16 @@
 smoothing: 0.1
-nhead: 12
+nhead: 6
 dim_feedforward: 1024
 dropout: 0.1
-num_encoder_layers: 4
+num_encoder_layers: 2
 gray_cand_num: 10
+
+loss1_weight: 1
+loss3_weight: 1
 
 # train configuration
 train:
-    lr: 0.0005
+    lr: 0.00005
     grad_clip: 1.0
     seed: 50
     batch_size: 32

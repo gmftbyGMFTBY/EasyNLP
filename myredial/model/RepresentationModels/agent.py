@@ -6,6 +6,8 @@ class RepresentationAgent(RetrievalBaseAgent):
         super(RepresentationAgent, self).__init__()
         self.args = args
         self.vocab, self.model = vocab, model
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
 
         if args['mode'] == 'train':
             # hash-bert parameter setting
@@ -219,6 +221,11 @@ class RepresentationAgent(RetrievalBaseAgent):
 
         for idx, batch in enumerate(pbar):                
             label = batch['label']
+            cid, cid_mask = self.totensor([batch['context']], ctx=True)
+            rid, rid_mask = self.totensor(batch['responses'], ctx=False)
+            batch['ids'], batch['ids_mask'] = cid, cid_mask
+            batch['rids'], batch['rids_mask'] = rid, rid_mask
+
             if self.args['mode'] in ['train']:
                 scores = self.model.module.predict(batch).cpu().tolist()    # [B]
             else:
@@ -374,6 +381,11 @@ class RepresentationAgent(RetrievalBaseAgent):
         for batch in batches:
             # compatible for the predict function
             batch['responses'] = batch['candidates']
+            cid, cid_mask = self.totensor([batch['context']], ctx=True)
+            rid, rid_mask = self.totensor(batch['responses'], ctx=True)
+            batch['ids'] = cid.squeeze(0)
+            batch['rids'] = rid
+            batch['rids_mask'] = rid_mask
             scores.append(
                 self.model.predict(batch).tolist()
             )

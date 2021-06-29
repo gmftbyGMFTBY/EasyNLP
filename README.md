@@ -63,7 +63,8 @@ It should be noted that:
 at the same time, you can test the deployed model by using:
 
 ```bash
-./test_api.sh
+# test_mode: recall, rerank, pipeline
+./test_api.sh <test_mode> <dataset>
 ```
 
 7. jizhi start (just for tencent)

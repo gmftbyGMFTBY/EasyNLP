@@ -1,5 +1,6 @@
 # basic configuration for building the model
 dropout: 0.1
+gray_cand_num: 10
 
 # train configuration
 train:
@@ -7,7 +8,7 @@ train:
     grad_clip: 1.0
     seed: 50
     batch_size: 32
-    max_len: 512
+    max_len: 320
     epoch: 5
     warmup_ratio: 0.1
     checkpoint: 
@@ -18,4 +19,4 @@ train:
 test:
     seed: 50
     batch_size: 128
-    max_len: 512
+    max_len: 320

@@ -109,7 +109,7 @@ models:
     bert-ft: 
         type: Interaction
         model_name: BERTRetrieval
-        dataset_name: BERTFTDataset
+        dataset_name: BERTFTWithNegDataset
         inference_dataset_name: none
     sa-bert: 
         type: Interaction
@@ -134,14 +134,14 @@ test_interval: 1.1
 # ========== deploy parameters ========== #
 deploy:
     host: '0.0.0.0'
-    port: 8095
-    dataset: writer
+    port: 22335
+    dataset: douban
     max_len: 256
     res_max_len: 64
     recall:
-        model: dual-bert-gray-writer
+        model: bm25
         topk: 100
         index_type: LSH 
         dimension: 768
     rerank:
-        model: dual-bert-gray-writer
+        model: dual-bert

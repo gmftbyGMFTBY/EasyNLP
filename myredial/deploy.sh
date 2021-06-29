@@ -1,3 +1,3 @@
 #!/bin/bash
 
-CUDA_VISIBLE_DEVICES=0 python deploy.py
+CUDA_VISIBLE_DEVICES=6 python deploy.py

@@ -29,12 +29,13 @@ class BERTDualEncoder(nn.Module):
 
     @torch.no_grad()
     def predict(self, batch):
-        cid = batch['ids']
+        cid = batch['ids'].unsqueeze(0)
+        cid_mask = torch.ones_like(cid)
         rid = batch['rids']
         rid_mask = batch['rids_mask']
 
         batch_size = rid.shape[0]
-        cid_rep, rid_rep = self._encode(cid.unsqueeze(0), rid, None, rid_mask)
+        cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
         dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
         dot_product /= np.sqrt(768)     # scale dot product
         return dot_product

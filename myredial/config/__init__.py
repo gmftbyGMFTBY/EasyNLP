@@ -47,11 +47,14 @@ def load_deploy_config(api_name):
     args.update(args['deploy'])
     args.update(args['deploy'][api_name])
     model = args['model']
+
+    if model == 'bm25':
+        return args
+
     config_path = f'config/{model}.yaml'
     with open(config_path) as f:
         configuration = yaml.load(f, Loader=yaml.FullLoader)
     print(f'[!] load configuration: {config_path}')
-    
     # update and append the special config for base config
     args.update(configuration)
 

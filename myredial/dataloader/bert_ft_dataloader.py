@@ -101,7 +101,7 @@ class BERTFTDataset(Dataset):
             'label': label
         }
 
-class BERTWithNegDataset(Dataset):
+class BERTFTWithNegDataset(Dataset):
 
     def __init__(self, vocab, path, **args):
         self.args = args
@@ -115,16 +115,16 @@ class BERTWithNegDataset(Dataset):
                 self.extract_by_gray_num()
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
-        data, responses = read_json_data(path, lang=self.args['lang'])
+        # data, responses = read_json_data(path, lang=self.args['lang'])
         self.data = []
         if self.args['mode'] == 'train':
+            data, responses = read_text_data_with_neg_q_r_neg(path, lang=self.args['lang'])
             for context, response, candidates in tqdm(data):
                 context = ' [SEP] '.join(context)
                 if len(candidates) < 10:
                     candidates += random.sample(responses, 10-len(candidates))
                 else:
                     candidates = candidates[:10]
-
                 item = self.vocab.batch_encode_plus([
                     [context, res] for res in [response] + candidates
                 ])
@@ -138,6 +138,7 @@ class BERTWithNegDataset(Dataset):
                     'tids': tids, 
                 })
         else:
+            data = read_text_data_utterances(path, lang=self.args['lang'])
             for context, response, candidates in tqdm(data):
                 context = ' [SEP] '.join(context)
                 # we only need 10 candidates, pos:neg = 1:9
