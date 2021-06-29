@@ -1,17 +1,16 @@
 smoothing: 0.1
-nhead: 6
-dim_feedforward: 512
+nhead: 12
+dim_feedforward: 1024
 dropout: 0.1
-num_encoder_layers: 2
-bce_loss_scale: 5
-gray_cand_num: 2
+num_encoder_layers: 4
+gray_cand_num: 10
 
 # train configuration
 train:
-    lr: 0.00005
+    lr: 0.0005
     grad_clip: 1.0
     seed: 50
-    batch_size: 48
+    batch_size: 32
     max_len: 256
     res_max_len: 64
     epoch: 5

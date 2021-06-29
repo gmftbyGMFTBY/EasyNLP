@@ -40,14 +40,22 @@ if __name__ == '__main__':
     write_path = f'{args["root_dir"]}/data/{args["dataset"]}/train_gray.txt'
 
     dataset = read_text_data_dual_bert(read_path, lang=args['lang'])
-    dataset = [(context, response) for label, context, response in dataset if label == 1]
+    data = [(context, response) for label, context, response in dataset if label == 1]
+    responses = [response for label, context, response in dataset]
     collector = []
-    pbar = tqdm(range(0, len(dataset), args['batch_size']))
+    pbar = tqdm(range(0, len(data), args['batch_size']))
     for idx in pbar:
-        context = [i[0] for i in dataset[idx:idx+args['batch_size']]]
-        response = [i[1] for i in dataset[idx:idx+args['batch_size']]]
-        rest = searcher.msearch(context, topk=args['pool_size'])
-        rest = [random.sample(i, args['topk']) for i in rest]
+        context = [i[0] for i in data[idx:idx+args['batch_size']]]
+        response = [i[1] for i in data[idx:idx+args['batch_size']]]
+        rest_ = searcher.msearch(context, topk=args['pool_size'])
+
+        rest = []
+        for i in rest_:
+            if len(i) < args['topk']:
+                rest.append(i + random.sample(responses, args['topk']-len(i)))
+            else:
+                rest.append(random.sample(i, args['topk']))
+
         for q, r, nr in zip(context, response, rest):
             collector.append({'q': q, 'r': r, 'nr': nr})
 

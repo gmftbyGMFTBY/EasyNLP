@@ -1,8 +1,9 @@
 smoothing: 0.1
-radius: 10
+radius: 0.05
 ssl_interval: 0.01
+low_conf: 0.5
 # rewrite this gray_cand_num parameter in the base.yaml
-gray_cand_num: 5
+gray_cand_num: 10
 
 # train configuration
 train:

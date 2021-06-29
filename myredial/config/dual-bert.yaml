@@ -27,5 +27,5 @@ inference:
     batch_size: 128
     max_len: 64
     topk: 20
-    index_type: LSH
+    index_type: Flat
     dimension: 768

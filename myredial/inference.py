@@ -192,7 +192,8 @@ if __name__ == "__main__":
             for c, r, rest in zip(context, response, result):
                 if r in rest:
                     rest.remove(r)
-                nr = random.sample(rest, args['topk'])
+                # nr = random.sample(rest, args['topk'])
+                nr = rest[-args['topk']:]
                 collection.append({'q': c, 'r': r, 'nr': nr})
 
         # write into new file

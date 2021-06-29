@@ -13,6 +13,7 @@ class BERTDualSSLEncoder(nn.Module):
         s = args['smoothing']
         self.gray_num = args['gray_cand_num']
         self.radius = args['radius']
+        self.low_conf = args['low_conf']
 
         # ssl counter
         # self.ssl_interval_step has been set
@@ -77,10 +78,19 @@ class BERTDualSSLEncoder(nn.Module):
     def set_pseudo_label(self, cid, rid, cid_mask, rid_mask):
         '''ids: [B, E]; rids: [B*(gray+1), E];'''
         cid_rep, rid_rep = self._encode_(cid, rid, cid_mask, rid_mask)
+        # cosine similarity
+        cid_rep, rid_rep = F.normalize(cid_rep, dim=-1), F.normalize(rid_rep, dim=-1)
         matrix = torch.matmul(cid_rep, rid_rep.t())    # [B, B*(gray+1)]
+
         eye = matrix[torch.arange(len(cid)), torch.arange(0, len(rid), self.gray_num+1)].unsqueeze(1)
         mask = (matrix > eye - self.radius)
         label = torch.where(mask, torch.ones_like(matrix), torch.zeros_like(matrix))
+
+        # give the non-diag item the lower weight
+        weight_matrix = torch.ones_like(label) * self.low_conf
+        weight_matrix[torch.arange(len(cid)), torch.arange(0, len(rid), self.gray_num+1)] = 1.
+
+        label *= weight_matrix
         return label
     
     def forward(self, batch):
@@ -92,8 +102,8 @@ class BERTDualSSLEncoder(nn.Module):
         batch_size = cid.shape[0]
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
         dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, B]
-        dot_product /= np.sqrt(768)     # scale dot product
 
+        # use label smoothing to avoid the over confidence
         mask = self.set_pseudo_label(cid, rid, cid_mask, rid_mask)
         loss_ = F.log_softmax(dot_product, dim=-1) * mask
         loss = (-loss_.sum(dim=-1)).mean()

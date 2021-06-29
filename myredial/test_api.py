@@ -66,6 +66,15 @@ def load_fake_recall_data(path, size=1000):
     return data
 
 def SendPOST(url, port, method, params):
+    '''
+    import http.client
+
+    parameters:
+        1. url: 9.91.66.241
+        2. port: 8095
+        3. method:  /rerank or /recall
+        4. params: json dumps string
+    '''
     headers = {"Content-type": "application/json"}
     conn = http.client.HTTPConnection(url, port)
     conn.request('POST', method, params, headers)
@@ -97,7 +106,6 @@ if __name__ == '__main__':
         rest = SendPOST('9.91.66.241', 8095, '/recall', data)
         recall_collections.append(rest)
         avg_times.append(rest['header']['core_time_cost_ms'])
-        break
     avg_t = round(np.mean(avg_times), 4)
     print(f'[!] avg recall time cost: {avg_t} ms')
     
@@ -107,7 +115,6 @@ if __name__ == '__main__':
     for data in tqdm(rerank_data):
         data = json.dumps(data)
         rest = SendPOST('9.91.66.241', 8095, '/rerank', data)
-        ipdb.set_trace()
         rerank_collections.append(rest)
         avg_times.append(rest['header']['core_time_cost_ms'])
     avg_t = round(np.mean(avg_times), 4)

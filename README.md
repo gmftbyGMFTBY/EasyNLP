@@ -4,6 +4,7 @@
 
 1. The rerank performance of dual-bert-fusion is bad, the reason maybe that the context information is only for ground-truth, but the other negative samples lost their corresponding context, and during rerank procedure, we use the context of the ground-truth for all the candidates, which may pertubate the decison of the model.
 2. test the simcse for the only one conversation context utterance, q-q matching (context similarity)
+3. Generate the gray data need the faiss Flat  index runnign on GPU, which only costs 6~7mins for 0.5 million dataset
 
 ## How to Use
 
@@ -109,12 +110,14 @@ Before testing the es recall, make sure the es index has been built:
 ### 1. E-Commerce Dataset
 
 * recall performance
+
 | Model (CPU/109105)     | Top-20 | Top-100 | Average Time(20) ms |
 | ---------------------- | ------ | ------- | ------------------- |
 | dual-bert-flat(q-r)    |  0.567 | 0.791   | 29.51               |
 | dual-bert-fusion(q-r)  |  0.561 | 0.645   | -              |
 
 * rerank performance
+
 | Original       | R10@1 | R10@2 | R10@5 | MRR    |
 | -------------- | ----- | ----- | ----- | ------ |
 | SOTA           | 77.6  | 91.9  | 99.1  | -      |
@@ -400,6 +403,7 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 ### LCCC Dataset
 
 * recall performance
+
 | Models(CPU/394740/full-4769532)    | Top-20 | Top-100 | Time   |
 | ---------- | ----- | ----- | --- |
 | dual-bert-flat  | 0.105 | 0.195 | 112.39 | 
@@ -412,6 +416,7 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 | ES(q-r) | 0.051 | 0.099 | 9.4 |
 
 * rerank performance
+
 | Models                              | R10@1 | R10@2 | R10@5 | MRR   |
 | ----------------------------------- | ----- | ----- | ----- | ----- |
 | dual-bert | 40.5 | 75.0 | 92.8 | 63.88 |

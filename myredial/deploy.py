@@ -32,7 +32,6 @@ def create_app():
             'uuid': '',
             'user': '',
         }
-        
         {
             'header': {
                 'time_cost_ms': 0.01,
