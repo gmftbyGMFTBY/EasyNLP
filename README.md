@@ -260,6 +260,8 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 | dual-bert(bsz=32, epoch=5, bert-fp) | 31.42 | 51.6 | 83.46 | 66.41 | 49.48  | 62.22 |
 | dual-bert(bsz=48, epoch=5, bert-fp) | 31.63 | 51.22 | 83.23 | 66.47 | 49.78  | 62.22 |
 | dual-bert-compare(bsz=48, epoch=5, bert-fp) | 31.05 | 49.63 | 83.84 | 65.54 | 47.53  | 61.74 |
+| dual-bert-compare(loss1+loss2+loss3, bsz=32, epoch=5, gray_num=10, bert-fp) | 30.42 | 50.38 | 82.38 | 65.3 | 48.13  | 61.11 |
+| dual-bert-compare(loss1+loss2+loss3, bsz=32, epoch=5, gray_num=5, bert-fp) | 29.04 |48.55 | 83.05 | 64.13 | 46.48  | 60.19 |
 | dual-bert-fusion(bsz=48, epoch=5, bert-fp) | 27.95 | 48.27 | 81.93 | 63.75 | 45.58 | 59.66 |
 | dual-bert-cl(bsz=48, epoch=5, bert-fp) | 30.25 | 50.69| 82.44 | 65.49 | 48.13  | 61.25 |
 | dual-bert-cl(bsz=32, epoch=5, bert-fp) |  | | |  |  | |

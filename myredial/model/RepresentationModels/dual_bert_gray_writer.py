@@ -40,7 +40,7 @@ class BERTDualGrayFullEncoder(nn.Module):
 
         # during deploy, add the softmax
         dot_product /= np.sqrt(768)
-        dot_product = (dot_product - dot_product.min()) / (dot_product.max() - dot_product.min())
+        dot_product = (dot_product - dot_product.min()) / (1e-3 + dot_product.max() - dot_product.min())
         return dot_product
     
     def forward(self, batch):

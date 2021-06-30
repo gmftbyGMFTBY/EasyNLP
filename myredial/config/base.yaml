@@ -4,6 +4,11 @@ datasets:
     writer: zh
     lccc: zh
     ubuntu: en
+    # inference dataset
+    poetry: zh
+    news_withsource: zh
+    novel_selected: zh
+    baike_summary: zh
 
 # pretrained model and tokenizer
 tokenizer:
@@ -100,7 +105,8 @@ models:
         type: Representation
         model_name: BERTDualGrayFullEncoder
         dataset_name: BERTDualFullWithNegDataset
-        inference_dataset_name: BERTDualFullInferenceDataset
+        # inference_dataset_name: BERTDualFullInferenceDataset
+        inference_dataset_name: BERTDualFullWithSourceInferenceDataset
     dual-bert-hierarchical: 
         type: Representation
         model_name: BERTDualHierarchicalTrsEncoder
@@ -139,9 +145,15 @@ deploy:
     max_len: 256
     res_max_len: 64
     recall:
-        model: bm25
+        activate: false
+        model: dual-bert
+        # default topk
         topk: 100
+        with_source: false
         index_type: LSH 
         dimension: 768
     rerank:
+        activate: false
         model: dual-bert
+    pipeline:
+        activate: true

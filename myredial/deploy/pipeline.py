@@ -11,19 +11,23 @@ from .recall import *
 
 class PipelineAgent:
 
-    def __init__(self, recall_args, rerank_args):
+    def __init__(self, args):
+        self.args = args
+        recall_args, rerank_args = args['recall'], args['rerank']
         self.recallagent = RecallAgent(recall_args)
         self.rerankagent = RerankAgent(rerank_args)
 
     @timethis
-    def work(self, batch):
+    def work(self, batch, topk=None):
         # recall
-        candidates, _ = self.recallagent.work(batch, topk=None)
+        topk = topk if topk else self.args['recall']['topk']
+        candidates, _ = self.recallagent.work(batch, topk=topk)
         
         # re-packup
         contexts = [i['str'] for i in batch]
         rerank_batch = []
         for c, r in zip(contexts, candidates):
+            r = [i['text'] for i in r]
             rerank_batch.append({'context': c, 'candidates': r})
 
         # rerank
@@ -33,7 +37,7 @@ class PipelineAgent:
         responses = []
         for score, candidate in zip(scores, candidates):
             idx = np.argmax(score)
-            responses.append(candidate[idx])
+            responses.append(candidate[idx]['text'])
         return responses
 
 

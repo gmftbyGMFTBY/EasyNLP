@@ -40,29 +40,41 @@ def load_base_config():
     return configuration
 
 def load_deploy_config(api_name):
+    '''api_name: recall/rerank/pipeline'''
     # base config
     args = load_base_config()
 
-    # load deploy parameters from base config
-    args.update(args['deploy'])
-    args.update(args['deploy'][api_name])
-    model = args['model']
+    if api_name in ['recall', 'rerank']:
+        # load deploy parameters from base config
+        args.update(args['deploy'])
+        args.update(args['deploy'][api_name])
+        model = args['model']
 
-    if model == 'bm25':
+        if model == 'bm25':
+            return args
+
+        config_path = f'config/{model}.yaml'
+        with open(config_path) as f:
+            configuration = yaml.load(f, Loader=yaml.FullLoader)
+        print(f'[!] load configuration: {config_path}')
+        # update and append the special config for base config
+        args.update(configuration)
+
+        # load by lang
+        args['lang'] = args['datasets'][args['dataset']]
+        args['tokenizer'] = args['tokenizer'][args['lang']]
+        args['pretrained_model'] = args['pretrained_model'][args['lang']]
+
+        # mode (test: single GPU)
+        args['mode'] = 'test'
         return args
+    elif api_name in ['pipeline']:
+        args.update(args['deploy'])
+        args.update(args['deploy'][api_name])
 
-    config_path = f'config/{model}.yaml'
-    with open(config_path) as f:
-        configuration = yaml.load(f, Loader=yaml.FullLoader)
-    print(f'[!] load configuration: {config_path}')
-    # update and append the special config for base config
-    args.update(configuration)
+        rerank_args = load_deploy_config('rerank')
+        recall_args = load_deploy_config('recall')
 
-    # load by lang
-    args['lang'] = args['datasets'][args['dataset']]
-    args['tokenizer'] = args['tokenizer'][args['lang']]
-    args['pretrained_model'] = args['pretrained_model'][args['lang']]
-
-    # mode (test: single GPU)
-    args['mode'] = 'test'
-    return args
+        args['rerank'] = rerank_args
+        args['recall'] = recall_args
+        return args

@@ -149,3 +149,15 @@ def read_response_json_data(path, lang='zh'):
             dataset.append(line.strip())
         print(f'[!] already collect {len(dataset)} utterances for inference')
     return dataset
+
+
+def read_text_data_with_source(path, lang='zh'):
+    with open(path) as f:
+        dataset = []
+        for line in tqdm(f.readlines()):
+            line = line.strip().split('\t')
+            context = line[0]
+            response = json.loads(line[1])
+            dataset.append(([context], response[0], response[1], response[2]))
+        print(f'[!] collect: {len(dataset)} utterances for inference')
+    return dataset

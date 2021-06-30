@@ -9,9 +9,16 @@ def create_app():
 
     rerank_args = load_deploy_config('rerank')
     recall_args = load_deploy_config('recall')
-    rerankagent = RerankAgent(rerank_args)
-    recallagent = RecallAgent(recall_args)
-    pipelineagent = PipelineAgent(recall_args, rerank_args)
+    pipeline_args = load_deploy_config('pipeline')
+    if rerank_args['activate']:
+        rerankagent = RerankAgent(rerank_args)
+        print(f'[!] Rerank agent activate')
+    if recall_args['activate']:
+        recallagent = RecallAgent(recall_args)
+        print(f'[!] Recall agent activate')
+    if pipeline_args['activate']:
+        pipelineagent = PipelineAgent(pipeline_args)
+        print(f'[!] Pipeline agent activate')
     
     @app.route('/pipeline', methods=['POST'])
     def pipeline_api():
@@ -48,7 +55,7 @@ def create_app():
             succ = True
         except Exception as error:
             core_time = 0
-            print(error)
+            print('ERROR:', error)
             succ = False
 
         # packup
@@ -143,7 +150,8 @@ def create_app():
             'segment_list': [
                 {'str': 'context sentence1', 'status': 'editing'},
                 ...
-            ]
+            ],
+            'topk': 100,
             'lang': 'zh',
             'uuid': '',
             'user': '',
@@ -161,7 +169,13 @@ def create_app():
                 {
                     'context': 'context sentence1',
                     'candidates': [ 
-                        'candidates1',
+                        {
+                            'context': 'context sentence1',
+                            'candidates1': {
+                                'text': 'candidate sentence', 
+                                'source': {'title': 'title', 'url': 'url'}
+                            }
+                        },
                         ...
                     ]
                 }
@@ -170,7 +184,8 @@ def create_app():
         '''
         try:
             data = request.json
-            candidates, core_time = recallagent.work(data['segment_list'])
+            topk = data['topk'] if 'topk' in data else None
+            candidates, core_time = recallagent.work(data['segment_list'], topk=topk)
             succ = True
         except Exception as error:
             core_time = 0

@@ -29,7 +29,7 @@ class BERTDualEncoder(nn.Module):
 
     @torch.no_grad()
     def predict(self, batch):
-        cid = batch['ids'].unsqueeze(0)
+        cid = batch['ids']
         cid_mask = torch.ones_like(cid)
         rid = batch['rids']
         rid_mask = batch['rids_mask']

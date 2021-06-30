@@ -273,6 +273,35 @@ class RepresentationAgent(RetrievalBaseAgent):
             'P@1': round(avg_prec_at_one, 4),
             'MAP': round(avg_map, 4),
         }
+    
+    @torch.no_grad()
+    def inference_writer(self, inf_iter, size=1000000):
+        self.model.eval()
+        pbar = tqdm(inf_iter)
+        embds, texts = [], []
+        source = {}
+        for batch in pbar:
+            rid = batch['ids']
+            rid_mask = batch['mask']
+            text = [(t, ti) for t, ti in zip(batch['text'], batch['title'])]
+            res = self.model.module.get_cand(rid, rid_mask).cpu()
+            embds.append(res)
+            texts.extend(text)
+            for t, u in zip(batch['title'], batch['url']):
+                if t not in source:
+                    source[t] = u
+        embds = torch.cat(embds, dim=0).numpy()
+
+        for idx, i in enumerate(range(0, len(embds), size)):
+            embd = embds[i:i+size]
+            text = texts[i:i+size]
+            torch.save(
+                (embd, text), 
+                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
+            )
+
+        # save sub-source
+        torch.save(source, f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_subsource_{self.args["model"]}_{self.args["local_rank"]}.pt')
 
     @torch.no_grad()
     def inference(self, inf_iter, size=500000):
@@ -353,24 +382,14 @@ class RepresentationAgent(RetrievalBaseAgent):
     @torch.no_grad()
     def encode_queries(self, texts):
         self.model.eval()
-        ids = [torch.LongTensor(self.vocab.encode(text)) for text in texts]
-        ids = pad_sequence(ids, batch_first=True, padding_value=self.vocab.pad_token_id)
-        ids_mask = self.generate_mask(ids)
-        if torch.cuda.is_available():
-            ids, ids_mask = ids.cuda(), ids_mask.cuda()
-
+        ids, ids_mask = self.totensor(texts, ctx=True)
         vectors = self.model.get_ctx(ids, ids_mask)    # [B, E]
         return vectors.cpu().numpy()
 
     @torch.no_grad()
     def encode_candidates(self, texts):
         self.model.eval()
-        ids = [torch.LongTensor(self.vocab.encode(text)) for text in texts]
-        ids = pad_sequence(ids, batch_first=True, padding_value=self.vocab.pad_token_id)
-        ids_mask = self.generate_mask(ids)
-        if torch.cuda.is_available():
-            ids, ids_mask = ids.cuda(), ids_mask.cuda()
-
+        ids, ids_mask = self.totensor(texts, ctx=False)
         vectors = self.model.get_cand(ids, ids_mask)    # [B, E]
         return vectors.cpu().numpy()
 
@@ -383,7 +402,8 @@ class RepresentationAgent(RetrievalBaseAgent):
             batch['responses'] = batch['candidates']
             cid, cid_mask = self.totensor([batch['context']], ctx=True)
             rid, rid_mask = self.totensor(batch['responses'], ctx=True)
-            batch['ids'] = cid.squeeze(0)
+            batch['ids'] = cid
+            batch['ids_mask'] = cid_mask
             batch['rids'] = rid
             batch['rids_mask'] = rid_mask
             scores.append(

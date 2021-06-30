@@ -50,6 +50,8 @@ def load_fake_recall_data(path, size=1000):
     if args['dataset'] in ['douban', 'ecommerce', 'ubuntu', 'lccc', 'lccc-large']:
         dataset = read_text_data_utterances(path, lang='zh')
         dataset = [(utterances[:-1], utterances[-1], None) for _, utterances in dataset]
+    elif args['dataset'] in ['poetry']:
+        dataset = read_text_data_with_source(path, lang='zh')
     else:
         dataset, _ = read_json_data(path, lang='zh')
     data = []
@@ -150,16 +152,17 @@ def test_pipeline(args):
     avg_times = []
     collections = []
     error_counter = 0
-    pbar = tqdm(data)
-    for data in pbar:
+    pbar = tqdm(list(enumerate(data)))
+    for idx, data in pbar:
         data = json.dumps(data)
         rest = SendPOST(args['url'], args['port'], '/pipeline', data)
         if rest['header']['ret_code'] == 'fail':
             error_counter += 1
+            print(f'[!] ERROR happens in sample {idx}')
         else:
             collections.append(rest)
             avg_times.append(rest['header']['core_time_cost_ms'])
-            pbar.set_description(f'[!] time: {round(np.mean(avg_times), 2)} ms')
+            pbar.set_description(f'[!] time: {round(np.mean(avg_times), 2)} ms; error: {error_counter}')
     avg_t = round(np.mean(avg_times), 4)
     print(f'[!] avg rerank time cost: {avg_t} ms; error ratio: {round(error_counter/len(data), 4)}')
     return collections

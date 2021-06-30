@@ -19,9 +19,13 @@ def parser_args():
 class Searcher:
 
     '''If q-q is true, the corpus is a list of tuple(context, response);
-    If q-r is true, the corpus is a list of strings'''
+    If q-r is true, the corpus is a list of strings;
+    
+    Source corpus is a dict:
+        key is the title, value is the url(maybe the name)
+    if with_source is true, then self.if_q_q is False (only do q-r matching)'''
 
-    def __init__(self, index_type, dimension=768, q_q=False):
+    def __init__(self, index_type, dimension=768, q_q=False, with_source=False):
         if index_type.startswith('BHash') or index_type in ['BFlat']:
             binary = True
         else:
@@ -32,41 +36,56 @@ class Searcher:
             self.searcher = faiss.index_factory(dimension, index_type)
         self.corpus = []
         self.binary = binary
+        self.with_source = with_source
+        self.source_corpus = {}
         self.if_q_q = q_q
 
-    def _build(self, matrix, corpus):
+    def _build(self, matrix, corpus, source_corpus=None):
         '''dataset: a list of tuple (vector, utterance)'''
         self.corpus = corpus 
         self.searcher.train(matrix)
         self.searcher.add(matrix)
+        if self.with_source:
+            self.source_corpus = source_corpus
         print(f'[!] build collection with {self.searcher.ntotal} samples')
 
     def _search(self, vector, topk=20):
         D, I = self.searcher.search(vector, topk)
-        if self.if_q_q:
+        if self.with_source:
+            # pack up the source information and return
+            # return the tuple (text, title, url)
+            rest = [[(self.corpus[i][0], self.corpus[i][1], self.source_corpus[self.corpus[i][1]]) for i in N] for N in I]
+        elif self.if_q_q:
             # the response is the second item in the tuple
             rest = [[self.corpus[i][1] for i in N] for N in I]
         else:
             rest = [[self.corpus[i] for i in N] for N in I]
         return rest
 
-    def save(self, path_faiss, path_corpus):
+    def save(self, path_faiss, path_corpus, path_source_corpus=None):
         if self.binary:
             faiss.write_index_binary(self.searcher, path_faiss)
         else:
             faiss.write_index(self.searcher, path_faiss)
         with open(path_corpus, 'wb') as f:
             joblib.dump(self.corpus, f)
+        if self.with_source:
+            with open(path_source_corpus, 'wb') as f:
+                joblib.dump(self.source_corpus, f)
 
-    def load(self, path_faiss, path_corpus):
+    def load(self, path_faiss, path_corpus, path_source_corpus=None):
         if self.binary:
             self.searcher = faiss.read_index_binary(path_faiss)
         else:
             self.searcher = faiss.read_index(path_faiss)
         with open(path_corpus, 'rb') as f:
             self.corpus = joblib.load(f)
+        if self.with_source:
+            with open(path_source_corpus, 'rb') as f:
+                self.source_corpus = joblib.load(f)
 
     def add(self, vectors, texts):
+        '''the whole source information are added in _build'''
         self.searcher.add(vectors)
         self.corpus.extend(texts)
         print(f'[!] add {len(texts)} dataset over')
@@ -90,9 +109,16 @@ def inference(**args):
 
     agent = load_model(args)
     pretrained_model_name = args['pretrained_model'].replace('/', '_')
-    agent.load_model(f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}.pt')
-    if work_mode == 'response':
+
+    if work_mode in ['writer-inference']:
+        # load the pre-trained model on writer dataset
+        agent.load_model(f'{args["root_dir"]}/ckpt/writer/{args["model"]}/best_{pretrained_model_name}.pt')
+    else:
+        agent.load_model(f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}.pt')
+    if work_mode in ['response']:
         agent.inference(data_iter, size=args['cut_size'])
+    elif work_mode in ['writer-inference']:
+        agent.inference_writer(data_iter, size=args['cut_size'])
     elif work_mode in ['context', 'gray']:
         agent.inference_context(data_iter)
 
@@ -113,7 +139,57 @@ if __name__ == "__main__":
         exit()
 
     # only the main process
-    if args['work_mode'] == 'response':
+    if args['work_mode'] in ['writer-inference']:
+        embds, texts = [], []
+        already_added = []
+        source = {}
+        for i in tqdm(range(args['nums'])):
+            for idx in range(100):
+                try:
+                    embd, text = torch.load(
+                        f'{args["root_dir"]}/data/{args["dataset"]}/inference_{args["model"]}_{i}_{idx}.pt'
+                    )
+                    print(f'[!] load {args["root_dir"]}/data/{args["dataset"]}/inference_{args["model"]}_{i}_{idx}.pt')
+                except:
+                    break
+                embds.append(embd)
+                texts.extend(text)
+                already_added.append((i, idx))
+            if len(embds) > 10000000:
+                break
+        for i in tqdm(range(args['nums'])):
+            subsource = torch.load(f'{args["root_dir"]}/data/{args["dataset"]}/inference_subsource_{args["model"]}_{i}.pt')
+            source.update(subsource)
+        print(f'[!] collect {len(source)} source (title, url) pairs')
+        embds = np.concatenate(embds) 
+        searcher = Searcher(args['index_type'], dimension=args['dimension'], with_source=True)
+        searcher._build(embds, texts, source_corpus=source)
+        print(f'[!] train the searcher over')
+
+        # add the external dataset
+        for i in tqdm(range(args['nums'])):
+            for idx in range(100):
+                if (i, idx) in already_added:
+                    continue
+                try:
+                    embd, text = torch.load(
+                        f'{args["root_dir"]}/data/{args["dataset"]}/inference_{i}_{idx}.pt'
+                    )
+                    print(f'[!] load {args["root_dir"]}/data/{args["dataset"]}/inference_{i}_{idx}.pt')
+                except:
+                    break
+                searcher.add(embd, text)
+        print(f'[!] total samples: {searcher.searcher.ntotal}')
+
+        model_name = args['model']
+        pretrained_model_name = args['pretrained_model']
+        searcher.save(
+            f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_faiss.ckpt',
+            f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt',
+            path_source_corpus=f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_source_corpus.ckpt',
+        )
+        print(f'[!] save faiss index over')
+    elif args['work_mode'] in ['response']:
         embds, texts = [], []
         already_added = []
         for i in tqdm(range(args['nums'])):

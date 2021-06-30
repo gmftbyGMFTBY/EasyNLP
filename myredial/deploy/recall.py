@@ -13,12 +13,17 @@ def init_recall(args):
         searcher = ESSearcher(f'{args["dataset"]}_q-q', q_q=True)
         agent = None
     else:
-        searcher = Searcher(args['index_type'], dimension=args['dimension'])
+        searcher = Searcher(args['index_type'], dimension=args['dimension'], with_source=args['with_source'])
         model_name = args['model']
         pretrained_model_name = args['pretrained_model']
+        if args['with_source']:
+            path_source_corpus = f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_source_corpus.ckpt',
+        else: 
+            path_source_corpus = None
         searcher.load(
             f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_faiss.ckpt',
             f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt',
+            path_source_corpus=path_source_corpus
         )
         print(f'[!] load faiss over')
         agent = load_model(args) 
@@ -44,5 +49,29 @@ class RecallAgent:
             rest = self.searcher.msearch(batch, topk=topk)
         else:
             vectors = self.agent.encode_queries(batch)    # [B, E]
-            rest = self.searcher._search(vectors, topk=topk)
+            rest_ = self.searcher._search(vectors, topk=topk)
+            rest = []
+            for item in rest_:
+                cache = []
+                for i in item:
+                    if type(i) == str:
+                        # with_source is False
+                        assert self.args['with_source'] is False
+                        cache.append({
+                            'text': i,
+                            'source': {'title': None, 'url': None},
+                        })
+                    elif type(i) == list:
+                        # with_source is True
+                        assert self.args['with_source'] is True
+                        cache.append({
+                            'text': i[0],
+                            'source': {
+                                'title': i[1], 
+                                'url': i[2],
+                            }
+                        })
+                    else:
+                        raise Exception()
+                rest.append(cache)
         return rest
