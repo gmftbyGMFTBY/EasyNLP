@@ -57,7 +57,7 @@ def load_fake_recall_data(path, size=1000):
     data = []
     cache, block_size = [], random.randint(1, args['block_size'])
     current_num = 0
-    for i in dataset:
+    for i in tqdm(dataset):
         if current_num == block_size:
             data.append({
                 'segment_list': [
@@ -114,7 +114,7 @@ def test_recall(args):
         else:
             collections.append(rest)
             avg_times.append(rest['header']['core_time_cost_ms'])
-            pbar.set_description(f'[!] time: {round(np.mean(avg_times), 2)} ms')
+        pbar.set_description(f'[!] time: {round(np.mean(avg_times), 2)} ms; error: {error_counter}')
     avg_t = round(np.mean(avg_times), 4)
     print(f'[!] avg recall time cost: {avg_t} ms; error ratio: {round(error_counter/len(data), 4)}')
     return collections
@@ -138,7 +138,7 @@ def test_rerank(args):
         else:
             collections.append(rest)
             avg_times.append(rest['header']['core_time_cost_ms'])
-            pbar.set_description(f'[!] time: {round(np.mean(avg_times), 2)} ms')
+        pbar.set_description(f'[!] time: {round(np.mean(avg_times), 2)} ms; error: {error_counter}')
     avg_t = round(np.mean(avg_times), 4)
     print(f'[!] avg rerank time cost: {avg_t} ms; error ratio: {round(error_counter/len(data), 4)}')
     return collections
@@ -162,7 +162,7 @@ def test_pipeline(args):
         else:
             collections.append(rest)
             avg_times.append(rest['header']['core_time_cost_ms'])
-            pbar.set_description(f'[!] time: {round(np.mean(avg_times), 2)} ms; error: {error_counter}')
+        pbar.set_description(f'[!] time: {round(np.mean(avg_times), 2)} ms; error: {error_counter}')
     avg_t = round(np.mean(avg_times), 4)
     print(f'[!] avg rerank time cost: {avg_t} ms; error ratio: {round(error_counter/len(data), 4)}')
     return collections

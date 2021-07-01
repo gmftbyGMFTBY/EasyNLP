@@ -10,5 +10,5 @@ CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=$
     --model $model \
     --nums ${#gpu_ids[@]} \
     --work_mode writer-inference \
-    --cut_size 1000000 \
+    --cut_size 500000 \
     --pool_size 2000

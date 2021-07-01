@@ -141,19 +141,19 @@ test_interval: 1.1
 deploy:
     host: '0.0.0.0'
     port: 22335
-    dataset: douban
+    dataset: poetry
     max_len: 256
     res_max_len: 64
     recall:
-        activate: false
-        model: dual-bert
+        activate: true
+        model: dual-bert-gray-writer
         # default topk
         topk: 100
-        with_source: false
+        with_source: true
         index_type: LSH 
         dimension: 768
     rerank:
         activate: false
         model: dual-bert
     pipeline:
-        activate: true
+        activate: false

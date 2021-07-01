@@ -5,6 +5,7 @@
 1. The rerank performance of dual-bert-fusion is bad, the reason maybe that the context information is only for ground-truth, but the other negative samples lost their corresponding context, and during rerank procedure, we use the context of the ground-truth for all the candidates, which may pertubate the decison of the model.
 2. test the simcse for the only one conversation context utterance, q-q matching (context similarity)
 3. Generate the gray data need the faiss Flat  index runnign on GPU, which only costs 6~7mins for 0.5 million dataset
+4. implment UMS-BERT and BERT-SL using the post-train checkpoint of the BERT-FP
 
 ## How to Use
 
