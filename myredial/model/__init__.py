@@ -2,6 +2,7 @@ from .InteractionModels import *
 from .RepresentationModels import *
 from .LatentInteractionModels import *
 from .GenerationModels import *
+from .PostTrainModels import *
 from .XLMModels import *
 
 def load_model(args):

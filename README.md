@@ -5,7 +5,8 @@
 1. The rerank performance of dual-bert-fusion is bad, the reason maybe that the context information is only for ground-truth, but the other negative samples lost their corresponding context, and during rerank procedure, we use the context of the ground-truth for all the candidates, which may pertubate the decison of the model.
 2. test the simcse for the only one conversation context utterance, q-q matching (context similarity)
 3. Generate the gray data need the faiss Flat  index runnign on GPU, which only costs 6~7mins for 0.5 million dataset
-4. implment UMS-BERT and BERT-SL using the post-train checkpoint of the BERT-FP
+4. implement UMS-BERT and BERT-SL using the post-train checkpoint of the BERT-FP
+5. implement my own post train procedure
 
 ## How to Use
 
@@ -24,7 +25,7 @@ pip install -r requirements.txt
 2. train the model
 
 ```bash
-./train.sh <dataset_name> <model_name> <cuda_ids>
+./scripts/train.sh <dataset_name> <model_name> <cuda_ids>
 # or, noted that start.sh read the config from jizhi_config.json to start the training task
 ./start.sh 
 ```
@@ -32,14 +33,14 @@ pip install -r requirements.txt
 3. test the model [rerank]
 
 ```bash
-./test_rerank.sh <dataset_name> <model_name> <cuda_id>
+./scripts/test_rerank.sh <dataset_name> <model_name> <cuda_id>
 ```
 
 4. test the model [recal]
 
 ```bash
 # different recall_modes are available: q-q, q-r
-./test_recall.sh <dataset_name> <model_name> <cuda_id>
+./scripts/test_recall.sh <dataset_name> <model_name> <cuda_id>
 ```
 
 5. inference the responses and save into the faiss index
@@ -59,13 +60,13 @@ It should be noted that:
 
 ```bash
 # load the model on the cuda:0(can be changed in deploy.sh script)
-./deploy.sh
+./scripts/deploy.sh <cuda_id>
 ```
 at the same time, you can test the deployed model by using:
 
 ```bash
 # test_mode: recall, rerank, pipeline
-./test_api.sh <test_mode> <dataset>
+./scripts/test_api.sh <test_mode> <dataset>
 ```
 
 7. jizhi start (just for tencent)
@@ -80,12 +81,12 @@ at the same time, you can test the deployed model by using:
 Before testing the es recall, make sure the es index has been built:
 ```bash
 # recall_mode: q-q/q-r
-./build_es_index.sh <dataset_name> <recall_mode>
+./scripts/build_es_index.sh <dataset_name> <recall_mode>
 ```
 
 ```bash
 # recall_mode: q-q/q-r
-./test_es_recall.sh <dataset_name> <recall_mode> 0
+./scripts/test_es_recall.sh <dataset_name> <recall_mode> 0
 ```
 
 ## Ready models and datasets
