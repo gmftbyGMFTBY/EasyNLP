@@ -23,7 +23,9 @@ pretrained_model:
 
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
-xlm: false
+# rerank by the compare model. if not use, just set the null
+rank: bert-ft-compare
+# rank: null
 
 models:
     dual-bert: 
@@ -76,11 +78,6 @@ models:
         # dataset_name: BERTDualFullWithNegDataset
         dataset_name: BERTDualDataset
         inference_dataset_name: BERTDualInferenceDataset
-    xlm-dual-bert: 
-        type: XLM
-        model_name: XLMDualEncoder
-        dataset_name: BERTDualDataset
-        inference_dataset_name: BERTDualInferenceDataset
     dual-bert-cb: 
         type: Representation
         model_name: BERTDualCBEncoder
@@ -90,12 +87,12 @@ models:
         type: Generation
         model_name: BERTSeq2SeqDualEncoder
         dataset_name: BERTDualDataset
-        inference_dataset_name: none 
+        inference_dataset_name: null
     seq2seq: 
         type: Generation
         model_name: BERTSeq2SeqEncoder
         dataset_name: BERTDualDataset
-        inference_dataset_name: none 
+        inference_dataset_name: null 
     dual-bert-gray: 
         type: Representation
         model_name: BERTDualGrayEncoder
@@ -115,18 +112,23 @@ models:
     bert-ft: 
         type: Interaction
         model_name: BERTRetrieval
-        dataset_name: BERTFTWithNegDataset
-        inference_dataset_name: none
+        dataset_name: BERTFTDataset
+        inference_dataset_name: null 
+    bert-ft-compare: 
+        type: Interaction
+        model_name: BERTCompareRetrieval
+        dataset_name: BERTFTCompDataset
+        inference_dataset_name: null
     sa-bert: 
         type: Interaction
         model_name: SABERTRetrieval 
         dataset_name: SABERTFTDataset
-        inference_dataset_name: none
+        inference_dataset_name: null 
     poly-encoder: 
         type: LatentInteraction
         model_name: PolyEncoder
         dataset_name: BERTDualDataset
-        inference_dataset_name: none
+        inference_dataset_name: null
 
 # huge file are saved in the root dir
 root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
@@ -140,8 +142,8 @@ test_interval: 1.1
 # ========== deploy parameters ========== #
 deploy:
     host: '0.0.0.0'
-    port: 22335
-    dataset: poetry
+    port: 22336
+    dataset: novel_selected
     max_len: 256
     res_max_len: 64
     recall:

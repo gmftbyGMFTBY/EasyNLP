@@ -80,25 +80,6 @@ class InteractionAgent(RetrievalBaseAgent):
         for idx, batch in enumerate(pbar):
             label = batch['label']
             scores = torch.sigmoid(self.model(batch)).cpu().tolist()
-
-            if rerank_agent:
-                scores_ = []
-                counter = 0
-                for i in tqdm(range(0, len(scores), 10)):
-                    subscores = scores[i:i+10]
-                    context = batch['context'][counter]
-                    responses = batch['responses'][i:i+10]
-                    packup = {
-                        'context': context,
-                        'responses': responses, 
-                        'scores': subscores
-                    }
-                    subscores = rerank_agent.compare_reorder(packup)
-                    scores_.append(subscores)
-                    counter += 1
-                scores = []
-                for i in scores_:
-                    scores.extend(i)
             
             # print output
             if print_output:
@@ -159,7 +140,7 @@ class InteractionAgent(RetrievalBaseAgent):
         return {'Acc': round(total_acc_num/total_num, 4)}
 
     @torch.no_grad()
-    def compare_one_turn(self, cids, rids, tickets, margin=0.1):
+    def compare_one_turn(self, cids, rids, tickets):
         ids, tids, recoder = [], [], []
         for i, j in tickets:
             rids1, rids2 = rids[i], rids[j]
@@ -183,15 +164,7 @@ class InteractionAgent(RetrievalBaseAgent):
             'mask': mask,
         }
         comp_scores = torch.sigmoid(self.model(batch_packup))    # [B]
-        
-        # add the margin for positive judgment
-        comp_label = []
-        for s in comp_scores:
-            if s >= 0.5 + margin:
-                comp_label.append(True)
-            else:
-                comp_label.append(False)
-
+        comp_label = (comp_scores > 0.5).tolist()
         return comp_label, recoder
 
     @torch.no_grad()
@@ -205,11 +178,8 @@ class InteractionAgent(RetrievalBaseAgent):
         output the updated scores for the batch, the order of the responses should not be changed, only the scores are changed.
         '''
         self.model.eval() 
-        max_inner_bsz = self.args['max_inner_bsz']
         compare_turn_num = self.args['compare_turn_num']
-        pos_margin = self.args['positive_margin']
-        pos_margin_delta = self.args['positive_margin_delta']
-
+        max_inner_bsz = self.args['max_inner_bsz']
         context = batch['context']
         scores = batch['scores']
         items = self.vocab.batch_encode_plus([context] + batch['responses'])['input_ids']
@@ -222,68 +192,36 @@ class InteractionAgent(RetrievalBaseAgent):
         scores = [scores[i] for i in order]
 
         # tickets to the comparsion function
-        before_dict = {i:i-1 for i in range(len(rids))}
-        # first compare, second resolve the conjuction
-        # each pair in tickets (i, j), i must has the front position of the j (before), which means
-        # i has the higher scores than j (during the comparison, the False means the i < j,
-        # and need to be swaped).
+        tickets = []
         for idx in range(compare_turn_num):
-            tickets = []
-            if idx == 0:
-                for i in range(len(rids)):
-                    if before_dict[i] != -1:
-                        tickets.append((before_dict[i], i))
+            for i in range(len(rids)-1-idx):
+                tickets.append((i, i+1+idx))
+        label, recoder = self.compare_one_turn(cids, rids, tickets)
+        d = {}
+        for l, (i, j) in zip(label, recoder):
+            if l:
+                continue
+            if j in d:
+                if i < d[j]:
+                    d[j] = i
             else:
-                # find conflict
-                counter = [[] for _ in range(len(rids))]
-                for i in range(len(rids)):
-                    b = before_dict[i]
-                    if b != -1:
-                        counter[b].append(i)
-                # collect confliction tickets
-                for pair in counter:
-                    if len(pair) == 2:
-                        i, j = pair
-                        if scores[i] < scores[j]:
-                            tickets.append((j, i))
-                        else:
-                            tickets.append((i, j))
-                    elif len(pair) > 2:
-                        raise Exception()
-
-                tickets.extend(not_sure_tickets)
-                tickets = list(set(tickets))
-            # abort
-            if len(tickets) == 0:
-                break
-
-            label, recoder = self.compare_one_turn(cids, rids, tickets, margin=pos_margin)
-            d = {j:i for l, (i, j) in zip(label, recoder) if l is False}
-            d = sorted(list(d.items()), key=lambda x:x[0])    # left to right
-
-            not_sure_tickets = []
-
-            for j, i in d:
-                # put the j before i (plus the scores)
-                s_j, s_i = scores[j], scores[i]
-                # get before score
-                if before_dict[i] == -1:
-                    s_i_before = scores[i] + 2.
-                else:
-                    s_i_before = scores[before_dict[i]]
-                delta = s_i_before - s_i
-                delta_s = random.uniform(0, delta)
-                scores[j] = s_i + delta_s    # bigger than s_i but lower than s_i_before
-                # change the before dict
-                before_dict[j] = before_dict[i]
-                before_dict[i] = j
-
-                # not sure
-                if before_dict[j] != -1:
-                    not_sure_tickets.append((before_dict[j], j))
-            # changing becomer harder and harder
-            pos_margin -= pos_margin_delta
-
+                d[j] = i
+        d = sorted(list(d.items()), key=lambda x:x[0])
+        before_dict = {i:i-1 for i in range(len(rids))}
+        for j, i in d:
+            # put the j before i (plus the scores)
+            s_j, s_i = scores[j], scores[i]
+            # get before score
+            if before_dict[i] == -1:
+                s_i_before = scores[i] + 2.
+            else:
+                s_i_before = scores[before_dict[i]]
+            delta = s_i_before - s_i
+            delta_s = random.uniform(0, delta)
+            scores[j] = s_i + delta_s    # bigger than s_i but lower than s_i_before
+            # change the before dict
+            before_dict[j] = before_dict[i]
+            before_dict[i] = j
         # backup the scores
         scores = [scores[backup_map[i]] for i in range(len(order))]
         return scores

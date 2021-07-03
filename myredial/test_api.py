@@ -14,6 +14,7 @@ def parser_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--size', type=int, default=1000)
     parser.add_argument('--block_size', type=int, default=10)
+    parser.add_argument('--topk', type=int, default=10, help='topk candidates for recall')
     parser.add_argument('--mode', type=str, default='rerank/recall/pipeline')
     parser.add_argument('--url', type=str, default='9.91.66.241')
     parser.add_argument('--port', type=int, default=22335)
@@ -50,7 +51,7 @@ def load_fake_recall_data(path, size=1000):
     if args['dataset'] in ['douban', 'ecommerce', 'ubuntu', 'lccc', 'lccc-large']:
         dataset = read_text_data_utterances(path, lang='zh')
         dataset = [(utterances[:-1], utterances[-1], None) for _, utterances in dataset]
-    elif args['dataset'] in ['poetry']:
+    elif args['dataset'] in ['poetry', 'novel_selected']:
         dataset = read_text_data_with_source(path, lang='zh')
     else:
         dataset, _ = read_json_data(path, lang='zh')
@@ -67,6 +68,7 @@ def load_fake_recall_data(path, size=1000):
                     } for j in cache
                 ],
                 'lang': 'zh',
+                'topk': args['topk'],
             })
             current_num, cache = 1, [i]
             block_size = random.randint(1, args['block_size'])
@@ -191,9 +193,9 @@ if __name__ == '__main__':
                     f.write(f'[Response] {item["response"]}\n\n')
             elif args['mode'] == 'recall':
                 for item in data:
-                    f.write(f'[Context ] {item["context"]}\n')
-                    for idx, neg in enumerate(item['candidates'][:5]):
-                        f.write(f'[Cands-{idx}] {neg}\n')
+                    f.write(f'[Context] {item["context"]}\n')
+                    for idx, neg in enumerate(item['candidates']):
+                        f.write(f'[Cands-{idx}] {neg["text"]}\n')
                     f.write('\n')
             elif args['mode'] == 'rerank':
                 for item in data:

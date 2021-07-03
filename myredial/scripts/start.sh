@@ -26,11 +26,11 @@ model_name=${names[1]}
 
 # train
 # echo "RUN $model_name on $dataset_name"
-# ./scripts/train.sh $dataset_name $model_name $str
+./scripts/train.sh $dataset_name $model_name $str
 
 # test on one gpu
-# ./scripts/test_rerank.sh $dataset_name $model_name 0
+./scripts/test_rerank.sh $dataset_name $model_name 0
 
 # inference
-echo "IFNERENCE $model_name on $dataset_name"
-./scripts/inference.sh $dataset_name $model_name $str
+# echo "IFNERENCE $model_name on $dataset_name"
+# ./scripts/inference.sh $dataset_name $model_name $str

@@ -209,7 +209,7 @@ class RepresentationAgent(RetrievalBaseAgent):
         return round(total_loss / batch_num, 4)
     
     @torch.no_grad()
-    def test_model(self, test_iter, print_output=False):
+    def test_model(self, test_iter, print_output=False, rerank_agent=None):
         self.model.eval()
         pbar = tqdm(test_iter)
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
@@ -221,25 +221,47 @@ class RepresentationAgent(RetrievalBaseAgent):
 
         for idx, batch in enumerate(pbar):                
             label = batch['label']
-            cid, cid_mask = self.totensor([batch['context']], ctx=True)
-            rid, rid_mask = self.totensor(batch['responses'], ctx=False)
-            batch['ids'], batch['ids_mask'] = cid, cid_mask
-            batch['rids'], batch['rids_mask'] = rid, rid_mask
+            if 'context' in batch:
+                cid, cid_mask = self.totensor([batch['context']], ctx=True)
+                rid, rid_mask = self.totensor(batch['responses'], ctx=False)
+                batch['ids'], batch['ids_mask'] = cid, cid_mask
+                batch['rids'], batch['rids_mask'] = rid, rid_mask
+            elif 'ids' in batch:
+                cid = batch['ids'].unsqueeze(0)
+                cid_mask = torch.ones_like(cid)
+                batch['ids'] = cid
+                batch['ids_mask'] = cid_mask
 
             if self.args['mode'] in ['train']:
                 scores = self.model.module.predict(batch).cpu().tolist()    # [B]
             else:
                 scores = self.model.predict(batch).cpu().tolist()    # [B]
 
+            # rerank by the compare model (bert-ft-compare)
+            if rerank_agent:
+                if 'context' in batch:
+                    context = batch['context']
+                    responses = batch['responses']
+                elif 'ids' in batch:
+                    context = self.convert_to_text(batch['ids'].squeeze(0))
+                    responses = [self.convert_to_text(res) for res in batch['rids']]
+                packup = {
+                    'context': context,
+                    'responses': responses,
+                    'scores': scores,
+                }
+                # only the scores has been update
+                scores = rerank_agent.compare_reorder(packup)
+
             # print output
             if print_output:
                 if 'responses' in batch:
                     self.log_save_file.write(f'[CTX] {batch["context"]}\n')
-                    for rtext, score in zip(batch['responses'], scores):
+                    for rtext, score in zip(responses, scores):
                         score = round(score, 4)
                         self.log_save_file.write(f'[Score {score}] {rtext}\n')
                 else:
-                    ctext = self.convert_to_text(batch['ids'])
+                    ctext = self.convert_to_text(batch['ids'].squeeze(0))
                     self.log_save_file.write(f'[CTX] {ctext}\n')
                     for rid, score in zip(batch['rids'], scores):
                         rtext = self.convert_to_text(rid)

@@ -34,6 +34,65 @@ def read_json_data(path, lang='zh'):
     return dataset, responses
 
 
+def read_text_data_utterances_compare_test(path, lang='zh', size=10):
+    with open(path) as f:
+        responses = []
+        for line in tqdm(list(f.readlines())):
+            line = line.strip().split('\t')[1:]
+            responses.extend(line)
+        responses_ = list(set(responses))
+
+    with open(path) as f:
+        dataset = []
+        cache = []
+        for line in tqdm(list(f.readlines())):
+            if len(cache) == size:
+                lines = [line.strip().split('\t') for line in cache]
+                lines = [(line[0], line[1:]) for line in lines]     # (label, utterance list)
+
+                context = lines[0][1][1:-1]
+                responses = [line[1][-1] for line in lines if line[0] == '1']
+                if len(responses) != 0:
+                    response = random.choice(responses)    # random select one as the ground-truth
+                    hard_negative_samples = [line[1][-1] for line in lines if line[0] == '0']
+                    easy_negative_samples = random.sample(responses_, len(hard_negative_samples))
+                    dataset.append((
+                        context, 
+                        response, 
+                        hard_negative_samples, 
+                        easy_negative_samples
+                    ))
+                else:
+                    # ignore this case
+                    pass
+                cache = []
+            cache.append(line)
+    print(f'[!] load {len(dataset)} samples from {path}')
+    return dataset
+
+
+def read_text_data_utterances_compare(path, lang='zh'):
+    '''read from the train_gray dataset'''
+    with open(path) as f:
+        responses = []
+        for line in tqdm(list(f.readlines())):
+            item = json.loads(line.strip())
+            responses.extend(item['q'] + [item['r']] + item['nr'])
+        responses = list(set(responses))
+
+    with open(path) as f:
+        dataset = []
+        for line in tqdm(list(f.readlines())):
+            item = json.loads(line.strip())
+            context = item['q']
+            response = item['r']
+            hard_negative_samples = item['nr']
+            easy_negative_samples = random.sample(responses, len(hard_negative_samples))
+            dataset.append((context, response, hard_negative_samples, easy_negative_samples))
+    print(f'[!] load {len(dataset)} samples from {path}')
+    return dataset
+
+
 def read_text_data_utterances(path, lang='zh'):
     with open(path) as f:
         dataset = []
@@ -84,8 +143,8 @@ def read_text_data_with_neg_q_r_neg(path, lang='zh'):
     print(f'[!] load {len(responses)} utterances from {path}')
     return dataset, responses
 
-def read_text_data_dual_bert(path, lang='zh', xlm=False):
-    sep = ' </s> ' if xlm else ' [SEP] '
+def read_text_data_dual_bert(path, lang='zh'):
+    sep = ' [SEP] '
     with open(path) as f:
         dataset = []
         for line in f.readlines():

@@ -20,9 +20,9 @@ class SimCSEInferenceDataset(Dataset):
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
 
-        train_data = read_text_data_dual_bert(path, lang=self.args['lang'], xlm=self.args['xlm'])
+        train_data = read_text_data_dual_bert(path, lang=self.args['lang'])
         test_path = f'{os.path.split(path)[0]}/test.txt'
-        test_data = read_text_data_dual_bert(test_path, lang=self.args['lang'], xlm=self.args['xlm'])
+        test_data = read_text_data_dual_bert(test_path, lang=self.args['lang'])
         data = train_data + test_data
         self.data = []
         for label, context, response in tqdm(data):

@@ -22,10 +22,7 @@ def load_dataset(args):
 
     path = f'{args["root_dir"]}/data/{args["dataset"]}/{args["mode"]}.txt'
 
-    if args['xlm']:
-        vocab = XLMRobertaTokenizerFast.from_pretrained(args['tokenizer'])
-    else:
-        vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
+    vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
         
     data = dataset_t(vocab, path, **args)
     if args['mode'] in ['train', 'inference']:

@@ -27,9 +27,8 @@ def load_config(args):
 
     # load by lang
     args['lang'] = configuration['datasets'][args['dataset']]
-    if not configuration['xlm']:
-        configuration['tokenizer'] = configuration['tokenizer'][args['lang']]
-        configuration['pretrained_model'] = configuration['pretrained_model'][args['lang']]
+    configuration['tokenizer'] = configuration['tokenizer'][args['lang']]
+    configuration['pretrained_model'] = configuration['pretrained_model'][args['lang']]
     return configuration
 
 def load_base_config():

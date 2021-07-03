@@ -18,7 +18,7 @@ class SimCSEDataset(Dataset):
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
 
-        data = read_text_data_dual_bert(path, lang=self.args['lang'], xlm=self.args['xlm'])
+        data = read_text_data_dual_bert(path, lang=self.args['lang'])
         self.data = []
         if args['mode'] == 'train':
             for label, context, response in tqdm(data):

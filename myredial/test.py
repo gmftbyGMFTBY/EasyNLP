@@ -72,10 +72,21 @@ def prepare_inference(**args):
 
 
 def main_rerank(**args):
+    '''whether to use the rerank model'''
     args['mode'] = 'test'
+    new_args = deepcopy(args)
     config = load_config(args)
     args.update(config)
     print('test', args)
+    
+    if args['rank']:
+        new_args['model'] = args['rank']
+        config = load_config(new_args)
+        new_args.update(config)
+        print(f'[!] RERANK AGENT IS USED')
+    else:
+        new_args = None
+        print(f'[!] RERANK AGENT IS NOT USED')
 
     random.seed(args['seed'])
     torch.manual_seed(args['seed'])
@@ -88,7 +99,17 @@ def main_rerank(**args):
     pretrained_model_name = args['pretrained_model'].replace('/', '_')
     save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}.pt'
     agent.load_model(save_path)
-    outputs = agent.test_model(test_iter, print_output=True)
+
+    # rerank model
+    if new_args:
+        rerank_agent = load_model(new_args)
+        save_path = f'{new_args["root_dir"]}/ckpt/{new_args["dataset"]}/{new_args["model"]}/best_{pretrained_model_name}.pt'
+        rerank_agent.load_model(save_path)
+        print(f'[!] load rank order agent from: {save_path}')
+    else:
+        rerank_agent = None
+
+    outputs = agent.test_model(test_iter, print_output=True, rerank_agent=rerank_agent)
 
     with open(f'{args["root_dir"]}/rest/{args["dataset"]}/{args["model"]}/test_result_rerank_{pretrained_model_name}.txt', 'w') as f:
         for key, value in outputs.items():

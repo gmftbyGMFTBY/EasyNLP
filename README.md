@@ -2,11 +2,13 @@
 
 ## Note
 
-1. The rerank performance of dual-bert-fusion is bad, the reason maybe that the context information is only for ground-truth, but the other negative samples lost their corresponding context, and during rerank procedure, we use the context of the ground-truth for all the candidates, which may pertubate the decison of the model.
-2. test the simcse for the only one conversation context utterance, q-q matching (context similarity)
-3. Generate the gray data need the faiss Flat  index runnign on GPU, which only costs 6~7mins for 0.5 million dataset
-4. implement UMS-BERT and BERT-SL using the post-train checkpoint of the BERT-FP
-5. implement my own post train procedure
+- [x] The rerank performance of dual-bert-fusion is bad, the reason maybe that the context information is only for ground-truth, but the other negative samples lost their corresponding context, and during rerank procedure, we use the context of the ground-truth for all the candidates, which may pertubate the decison of the model.
+- [ ] test the simcse for the only one conversation context utterance, q-q matching (context similarity)
+- [x] Generate the gray data need the faiss Flat  index runnign on GPU, which only costs 6~7mins for 0.5 million dataset
+- [ ] implement UMS-BERT and BERT-SL using the post-train checkpoint of the BERT-FP
+- [ ] implement my own post train procedure
+- [ ] implement R-Drop for bert-ft and dual-bert
+- [x] fix the bugs of _length_limit of the bert-ft
 
 ## How to Use
 
@@ -256,11 +258,16 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 | SOTA               | 31.8  | 48.2  | 85.8  | 66.4  | 49.9  | 62.5   |
 | HCL                | 33.0  | 53.1  | 85.8  | 68.1  | 51.4  | 63.9   |
 | BERT-FP(512)       | 32.4  | 54.2  | 87.0  | 68.0  | 51.2  | 64.4   |
-| bert-ft(512)       | 32.27 | 53.87 | 85.64 | 67.86 | 50.52 | 64.24  |
+| bert-ft(320, bert-fp)    | 29.63 | 50.95 | 86.3 | 66.07 | 48.13 | 61.76  |
+| bert-ft+compare(320, bert-fp, margin=0.55)    | 30.38 | 50.63 | 86.2 | 66.62 | 49.03 | 62.34  |
+| bert-ft+compare(320, bert-fp, margin=0.5)    | 29.43 | 51.37 | 87.08 | 66.2 | 47.83 | 62.17  |
 | poly encoder(poly-m=32)  | 31.76 | 50.59 | 85.72 | 66.49 | 49.48 | 62.84  |
 | dual-bert(bsz=32, epoch=5, poly-m=32) | 30.55 | 46.93 | 81.16 | 64.45 | 48.43  | 60.34 |
 | dual-bert(bsz=32, epoch=5, bert-fp) | 31.42 | 51.6 | 83.46 | 66.41 | 49.48  | 62.22 |
 | dual-bert(bsz=48, epoch=5, bert-fp) | 31.63 | 51.22 | 83.23 | 66.47 | 49.78  | 62.22 |
+| dual-bert+compare(bsz=48, epoch=5, bert-fp, compare_turn=1) | 31.0 | 54.47 | 85.85 | 67.51 | 49.63  | 63.42 |
+| dual-bert+compare(bsz=48, epoch=5, bert-fp, compare_turn=2) | 31.0 | 54.16 | 86.28 | 67.52 | 49.63  | 63.54 |
+| dual-bert+compare(bsz=48, epoch=5, bert-fp, compare_turn=2, margin=0.55) | 31.23 | 54.41 | 86.2 | 67.74 | 49.93  | 63.58 |
 | dual-bert-compare(bsz=48, epoch=5, bert-fp) | 31.05 | 49.63 | 83.84 | 65.54 | 47.53  | 61.74 |
 | dual-bert-compare(loss1+loss2+loss3, bsz=32, epoch=5, gray_num=10, bert-fp) | 30.42 | 50.38 | 82.38 | 65.3 | 48.13  | 61.11 |
 | dual-bert-compare(loss1+loss2+loss3, bsz=32, epoch=5, gray_num=5, bert-fp) | 29.04 |48.55 | 83.05 | 64.13 | 46.48  | 60.19 |

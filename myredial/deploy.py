@@ -151,6 +151,7 @@ def create_app():
                 {'str': 'context sentence1', 'status': 'editing'},
                 ...
             ],
+            # topk is optinal, if topk key doesn't exist, default topk will be used (100)
             'topk': 100,
             'lang': 'zh',
             'uuid': '',

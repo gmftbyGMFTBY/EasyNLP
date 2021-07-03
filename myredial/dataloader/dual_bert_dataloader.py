@@ -8,12 +8,8 @@ class BERTDualDataset(Dataset):
         self.args = args
         self.vocab = vocab
 
-        if self.args['xlm']:
-            self.pad = self.vocab.convert_tokens_to_ids('<pad>')
-            self.sep = self.vocab.convert_tokens_to_ids('</s>')
-        else:
-            self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
-            self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
 
         suffix = args['tokenizer'].replace('/', '_')
         self.pp_path = f'{os.path.splitext(path)[0]}_dual_{suffix}.pt'
@@ -22,7 +18,7 @@ class BERTDualDataset(Dataset):
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
 
-        data = read_text_data_dual_bert(path, lang=self.args['lang'], xlm=self.args['xlm'])
+        data = read_text_data_dual_bert(path, lang=self.args['lang'])
 
         self.data = []
         if self.args['mode'] == 'train':
@@ -412,7 +408,7 @@ class BERTDualCLDataset(Dataset):
                     'rids': rids,
                 })
         else:
-            data = read_text_data_dual_bert(path, lang=self.args['lang'], xlm=self.args['xlm'])
+            data = read_text_data_dual_bert(path, lang=self.args['lang'])
             for i in tqdm(range(0, len(data), 10)):
                 batch = data[i:i+10]
                 rids = []
