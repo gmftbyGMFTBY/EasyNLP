@@ -117,6 +117,11 @@ models:
         model_name: BERTCompareRetrieval
         dataset_name: BERTFTCompDataset
         inference_dataset_name: null
+    bert-ft-compare-plus: 
+        type: Interaction
+        model_name: BERTComparePlusRetrieval
+        dataset_name: BERTFTCompPlusDataset
+        inference_dataset_name: null
     sa-bert: 
         type: Interaction
         model_name: SABERTRetrieval 

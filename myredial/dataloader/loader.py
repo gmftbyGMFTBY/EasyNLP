@@ -5,6 +5,7 @@ from .simcse_inference_dataloader import *
 from .dual_bert_full_dataloader import *
 from .sa_bert_dataloader import *
 from .bert_ft_dataloader import *
+from .bert_ft_compare_dataloader import *
 from .inference_dataloader import *
 from .inference_full_dataloader import *
 from .inference_ctx_dataloader import *

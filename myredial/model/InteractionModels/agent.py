@@ -11,6 +11,9 @@ class InteractionAgent(RetrievalBaseAgent):
 
         if self.args['model'] in ['bert-ft-compare']:
             self.test_model = self.test_model_compare
+        elif self.args['model'] in ['bert-ft-compare-plus']:
+            # self.test_model = self.test_model_compare_plus
+            pass
 
         if args['mode'] == 'train':
             self.set_test_interval()
@@ -24,6 +27,7 @@ class InteractionAgent(RetrievalBaseAgent):
             self.model.cuda()
         if args['mode'] in ['train', 'inference']:
             self.set_optimizer_scheduler_ddp()
+
         self.criterion = nn.BCEWithLogitsLoss()
         self.show_parameters(self.args)
         
@@ -40,9 +44,14 @@ class InteractionAgent(RetrievalBaseAgent):
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
             with autocast():
-                output = self.model(batch)    # [B]
-                label = batch['label']
-                loss = self.criterion(output, label.to(torch.float))
+                if self.args['model'] in ['bert-ft-compare']:
+                    output = self.model(batch)    # [B]
+                    label = batch['label']
+                    loss = self.criterion(output, label.to(torch.float))
+                elif self.args['model'] in ['bert-ft-compare-plus']:
+                    label = batch['label']
+                    loss = self.model(batch)
+
             self.scaler.scale(loss).backward()
             self.scaler.unscale_(self.optimizer)
             clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
@@ -54,9 +63,13 @@ class InteractionAgent(RetrievalBaseAgent):
             batch_num += 1
             if batch_num in self.args['test_step']:
                 self.test_now(test_iter, recoder)
-            
-            output = torch.sigmoid(output) > 0.5
-            now_correct = torch.sum(output == label).item()
+
+            if self.args['model'] in ['bert-ft-compare-plus']:
+                output = output.max(dim=-1)[1]
+                now_correct = (output == label).sum().item()
+            else:
+                output = torch.sigmoid(output) > 0.5
+                now_correct = torch.sum(output == label).item()
             correct += now_correct
             s += len(label)
             
@@ -139,26 +152,55 @@ class InteractionAgent(RetrievalBaseAgent):
     def test_model_compare(self, test_iter, print_output=False, rerank_agent=None):
         self.model.eval()
         pbar = tqdm(test_iter)
-        total_acc_num, total_num = 0, 0
+        total_mrr, total_prec_at_one, total_map = 0, 0, 0
+        total_examples, total_correct = 0, 0
+        k_list = [1, 2, 5, 10]
         for batch in pbar:
-            label = batch['label']
-            scores = torch.sigmoid(self.model(batch))    # [20]
-            acc = ((scores > 0.5) == label).to(torch.float).sum().item()
-            total_num += len(scores)
-            total_acc_num += acc
-            scores = scores.tolist()
+            label = np.array(batch['label'])
+            packup = {
+                'context': batch['context'],
+                'responses': batch['responses'],
+            }
+            scores = self.fully_compare(packup)
             
             # print output
             if print_output:
-                for ids, score in zip(batch['ids'], scores):
-                    text = self.convert_to_text(ids, lang=self.args['lang'])
+                c = batch['context']
+                self.log_save_file.write(f'[Context] {c}\n')
+                for r, score in zip(batch['responses'], scores):
                     score = round(score, 4)
-                    self.log_save_file.write(f'[Score {score}] {text}\n')
+                    self.log_save_file.write(f'[Score {score}] {r}\n')
                 self.log_save_file.write('\n')
-        return {'Acc': round(total_acc_num/total_num, 4)}
+
+            rank_by_pred, pos_index, stack_scores = \
+          calculate_candidates_ranking(
+                np.array(scores), 
+                np.array(label.tolist()),
+                10)
+            num_correct = logits_recall_at_k(pos_index, k_list)
+            if self.args['dataset'] in ["douban"]:
+                total_prec_at_one += precision_at_one(rank_by_pred)
+                total_map += mean_average_precision(pos_index)
+                for pred in rank_by_pred:
+                    if sum(pred) == 0:
+                        total_examples -= 1
+            total_mrr += logits_mrr(pos_index)
+            total_correct = np.add(total_correct, num_correct)
+            total_examples += math.ceil(label.size / 10)
+        avg_mrr = float(total_mrr / total_examples)
+        avg_prec_at_one = float(total_prec_at_one / total_examples)
+        avg_map = float(total_map / total_examples)
+        return {
+            f'R10@{k_list[0]}': round(((total_correct[0]/total_examples)*100), 2),        
+            f'R10@{k_list[1]}': round(((total_correct[1]/total_examples)*100), 2),        
+            f'R10@{k_list[2]}': round(((total_correct[2]/total_examples)*100), 2),        
+            'MRR': round(avg_mrr, 4),
+            'P@1': round(avg_prec_at_one, 4),
+            'MAP': round(avg_map, 4),
+        }
 
     @torch.no_grad()
-    def compare_one_turn(self, cids, rids, tickets, margin=0.0, fully=False):
+    def compare_one_turn(self, cids, rids, tickets, margin=0.0, fully=False, fast=False):
         ids, tids, recoder = [], [], []
         for i, j in tickets:
             rids1, rids2 = rids[i], rids[j]
@@ -183,22 +225,15 @@ class InteractionAgent(RetrievalBaseAgent):
         }
         comp_scores = torch.sigmoid(self.model(batch_packup))    # [B]
         
-        # add the margin for positive judgment
-        if fully is False:
+        if fast:
+            return comp_scores
+        elif fully is False:
             comp_label = []
             for s in comp_scores:
                 if s >= 0.5 + margin:
                     comp_label.append(True)
                 else:
                     comp_label.append(False)
-            # comp_label, new_recoder = [], []
-            # for s, (i, j) in zip(comp_scores, recoder):
-            #     if s >= 0.5 + margin:
-            #         comp_label.append(True)
-            #         new_recoder.append((i, j))
-            #     elif s < 0.5 - margin:
-            #         comp_label.append(False)
-            #         new_recoder.append((i, j))
             return comp_label, new_recoder
         else:
             # only for bert-ft-compare full comparsion
@@ -231,7 +266,7 @@ class InteractionAgent(RetrievalBaseAgent):
                 chain[i].append(j)
             else:
                 chain[j].append(i)
-        # iteration
+        # iterate to generate the scores
         scores = {i:1 for i in chain}
         for _ in range(5):
             new_scores = deepcopy(scores)
@@ -333,6 +368,39 @@ class InteractionAgent(RetrievalBaseAgent):
         # backup the scores
         scores = [scores[backup_map[i]] for i in range(len(order))]
         return scores
+    
+    @torch.no_grad()
+    def compare_reorder_fast(self, batch):
+        '''
+        input: batch = {
+            'context': 'text string of the multi-turn conversation context, [SEP] is used for cancatenation',
+            'responses': ['candidate1', 'candidate2', ...],
+            'scores': [s1, s2, ...],
+        }
+        output the updated scores for the batch, the order of the responses should not be changed, only the scores are changed.
+        '''
+        self.model.eval() 
+        compare_turn_num = self.args['compare_turn_num']
+        pos_margin = self.args['positive_margin']
+        pos_margin_delta = self.args['positive_margin_delta']
+
+        context = batch['context']
+        scores = batch['scores']
+        items = self.vocab.batch_encode_plus([context] + batch['responses'])['input_ids']
+        cids = self._length_limit(items[0])
+        rids = [self._length_limit_res(i) for i in items[1:]]
+
+        # baseline (median)
+        median_index = np.argsort(scores)[len(scores)//2]
+        baseline = rids[median_index]
+
+        tickets = []
+        for i in range(len(rids)):
+            tickets.append((i, median_index))
+        scores = self.compare_one_turn(cids, rids, tickets, margin=pos_margin, fast=True)
+        baseline_scores = scores[median_index].item()
+        scores -= baseline_scores
+        return scores.tolist()
 
     def _length_limit(self, ids):
         if len(ids) > self.args['max_len']:

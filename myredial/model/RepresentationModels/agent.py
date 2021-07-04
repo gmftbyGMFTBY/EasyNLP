@@ -252,7 +252,7 @@ class RepresentationAgent(RetrievalBaseAgent):
                 }
                 # only the scores has been update
                 # scores = rerank_agent.compare_reorder(packup)
-                scores = rerank_agent.fully_compare(packup)
+                scores = rerank_agent.compare_reorder_fast(packup)
 
             # print output
             if print_output:

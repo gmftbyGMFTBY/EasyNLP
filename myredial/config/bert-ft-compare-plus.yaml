@@ -1,9 +1,12 @@
 # basic configuration for building the model
 dropout: 0.1
 gray_cand_num: 10
-inner_bsz: 2
+# [inner_bsz] the batch for one train step is to big, split and run it in multiple times
+inner_bsz: 48
+# the number of the negative samples will be considered in each batch
+k: 2
 compare_turn_num: 2
-rank: bert-ft-compare
+rank: bert-ft-compare-plus
 positive_margin: 0.
 positive_margin_delta: 0.0
 

@@ -10,6 +10,7 @@
 - [ ] implement R-Drop for bert-ft (add the similarity on the cls embedding) and dual-bert
 - [x] fix the bugs of _length_limit of the bert-ft
 - [ ] dynamic margin (consider the margin between the original rerank scores)
+- [ ] comparison: bce to three-classification(positive, negative, hard to tell); hard to tell could use the self-comparison and the comparison with the top-1 retrieved result
 
 ## How to Use
 
@@ -149,6 +150,7 @@ Before testing the es recall, make sure the es index has been built:
 | SOTA               | 77.6  | 91.9  | 99.1  | -      |
 | BERT-FP            | 87.0  | 95.6  | 99.3  | -      |
 | bert-ft-compare    | 94.2  | 97.8  | 99.5  | 96.52  |
+| bert-ft-compare(epoch=10, super_hard_negative) | 93.1 | 98.5 | 99.9 | 96.22 |
 | dual-bert          | 91.7  | 96.0  | 99.2  | 94.85  |
 | dual-bert+compare  | 92.0  | 96.6  | 99.6  | 95.23  |
 | bert-ft            | 83.4  | 94.4  | 99.4  | 90.43  |
