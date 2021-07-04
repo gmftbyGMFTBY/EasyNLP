@@ -23,9 +23,7 @@ pretrained_model:
 
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
-# rerank by the compare model. if not use, just set the null
-rank: bert-ft-compare
-# rank: null
+rank: null
 
 models:
     dual-bert: 

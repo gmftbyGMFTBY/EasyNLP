@@ -75,11 +75,11 @@ class BERTFTCompDataset(Dataset):
         for h in hrids:
             if random.random() > 0.5:
                 ids_ = cids + rids + h
-                tids_ = [0] * len(cids) + [1] * len(rids) + [2] * len(h)
+                tids_ = [0] * len(cids) + [1] * len(rids) + [0] * len(h)
                 l = 1
             else:
                 ids_ = cids + h + rids
-                tids_ = [0] * len(cids) + [1] * len(h) + [2] * len(rids)
+                tids_ = [0] * len(cids) + [1] * len(h) + [0] * len(rids)
                 l = 0
             ids.append(ids_)
             tids.append(tids_)
@@ -88,11 +88,11 @@ class BERTFTCompDataset(Dataset):
         for e in erids:
             if random.random() > 0.5:
                 ids_ = cids + rids + e
-                tids_ = [0] * len(cids) + [1] * len(rids) + [2] * len(e)
+                tids_ = [0] * len(cids) + [1] * len(rids) + [0] * len(e)
                 l = 1
             else:
                 ids_ = cids + e + rids
-                tids_ = [0] * len(cids) + [1] * len(e) + [2] * len(rids)
+                tids_ = [0] * len(cids) + [1] * len(e) + [0] * len(rids)
                 l = 0
             ids.append(ids_)
             tids.append(tids_)

@@ -7,8 +7,9 @@
 - [x] Generate the gray data need the faiss Flat  index runnign on GPU, which only costs 6~7mins for 0.5 million dataset
 - [ ] implement UMS-BERT and BERT-SL using the post-train checkpoint of the BERT-FP
 - [ ] implement my own post train procedure
-- [ ] implement R-Drop for bert-ft and dual-bert
+- [ ] implement R-Drop for bert-ft (add the similarity on the cls embedding) and dual-bert
 - [x] fix the bugs of _length_limit of the bert-ft
+- [ ] dynamic margin (consider the margin between the original rerank scores)
 
 ## How to Use
 
@@ -47,15 +48,27 @@ pip install -r requirements.txt
 
 5. inference the responses and save into the faiss index
 
+Somethings inference will missing data samples, please use the 1 gpu (faiss-gpu search use 1 gpu quickly)
+
 It should be noted that:
-1. For writer dataset, use `extract_inference.py` script to generate the inference.txt
-2. For other datasets(douban, ecommerce, ubuntu), just `cp train.txt inference.txt`. The dataloader will automatically read the test.txt to supply the corpus. 
+    1. For writer dataset, use `extract_inference.py` script to generate the inference.txt
+    2. For other datasets(douban, ecommerce, ubuntu), just `cp train.txt inference.txt`. The dataloader will automatically read the test.txt to supply the corpus. 
 
 ```bash
 # work_mode=response, inference the response and save into faiss (for q-r matching) [dual-bert/dual-bert-fusion]
 # work_mode=context, inference the context to do q-q matching
 # work_mode=gray, inference the context; read the faiss(work_mode=response), search the topk hard negative samples; remember to set the BERTDualInferenceContextDataloader in config/base.yaml
-./inference <dataset_name> <model_name> <cuda_ids>
+./scripts/inference.sh <dataset_name> <model_name> <cuda_ids>
+```
+
+If you want to generate the gray dataset for the dataset:
+
+```bash
+# 1. set the mode as the **response**, to generate the response faiss index; corresponding dataset name: BERTDualInferenceDataset
+./scripts/inference.sh <dataset_name> <model_name> <cuda_ids>
+
+# 2. set the mode as the **gray**, to inference the context in the train.txt and search the top-k candidates as the gray(hard negative) samples; corresponding dataset name: BERTDualInferenceContextDataset
+./scripts/inference.sh <dataset_name> <model_name> <cuda_ids>
 ```
 
 6. deploy the rerank and recall model
@@ -131,9 +144,16 @@ Before testing the es recall, make sure the es index has been built:
 | dual-bert-fusion | 84.7  | 93.9 | 98.7  | 90.0  |
 
 
-| Original       | R10@1 | R10@2 | R10@5 | MRR    |
-| -------------- | ----- | ----- | ----- | ------ |
-| SOTA           | 77.6  | 91.9  | 99.1  | -      |
+| Original           | R10@1 | R10@2 | R10@5 | MRR    |
+| ------------------ | ----- | ----- | ----- | ------ |
+| SOTA               | 77.6  | 91.9  | 99.1  | -      |
+| BERT-FP            | 87.0  | 95.6  | 99.3  | -      |
+| bert-ft-compare    | 94.2  | 97.8  | 99.5  | 96.52  |
+| dual-bert          | 91.7  | 96.0  | 99.2  | 94.85  |
+| dual-bert+compare  | 92.0  | 96.6  | 99.6  | 95.23  |
+| bert-ft            | 83.4  | 94.4  | 99.4  | 90.43  |
+| bert-ft+compare(with not sure)    | 93.7  | 98.0  | 99.6  | 96.34  |
+| bert-ft+compare(without not sure)    | 92.7  | 97.3  | 99.6  | 95.72  |
 | bert-ft(dup=5) | 81.4  | 94.1  | 99.1  | 89.37  |
 | dual-bert-hier(bsz=64, epoch=10, shuffle-ddp) | 88.8 | 95.8  | 98.6 | 93.32 |
 | dual-bert-hier(bsz=128, epoch=10, shuffle-ddp) | 90.7 | 96.5  | 99.3 | 94.5 |
@@ -356,7 +376,23 @@ BERT-FP的post-train checkpoint和他的数据并不能共同的提高效果，�
 ### 3. Ubuntu V1 Dataset
 
 # recall performance
- Because of the very large test set, we use the LSH other than the Flat
+
+* 1000 test samples for fast iterations
+
+| Model             | R10@1 | R10@2 | R10@5 | MRR    |
+| ----------------- | ----- | ----- | ----- | ------ |
+| BERT-FP           | 91.1  | 96.2  | 99.4  | -      |
+| bert-ft-compare   | 88.2  | 93.5  | 97.0  | 92.29  |
+| bert-ft           | 89.7  | 96.0  | 99.3  | 93.92  |
+| bert-ft+compare   | 89.1  | 95.1  | 99.0  | 93.38  |
+| bert-ft+compare(pos_margin=-0.2)   | 89.0  | 94.9  | 99.0  | 93.3  |
+| dual-bert         | 86.8  | 94.5  | 98.5  | 91.98  |
+| dual-bert+compare(pos_margin=0.1) | 87.2  | 94.0  | 98.3  | 92.1  |
+| dual-bert+compare(pos_margin=-0.1) | 88.2  | 94.6  | 98.3  | 92.72  |
+| dual-bert+compare(pos_margin=-0.2) | 87.7  | 94.1  | 98.1  | 92.33  |
+
+* Because of the very large test set, we use the LSH other than the Flat
+
 | Originali (545868)       | Top-20 | Top-100 | Time |
 | -------------- | ----- | ----- | ------ |
 | dual-bert-LSH | 0.1374 | 0.2565 | 8.59  |

@@ -103,7 +103,7 @@ class InteractionAgent(RetrievalBaseAgent):
             # print output
             if print_output:
                 for ids, score in zip(batch['ids'], scores):
-                    text = self.convert_to_text(ids)
+                    text = self.convert_to_text(ids, lang=self.args['lang'])
                     score = round(score, 4)
                     self.log_save_file.write(f'[Score {score}] {text}\n')
                 self.log_save_file.write('\n')
@@ -137,7 +137,6 @@ class InteractionAgent(RetrievalBaseAgent):
     
     @torch.no_grad()
     def test_model_compare(self, test_iter, print_output=False, rerank_agent=None):
-        '''bert-ft-compare only need to test the accuracy'''
         self.model.eval()
         pbar = tqdm(test_iter)
         total_acc_num, total_num = 0, 0
@@ -152,19 +151,19 @@ class InteractionAgent(RetrievalBaseAgent):
             # print output
             if print_output:
                 for ids, score in zip(batch['ids'], scores):
-                    text = self.convert_to_text(ids)
+                    text = self.convert_to_text(ids, lang=self.args['lang'])
                     score = round(score, 4)
                     self.log_save_file.write(f'[Score {score}] {text}\n')
                 self.log_save_file.write('\n')
         return {'Acc': round(total_acc_num/total_num, 4)}
 
     @torch.no_grad()
-    def compare_one_turn(self, cids, rids, tickets, margin=0.1):
+    def compare_one_turn(self, cids, rids, tickets, margin=0.0, fully=False):
         ids, tids, recoder = [], [], []
         for i, j in tickets:
             rids1, rids2 = rids[i], rids[j]
             ids_ = cids + rids1 + rids2
-            tids_ = [0] * len(cids) + [1] * len(rids1) + [2] * len(rids2)
+            tids_ = [0] * len(cids) + [1] * len(rids1) + [0] * len(rids2)
             ids.append(ids_)
             tids.append(tids_)
             recoder.append((i, j))
@@ -185,15 +184,63 @@ class InteractionAgent(RetrievalBaseAgent):
         comp_scores = torch.sigmoid(self.model(batch_packup))    # [B]
         
         # add the margin for positive judgment
-        comp_label = []
-        for s in comp_scores:
-            if s >= 0.5 + margin:
-                comp_label.append(True)
+        if fully is False:
+            # comp_label = []
+            # for s in comp_scores:
+            #     if s >= 0.5 + margin:
+            #         comp_label.append(True)
+            #     else:
+            #         comp_label.append(False)
+            comp_label, new_recoder = [], []
+            for s, (i, j) in zip(comp_scores, recoder):
+                if s >= 0.5 + margin:
+                    comp_label.append(True)
+                    new_recoder.append((i, j))
+                elif s < 0.5 - margin:
+                    comp_label.append(False)
+                    new_recoder.append((i, j))
+            return comp_label, new_recoder
+        else:
+            # only for bert-ft-compare full comparsion
+            comp_label = []
+            for s in comp_scores:
+                if s >= 0.5 + margin:
+                    comp_label.append(True)
+                elif s < 0.5 - margin:
+                    comp_label.append(False)
+            return comp_label, recoder
+
+    @torch.no_grad()
+    def fully_compare(self, batch):
+        self.model.eval() 
+        pos_margin = self.args['positive_margin']
+        context = batch['context']
+        items = self.vocab.batch_encode_plus([context] + batch['responses'])['input_ids']
+        cids = self._length_limit(items[0])
+        rids = [self._length_limit_res(i) for i in items[1:]]
+
+        tickets = []
+        for i in range(len(rids)):
+            for j in range(len(rids)):
+                if i < j:
+                    tickets.append((i, j))
+        label, recoder = self.compare_one_turn(cids, rids, tickets, margin=pos_margin, fully=True)
+        chain = {i: [] for i in range(len(rids))}    # key is bigger than value
+        for l, (i, j) in zip(label, recoder):
+            if l is True:
+                chain[i].append(j)
             else:
-                comp_label.append(False)
-
-        return comp_label, recoder
-
+                chain[j].append(i)
+        # iteration
+        scores = {i:1 for i in chain}
+        for _ in range(5):
+            new_scores = deepcopy(scores)
+            for i, i_list in chain.items():
+                new_scores[i] += sum([scores[j] for j in i_list])
+            scores = deepcopy(new_scores)
+        scores = [scores[i] for i in range(len(rids))]
+        return scores
+    
     @torch.no_grad()
     def compare_reorder(self, batch):
         '''
@@ -205,7 +252,6 @@ class InteractionAgent(RetrievalBaseAgent):
         output the updated scores for the batch, the order of the responses should not be changed, only the scores are changed.
         '''
         self.model.eval() 
-        max_inner_bsz = self.args['max_inner_bsz']
         compare_turn_num = self.args['compare_turn_num']
         pos_margin = self.args['positive_margin']
         pos_margin_delta = self.args['positive_margin_delta']
@@ -251,8 +297,8 @@ class InteractionAgent(RetrievalBaseAgent):
                     elif len(pair) > 2:
                         raise Exception()
 
-                tickets.extend(not_sure_tickets)
-                tickets = list(set(tickets))
+                # tickets.extend(not_sure_tickets)
+                # tickets = list(set(tickets))
             # abort
             if len(tickets) == 0:
                 break
@@ -261,7 +307,7 @@ class InteractionAgent(RetrievalBaseAgent):
             d = {j:i for l, (i, j) in zip(label, recoder) if l is False}
             d = sorted(list(d.items()), key=lambda x:x[0])    # left to right
 
-            not_sure_tickets = []
+            # not_sure_tickets = []
 
             for j, i in d:
                 # put the j before i (plus the scores)
@@ -279,8 +325,8 @@ class InteractionAgent(RetrievalBaseAgent):
                 before_dict[i] = j
 
                 # not sure
-                if before_dict[j] != -1:
-                    not_sure_tickets.append((before_dict[j], j))
+                # if before_dict[j] != -1:
+                #     not_sure_tickets.append((before_dict[j], j))
             # changing becomer harder and harder
             pos_margin -= pos_margin_delta
 

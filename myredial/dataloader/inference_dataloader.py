@@ -15,9 +15,9 @@ class BERTDualInferenceDataset(Dataset):
             return None
         # except the response in the train dataset, test dataset responses are included for inference test
         responses = read_response_data(path, lang=self.args['lang'])
-        test_path = f'{os.path.split(path)[0]}/test.txt'
-        test_responses = read_response_data(test_path, lang=self.args['lang'])
-        responses = list(set(responses + test_responses))
+        # test_path = f'{os.path.split(path)[0]}/test.txt'
+        # test_responses = read_response_data(test_path, lang=self.args['lang'])
+        # responses = list(set(responses + test_responses))
         self.data = []
         for res in tqdm(responses):
             item = self.vocab.encode(res)

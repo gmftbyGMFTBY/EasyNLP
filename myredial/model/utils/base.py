@@ -100,11 +100,15 @@ class RetrievalBaseAgent:
             self.model.load_state_dict(state_dict)
         print(f'[!] load model from {path}')
 
-    def convert_to_text(self, ids):
+    def convert_to_text(self, ids, lang='zh'):
         '''convert to text and ignore the padding token;
         no [CLS] and no the latest [SEP]'''
-        tokens = [self.vocab.convert_ids_to_tokens(i) for i in ids.cpu().tolist() if i != self.vocab.pad_token_id]
-        text = ''.join(tokens)
+        if lang == 'zh':
+            sep = '' if lang == 'zh' else ' '
+            tokens = [self.vocab.convert_ids_to_tokens(i) for i in ids.cpu().tolist() if i != self.vocab.pad_token_id]
+            text = sep.join(tokens)
+        else:
+            text = self.vocab.decode(ids).replace('[PAD]', '').strip()
         text = text.replace('[SEP]', ' [SEP] ').replace('[CLS]', '').replace('[UNK]', ' [UNK] ')
         text = text.strip(' [SEP] ')
         return text

@@ -5,27 +5,23 @@ class BERTCompareRetrieval(nn.Module):
     def __init__(self, **args):
         super(BERTCompareRetrieval, self).__init__()
         model = args['pretrained_model']
+        p = args['dropout']
         self.model = BertModel.from_pretrained(model)
         self.model.resize_token_embeddings(self.model.config.vocab_size+1)
-        self.head = nn.Linear(768, 1)
-        # 0: context; 1: candidate1; 2: candidate2
-        self.seg_embedding = nn.Embedding(3, 768)
-
-        # for debug
-        self.vocab = BertTokenizer.from_pretrained('bert-base-chinese')
+        self.head = nn.Sequential(
+            nn.Dropout(p=p),
+            nn.Linear(768, 1)
+        )
 
     def forward(self, batch):
         inpt = batch['ids']
         seg_ids = batch['tids']
         attn_mask = batch['mask']
 
-        word_embeddings = self.model.embeddings(inpt)    # [B, S, 768]
-        seg_embedding = self.seg_embedding(seg_ids)   # [B, S, 768]
-        word_embeddings += seg_embedding
         output = self.model(
-            input_ids=None,
+            input_ids=inpt,
             attention_mask=attn_mask,
-            inputs_embeds=word_embeddings,
+            token_type_ids=seg_ids,
         )[0]    # [B, S, E]
         logits = self.head(output[:, 0, :]).squeeze(-1)    # [B]
         return logits

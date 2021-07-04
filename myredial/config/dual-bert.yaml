@@ -1,4 +1,8 @@
 smoothing: 0.1
+double_drop: true
+dropout: 0.3    # dropout for the classification head (double drop)
+rank: bert-ft-compare
+# rank: null
 
 # train configuration
 train:
@@ -27,5 +31,5 @@ inference:
     batch_size: 128
     max_len: 64
     topk: 20
-    index_type: Flat
+    index_type: LSH
     dimension: 768

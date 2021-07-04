@@ -8,6 +8,7 @@ class BERTDualEncoder(nn.Module):
         super(BERTDualEncoder, self).__init__()
         model = args['pretrained_model']
         s = args['smoothing']
+
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoder = BertEmbedding(model=model)
         self.label_smooth_loss = LabelSmoothLoss(smoothing=s)
@@ -38,6 +39,8 @@ class BERTDualEncoder(nn.Module):
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
         dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
         dot_product /= np.sqrt(768)     # scale dot product
+
+        # dot_product = (dot_product - dot_product.min()) / (1e-6 + dot_product.max() - dot_product.min())
         return dot_product
     
     def forward(self, batch):
@@ -52,10 +55,10 @@ class BERTDualEncoder(nn.Module):
         dot_product /= np.sqrt(768)     # scale dot product
 
         # constrastive loss
-        # mask = torch.zeros_like(dot_product).cuda()
+        # mask = torch.zeros_like(dot_product)
         # mask[range(batch_size), range(batch_size)] = 1. 
-        # loss = F.log_softmax(dot_product, dim=-1) * mask
-        # loss = (-loss.sum(dim=1)).mean()
+        # loss_ = F.log_softmax(dot_product, dim=-1) * mask
+        # loss = (-loss_.sum(dim=1)).mean()
 
         # label smooth loss
         gold = torch.arange(batch_size).cuda()

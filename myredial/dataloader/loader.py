@@ -21,7 +21,6 @@ def load_dataset(args):
         raise Exception(f'[!] Unknown mode: {args["mode"]}')
 
     path = f'{args["root_dir"]}/data/{args["dataset"]}/{args["mode"]}.txt'
-
     vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
         
     data = dataset_t(vocab, path, **args)

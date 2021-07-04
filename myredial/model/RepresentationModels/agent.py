@@ -243,8 +243,8 @@ class RepresentationAgent(RetrievalBaseAgent):
                     context = batch['context']
                     responses = batch['responses']
                 elif 'ids' in batch:
-                    context = self.convert_to_text(batch['ids'].squeeze(0))
-                    responses = [self.convert_to_text(res) for res in batch['rids']]
+                    context = self.convert_to_text(batch['ids'].squeeze(0), lang=self.args['lang'])
+                    responses = [self.convert_to_text(res, lang=self.args['lang']) for res in batch['rids']]
                 packup = {
                     'context': context,
                     'responses': responses,
@@ -252,6 +252,7 @@ class RepresentationAgent(RetrievalBaseAgent):
                 }
                 # only the scores has been update
                 scores = rerank_agent.compare_reorder(packup)
+                # scores = rerank_agent.fully_compare(packup)
 
             # print output
             if print_output:
