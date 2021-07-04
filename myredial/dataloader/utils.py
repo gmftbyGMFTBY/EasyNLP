@@ -74,21 +74,19 @@ def read_text_data_utterances_compare_test(path, lang='zh', size=10):
 def read_text_data_utterances_compare(path, lang='zh'):
     '''read from the train_gray dataset'''
     with open(path) as f:
-        responses = []
-        for line in tqdm(list(f.readlines())):
-            item = json.loads(line.strip())
-            responses.extend(item['q'] + [item['r']] + item['nr'])
-        responses = list(set(responses))
-
-    with open(path) as f:
         dataset = []
         for line in tqdm(list(f.readlines())):
             item = json.loads(line.strip())
             context = item['q']
             response = item['r']
             hard_negative_samples = item['nr']
-            easy_negative_samples = random.sample(responses, len(hard_negative_samples))
-            dataset.append((context, response, hard_negative_samples, easy_negative_samples))
+            super_hard_negative_samples = item['snr']
+            dataset.append((
+                context, 
+                response, 
+                hard_negative_samples, 
+                super_hard_negative_samples
+            ))
     print(f'[!] load {len(dataset)} samples from {path}')
     return dataset
 

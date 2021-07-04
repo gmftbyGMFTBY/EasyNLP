@@ -185,20 +185,20 @@ class InteractionAgent(RetrievalBaseAgent):
         
         # add the margin for positive judgment
         if fully is False:
-            # comp_label = []
-            # for s in comp_scores:
-            #     if s >= 0.5 + margin:
-            #         comp_label.append(True)
-            #     else:
-            #         comp_label.append(False)
-            comp_label, new_recoder = [], []
-            for s, (i, j) in zip(comp_scores, recoder):
+            comp_label = []
+            for s in comp_scores:
                 if s >= 0.5 + margin:
                     comp_label.append(True)
-                    new_recoder.append((i, j))
-                elif s < 0.5 - margin:
+                else:
                     comp_label.append(False)
-                    new_recoder.append((i, j))
+            # comp_label, new_recoder = [], []
+            # for s, (i, j) in zip(comp_scores, recoder):
+            #     if s >= 0.5 + margin:
+            #         comp_label.append(True)
+            #         new_recoder.append((i, j))
+            #     elif s < 0.5 - margin:
+            #         comp_label.append(False)
+            #         new_recoder.append((i, j))
             return comp_label, new_recoder
         else:
             # only for bert-ft-compare full comparsion

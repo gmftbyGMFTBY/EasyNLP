@@ -270,7 +270,8 @@ if __name__ == "__main__":
                     rest.remove(r)
                 # nr = random.sample(rest, args['topk'])
                 nr = rest[-args['topk']:]
-                collection.append({'q': c, 'r': r, 'nr': nr})
+                super_nr = rest[:args['topk']]
+                collection.append({'q': c, 'r': r, 'nr': nr, 'snr': super_nr})
 
         # write into new file
         path = f'{args["root_dir"]}/data/{args["dataset"]}/train_gray.txt'

@@ -19,17 +19,28 @@ class BERTFTCompDataset(Dataset):
             # read the train_gray.txt
             path = f'{os.path.splitext(path)[0]}_gray.txt'
             data = read_text_data_utterances_compare(path, lang=self.args['lang'])
+            responses = []
+            for items in tqdm(data):
+                context = ' [SEP] '.join(items[0])
+                self.data.append({
+                    'context': context,
+                    'response': items[1],
+                    'hard_negative_samples': items[2],
+                    'super_hard_negative_samples': items[3],
+                })
+                responses.append(items[1])
+            self.responses = list(set(responses))
         else:
             # read the test.txt
             data = read_text_data_utterances_compare_test(path, lang=self.args['lang'])
-        for items in tqdm(data):
-            context = ' [SEP] '.join(items[0])
-            self.data.append({
-                'context': context,
-                'response': items[1],
-                'hard_negative_samples': items[2],
-                'easy_negative_samples': items[3],
-            })
+            for items in tqdm(data):
+                context = ' [SEP] '.join(items[0])
+                self.data.append({
+                    'context': context,
+                    'response': items[1],
+                    'hard_negative_samples': items[2],
+                    'easy_negative_samples': items[3],
+                })
                 
     def _length_limit(self, ids):
         if len(ids) > self.args['max_len']:
@@ -52,11 +63,13 @@ class BERTFTCompDataset(Dataset):
         bundle = self.data[i]
         context, response = bundle['context'], bundle['response']
         hard_negative_size = self.inner_bsz // 2
-        easy_negative_size = self.inner_bsz - hard_negative_size 
+        super_hard_negative_size = self.inner_bsz - hard_negative_size 
+        easy_negative_size = hard_negative_size 
 
         if self.args['mode'] == 'train':
             hard_negative_samples = random.sample(bundle['hard_negative_samples'], hard_negative_size)
-            easy_negative_samples = random.sample(bundle['easy_negative_samples'], easy_negative_size)
+            super_hard_negative_samples = random.sample(bundle['super_hard_negative_samples'], super_hard_negative_size)
+            easy_negative_samples = random.sample(self.responses, easy_negative_size)
         else:
             hard_negative_samples = bundle['hard_negative_samples']
             easy_negative_samples = bundle['easy_negative_samples']
@@ -67,6 +80,9 @@ class BERTFTCompDataset(Dataset):
 
         hrids = self.vocab.batch_encode_plus(hard_negative_samples)['input_ids']
         hrids = [self._length_limit_res(i) for i in hrids]
+        if self.args['mode'] == 'train':
+            shrids = self.vocab.batch_encode_plus(super_hard_negative_samples)['input_ids']
+            shrids = [self._length_limit_res(i) for i in shrids]
         erids = self.vocab.batch_encode_plus(easy_negative_samples)['input_ids']
         erids = [self._length_limit_res(i) for i in erids]
         
@@ -97,6 +113,29 @@ class BERTFTCompDataset(Dataset):
             ids.append(ids_)
             tids.append(tids_)
             label.append(l)
+        # super hard vs. hard only for training
+        if self.args['mode'] == 'train':
+            he_ids, he_tids, he_label = [], [], []
+            for sh in shrids:
+                for h in hrids:
+                    if random.random() > 0.5:
+                        ids_ = cids + sh + h
+                        tids_ = [0] * len(cids) + [1] * len(sh) + [0] * len(h)
+                        l = 1
+                    else:
+                        ids_ = cids + h + sh
+                        tids_ = [0] * len(cids) + [1] * len(h) + [0] * len(sh)
+                        l = 0
+                    he_ids.append(ids_)
+                    he_tids.append(tids_)
+                    he_label.append(l)
+            # random_idx = random.sample(range(len(he_ids)), len(erids))
+            # he_ids = [he_ids[i] for i in random_idx]
+            # he_tids = [he_tids[i] for i in random_idx]
+            # he_label = [he_label[i] for i in random_idx]
+            ids.extend(he_ids)
+            tids.extend(he_tids)
+            label.extend(he_label)
 
         ids = [torch.LongTensor(i) for i in ids]
         tids = [torch.LongTensor(i) for i in tids]
