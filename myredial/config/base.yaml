@@ -113,12 +113,12 @@ models:
         dataset_name: BERTFTDataset
         inference_dataset_name: null 
     bert-ft-compare: 
-        type: Interaction
+        type: CompareInteraction
         model_name: BERTCompareRetrieval
         dataset_name: BERTFTCompDataset
         inference_dataset_name: null
     bert-ft-compare-plus: 
-        type: Interaction
+        type: CompareInteraction
         model_name: BERTComparePlusRetrieval
         dataset_name: BERTFTCompPlusDataset
         inference_dataset_name: null

@@ -1,4 +1,5 @@
 from .InteractionModels import *
+from .CompareInteractionModels import *
 from .RepresentationModels import *
 from .LatentInteractionModels import *
 from .GenerationModels import *
@@ -11,6 +12,7 @@ def load_model(args):
         'Interaction': InteractionAgent,
         'LatentInteraction': LatentInteractionAgent,
         'Generation': GenerationAgent,
+        'CompareInteraction': CompareInteractionAgent,
     }
     if model_type in MAP:
         agent_t = MAP[model_type]

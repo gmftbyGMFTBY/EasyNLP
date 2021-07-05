@@ -23,12 +23,21 @@ class BERTComparePlusRetrieval(nn.Module):
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
 
-    def forward(self, batch):
+    def forward(self, batch, scaler=None, optimizer=None):
         inpt = batch['ids']
         tids = batch['tids']
-        label = batch['label']    # [B]
-        loss = 0
+        label = batch['label']    # list
 
+        # shuffle
+        random_idx = list(range(len(inpt)))
+        random.shuffle(random_idx)
+        inpt = [inpt[i] for i in random_idx]
+        tids = [tids[i] for i in random_idx]
+        label = [label[i] for i in random_idx]
+        label = torch.stack(label)
+
+        tloss = 0
+        outputs = []
         for i in range(0, len(inpt), self.inner_bsz):
             sub_ids = pad_sequence(
                 inpt[i:i+self.inner_bsz],
@@ -44,7 +53,10 @@ class BERTComparePlusRetrieval(nn.Module):
             sub_label = label[i:i+self.inner_bsz]
 
             if torch.cuda.is_available():
-                sub_ids, sub_tids, sub_attn_mask, sub_label = sub_ids.cuda(), sub_tids.cuda(), sub_attn_mask.cuda(), sub_label.cuda()
+                sub_ids = sub_ids.cuda()
+                sub_tids = sub_tids.cuda()
+                sub_attn_mask = sub_attn_mask.cuda()
+                sub_label = sub_label.cuda()
 
             output = self.model(
                 input_ids=sub_ids,
@@ -52,8 +64,13 @@ class BERTComparePlusRetrieval(nn.Module):
                 token_type_ids=sub_tids,
             )[0]    # [B, S, E]
             logits = self.head(output[:, 0, :])    # [B, 3]
-            loss += self.criterion(logits, sub_label)
-        return loss
+            outputs.append(logits)
+            loss = self.criterion(logits, sub_label)
+            tloss += loss
+            # backward and gradient accumulation
+            scaler.scale(loss).backward()
+        output = torch.cat(outputs)    # [B, 3]
+        return tloss, output
 
     def predict(self, batch):
         inpt = batch['ids']
@@ -64,7 +81,7 @@ class BERTComparePlusRetrieval(nn.Module):
             attention_mask=sub_attn_mask,
             token_type_ids=sub_tids,
         )[0]    # [B, S, E]
-        logits = self.head(output[:, 0, :])    # [B, 3]
+        logits = F.softmax(self.head(output[:, 0, :]), dim=-1)    # [B, 3]
         return logits
 
     def load_bert_model(self, state_dict):

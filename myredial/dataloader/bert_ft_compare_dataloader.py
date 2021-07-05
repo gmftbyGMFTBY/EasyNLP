@@ -75,7 +75,6 @@ class BERTFTCompPlusDataset(Dataset):
     def __getitem__(self, i):
         bundle = self.data[i]
         if self.args['mode'] == 'train':
-            ipdb.set_trace()
             context, response = bundle['context'], bundle['response']
             super_hard_negative_samples = random.sample(bundle['super_hard_negative_samples'], self.k)
             hard_negative_samples = random.sample(bundle['hard_negative_samples'], self.k)
@@ -110,6 +109,19 @@ class BERTFTCompPlusDataset(Dataset):
                 ids.append(ids_)
                 tids.append(tids_)
                 label.append(l)
+            # label 0/2: super hard vs. hard
+            for _ in range(self.k):
+                sh = random.choice(sh_rids)
+                h = random.choice(h_rids)
+                if random.random() > 0.5:
+                    ids_, tids_ = self._packup(cids, sh, h)
+                    l = 2
+                else:
+                    ids_, tids_ = self._packup(cids, h, sh)
+                    l = 0
+                ids.append(ids_)
+                tids.append(tids_)
+                label.append(l)
             # label 1: positive vs. super hard negatives
             for sh in sh_rids:
                 if random.random() > 0.5:
@@ -120,7 +132,7 @@ class BERTFTCompPlusDataset(Dataset):
                 tids.append(tids_)
                 label.append(1)
             # label 1: self comparison
-            for _ in range(k):
+            for _ in range(self.k):
                 ratio = random.random()
                 if 0.9 < ratio <= 1:
                     r1, r2 = rids, rids
@@ -134,6 +146,7 @@ class BERTFTCompPlusDataset(Dataset):
                 ids.append(ids_)
                 tids.append(tids_)
                 label.append(1)
+            # 5*k samples
             ids = [torch.LongTensor(i) for i in ids]
             tids = [torch.LongTensor(i) for i in tids]
             return ids, tids, label
@@ -159,12 +172,7 @@ class BERTFTCompPlusDataset(Dataset):
                 ids.extend(b[0])
                 tids.extend(b[1])
                 label.extend(b[2])
-            # ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
-            # tids = pad_sequence(tids, batch_first=True, padding_value=self.pad)
-            # mask = self.generate_mask(ids)
             label = torch.LongTensor(label)
-            # if torch.cuda.is_available():
-            #     ids, tids, mask, label = ids.cuda(), tids.cuda(), mask.cuda(), label.cuda()
             return {
                 'ids': ids, 
                 'tids': tids, 
