@@ -13,6 +13,7 @@ def load_model(args):
         'LatentInteraction': LatentInteractionAgent,
         'Generation': GenerationAgent,
         'CompareInteraction': CompareInteractionAgent,
+        'PostTrain': PostTrainAgent,
     }
     if model_type in MAP:
         agent_t = MAP[model_type]

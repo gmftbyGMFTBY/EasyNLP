@@ -218,3 +218,16 @@ def read_text_data_with_source(path, lang='zh'):
             dataset.append(([context], response[0], response[1], response[2]))
         print(f'[!] collect: {len(dataset)} utterances for inference')
     return dataset
+
+
+# ========== WWM (whole word mask) Utils ========== #
+def read_text_data_utterances_wwm(path, lang='zh'):
+    '''whole word mask; Make sure the chinese corpus has already been tokenized (white space split)'''
+    with open(path) as f:
+        dataset = []
+        for line in f.readlines():
+            line = line.strip().split('\t')
+            label, utterances = int(line[0]), line[1:]
+            dataset.append((label, utterances))
+    print(f'[!] load {len(dataset)} utterances from {path}')
+    return dataset

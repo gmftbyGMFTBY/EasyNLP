@@ -128,7 +128,7 @@ if __name__ == "__main__":
     args['mode'] = 'inference'
     config = load_config(args)
     args.update(config)
-    print('inference', args) 
+    # print('inference', args) 
     
     inference(**args)
 

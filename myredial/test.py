@@ -77,7 +77,7 @@ def main_rerank(**args):
     new_args = deepcopy(args)
     config = load_config(args)
     args.update(config)
-    print('test', args)
+    # print('test', args)
     
     if args['rank']:
         new_args['model'] = args['rank']

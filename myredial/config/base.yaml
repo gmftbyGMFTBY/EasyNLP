@@ -25,6 +25,10 @@ pretrained_model:
 gray_cand_num: 5
 rank: null
 
+no_test_models:
+    - bert-fp
+    - simcse
+
 models:
     dual-bert: 
         type: Representation
@@ -132,6 +136,11 @@ models:
         model_name: PolyEncoder
         dataset_name: BERTDualDataset
         inference_dataset_name: null
+    bert-fp: 
+        type: PostTrain
+        model_name: BERTFPPostTrain
+        dataset_name: PostTrainDataset
+        inference_dataset_name: null 
 
 # huge file are saved in the root dir
 root_dir: /apdcephfs/share_916081/johntianlan/MyReDial

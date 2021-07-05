@@ -28,13 +28,16 @@ def main(**args):
 
     config = load_config(args)
     args.update(config)
-    print('train', args)
+    # print('train', args)
     train_data, train_iter, sampler = load_dataset(args)
 
-    config = load_config(test_args)
-    test_args.update(config)
-    print('test', test_args)
-    test_data, test_iter, _ = load_dataset(test_args)
+    if args['model'] not in args['no_test_models']:
+        config = load_config(test_args)
+        test_args.update(config)
+        # print('test', test_args)
+        test_data, test_iter, _ = load_dataset(test_args)
+    else:
+        test_iter = None
     
     # set seed
     random.seed(args['seed'])
@@ -52,7 +55,7 @@ def main(**args):
     )
     for epoch_i in range(args['epoch']):
         sampler.set_epoch(epoch_i)    # shuffle for DDP
-        train_loss = agent.train_model(
+        agent.train_model(
             train_iter, 
             test_iter,
             recoder=sum_writer,
