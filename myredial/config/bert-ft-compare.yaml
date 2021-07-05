@@ -4,7 +4,7 @@ gray_cand_num: 10
 inner_bsz: 2
 compare_turn_num: 2
 rank: bert-ft-compare
-positive_margin: 0.
+positive_margin: 0.05
 positive_margin_delta: 0.0
 
 # train configuration
