@@ -38,6 +38,7 @@ class BERTComparePlusRetrieval(nn.Module):
 
         tloss = 0
         outputs = []
+        avg = len(inpt) // self.inner_bsz + 1
         for i in range(0, len(inpt), self.inner_bsz):
             sub_ids = pad_sequence(
                 inpt[i:i+self.inner_bsz],
@@ -57,20 +58,22 @@ class BERTComparePlusRetrieval(nn.Module):
                 sub_tids = sub_tids.cuda()
                 sub_attn_mask = sub_attn_mask.cuda()
                 sub_label = sub_label.cuda()
-
-            output = self.model(
-                input_ids=sub_ids,
-                attention_mask=sub_attn_mask,
-                token_type_ids=sub_tids,
-            )[0]    # [B, S, E]
-            logits = self.head(output[:, 0, :])    # [B, 3]
-            outputs.append(logits)
-            loss = self.criterion(logits, sub_label)
-            tloss += loss
+            # https://pytorch.org/docs/stable/notes/amp_examples.html#gradient-clipping
+            with autocast():
+                output = self.model(
+                    input_ids=sub_ids,
+                    attention_mask=sub_attn_mask,
+                    token_type_ids=sub_tids,
+                )[0]    # [B, S, E]
+                logits = self.head(output[:, 0, :])    # [B, 3]
+                loss = self.criterion(logits, sub_label)
+                loss /= avg
             # backward and gradient accumulation
             scaler.scale(loss).backward()
+            tloss += loss
+            outputs.append(logits)
         output = torch.cat(outputs)    # [B, 3]
-        return tloss, output
+        return tloss, output, label
 
     def predict(self, batch):
         inpt = batch['ids']

@@ -17,7 +17,7 @@ class PostTrainDataset(Dataset):
         self.unk = self.vocab.convert_tokens_to_ids('[UNK]')
         self.mask = self.vocab.convert_tokens_to_ids('[MASK]')
 
-        suffix = args['tokenizer'].replace('/', '_') + '_wwm'
+        suffix = args['tokenizer'].replace('/', '_')
         if self.args['wwm']:
             suffix += '_wwm'
         self.pp_path = f'{os.path.splitext(path)[0]}_post_train_{suffix}.pt'
@@ -99,45 +99,73 @@ class PostTrainDataset(Dataset):
         return self.vocab.convert_tokens_to_ids(token)
 
     def _mask_sentence(self, words):
-        cand = []    # ([mask_label_ids1, mask_label_ids2, ...], [ids1, ids2, ...])
-        ipdb.set_trace()
+        ids, mask_label = [], []
         for i, token in enumerate(words):
-            # special tokens
             if token in ['[CLS]', '[SEP]', '[UNK]']:
-                cand.append(([-1], [self._get_ids(token)]))
-                continue
+                ids.append(self._get_ids(token))
+                mask_label.append(-1)
 
             ratio = random.random()
             if ratio < 0.15:
                 ratio /= 0.15
                 if ratio < 0.8:
-                    ipt = [-1]
+                    ipt = self.mask
                 elif ratio < 0.9:
                     # random change
                     ipt = [random.choice(list(range(self.vocab.vocab_size)))]
                 else:
                     ipt = self._get_ids(token)
                 l = [self._get_ids(token)]
-                if self.args['wwm'] and token.startswith('##'):
-                    cand[-1] = (cand[-1][0] + l, cand[-1][1] + ipt)
-                else:
-                    cand.append((l, ipt))
+                ids.append(ipt)
+                mask_label.append(l)
             else:
                 # not mask
-                cand.append(([-1], [self._get_ids(token)]))
-        
-        mask_label = []
-        token_ids = []
-        for opt, ipt in cand:
-            for i, j in zip(opt, ipt):
-                mask_label.append(i)
-                token_ids.append(j)
-        return token_ids, mask_label
+                ids.append(self._get_ids(token))
+                mask_label.append(-1)
+        return ids, mask_label
+
+    def _mask_sentence_wwm(self, words):
+        cands = []
+        for token in words:
+            # special tokens
+            if token in ['[CLS]', '[SEP]', '[UNK]']:
+                cands.append([token])
+                continue
+            if self.args['wwm'] and len(cands) >= 1 and token.startswith('##'):
+                cands[-1].append(token)
+            else:
+                cands.append([token])
+
+        ids, masked_label = [], []
+        for sub in cands:
+            if len(sub) == 1 and sub[0] in ['[CLS]', '[SEP]', '[UNK]']:
+                ids.append(self._get_ids(sub[0]))
+                masked_label.append(-1)
+                continue
+            ratio = random.random()
+            if ratio < 0.15:
+                ratio /= 0.15
+                if ratio < 0.8:
+                    ipt = [self.mask] * len(sub)
+                elif ratio < 0.9:
+                    # random change
+                    ipt = random.sample(list(range(self.vocab.vocab_size)), len(sub))
+                else:
+                    ipt = [self._get_ids(token) for token in sub]
+                l = [self._get_ids(i) for i in sub]
+                ids.extend(ipt)
+                masked_label.extend(l)
+            else:
+                # not mask
+                ids.extend([self._get_ids(token) for token in sub])
+                masked_label.append(-1)
+        return ids, masked_label
 
     def _packup(self, cws, rws):
         '''generate the token_type_ids, ids, and the mask label'''
-        cids, cids_mask = self._mask_sentence(cws)
-        rids, rids_mask = self._mask_sentence(rws)
+        func = self._mask_sentence_wwm if self.args['wwm'] else self._mask_sentence
+        cids, cids_mask = func(cws)
+        rids, rids_mask = func(rws)
         ids = cids + rids
         tids = [1] * len(cids) + [0] * len(rids)
         mask_label = cids_mask + rids_mask
@@ -158,7 +186,7 @@ class PostTrainDataset(Dataset):
 
         # label: 1
         hws = random.choice(bundle['hws'])
-        ids_, tids_, mask_label_ = self._packup(cids, hws)
+        ids_, tids_, mask_label_ = self._packup(cws, hws)
         ids.append(ids_)
         tids.append(tids_)
         mask_labels.append(mask_label_)

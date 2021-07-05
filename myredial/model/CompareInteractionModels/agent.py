@@ -37,33 +37,32 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         correct, s = 0, 0
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
-            with autocast():
-                if self.args['model'] in ['bert-ft-compare']:
+            if self.args['model'] in ['bert-ft-compare']:
+                with autocast():
                     output = self.model(batch)    # [B]
                     label = batch['label']
                     loss = self.criterion(output, label.to(torch.float))
-                    # half precision
-                    self.scaler.scale(loss).backward()
-                    self.scaler.unscale_(self.optimizer)
-                    clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
-                    self.scaler.step(self.optimizer)
-                    self.scaler.update()
-                    self.scheduler.step()
+                # half precision
+                self.scaler.scale(loss).backward()
+                self.scaler.unscale_(self.optimizer)
+                clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+                self.scheduler.step()
 
-                    output = torch.sigmoid(output) > 0.5
-                    now_correct = torch.sum(output == label).item()
-                elif self.args['model'] in ['bert-ft-compare-plus']:
-                    # gradient accumulation
-                    label = batch['label']
-                    loss, output = self.model(batch, scaler=self.scaler, optimizer=self.optimizer)
-                    self.scaler.unscale_(self.optimizer)
-                    clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
-                    self.scaler.step(self.optimizer)
-                    self.scaler.update()
-                    self.scheduler.step()
+                output = torch.sigmoid(output) > 0.5
+                now_correct = torch.sum(output == label).item()
+            elif self.args['model'] in ['bert-ft-compare-plus']:
+                # gradient accumulation
+                loss, output, label = self.model(batch, scaler=self.scaler, optimizer=self.optimizer)
+                self.scaler.unscale_(self.optimizer)
+                clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+                self.scheduler.step()
 
-                    output = output.max(dim=-1)[1]
-                    now_correct = (output.cpu() == label).sum().item()
+                output = output.max(dim=-1)[1]
+                now_correct = (output.cpu() == label.cpu()).sum().item()
             correct += now_correct
             s += len(label)
             total_loss += loss.item()
