@@ -1,6 +1,5 @@
 smoothing: 0.1
 double_drop: true
-dropout: 0.3    # dropout for the classification head (double drop)
 rank: bert-ft-compare
 # rank: null
 

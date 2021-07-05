@@ -14,10 +14,12 @@
 
 | Model             | R10@1 | R10@2 | R10@5 | MRR    |
 | ----------------- | ----- | ----- | ----- | ------ |
-| BERT-FP           | 91.1  | 96.2  | 99.4  | -      |
 | bert-ft-compare(pos=0.15)   | 88.7  | 94.1  | 97.1  | 92.69  |
-| bert-ft-compare(pos=0.15)   | 89.8  | 95.9  | 99.3  | 93.91  |
+| bert-ft-compare(pos=0.15, super-hard-negative)   | 89.8  | 95.9  | 99.3  | 93.91  |
 | bert-ft           | 89.7  | 96.0  | 99.3  | 93.92  |
+| bert-ft+compare(margin=-0.1)   | 87.7  | 94.6  | 99.3  | 92.63  |
+| bert-ft+compare(margin=0.0)   | 87.1  | 93.9  | 99.1  | 92.14  |
+| bert-ft+compare(margin=0.1)   | 86.2  | 93.6  | 98.9  | 91.59  |
 | bert-ft+compare   | 89.1  | 95.1  | 99.0  | 93.38  |
 | bert-ft+compare(pos_margin=-0.2)   | 89.0  | 94.9  | 99.0  | 93.3  |
 | dual-bert         | 86.8  | 94.5  | 98.5  | 91.98  |
@@ -26,6 +28,7 @@
 | dual-bert+compare(pos_margin=-0.2) | 87.7  | 94.1  | 98.1  | 92.33  |
 
 * recall performance
+
     Because of the very large test set, we use the LSH other than the Flat
 
 | Originali (545868)       | Top-20 | Top-100 | Time |

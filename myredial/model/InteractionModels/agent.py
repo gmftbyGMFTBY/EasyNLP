@@ -234,7 +234,7 @@ class InteractionAgent(RetrievalBaseAgent):
                     comp_label.append(True)
                 else:
                     comp_label.append(False)
-            return comp_label, new_recoder
+            return comp_label, recoder
         else:
             # only for bert-ft-compare full comparsion
             comp_label = []
