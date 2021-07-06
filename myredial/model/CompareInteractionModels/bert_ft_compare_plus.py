@@ -80,9 +80,9 @@ class BERTComparePlusRetrieval(nn.Module):
         tids = batch['tids']
         mask = batch['mask']   
         output = self.model(
-            input_ids=sub_ids,
-            attention_mask=sub_attn_mask,
-            token_type_ids=sub_tids,
+            input_ids=inpt,
+            attention_mask=mask,
+            token_type_ids=tids,
         )[0]    # [B, S, E]
         logits = F.softmax(self.head(output[:, 0, :]), dim=-1)    # [B, 3]
         return logits

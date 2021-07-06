@@ -219,6 +219,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
             else:
                 chain[j].append(i)
         # iterate to generate the scores
+        # PageRank
         scores = {i:1 for i in chain}
         for _ in range(5):
             new_scores = deepcopy(scores)

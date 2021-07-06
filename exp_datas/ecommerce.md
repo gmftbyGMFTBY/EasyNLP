@@ -15,6 +15,7 @@
 | BERT-FP        | 87.0  | 95.6  | 99.3  | -      |
 | dual-bert      | 91.7  | 96.0  | 99.2  | 94.85  |
 | bert-ft-compare    | 94.2  | 97.8  | 99.5  | 96.52  |
+| bert-ft-compare-plus    | 95.8  | 98.8  | 99.9  | 97.67  |
 | bert-ft-compare(epoch=10, super_hard_negative) | 93.1 | 98.5 | 99.9 | 96.22 |
 | bert-ft-compare(epoch=10, super_hard_negative, margin=0.1) | 95.6 | 99.1 | 100 | 97.58 |
 | dual-bert          | 91.7  | 96.0  | 99.2  | 94.85  |
