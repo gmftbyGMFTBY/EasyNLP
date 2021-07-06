@@ -36,6 +36,12 @@ models:
         dataset_name: BERTDualDataset
         # inference_dataset_name: BERTDualInferenceDataset
         inference_dataset_name: BERTDualInferenceContextDataset
+    dual-bert-pt: 
+        type: Representation
+        model_name: BERTDualPTEncoder
+        dataset_name: BERTDualPTDataset
+        # inference_dataset_name: BERTDualInferenceDataset
+        inference_dataset_name: BERTDualInferenceContextDataset
     dual-bert-ssl: 
         type: Representation
         model_name: BERTDualSSLEncoder

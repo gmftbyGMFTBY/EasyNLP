@@ -21,6 +21,8 @@ class RepresentationAgent(RetrievalBaseAgent):
                 self.train_model = self.train_model_ssl
                 # set hyperparameters
                 self.model.ssl_interval_step = int(self.args['total_step'] * self.args['ssl_interval'])
+            elif self.args['model'] in ['dual-bert-pt']:
+                self.train_model = self.train_model_pt
             self.set_test_interval()
             self.load_checkpoint()
         else:
@@ -170,6 +172,54 @@ class RepresentationAgent(RetrievalBaseAgent):
 
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
+        return round(total_loss / batch_num, 4)
+    
+    def train_model_pt(self, train_iter, test_iter, recoder=None, idx_=0):
+        self.model.train()
+        total_token_acc, total_cl_acc, batch_num = 0, 0, 0
+        total_loss, total_mlm_loss, total_cl_loss = 0, 0, 0
+        pbar = tqdm(train_iter)
+        for idx, batch in enumerate(pbar):
+            self.optimizer.zero_grad()
+            with autocast():
+                mlm_loss, cl_loss, token_acc, acc = self.model(batch)
+                loss = mlm_loss + cl_loss
+            self.scaler.scale(loss).backward()
+            self.scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            self.scheduler.step()
+
+            # 
+            total_loss += loss.item()
+            total_mlm_loss += mlm_loss.item()
+            total_cl_loss += cl_loss.item()
+            total_cl_acc += acc
+            total_token_acc += token_acc
+            batch_num += 1
+
+            if batch_num in self.args['test_step']:
+                self.test_now(test_iter, recoder)
+            
+            recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/MLMLoss', total_mlm_loss/batch_num, idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/RunMLMLoss', mlm_loss.item(), idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/CLLoss', total_cl_loss/batch_num, idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/RunCLLoss', cl_loss.item(), idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/TokenAcc', total_token_acc/batch_num, idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/RunTokenAcc', token_acc, idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/CLAcc', total_cl_acc/batch_num, idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/RunCLAcc', acc, idx)
+             
+            pbar.set_description(f'[!] loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_cl_acc/batch_num, 4)}')
+
+        recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
+        recoder.add_scalar(f'train-whole/MLMLoss', total_mlm_loss/batch_num, idx_)
+        recoder.add_scalar(f'train-whole/CLLoss', total_cl_loss/batch_num, idx_)
+        recoder.add_scalar(f'train-whole/TokenAcc', total_token_acc/batch_num, idx_)
+        recoder.add_scalar(f'train-whole/Acc', total_cl_acc/batch_num, idx_)
         return round(total_loss / batch_num, 4)
     
     def train_model(self, train_iter, test_iter, recoder=None, idx_=0):

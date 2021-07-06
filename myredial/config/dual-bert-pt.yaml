@@ -1,17 +1,23 @@
+# dual-bert with post train (dual-bert-pt)
 smoothing: 0.1
-rank: bert-ft-compare-plus
-# rank: null
+# rank: bert-ft-compare
+rank: null
 
 # train configuration
 train:
     lr: 0.00005
     grad_clip: 1.0
     seed: 50
-    batch_size: 64
+    batch_size: 32
     max_len: 256
     res_max_len: 64
     epoch: 5
     warmup_ratio: 0.1
+    masked_lm_prob: 0.15
+    max_prediction_token: 20
+    min_prediction_token: 1
+    context_valid_token_num: 10
+    response_valid_token_num: 5
     checkpoint: 
         path: bert-post/best_nspmlm.pt
         is_load: true
