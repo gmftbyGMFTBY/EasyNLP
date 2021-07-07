@@ -1,6 +1,6 @@
 smoothing: 0.1
-rank: bert-ft-compare-plus
-# rank: null
+# rank: bert-ft-compare
+rank: null
 
 # train configuration
 train:
@@ -14,7 +14,8 @@ train:
     warmup_ratio: 0.1
     checkpoint: 
         path: bert-post/best_nspmlm.pt
-        is_load: true
+        # path: dual-bert-pt/best_bert-base-uncased.pt
+        is_load: false
 
 # test configuration
 test:

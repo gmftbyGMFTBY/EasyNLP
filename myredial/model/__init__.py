@@ -21,7 +21,6 @@ def load_model(args):
         raise Exception(f'[!] Unknown type {model_type} for {model_name}')
 
     vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
-    # vocab = BertTokenizer.from_pretrained(args['tokenizer'])
     args['vocab_size'] = vocab.vocab_size
 
     if model_type == 'Generation':

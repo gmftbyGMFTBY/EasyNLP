@@ -11,6 +11,7 @@ class BERTDualPTDataset(Dataset):
 
         if self.args['mode'] == 'train':
             self.masked_lm_prob = self.args['masked_lm_prob']
+            self.min_masked_lm_prob = self.args['min_masked_lm_prob']
             self.max_prediction_token = self.args['max_prediction_token']
             self.min_prediction_token = self.args['min_prediction_token']
             self.context_valid_token_num = self.args['context_valid_token_num']
@@ -73,8 +74,16 @@ class BERTDualPTDataset(Dataset):
                     'text': gt_text,
                 })    
 
+    def _set_mlm_prob_delta(self, total_step):
+        self.masked_lm_prob_delta = (self.masked_lm_prob - self.min_masked_lm_prob) / total_step
+
+    def _update_mlm_prob_delta(self):
+        # update the masked_lm_prob
+        self.masked_lm_prob -= self.masked_lm_prob_delta
+
     def _mask_sentence(self, ids):
-        valid_tokens_num = len([i for i in ids if i not in [self.cls, self.sep, self.unk, self.mask]])
+        indexes = [idx for idx, i in enumerate(ids) if i not in [self.cls, self.sep, self.unk, self.mask]]
+        valid_tokens_num = len(indexes)
         num_pred = max(
             self.min_prediction_token,
             min(
@@ -87,7 +96,6 @@ class BERTDualPTDataset(Dataset):
             mask_label = [-1] * len(ids)
             return ids, mask_label
 
-        indexes = [i for i in list(range(len(ids))) if ids[i] not in [self.cls, self.sep, self.unk, self.mask]]
         mask_idx = random.sample(indexes, num_pred)
         n_ids, mask_label = [], []
 
@@ -175,6 +183,7 @@ class BERTDualPTDataset(Dataset):
             rids_mask = self.generate_mask(rids)
             if torch.cuda.is_available():
                 ids, rids, ids_mask, rids_mask = ids.cuda(), rids.cuda(), ids_mask.cuda(), rids_mask.cuda()
+
             return {
                 'ids': ids, 
                 'rids': rids, 
@@ -184,6 +193,7 @@ class BERTDualPTDataset(Dataset):
                 'rids_mask_label': rids_mask_label,
                 'ctext': ctext,
                 'rtext': rtext,
+                'masked_lm_prob': self.masked_lm_prob,
             }
         else:
             # batch size is batch_size * 10

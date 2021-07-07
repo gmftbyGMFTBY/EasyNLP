@@ -1,7 +1,6 @@
 from .agent import *
 from .simcse import *
 from .dual_bert import *
-from .dual_bert_pt import *
 from .dual_bert_ssl import *
 from .dual_bert_cl import *
 from .dual_bert_fusion import *

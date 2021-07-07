@@ -10,192 +10,123 @@ class PostTrainDataset(Dataset):
     def __init__(self, vocab, path, **args):
         self.args = args
         self.vocab = vocab
+        special_tokens_dict = {'eos_token': '[EOS]'}
+        self.vocab.add_special_tokens(special_tokens_dict)
 
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
         self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
         self.unk = self.vocab.convert_tokens_to_ids('[UNK]')
         self.mask = self.vocab.convert_tokens_to_ids('[MASK]')
+        self.eos = self.vocab.convert_tokens_to_ids('[EOS]')
+
+        self.special_tokens = set([self.pad, self.sep, self.cls, self.unk, self.mask, self.eos])
 
         suffix = args['tokenizer'].replace('/', '_')
-        if self.args['wwm']:
-            suffix += '_wwm'
         self.pp_path = f'{os.path.splitext(path)[0]}_post_train_{suffix}.pt'
         if os.path.exists(self.pp_path):
-            self.data = torch.load(self.pp_path)
+            self.data, self.table = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
 
-        if self.args['wwm']:
-            data = read_text_data_utterances_wwm(path, lang=self.args['lang'])
-        else:
-            data = read_text_data_utterances(path, lang=self.args['lang'])
+        data = read_text_data_utterances(path, lang=self.args['lang'])
         self.data = []
+        self.table = []
         for label, utterances in tqdm(data):
-            label = 2 if label == 1 else 0
-            context = ' [SEP] '.join(utterances[:-1])
-            response = utterances[-1]
-            item = self.text_to_ids([context, response]+utterances[:-1])
-            cws, rws, hws = item[0], item[1], item[2:]
-            hws = [self._length_limit_res(i) for i in hws]
+            if label == 0:
+                continue
+            item = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']
+            offset = len(self.data)
+            self.data.extend(item)
+            for i in range(1, len(item)):
+                if i < self.args['min_context_length']:
+                    continue
+                # begin, end, max-length session
+                # check if the response is legal
+                l = len([i for i in self.data[offset+i] if i not in self.special_tokens])
+                if l > 0:
+                    self.table.append((offset, offset+i, len(self.data)))
 
-            cws, rws = self._length_limit(cws, rws)
-            self.data.append({'label': label, 'cws': cws, 'rws': rws, 'hws': hws})
-
-    def text_to_ids(self, texts, lang='zh'):
-        rest = []
-        for text in texts:
-            if lang == 'en':
-                rest.append(
-                    ['[CLS]'] + self.vocab.tokenize(text) + ['[SEP]']
-                )
-            elif lang == 'zh': 
-                if self.args['wwm']:
-                    # add ## speical tokens before the sub-word in chinese
-                    text = text.replace(' ', ' [SEP] ')
-                    tokens = self.vocab.tokenize(text)
-                    new_tokens = []
-                    is_sub = False
-                    for token in tokens:
-                        if token == '[SEP]':
-                            is_sub = False
-                            continue
-                        if is_sub:
-                            if not token.startswith('##'):
-                                token = f'##{token}'
-                            new_tokens.append(token)
-                        else:
-                            new_tokens.append(token)
-                            is_sub = True
-                    tokens = ['[CLS]'] + new_tokens + ['[SEP]']
-                    rest.append(tokens)
-                else:
-                    rest.append(
-                        ['[CLS]'] + self.vocab.tokenize(text) + ['[SEP]']
-                    )
-        return rest
-
-    def _length_limit(self, cids, rids):
-        # cids
-        if len(cids) > self.args['max_len']:
-            cids = [cids[0]] + cids[-(self.args['max_len']-1):]     # [CLS] ... [SEP]
-        # rids: without [CLS] token
-        rids = self._length_limit_res(rids)
-        return cids, rids
-
-    def _length_limit_res(self, rids):
-        if len(rids) > self.args['res_max_len']:
-            rids = rids[1:self.args['res_max_len']] + [self.sep] 
-        else:
-            rids = rids[1:]
-        return rids
-                
     def __len__(self):
-        return len(self.data)
+        return len(self.table)
 
-    def _get_ids(self, token):
-        if token.startswith('##'):
-            token = token.lstrip('##')
-        return self.vocab.convert_tokens_to_ids(token)
-
-    def _mask_sentence(self, words):
-        ids, mask_label = [], []
-        for i, token in enumerate(words):
-            if token in ['[CLS]', '[SEP]', '[UNK]']:
-                ids.append(self._get_ids(token))
+    def _mask_sentence(self, ids):
+        mask_label = []
+        mask_num = 0
+        for i, t in enumerate(ids):
+            if t in self.special_tokens:
                 mask_label.append(-1)
-
             ratio = random.random()
             if ratio < 0.15:
                 ratio /= 0.15
                 if ratio < 0.8:
-                    ipt = self.mask
+                    ids[i] = self.mask
                 elif ratio < 0.9:
                     # random change
-                    ipt = [random.choice(list(range(self.vocab.vocab_size)))]
-                else:
-                    ipt = self._get_ids(token)
-                l = [self._get_ids(token)]
-                ids.append(ipt)
-                mask_label.append(l)
+                    ids[i] = random.choice(list(range(self.vocab.vocab_size)))
+                mask_label.append(t)
+                mask_num += 1
             else:
                 # not mask
-                ids.append(self._get_ids(token))
                 mask_label.append(-1)
-        return ids, mask_label
+        if mask_num < self.args['min_mask_num']:
+            # at least mask one token
+            mask_idx = random.choice(range(len(ids)))
+            mask_label = [-1] * len(ids)
+            mask_label[mask_idx] = ids[mask_idx]
+            ids[mask_idx] = self.mask
+        return mask_label
 
-    def _mask_sentence_wwm(self, words):
-        cands = []
-        for token in words:
-            # special tokens
-            if token in ['[CLS]', '[SEP]', '[UNK]']:
-                cands.append([token])
-                continue
-            if self.args['wwm'] and len(cands) >= 1 and token.startswith('##'):
-                cands[-1].append(token)
+    def _truncate_pair(self, cids, rids, max_length):
+        max_length -= 3    #  [CLS], [SEP], [SEP]
+        while True:
+            l = len(cids) + len(rids)
+            if l <= max_length:
+                break
+            if len(cids) > 2 * len(rids):
+                cids.pop(0)
             else:
-                cands.append([token])
-
-        ids, masked_label = [], []
-        for sub in cands:
-            if len(sub) == 1 and sub[0] in ['[CLS]', '[SEP]', '[UNK]']:
-                ids.append(self._get_ids(sub[0]))
-                masked_label.append(-1)
-                continue
-            ratio = random.random()
-            if ratio < 0.15:
-                ratio /= 0.15
-                if ratio < 0.8:
-                    ipt = [self.mask] * len(sub)
-                elif ratio < 0.9:
-                    # random change
-                    ipt = random.sample(list(range(self.vocab.vocab_size)), len(sub))
-                else:
-                    ipt = [self._get_ids(token) for token in sub]
-                l = [self._get_ids(i) for i in sub]
-                ids.extend(ipt)
-                masked_label.extend(l)
-            else:
-                # not mask
-                ids.extend([self._get_ids(token) for token in sub])
-                masked_label.append(-1)
-        return ids, masked_label
-
-    def _packup(self, cws, rws):
-        '''generate the token_type_ids, ids, and the mask label'''
-        func = self._mask_sentence_wwm if self.args['wwm'] else self._mask_sentence
-        cids, cids_mask = func(cws)
-        rids, rids_mask = func(rws)
-        ids = cids + rids
-        tids = [1] * len(cids) + [0] * len(rids)
-        mask_label = cids_mask + rids_mask
-        return ids, tids, mask_label 
+                rids.pop()
 
     def __getitem__(self, i):
-        bundle = self.data[i]
+        begin, end, max_l = self.table[i]
+        session = self.data[begin:end+1]
+        tokens = []
+        for utterance in session[:-1]:
+            tokens.extend(utterance + [self.eos])
+        tokens.pop()
 
-        ids, tids, mask_labels, labels = [], [], [], []
-        # label 2 or 0
-        cws, rws = bundle['cws'], bundle['rws']
-        ids_, tids_, mask_label_ = self._packup(cws, rws)
-        label = bundle['label']
-        ids.append(ids_)
-        tids.append(tids_)
-        mask_labels.append(mask_label_)
-        labels.append(label)
+        ratio = random.random()
+        if ratio > 0.75:
+            # ground-truth
+            response = session[-1]
+            label = 2
+        elif ratio > 0.5:
+            # within session
+            index = list(range(begin, max_l))
+            index.remove(end)
+            response = self.data[random.choice(index)]
+            label = 1
+        else:
+            # random negative sample
+            while True:
+                rand_idx = random.randint(0, len(self.data)-1)
+                if rand_idx != end:
+                    break
+            response = self.data[rand_idx]
+            label = 0
 
-        # label: 1
-        hws = random.choice(bundle['hws'])
-        ids_, tids_, mask_label_ = self._packup(cws, hws)
-        ids.append(ids_)
-        tids.append(tids_)
-        mask_labels.append(mask_label_)
-        labels.append(1)
-        return ids, tids, mask_labels, labels
+        self._truncate_pair(tokens, response, self.args['max_len'])
+        cids_mlm_label = self._mask_sentence(tokens)
+        rids_mlm_label = self._mask_sentence(response)
+        mask_labels = [-1] + cids_mlm_label + [-1] + rids_mlm_label + [-1]
+        ids = [self.cls] + tokens + [self.sep] + response + [self.sep]
+        tids = [0] * (len(tokens) + 2) + [1] * (len(response) + 1)
+        return ids, tids, mask_labels, label
 
     def save(self):
-        data = torch.save(self.data, self.pp_path)
-        print(f'[!] save preprocessed dataset into {self.pp_path}')
+        data = torch.save((self.data, self.table), self.pp_path)
+        print(f'[!] save preprocessed dataset into {self.pp_path}; size: {len(self.table)}')
         
     def generate_mask(self, ids):
         attn_mask_index = ids.nonzero().tolist()   # [PAD] IS 0
@@ -207,21 +138,25 @@ class PostTrainDataset(Dataset):
     def collate(self, batch):
         ids, tids, mask_labels, labels = [], [], [], []
         for ids_, tids_, mask_labels_, labels_ in batch:
-            ids.extend(ids_)
-            tids.extend(tids_)
-            mask_labels.extend(mask_labels_)
-            labels.extend(labels_)
+            ids.append(ids_)
+            tids.append(tids_)
+            mask_labels.append(mask_labels_)
+            labels.append(labels_)
+        ids = [torch.LongTensor(i) for i in ids]
+        tids = [torch.LongTensor(i) for i in tids]
+        mask_labels = [torch.LongTensor(i) for i in mask_labels]
+        labels = torch.LongTensor(labels)
+
         ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
         tids = pad_sequence(tids, batch_first=True, padding_value=self.pad)
         mask_labels = pad_sequence(tids, batch_first=True, padding_value=-1)    # pad is not calculated for MLM
         attn_mask = self.generate_mask(ids)
-        label = torch.LongTensor(label)
         if torch.cuda.is_available():
-            ids, tids, mask_labels, attn_mask, label = ids.cuda(), tids.cuda(), mask_labels.cuda(), attn_mask.cuda(), label.cuda()
+            ids, tids, mask_labels, attn_mask, labels = ids.cuda(), tids.cuda(), mask_labels.cuda(), attn_mask.cuda(), labels.cuda()
         return {
             'ids': ids, 
             'tids': tids, 
             'mask_labels': mask_labels, 
             'attn_mask': attn_mask, 
-            'label': label,
+            'label': labels,
         }

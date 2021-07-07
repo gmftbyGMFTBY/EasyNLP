@@ -40,10 +40,16 @@ class BERTDualPTEncoder(nn.Module):
         rid_mask = batch['rids_mask']
 
         batch_size = rid.shape[0]
-        cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
+        cid_rep, rid_rep, _, _ = self._encode(cid, rid, cid_mask, rid_mask)
         dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
-        dot_product /= np.sqrt(768)     # scale dot product
         return dot_product
+
+    def calculate_token_acc(self, mask_label, logits):
+        not_ignore = mask_label.ne(-1)
+        num_targets = not_ignore.sum().item()
+        correct = (F.softmax(logits, dim=-1).max(dim=-1)[1] == mask_label) & not_ignore
+        correct = correct.sum().item()
+        return correct, num_targets
     
     def forward(self, batch):
         cid = batch['ids']
@@ -68,10 +74,10 @@ class BERTDualPTEncoder(nn.Module):
         mlm_loss = cids_mlm_loss + rids_mlm_loss
 
         # mlm acc
-        token_acc_num = (F.softmax(cid_lm, dim=-1).max(dim=-1)[1] == cid_mask_label).sum()
-        token_acc_num += (F.softmax(rid_lm, dim=-1).max(dim=-1)[1] == rid_mask_label).sum()
-        size = 2 * len(cid_mask_label.view(-1))
-        token_acc = token_acc_num / size
+        token_acc_num, total_num = 0, 0
+        a, b = self.calculate_token_acc(cid_mask_label, cid_lm)
+        c, d = self.calculate_token_acc(rid_mask_label, rid_lm)
+        token_acc = (a+c)/(b+d)
 
         # constrastive loss
         cid_rep_1, cid_rep_2 = torch.split(cid_rep, inner_bsz)
@@ -81,19 +87,13 @@ class BERTDualPTEncoder(nn.Module):
 
         # c-r
         dot_product1 = torch.matmul(cid_rep_1, rid_rep_1.t())     # [B, B]
-        dot_product1 /= np.sqrt(768)     # scale dot product
         dot_product2 = torch.matmul(cid_rep_1, rid_rep_2.t())     # [B, B]
-        dot_product2 /= np.sqrt(768)     # scale dot product
         dot_product3 = torch.matmul(cid_rep_2, rid_rep_1.t())     # [B, B]
-        dot_product3 /= np.sqrt(768)     # scale dot product
         dot_product4 = torch.matmul(cid_rep_2, rid_rep_2.t())     # [B, B]
-        dot_product4 /= np.sqrt(768)     # scale dot product
         # c-c
         dot_product5 = torch.matmul(cid_rep_1, cid_rep_2.t())     # [B, B]
-        dot_product5 /= np.sqrt(768)     # scale dot product
         # r-r
         dot_product6 = torch.matmul(rid_rep_1, rid_rep_2.t())     # [B, B]
-        dot_product6 /= np.sqrt(768)     # scale dot product
 
         # constrastive loss
         mask = torch.zeros_like(dot_product1)

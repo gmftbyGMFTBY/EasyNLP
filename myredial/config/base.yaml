@@ -36,12 +36,6 @@ models:
         dataset_name: BERTDualDataset
         # inference_dataset_name: BERTDualInferenceDataset
         inference_dataset_name: BERTDualInferenceContextDataset
-    dual-bert-pt: 
-        type: Representation
-        model_name: BERTDualPTEncoder
-        dataset_name: BERTDualPTDataset
-        # inference_dataset_name: BERTDualInferenceDataset
-        inference_dataset_name: BERTDualInferenceContextDataset
     dual-bert-ssl: 
         type: Representation
         model_name: BERTDualSSLEncoder
@@ -147,6 +141,12 @@ models:
         model_name: BERTFPPostTrain
         dataset_name: PostTrainDataset
         inference_dataset_name: null 
+    dual-bert-pt: 
+        type: PostTrain 
+        model_name: BERTDualPTEncoder
+        dataset_name: BERTDualPTDataset
+        # inference_dataset_name: BERTDualInferenceDataset
+        inference_dataset_name: BERTDualInferenceContextDataset
 
 # huge file are saved in the root dir
 root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
