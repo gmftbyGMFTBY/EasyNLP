@@ -9,6 +9,7 @@ datasets:
     news_withsource: zh
     novel_selected: zh
     baike_summary: zh
+    arxiv: en
 
 # pretrained model and tokenizer
 tokenizer:
@@ -103,7 +104,8 @@ models:
     dual-bert-gray-writer: 
         type: Representation
         model_name: BERTDualGrayFullEncoder
-        dataset_name: BERTDualFullWithNegDataset
+        # dataset_name: BERTDualFullWithNegDataset
+        dataset_name: BERTDualArxivDataset
         # inference_dataset_name: BERTDualFullInferenceDataset
         inference_dataset_name: BERTDualFullWithSourceInferenceDataset
     dual-bert-hierarchical: 

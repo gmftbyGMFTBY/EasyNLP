@@ -1,3 +1,6 @@
+# arxiv: 0; writer: 5
+gray_cand_num: 0
+
 # train configuration
 train:
     lr: 0.00005

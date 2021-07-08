@@ -67,3 +67,12 @@ Comparison experments
 | dual-bert(bsz=96, epoch=5, bert-fp-post, label-smooth, max_len=256/64) | 30.65 | 51.13 | 83.05 | 66.02 | 48.88 | 61.81 |
 | dual-bert-ma(bsz=32, epoch=5, bert-fp-post, label-smooth, max_len=256/64) | 32.12 | 51.63 | 82.93 | 66.86 | 50.37 | 62.54 |
 | dual-bert-poly(bsz=32, epoch=5, bert-fp-post, max_len=256/64) | 31.76 | 53.25 | 84.75 | 67.51 | 50.67 | 63.27 |
+
+
+
+| Models             | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   |
+| ------------------ | ----- | ----- | ----- | ----- | ----- | ------ |
+| SOTA               | 31.8  | 48.2  | 85.8  | 66.4  | 49.9  | 62.5   |
+| HCL                | 33.0  | 53.1  | 85.8  | 68.1  | 51.4  | 63.9   |
+| BERT-FP            | 32.4  | 54.2  | 87.0  | 68.0  | 51.2  | 64.4   |
+| dual-bert(seed=0; bsz=64; max_len=256,64; epoch=10, warmup_ratio=0.; lr=5e-5, grad_clip=5)            | 33.13  | 53.99  | 86.0  | 68.41  | 51.27  | 64.28   |

@@ -70,12 +70,14 @@ class BERTFTDataset(Dataset):
                 })    
 
     def _truncate_pair(self, cids, rids, max_length):
+        # ignore the [CLS], [SEP], [SEP]
         max_length -= 3
         while True:
             l = len(cids) + len(rids)
             if l <= max_length:
                 break
-            if len(cids) > 2 * len(rids):
+            # follow the bert-fp
+            if len(cids) > len(rids):
                 cids.pop(0)
             else:
                 rids.pop()
