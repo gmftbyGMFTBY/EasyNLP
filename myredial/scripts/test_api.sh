@@ -9,4 +9,5 @@ python test_api.py \
     --mode $mode \
     --dataset $dataset \
     --topk 10 \
+    --seed 0 \
     --block_size 1

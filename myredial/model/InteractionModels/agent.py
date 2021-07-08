@@ -153,3 +153,20 @@ class InteractionAgent(RetrievalBaseAgent):
             'P@1': round(100*avg_prec_at_one, 2),
             'MAP': round(100*avg_map, 2),
         }
+
+    @torch.no_grad()
+    def rerank(self, batches):
+        '''for bert-fp-original and bert-ft, the [EOS] token is used'''
+        self.model.eval()
+        scores = []
+        for batch in batches:
+            batch['context'] = [u.strip() for u in batch['context'].split('[SEP]')]
+            ids, tids, mask = self.totensor_interaction(batch['context'], batch['candidates'])
+            batch['ids'] = ids
+            batch['tids'] = tids
+            batch['mask'] = mask
+            scores.append(
+                self.model(batch).tolist()
+            )
+        return scores
+

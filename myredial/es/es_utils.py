@@ -156,6 +156,7 @@ def load_qa_pair(path, lang='zh'):
         dataset = []
         for line in f.readlines():
             utterances = line.strip().split('\t')
+            # q-q matching only need the positive q-r pairs
             if int(utterances[0]) == 0:
                 continue
             if lang == 'zh':

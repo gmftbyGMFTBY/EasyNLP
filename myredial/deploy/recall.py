@@ -49,32 +49,32 @@ class RecallAgent:
         batch = [i['str'] for i in batch]
         topk = topk if topk else self.args['topk']
         if self.args['model'] == 'bm25':
-            rest = self.searcher.msearch(batch, topk=topk)
+            rest_ = self.searcher.msearch(batch, topk=topk)
         else:
             vectors = self.agent.encode_queries(batch)    # [B, E]
             rest_ = self.searcher._search(vectors, topk=topk)
-            rest = []
-            for item in rest_:
-                cache = []
-                for i in item:
-                    if type(i) == str:
-                        # with_source is False
-                        assert self.args['with_source'] is False
-                        cache.append({
-                            'text': i,
-                            'source': {'title': None, 'url': None},
-                        })
-                    elif type(i) == tuple:
-                        # with_source is True
-                        assert self.args['with_source'] is True
-                        cache.append({
-                            'text': i[0],
-                            'source': {
-                                'title': i[1], 
-                                'url': i[2],
-                            }
-                        })
-                    else:
-                        raise Exception()
-                rest.append(cache)
+        rest = []
+        for item in rest_:
+            cache = []
+            for i in item:
+                if type(i) == str:
+                    # with_source is False
+                    assert self.args['with_source'] is False
+                    cache.append({
+                        'text': i,
+                        'source': {'title': None, 'url': None},
+                    })
+                elif type(i) == tuple:
+                    # with_source is True
+                    assert self.args['with_source'] is True
+                    cache.append({
+                        'text': i[0],
+                        'source': {
+                            'title': i[1], 
+                            'url': i[2],
+                        }
+                    })
+                else:
+                    raise Exception()
+            rest.append(cache)
         return rest

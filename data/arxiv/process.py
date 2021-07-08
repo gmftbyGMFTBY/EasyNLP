@@ -38,6 +38,7 @@ def parse_data(path, data, ctx_length):
                 dataset = random.sample(dataset, int(len(dataset)/2))
             for d in dataset:
                 # too huge, save half samples for training
+                d = json.dumps(d)
                 f.write(f'{d}\n')
 
 if __name__ == '__main__':

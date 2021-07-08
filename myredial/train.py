@@ -22,12 +22,15 @@ def main(**args):
     torch.cuda.set_device(args['local_rank'])
     torch.distributed.init_process_group(backend='nccl', init_method='env://')
 
+    # test set configuration
     test_args = deepcopy(args)
     test_args['mode'] = 'test'
-    args['mode'] = 'train'
 
+    args['mode'] = 'train'
     config = load_config(args)
     args.update(config)
+    if args['model'] in args['no_train_models']:
+        raise Exception(f'[!] {args["model"]} is not allowed to be trained')
     # print('train', args)
     train_data, train_iter, sampler = load_dataset(args)
 

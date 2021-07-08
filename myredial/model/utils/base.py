@@ -185,6 +185,51 @@ class RetrievalBaseAgent:
         if torch.cuda.is_available():
             ids, mask = ids.cuda(), mask.cuda()
         return ids, mask
+
+    def totensor_interaction(self, ctx, responses):
+        '''for Interaction Models'''
+        self.eos = self.vocab.convert_tokens_to_ids('[EOS]')
+        self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+
+        context_length = len(ctx)
+        utterances = self.vocab.batch_encode_plus(ctx + responses, add_special_tokens=False)['input_ids']
+        context_utterances = utterances[:context_length]
+        response_utterances = utterances[context_length:]
+
+        context = []
+        for u in context_utterances:
+            context.extend(u + [self.eos])
+        context.pop()
+
+        ids, tids, mask = [], [], []
+        for res in response_utterances:
+            ctx = deepcopy(context)
+            self._truncate_pair_interaction(ctx, res, self.args['max_len'])
+            ids_ = [self.cls] + ctx + [self.sep] + res + [self.sep]
+            tids_ = [0] * (len(ctx) + 2) + [1] * (len(res) + 1)
+            ids.append(torch.LongTensor(ids_))
+            tids.append(torch.LongTensor(tids_))
+        ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+        tids = pad_sequence(tids, batch_first=True, padding_value=self.pad)
+        mask = self.generate_mask(ids)
+        if torch.cuda.is_available():
+            ids, tids, mask = ids.cuda(), tids.cuda(), mask.cuda()
+        return ids, tids, mask
+
+    def _truncate_pair_interaction(self, cids, rids, max_length):
+        # ignore the [CLS], [SEP], [SEP]
+        max_length -= 3
+        while True:
+            l = len(cids) + len(rids)
+            if l <= max_length:
+                break
+            # follow the bert-fp
+            if len(cids) > len(rids):
+                cids.pop(0)
+            else:
+                rids.pop()
         
     def generate_mask(self, ids):
         attn_mask_index = ids.nonzero().tolist()   # [PAD] IS 0

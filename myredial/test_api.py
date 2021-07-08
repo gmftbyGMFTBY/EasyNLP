@@ -19,6 +19,7 @@ def parser_args():
     parser.add_argument('--url', type=str, default='9.91.66.241')
     parser.add_argument('--port', type=int, default=22335)
     parser.add_argument('--dataset', type=str, default='douban')
+    parser.add_argument('--seed', type=float, default=0.0)
     return parser.parse_args()
 
 def load_fake_rerank_data(path, size=1000):
@@ -172,6 +173,10 @@ def test_pipeline(args):
 
 if __name__ == '__main__':
     args = vars(parser_args())
+
+    # set the random seed
+    random.seed(args['seed'])
+
     args['root_dir'] = '/apdcephfs/share_916081/johntianlan/MyReDial'
     MAP = {
         'recall': test_recall,
@@ -181,7 +186,7 @@ if __name__ == '__main__':
     collections = MAP[args['mode']](args)
     
     # write into log file
-    write_path = f'{args["root_dir"]}/data/{args["dataset"]}/test_api_{args["mode"]}_log.txt'
+    write_path = f'{args["root_dir"]}/data/{args["dataset"]}/test_api_{args["mode"]}_{args["port"]}_log.txt'
     with open(write_path, 'w') as f:
         for sample in tqdm(collections):
             data = sample['item_list']

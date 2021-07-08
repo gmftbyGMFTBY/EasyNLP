@@ -30,13 +30,16 @@ no_test_models:
     - bert-fp
     - simcse
 
+no_train_models:
+    - bert-fp-original
+
 models:
     dual-bert: 
         type: Representation
         model_name: BERTDualEncoder
         dataset_name: BERTDualDataset
-        # inference_dataset_name: BERTDualInferenceDataset
-        inference_dataset_name: BERTDualInferenceContextDataset
+        inference_dataset_name: BERTDualInferenceDataset
+        # inference_dataset_name: BERTDualInferenceContextDataset
     dual-bert-ssl: 
         type: Representation
         model_name: BERTDualSSLEncoder
@@ -167,20 +170,21 @@ test_interval: 0.1
 # ========== deploy parameters ========== #
 deploy:
     host: '0.0.0.0'
-    port: 22336
-    dataset: novel_selected
+    port: 22335
+    dataset: douban
     max_len: 256
     res_max_len: 64
     recall:
-        activate: true
-        model: dual-bert-gray-writer
+        activate: false
+        model: bm25
         # default topk
         topk: 100
-        with_source: true
+        # only the arxiv, writer dataset need the with_source
+        with_source: false
         index_type: LSH 
         dimension: 768
     rerank:
         activate: false
-        model: dual-bert
+        model: bert-fp-original
     pipeline:
-        activate: false
+        activate: true
