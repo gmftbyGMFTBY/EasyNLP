@@ -173,8 +173,8 @@ class CompareInteractionAgent(RetrievalBaseAgent):
                     # hard to tell will not be used
                     pass
             return comp_label, new_recoder
-        else:
-            comp_scores = torch.sigmoid(self.model(batch_packup))    # [B]
+
+        comp_scores = torch.sigmoid(self.model(batch_packup))    # [B]
 
         # these modes only for bert-ft-compare
         if fast:

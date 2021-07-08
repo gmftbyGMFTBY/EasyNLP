@@ -35,7 +35,7 @@ def prepare_inference(**args):
     config = load_config(args)
     args.update(config)
     agent = load_model(args)
-    print('test', args)
+    # print('test', args)
     
     random.seed(args['seed'])
     torch.manual_seed(args['seed'])
@@ -52,7 +52,7 @@ def prepare_inference(**args):
     inf_args['mode'] = 'inference'
     config = load_config(inf_args)
     inf_args.update(config)
-    print(f'inference', inf_args)
+    # print(f'inference', inf_args)
 
     # load faiss index
     model_name = inf_args['model']

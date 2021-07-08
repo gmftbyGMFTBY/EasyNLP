@@ -6,8 +6,15 @@ class InteractionAgent(RetrievalBaseAgent):
         super(InteractionAgent, self).__init__()
         self.args = args
         self.vocab, self.model = vocab, model
+
+        if self.args['model'] in ['bert-fp-original', 'bert-ft']:
+            self.vocab.add_tokens(['[EOS]'])
+
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+
+        if args['model'] in ['bert-fp-original']:
+            self.load_model = self.load_bert_model
 
         if args['mode'] == 'train':
             self.set_test_interval()

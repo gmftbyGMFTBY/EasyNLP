@@ -118,6 +118,11 @@ models:
         model_name: BERTRetrieval
         dataset_name: BERTFTDataset
         inference_dataset_name: null 
+    bert-fp-original: 
+        type: Interaction
+        model_name: BERTFPRetrieval
+        dataset_name: BERTFTDataset
+        inference_dataset_name: null 
     bert-ft-compare: 
         type: CompareInteraction
         model_name: BERTCompareRetrieval
