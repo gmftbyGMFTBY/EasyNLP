@@ -45,6 +45,11 @@ class InteractionAgent(RetrievalBaseAgent):
                 elif self.args['model'] in ['bert-ft-compare-plus']:
                     label = batch['label']
                     loss = self.model(batch)
+                else:
+                    # bert-ft
+                    output = self.model(batch)    # [B]
+                    label = batch['label']
+                    loss = self.criterion(output, label.to(torch.float))
 
             self.scaler.scale(loss).backward()
             self.scaler.unscale_(self.optimizer)
@@ -137,7 +142,7 @@ class InteractionAgent(RetrievalBaseAgent):
             f'R10@{k_list[0]}': round(((total_correct[0]/total_examples)*100), 2),        
             f'R10@{k_list[1]}': round(((total_correct[1]/total_examples)*100), 2),        
             f'R10@{k_list[2]}': round(((total_correct[2]/total_examples)*100), 2),        
-            'MRR': round(avg_mrr, 4),
-            'P@1': round(avg_prec_at_one, 4),
-            'MAP': round(avg_map, 4),
+            'MRR': round(100*avg_mrr, 2),
+            'P@1': round(100*avg_prec_at_one, 2),
+            'MAP': round(100*avg_map, 2),
         }

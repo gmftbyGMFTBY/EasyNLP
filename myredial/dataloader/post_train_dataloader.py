@@ -38,14 +38,22 @@ class PostTrainDataset(Dataset):
             item = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']
             offset = len(self.data)
             self.data.extend(item)
+
+            counter = 0
+            l = []
+            for utterance in item:
+                l.append(len([i for i in utterance if i not in self.special_tokens]))
+            # begin, end, max-length session
             for i in range(1, len(item)):
                 if i < self.args['min_context_length']:
                     continue
-                # begin, end, max-length session
-                # check if the response is legal
-                l = len([i for i in self.data[offset+i] if i not in self.special_tokens])
-                if l > 0:
+                # check if the context and response are legal
+                if sum(l[:i+1]) > self.args['min_token_length'] and l[i] > 0:
                     self.table.append((offset, offset+i, len(self.data)))
+            if len(item) < self.args['min_context_length']:
+                # collect
+                if sum(l) > self.args['min_token_length'] and l[-1] > 0:
+                    self.table.append((offset, offset+len(self.data)-1, len(self.data)))
 
     def __len__(self):
         return len(self.table)
@@ -56,6 +64,7 @@ class PostTrainDataset(Dataset):
         for i, t in enumerate(ids):
             if t in self.special_tokens:
                 mask_label.append(-1)
+                continue
             ratio = random.random()
             if ratio < 0.15:
                 ratio /= 0.15
@@ -75,6 +84,7 @@ class PostTrainDataset(Dataset):
             mask_label = [-1] * len(ids)
             mask_label[mask_idx] = ids[mask_idx]
             ids[mask_idx] = self.mask
+        assert len(mask_label) == len(ids)
         return mask_label
 
     def _truncate_pair(self, cids, rids, max_length):
@@ -149,7 +159,7 @@ class PostTrainDataset(Dataset):
 
         ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
         tids = pad_sequence(tids, batch_first=True, padding_value=self.pad)
-        mask_labels = pad_sequence(tids, batch_first=True, padding_value=-1)    # pad is not calculated for MLM
+        mask_labels = pad_sequence(mask_labels, batch_first=True, padding_value=-1)    # pad is not calculated for MLM
         attn_mask = self.generate_mask(ids)
         if torch.cuda.is_available():
             ids, tids, mask_labels, attn_mask, labels = ids.cuda(), tids.cuda(), mask_labels.cuda(), attn_mask.cuda(), labels.cuda()

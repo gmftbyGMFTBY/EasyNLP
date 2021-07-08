@@ -42,6 +42,8 @@ class RepresentationAgent(RetrievalBaseAgent):
         if args['mode'] in ['train', 'inference']:
             self.set_optimizer_scheduler_ddp()
         self.show_parameters(self.args)
+        # Metrics object
+        self.metrics = Metrics()
 
     def load_bert_model_dual_bert(self, path):
         state_dict = torch.load(path, map_location=torch.device('cpu'))
@@ -218,13 +220,46 @@ class RepresentationAgent(RetrievalBaseAgent):
     def test_model(self, test_iter, print_output=False, rerank_agent=None):
         self.model.eval()
         pbar = tqdm(test_iter)
+
+        '''
+        score_data = []
+
+        for batch in pbar:
+            label = batch['label']
+            if 'context' in batch:
+                cid, cid_mask = self.totensor([batch['context']], ctx=True)
+                rid, rid_mask = self.totensor(batch['responses'], ctx=False)
+                batch['ids'], batch['ids_mask'] = cid, cid_mask
+                batch['rids'], batch['rids_mask'] = rid, rid_mask
+            elif 'ids' in batch:
+                cid = batch['ids'].unsqueeze(0)
+                cid_mask = torch.ones_like(cid)
+                batch['ids'] = cid
+                batch['ids_mask'] = cid_mask
+            
+            if self.args['mode'] in ['train']:
+                scores = self.model.module.predict(batch).cpu().tolist()    # [B]
+            else:
+                scores = self.model.predict(batch).cpu().tolist()
+
+            # rerank agent can be used here
+
+            for s, l in zip(scores, label.tolist()):
+                score_data.append((s, l))
+        ipdb.set_trace()
+        map, mrr, p1, r1, r2, r5 = self.metrics.evaluate_all_metrics(score_data)
+        return {
+            f'R10@1': round(100*r1, 2),        
+            f'R10@2': round(100*r2, 2),        
+            f'R10@5': round(100*r5, 2),        
+            'MRR': round(mrr, 4),
+            'P@1': round(p1, 4),
+            'MAP': round(map, 4),
+        }
+        '''
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
         total_examples, total_correct = 0, 0
         k_list = [1, 2, 5, 10]
-
-        if self.args['model'] in ['simcse']:
-            return
-
         for idx, batch in enumerate(pbar):                
             label = batch['label']
             if 'context' in batch:
@@ -298,9 +333,9 @@ class RepresentationAgent(RetrievalBaseAgent):
             f'R10@{k_list[0]}': round(((total_correct[0]/total_examples)*100), 2),        
             f'R10@{k_list[1]}': round(((total_correct[1]/total_examples)*100), 2),        
             f'R10@{k_list[2]}': round(((total_correct[2]/total_examples)*100), 2),        
-            'MRR': round(avg_mrr, 4),
-            'P@1': round(avg_prec_at_one, 4),
-            'MAP': round(avg_map, 4),
+            'MRR': round(100*avg_mrr, 2),
+            'P@1': round(100*avg_prec_at_one, 2),
+            'MAP': round(100*avg_map, 2),
         }
     
     @torch.no_grad()

@@ -7,23 +7,34 @@ class BERTFTDataset(Dataset):
     def __init__(self, vocab, path, **args):
         self.args = args
         self.vocab = vocab
+        self.vocab.add_tokens(['[EOS]'])
+
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
+        self.unk = self.vocab.convert_tokens_to_ids('[UNK]')
+        self.eos = self.vocab.convert_tokens_to_ids('[EOS]')
+
         suffix = args['tokenizer'].replace('/', '_')
         self.pp_path = f'{os.path.splitext(path)[0]}_ft_{suffix}.pt'
         if os.path.exists(self.pp_path):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
+
         data = read_text_data_utterances(path, lang=self.args['lang'])
         self.data = []
         if self.args['mode'] == 'train':
             for label, utterances in tqdm(data):
-                context = ' [SEP] '.join(utterances[:-1])
-                response = utterances[-1]
-                item = self.vocab.batch_encode_plus([context, response])
-                cids, rids = item['input_ids']
-                ids, tids = self._length_limit(cids, rids)
+                item = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']
+                context = []
+                for u in item[:-1]:
+                    context.extend(u + [self.eos])
+                context.pop()
+                response = item[-1]
+                self._truncate_pair(context, response, self.args['max_len'])
+                ids = [self.cls] + context + [self.sep] + response + [self.sep]
+                tids = [0] * (len(context) + 2) + [1] * (len(response) + 1)
                 self.data.append({
                     'label': label, 
                     'ids': ids,
@@ -32,20 +43,24 @@ class BERTFTDataset(Dataset):
         else:
             for i in tqdm(range(0, len(data), 10)):
                 batch = data[i:i+10]
-                cids, rids = [], []
-                responses = []
-                for b in batch:
-                    context = ' [SEP] '.join(b[1][:-1])
-                    response = b[1][-1]
-                    responses.append(response)
-                    cids_, rids_ = self.vocab.batch_encode_plus([context, response])['input_ids']
-                    cids.append(cids_)
-                    rids.append(rids_)
                 ids, tids = [], []
-                for c, r in zip(cids, rids):
-                    ids_, tids_ = self._length_limit(c, r)
+                context, responses = [], []
+                for b in batch:
+                    label = b[0]
+                    utterances = b[1]
+                    item = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']
+                    context = []
+                    for u in item[:-1]:
+                        context.extend(u + [self.eos])
+                    context.pop()
+                    response = item[-1]
+                    self._truncate_pair(context, response, self.args['max_len'])
+                    ids_ = [self.cls] + context + [self.sep] + response + [self.sep]
+                    tids_ = [0] * (len(context) + 2) + [1] * (len(response) + 1)
                     ids.append(ids_)
                     tids.append(tids_)
+                    context.append(' [SEP] '.join(utterances[:-1]))
+                    responses.append(utterances[-1])
                 self.data.append({
                     'label': [b[0] for b in batch],
                     'ids': ids,
@@ -53,20 +68,17 @@ class BERTFTDataset(Dataset):
                     'context': context,
                     'responses': responses,
                 })    
-                
-    def _length_limit(self, cids, rids):
-        # cids
-        if len(cids) > self.args['max_len']:
-            cids = [cids[0]] + cids[-(self.args['max_len']-1):]     # [CLS] ... [SEP]
-        # rids: without [CLS] token
-        if len(rids) > self.args['res_max_len']:
-            rids = rids[1:self.args['res_max_len']] + [self.sep] 
-        else:
-            rids = rids[1:]
 
-        ids = cids + rids
-        tids = [0] * len(cids) + [1] * len(rids)
-        return ids, tids
+    def _truncate_pair(self, cids, rids, max_length):
+        max_length -= 3
+        while True:
+            l = len(cids) + len(rids)
+            if l <= max_length:
+                break
+            if len(cids) > 2 * len(rids):
+                cids.pop(0)
+            else:
+                rids.pop()
                 
     def __len__(self):
         return len(self.data)

@@ -8,6 +8,7 @@ class RetrievalBaseAgent:
 
     def __init__(self):
         # open the test save scores file handler
+        self.best_test = None 
         pass
 
     def show_parameters(self, args):
@@ -33,12 +34,45 @@ class RetrievalBaseAgent:
     def set_test_interval(self):
         self.args['test_step'] = [int(self.args['total_step']*i) for i in np.arange(0, 1+self.args['test_interval'], self.args['test_interval'])]
         self.test_step_counter = 0
+        print(f'[!] test interval steps: {self.args["test_step"]}')
+
+    def compare_performance(self, new_test):
+        if self.best_test is None:
+            self.best_test = new_test
+            return True
+
+        r10_1 = self.best_test['R10@1']
+        r10_2 = self.best_test['R10@2']
+        r10_5 = self.best_test['R10@5']
+        avg_mrr = self.best_test['MRR']
+        avg_p1 = self.best_test['P@1']
+        avg_map = self.best_test['MAP']
+        now_test_score = r10_1 + r10_2 + r10_5 + avg_mrr + avg_p1 + avg_map 
+        
+        r10_1 = new_test['R10@1']
+        r10_2 = new_test['R10@2']
+        r10_5 = new_test['R10@5']
+        avg_mrr = new_test['MRR']
+        avg_p1 = new_test['P@1']
+        avg_map = new_test['MAP']
+        new_test_score = r10_1 + r10_2 + r10_5 + avg_mrr + avg_p1 + avg_map 
+
+        if new_test_score > now_test_score:
+            self.best_test = new_test
+            return True
+        else:
+            return False
 
     def test_now(self, test_iter, recoder):
-        # test in the training loop
         index = self.test_step_counter
-        (r10_1, r10_2, r10_5), avg_mrr, avg_p1, avg_map = self.test_model(test_iter)
-        self.model.train()    # reset the train mode
+        test_rest = self.test_model(test_iter)
+        r10_1 = test_rest['R10@1']
+        r10_2 = test_rest['R10@2']
+        r10_5 = test_rest['R10@5']
+        avg_mrr = test_rest['MRR']
+        avg_p1 = test_rest['P@1']
+        avg_map = test_rest['MAP']
+
         recoder.add_scalar(f'train-test/R10@1', r10_1, index)
         recoder.add_scalar(f'train-test/R10@2', r10_2, index)
         recoder.add_scalar(f'train-test/R10@5', r10_5, index)
@@ -46,6 +80,17 @@ class RetrievalBaseAgent:
         recoder.add_scalar(f'train-test/P@1', avg_p1, index)
         recoder.add_scalar(f'train-test/MAP', avg_map, index)
         self.test_step_counter += 1
+        
+        # find the new best model, save
+        if self.args['local_rank'] == 0:
+            # check the performance
+            if self.compare_performance(test_rest):
+                pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
+                save_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_{pretrained_model_name}.pt'
+                self.save_model(save_path)
+                print(f'[!] find new best model at test step: {index}')
+
+        self.model.train()    # reset the train mode
 
     def load_checkpoint(self):
         if 'checkpoint' in self.args:

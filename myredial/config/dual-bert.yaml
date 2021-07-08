@@ -4,29 +4,29 @@ rank: null
 
 # train configuration
 train:
-    lr: 0.00005
-    grad_clip: 1.0
-    seed: 50
+    lr: 0.00001
+    grad_clip: 5.0
+    seed: 0
     batch_size: 64
     max_len: 256
     res_max_len: 64
     epoch: 5
-    warmup_ratio: 0.1
+    # no wamrup, set 0.0 (BERT-FP and UMS_BERT)
+    warmup_ratio: 0.
     checkpoint: 
         path: bert-post/best_nspmlm.pt
-        # path: dual-bert-pt/best_bert-base-uncased.pt
-        is_load: false
+        is_load: true
 
 # test configuration
 test:
-    seed: 50
+    seed: 0
     batch_size: 1
     max_len: 256
     res_max_len: 64
 
 # inference configuration
 inference:
-    seed: 50
+    seed: 0
     batch_size: 128
     max_len: 64
     topk: 20

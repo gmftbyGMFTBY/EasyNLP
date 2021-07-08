@@ -1,19 +1,18 @@
 # basic configuration for building the model
 dropout: 0.1
 gray_cand_num: 10
-rank: bert-ft-compare-plus
-# rank: null
+# rank: bert-ft-compare-plus
+rank: null
 
 # train configuration
 train:
-    lr: 0.00005
-    grad_clip: 1.0
+    lr: 0.00001
+    grad_clip: 5.0
     seed: 50
     batch_size: 64
     max_len: 256
-    res_max_len: 64
     epoch: 5
-    warmup_ratio: 0.1
+    warmup_ratio: 0.0
     checkpoint: 
         path: bert-post/best_nspmlm.pt
         is_load: true
@@ -23,4 +22,3 @@ test:
     seed: 50
     batch_size: 64
     max_len: 256
-    res_max_len: 64

@@ -61,9 +61,6 @@ def main(**args):
             recoder=sum_writer,
             idx_=epoch_i,
         )
-        if args['local_rank'] == 0:
-            save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}.pt'
-            agent.save_model(save_path)
     sum_writer.close()
 
 if __name__ == "__main__":

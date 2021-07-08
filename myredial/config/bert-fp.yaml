@@ -10,6 +10,7 @@ train:
     max_len: 256
     min_mask_num: 1
     min_context_length: 3
+    min_token_length: 20
     epoch: 25
     warmup_ratio: 0.1
     checkpoint: 
