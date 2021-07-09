@@ -2,8 +2,6 @@ from header import *
 from .post_train_dataloader import *
 from .dual_bert_dataloader import *
 from .dual_bert_pt_dataloader import *
-from .simcse_dataloader import *
-from .simcse_inference_dataloader import *
 from .dual_bert_full_dataloader import *
 from .dual_bert_arxiv_dataloader import *
 from .sa_bert_dataloader import *

@@ -1,5 +1,6 @@
 from header import *
 from .utils import *
+from .util_func import *
 
 
 class SABERTWithNegDataset(Dataset):
@@ -141,13 +142,6 @@ class SABERTWithNegDataset(Dataset):
         data = torch.save(self.data, self.pp_path)
         print(f'[!] save preprocessed dataset into {self.pp_path}')
 
-    def generate_mask(self, ids):
-        attn_mask_index = ids.nonzero().tolist()   # [PAD] IS 0
-        attn_mask_index_x, attn_mask_index_y = [i[0] for i in attn_mask_index], [i[1] for i in attn_mask_index]
-        attn_mask = torch.zeros_like(ids)
-        attn_mask[attn_mask_index_x, attn_mask_index_y] = 1
-        return attn_mask
-
     def collate(self, batch):
         if self.args['mode'] == 'train':
             ids = [i[0] for i in batch]
@@ -164,7 +158,7 @@ class SABERTWithNegDataset(Dataset):
         ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
         tids = pad_sequence(tids, batch_first=True, padding_value=self.pad)
         sids = pad_sequence(sids, batch_first=True, padding_value=self.pad)
-        mask = self.generate_mask(ids)
+        mask = generate_mask(ids)
         label = torch.LongTensor(label)
         if torch.cuda.is_available():
             ids, tids, sids, mask, label = ids.cuda(), tids.cuda(), sids.cuda(), mask.cuda(), label.cuda()
@@ -264,13 +258,6 @@ class SABERTFTDataset(Dataset):
         data = torch.save(self.data, self.pp_path)
         print(f'[!] save preprocessed dataset into {self.pp_path}')
 
-    def generate_mask(self, ids):
-        attn_mask_index = ids.nonzero().tolist()   # [PAD] IS 0
-        attn_mask_index_x, attn_mask_index_y = [i[0] for i in attn_mask_index], [i[1] for i in attn_mask_index]
-        attn_mask = torch.zeros_like(ids)
-        attn_mask[attn_mask_index_x, attn_mask_index_y] = 1
-        return attn_mask
-
     def collate(self, batch):
         if self.args['mode'] == 'train':
             ids, tids, sids, label = [i[0] for i in batch], [i[1] for i in batch], [i[2] for i in batch], [i[3] for i in batch]
@@ -285,7 +272,7 @@ class SABERTFTDataset(Dataset):
         ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
         tids = pad_sequence(tids, batch_first=True, padding_value=self.pad)
         sids = pad_sequence(sids, batch_first=True, padding_value=self.pad)
-        mask = self.generate_mask(ids)
+        mask = generate_mask(ids)
         label = torch.LongTensor(label)
         if torch.cuda.is_available():
             ids, tids, sids, mask, label = ids.cuda(), tids.cuda(), sids.cuda(), mask.cuda(), label.cuda()

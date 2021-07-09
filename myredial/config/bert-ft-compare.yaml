@@ -1,21 +1,26 @@
 # basic configuration for building the model
 dropout: 0.1
 gray_cand_num: 10
-inner_bsz: 2
-compare_turn_num: 2
+# [inner_bsz] the batch for one train step is to big, split and run it in multiple times
+# then the gradient accumulation is used
+inner_bsz: 64
+# the number of the negative samples will be considered in each batch
+k: 2
 rank: null
-positive_margin: 0.05
+compare_turn_num: 2
+positive_margin: 0.
 positive_margin_delta: 0.0
+# num_labels: 1 or 3
+num_labels: 1
 
 # train configuration
 train:
     lr: 0.00005
-    grad_clip: 1.0
+    grad_clip: 5.0
     seed: 0
-    batch_size: 16
-    max_len: 256
-    res_max_len: 64
-    epoch: 10
+    batch_size: 32
+    max_len: 288    # 252 + 32
+    epoch: 10 
     warmup_ratio: 0.
     checkpoint: 
         path: bert-post/best_nspmlm.pt
@@ -26,5 +31,4 @@ test:
     seed: 0
     # must be one (because of the fully compare)
     batch_size: 1
-    max_len: 256
-    res_max_len: 64
+    max_len: 288

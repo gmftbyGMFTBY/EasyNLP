@@ -1,4 +1,5 @@
 from model.utils import *
+from dataloader.util_func import *
 
 class CompareInteractionAgent(RetrievalBaseAgent):
 
@@ -6,8 +7,11 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         super(CompareInteractionAgent, self).__init__()
         self.args = args
         self.vocab, self.model = vocab, model
+        self.vocab.add_tokens(['[EOS]'])
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.eos = self.vocab.convert_tokens_to_ids('[EOS]')
+        self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
 
         if args['mode'] == 'train':
             self.set_test_interval()
@@ -22,7 +26,6 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         if args['mode'] in ['train', 'inference']:
             self.set_optimizer_scheduler_ddp()
 
-        self.criterion = nn.BCEWithLogitsLoss()
         self.show_parameters(self.args)
         
     def load_bert_model(self, path):
@@ -37,30 +40,18 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         correct, s = 0, 0
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
-            if self.args['model'] in ['bert-ft-compare']:
-                with autocast():
-                    output = self.model(batch)    # [B]
-                    label = batch['label']
-                    loss = self.criterion(output, label.to(torch.float))
-                # half precision
-                self.scaler.scale(loss).backward()
-                self.scaler.unscale_(self.optimizer)
-                clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
-                self.scheduler.step()
+            # gradient accumulation
+            loss, output, label = self.model(batch, scaler=self.scaler, optimizer=self.optimizer)
+            self.scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            self.scheduler.step()
 
+            if self.args['num_labels'] == 1:
                 output = torch.sigmoid(output) > 0.5
                 now_correct = torch.sum(output == label).item()
-            elif self.args['model'] in ['bert-ft-compare-plus']:
-                # gradient accumulation
-                loss, output, label = self.model(batch, scaler=self.scaler, optimizer=self.optimizer)
-                self.scaler.unscale_(self.optimizer)
-                clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
-                self.scheduler.step()
-
+            else:
                 output = output.max(dim=-1)[1]
                 now_correct = (output.cpu() == label.cpu()).sum().item()
             correct += now_correct
@@ -136,9 +127,10 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         '''Each item pair in the tickets (i, j), the i has the bigger scores than j'''
         ids, tids, recoder = [], [], []
         for i, j in tickets:
-            rids1, rids2 = rids[i], rids[j]
-            ids_ = cids + rids1 + rids2
-            tids_ = [0] * len(cids) + [1] * len(rids1) + [0] * len(rids2)
+            cids_, rids1, rids2 = deepcopy(cids), deepcopy(rids[i]), deepcopy(rids[j])
+            truncate_pair_two_candidates(cids_, rids1, rids2, self.args['max_len'])
+            ids_ = [self.cls] + cids_ + [self.sep] + rids1 + [self.sep] + rids2 + [self.sep]
+            tids_ = [0] * (len(cids_) + 2) + [1] * (len(rids1) + 1) + [0] * (len(rids2) + 1)
             ids.append(ids_)
             tids.append(tids_)
             recoder.append((i, j))
@@ -147,20 +139,21 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
         tids = pad_sequence(tids, batch_first=True, padding_value=self.pad)
         mask = self.generate_mask(ids)
-        if torch.cuda.is_available():
-            ids, tids, mask = ids.cuda(), tids.cuda(), mask.cuda()
-
+        ids, tids, mask = to_cuda(ids, tids, mask)
         # ===== make compare ===== # 
         batch_packup = {
             'ids': ids,
             'tids': tids,
             'mask': mask,
         }
-
-        # different mode
-        if self.args['model'] in ['bert-ft-compare-plus']:
+        # different num_labels
+        if self.args['num_labels'] == 3:
             # three classificaiton, ignore the label 1
-            comp_scores = self.model.predict(batch_packup).max(dim=-1)[1]    # [B, 3] -> [B]
+            if self.args['mode'] == 'train':
+                comp_scores = self.model.module.predict(batch_packup).max(dim=-1)[1]    # [B, 3] -> [B]
+            else:
+                comp_scores = self.model.predict(batch_packup).max(dim=-1)[1]    # [B, 3] -> [B]
+
             comp_label, new_recoder = [], []
             for s, (i, j) in zip(comp_scores, recoder):
                 if s == 0:
@@ -173,8 +166,13 @@ class CompareInteractionAgent(RetrievalBaseAgent):
                     # hard to tell will not be used
                     pass
             return comp_label, new_recoder
-
-        comp_scores = torch.sigmoid(self.model(batch_packup))    # [B]
+        elif self.args['num_labels'] == 1:
+            if self.args['mode'] == 'train':
+                comp_scores = torch.sigmoid(self.model.module.predict(batch_packup))    # [B]
+            else:
+                comp_scores = torch.sigmoid(self.model.predict(batch_packup))    # [B]
+        else:
+            raise Exception(f'[!] donot support num_labels={self.args["num_labels"]}')
 
         # these modes only for bert-ft-compare
         if fast:
@@ -201,24 +199,28 @@ class CompareInteractionAgent(RetrievalBaseAgent):
     def fully_compare(self, batch):
         self.model.eval() 
         pos_margin = self.args['positive_margin']
-        items = self.vocab.batch_encode_plus([batch['context']] + batch['responses'])['input_ids']
-        cids = self._length_limit(items[0])
-        rids = [self._length_limit_res(i) for i in items[1:]]
-
+        items = self.convert_text_to_ids(batch['context'] + batch['responses'])
+        cids_ = items[:len(batch['context'])]
+        cids = []
+        for u in cids_:
+            cids.extend(u + [self.eos])
+        cids.pop()
+        rids = items[len(batch['context']):]
         tickets = []
         for i in range(len(rids)):
             for j in range(len(rids)):
                 if i < j:
                     tickets.append((i, j))
         label, recoder = self.compare_one_turn(cids, rids, tickets, margin=pos_margin, fully=True)
+        
+        # iterate to generate the scores
+        # PageRank
         chain = {i: [] for i in range(len(rids))}    # key is bigger than value
         for l, (i, j) in zip(label, recoder):
             if l is True:
                 chain[i].append(j)
             else:
                 chain[j].append(i)
-        # iterate to generate the scores
-        # PageRank
         scores = {i:1 for i in chain}
         for _ in range(5):
             new_scores = deepcopy(scores)
@@ -235,9 +237,14 @@ class CompareInteractionAgent(RetrievalBaseAgent):
             scores = self.fully_compare(batch)
             c = batch['context']
             r1, r2 = batch['responses']
-            items = self.vocab.batch_encode_plus([c, r1, r2])['input_ids']
-            cids = self._length_limit(items[0])
-            rids = [self._length_limit_res(i) for i in items[1:]]
+
+            items = self.convert_text_to_ids(c + [r1, r2])['input_ids']
+            cids_, rids = items[0], items[1:]
+            cids = []
+            for u in cids_:
+                cids.extend(u + [self.eos])
+            cids.pop()
+
             tickets = [(0, 1)]
             label = self.compare_one_turn(cids, rids, tickets, margin=0, fast=True)
             label = label.tolist()[0]
@@ -263,9 +270,14 @@ class CompareInteractionAgent(RetrievalBaseAgent):
 
         context = batch['context']
         scores = batch['scores']
-        items = self.vocab.batch_encode_plus([context] + batch['responses'])['input_ids']
-        cids = self._length_limit(items[0])
-        rids = [self._length_limit_res(i) for i in items[1:]]
+
+        items = self.convert_text_to_ids(context + batch['responses'])['input_ids']
+        cids_, rids = items[:len(context)], items[len(context):]
+        cids = []
+        for u in cids_:
+            cids.extend(u + [self.eos])
+        cids.pop()
+
         # sort the rids (decrease order)
         order = np.argsort(scores)[::-1].tolist()
         backup_map = {o:i for i, o in enumerate(order)}    # old:new
@@ -338,17 +350,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         # backup the scores
         scores = [scores[backup_map[i]] for i in range(len(order))]
         return scores
-    
-    def _length_limit(self, ids):
-        if len(ids) > self.args['max_len']:
-            # cls tokens
-            ids = [ids[0]] + ids[-(self.args['max_len']-1):]
-        return ids
 
-    def _length_limit_res(self, rids):
-        if len(rids) > self.args['res_max_len']:
-            # ignore the cls token
-            rids = rids[1:self.args['res_max_len']] + [self.sep]
-        else:
-            rids = rids[1:]
-        return rids
+    def convert_text_to_ids(self, texts):
+        items = self.vocab.batch_encode_plus(texts, add_special_tokens=False)['input_ids']
+        return items

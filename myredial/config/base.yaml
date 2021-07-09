@@ -29,7 +29,6 @@ rank: null
 
 no_test_models:
     - bert-fp
-    - simcse
 
 no_train_models:
     - bert-fp-original
@@ -39,8 +38,8 @@ models:
         type: Representation
         model_name: BERTDualEncoder
         dataset_name: BERTDualDataset
-        inference_dataset_name: BERTDualInferenceDataset
-        # inference_dataset_name: BERTDualInferenceContextDataset
+        # inference_dataset_name: BERTDualInferenceDataset
+        inference_dataset_name: BERTDualInferenceContextDataset
     dual-bert-ssl: 
         type: Representation
         model_name: BERTDualSSLEncoder
@@ -67,11 +66,6 @@ models:
         model_name: BERTDualCompEncoder
         dataset_name: BERTDualWithNegDataset
         inference_dataset_name: BERTDualInferenceDataset
-    simcse: 
-        type: Representation
-        model_name: SimCSE
-        dataset_name: SimCSEDataset
-        inference_dataset_name: SimCSEInferenceDataset
     hash-bert: 
         type: Representation
         model_name: HashBERTDualEncoder
@@ -129,15 +123,10 @@ models:
         inference_dataset_name: null 
     bert-ft-compare: 
         type: CompareInteraction
-        model_name: BERTCompareRetrieval
-        # dataset_name: BERTFTCompDataset
-        # BERTFTCompEvaluationDataset used for test.sh[compare mode]
-        dataset_name: BERTFTCompEvaluationDataset
-        inference_dataset_name: null
-    bert-ft-compare-plus: 
-        type: CompareInteraction
         model_name: BERTComparePlusRetrieval
-        dataset_name: BERTFTCompPlusDataset
+        dataset_name: BERTFTCompDataset
+        # BERTFTCompEvaluationDataset used for test.sh[compare mode]
+        # dataset_name: BERTFTCompEvaluationDataset
         inference_dataset_name: null
     sa-bert: 
         type: Interaction

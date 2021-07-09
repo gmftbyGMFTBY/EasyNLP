@@ -9,10 +9,12 @@ train:
     batch_size: 96
     max_len: 256
     min_mask_num: 1
+    max_mask_num: 20
+    masked_lm_prob: 0.15
     min_context_length: 3
     min_token_length: 20
     epoch: 25
-    warmup_ratio: 0.1
+    warmup_ratio: 0.01
     checkpoint: 
         path: bert-post/best_nspmlm.pt
         is_load: false

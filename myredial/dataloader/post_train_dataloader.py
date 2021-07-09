@@ -1,5 +1,6 @@
 from header import *
 from .utils import *
+from .util_func import *
 
 
 class PostTrainDataset(Dataset):
@@ -58,46 +59,6 @@ class PostTrainDataset(Dataset):
     def __len__(self):
         return len(self.table)
 
-    def _mask_sentence(self, ids):
-        mask_label = []
-        mask_num = 0
-        for i, t in enumerate(ids):
-            if t in self.special_tokens:
-                mask_label.append(-1)
-                continue
-            ratio = random.random()
-            if ratio < 0.15:
-                ratio /= 0.15
-                if ratio < 0.8:
-                    ids[i] = self.mask
-                elif ratio < 0.9:
-                    # random change
-                    ids[i] = random.choice(list(range(self.vocab.vocab_size)))
-                mask_label.append(t)
-                mask_num += 1
-            else:
-                # not mask
-                mask_label.append(-1)
-        if mask_num < self.args['min_mask_num']:
-            # at least mask one token
-            mask_idx = random.choice(range(len(ids)))
-            mask_label = [-1] * len(ids)
-            mask_label[mask_idx] = ids[mask_idx]
-            ids[mask_idx] = self.mask
-        assert len(mask_label) == len(ids)
-        return mask_label
-
-    def _truncate_pair(self, cids, rids, max_length):
-        max_length -= 3    #  [CLS], [SEP], [SEP]
-        while True:
-            l = len(cids) + len(rids)
-            if l <= max_length:
-                break
-            if len(cids) > 2 * len(rids):
-                cids.pop(0)
-            else:
-                rids.pop()
-
     def __getitem__(self, i):
         begin, end, max_l = self.table[i]
         session = self.data[begin:end+1]
@@ -126,24 +87,23 @@ class PostTrainDataset(Dataset):
             response = self.data[rand_idx]
             label = 0
 
-        self._truncate_pair(tokens, response, self.args['max_len'])
-        cids_mlm_label = self._mask_sentence(tokens)
-        rids_mlm_label = self._mask_sentence(response)
-        mask_labels = [-1] + cids_mlm_label + [-1] + rids_mlm_label + [-1]
+        _truncate_pair(tokens, response, self.args['max_len'])
         ids = [self.cls] + tokens + [self.sep] + response + [self.sep]
         tids = [0] * (len(tokens) + 2) + [1] * (len(response) + 1)
+        mask_labels = _mask_sentence(
+            ids,
+            self.args['min_mask_num'], 
+            self.args['max_mask_num'], 
+            self.args['masked_lm_prob'], 
+            special_tokens=[self.cls, self.eos, self.sep, self.pad, self.unk], 
+            mask=self.mask, 
+            vocab_size=len(self.vocab),
+        )
         return ids, tids, mask_labels, label
 
     def save(self):
         data = torch.save((self.data, self.table), self.pp_path)
         print(f'[!] save preprocessed dataset into {self.pp_path}; size: {len(self.table)}')
-        
-    def generate_mask(self, ids):
-        attn_mask_index = ids.nonzero().tolist()   # [PAD] IS 0
-        attn_mask_index_x, attn_mask_index_y = [i[0] for i in attn_mask_index], [i[1] for i in attn_mask_index]
-        attn_mask = torch.zeros_like(ids)
-        attn_mask[attn_mask_index_x, attn_mask_index_y] = 1
-        return attn_mask
         
     def collate(self, batch):
         ids, tids, mask_labels, labels = [], [], [], []
@@ -160,9 +120,8 @@ class PostTrainDataset(Dataset):
         ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
         tids = pad_sequence(tids, batch_first=True, padding_value=self.pad)
         mask_labels = pad_sequence(mask_labels, batch_first=True, padding_value=-1)    # pad is not calculated for MLM
-        attn_mask = self.generate_mask(ids)
-        if torch.cuda.is_available():
-            ids, tids, mask_labels, attn_mask, labels = ids.cuda(), tids.cuda(), mask_labels.cuda(), attn_mask.cuda(), labels.cuda()
+        attn_mask = generate_mask(ids)
+        ids, tids, mask_labels, attn_mask, labels = to_cuda(ids, tids, mask_labels, attn_mask, labels)
         return {
             'ids': ids, 
             'tids': tids, 

@@ -1,5 +1,4 @@
 from .agent import *
-from .simcse import *
 from .dual_bert import *
 from .dual_bert_ssl import *
 from .dual_bert_cl import *
