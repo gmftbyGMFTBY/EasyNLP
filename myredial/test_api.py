@@ -49,7 +49,7 @@ def load_fake_rerank_data(path, size=1000):
 
 def load_fake_recall_data(path, size=1000):
     '''for pipeline and recall test'''
-    if args['dataset'] in ['douban', 'ecommerce', 'ubuntu', 'lccc', 'lccc-large']:
+    if args['dataset'] in ['douban', 'ecommerce', 'ubuntu', 'lccc', 'lccc-large', 'restoration-200k']:
         dataset = read_text_data_utterances(path, lang='zh')
         dataset = [(utterances[:-1], utterances[-1], None) for _, utterances in dataset]
     elif args['dataset'] in ['poetry', 'novel_selected']:
