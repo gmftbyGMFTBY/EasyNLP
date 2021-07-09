@@ -14,6 +14,9 @@ class RetrievalBaseAgent:
     def show_parameters(self, args):
         print(f'========== Model Parameters ==========')
         for key, value in args.items():
+            if key in ['models', 'deploy', 'datasets', 'no_test_models', 'no_train_models']:
+                # too long don't show
+                continue
             print(f'{key}: {value}')
         print(f'========== Model Parameters ==========')
 

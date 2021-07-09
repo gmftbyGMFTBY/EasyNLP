@@ -44,10 +44,8 @@ class BERTDualGrayFullEncoder(nn.Module):
         return dot_product
     
     def forward(self, batch):
-        context = batch['context']
-        responses = batch['responses']
-        cid, cid_mask = self.totensor(context, ctx=True)
-        rid, rid_mask = self.totensor(responses, ctx=False)
+        cid, cid_mask = batch['cid'], batch['cid_mask']
+        rid, rid_mask = batch['rid'], batch['rid_mask']
 
         batch_size = cid.shape[0]
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)

@@ -28,13 +28,9 @@ class BERTDualArxivDataset(Dataset):
             self.size = self.reader.size
             print(f'[!] dataset size: {self.size}')
         else:
-            data, responses = read_json_data(path, lang=self.args['lang'])
+            data = read_json_data_arxiv(path, lang=self.args['lang'])
             for context, response, candidates in tqdm(data):
                 context = ' [SEP] '.join(context).strip()
-                if len(candidates) < 9:
-                    candidates += random.sample(responses, 9-len(candidates))
-                else:
-                    candidates = candidates[:9]
                 self.data.append({
                     'label': [1] + [0] * 9,
                     'context': context,
@@ -63,7 +59,7 @@ class BERTDualArxivDataset(Dataset):
             line = json.loads(line.strip())
             context = ' [SEP] '.join(line['q'])
             response = line['r']
-            return context, responses
+            return context, response
         else:
             bundle = self.data[i]
             context = bundle['context']

@@ -26,8 +26,8 @@ def load_dataset(args):
 
     path = f'{args["root_dir"]}/data/{args["dataset"]}/{args["mode"]}.txt'
     vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
-        
     data = dataset_t(vocab, path, **args)
+
     if args['mode'] in ['train', 'inference']:
         sampler = torch.utils.data.distributed.DistributedSampler(data)
         iter_ = DataLoader(data, batch_size=args['batch_size'], collate_fn=data.collate, sampler=sampler)

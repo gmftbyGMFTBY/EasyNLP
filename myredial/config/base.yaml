@@ -10,6 +10,7 @@ datasets:
     novel_selected: zh
     baike_summary: zh
     arxiv: en
+    restoration-200k: zh
 
 # pretrained model and tokenizer
 tokenizer:
@@ -129,7 +130,9 @@ models:
     bert-ft-compare: 
         type: CompareInteraction
         model_name: BERTCompareRetrieval
-        dataset_name: BERTFTCompDataset
+        # dataset_name: BERTFTCompDataset
+        # BERTFTCompEvaluationDataset used for test.sh[compare mode]
+        dataset_name: BERTFTCompEvaluationDataset
         inference_dataset_name: null
     bert-ft-compare-plus: 
         type: CompareInteraction
@@ -170,13 +173,13 @@ test_interval: 0.1
 # ========== deploy parameters ========== #
 deploy:
     host: '0.0.0.0'
-    port: 22335
+    port: 22336
     dataset: douban
     max_len: 256
     res_max_len: 64
     recall:
         activate: false
-        model: bm25
+        model: dual-bert
         # default topk
         topk: 100
         # only the arxiv, writer dataset need the with_source
@@ -185,6 +188,6 @@ deploy:
         dimension: 768
     rerank:
         activate: false
-        model: bert-fp-original
+        model: dual-bert
     pipeline:
         activate: true

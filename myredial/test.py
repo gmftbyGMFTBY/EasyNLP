@@ -7,9 +7,10 @@ from es import *
 
 '''
 Test script:
-    1. test the rerank performance [test]
+    1. test the rerank performance [rerank]
     2. test the recall performance [recall]
     3. test the es recall performance [es_recall]
+    4. test the comparison relationship among candidates [compare]
 
 If you use the [recall], make sure the inference.sh has already been done
 '''
@@ -22,6 +23,7 @@ def parser_args():
     parser.add_argument('--multi_gpu', type=str, default=None)
     parser.add_argument('--mode', type=str, default='test')
     parser.add_argument('--recall_mode', type=str, default='q-r')
+    parser.add_argument('--file_tags', type=str, default='22335,22336')
     parser.add_argument('--log', action='store_true', dest='log')
     parser.add_argument('--no-log', action='store_false', dest='log')
     return parser.parse_args()
@@ -69,6 +71,42 @@ def prepare_inference(**args):
     searcher.load(faiss_ckpt_path, corpus_ckpt_path)
     print(f'[!] load faiss over')
     return test_iter, inf_args, searcher, agent
+
+
+def main_compare(**args):
+    '''compare mode applications:
+        1. replace with the human evaluation
+        2. rerank agent for rerank agent'''
+    args['mode'] = 'test'
+    config = load_config(args)
+    args.update(config)
+
+    random.seed(args['seed'])
+    torch.manual_seed(args['seed'])
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args['seed'])
+
+    test_data, test_iter, _ = load_dataset(args)
+    agent = load_model(args)
+    
+    pretrained_model_name = args['pretrained_model'].replace('/', '_')
+    save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}.pt'
+    agent.load_model(save_path)
+
+    results = agent.compare_evaluation(test_iter)
+
+    log_file_path = f'{args["root_dir"]}/data/{args["dataset"]}/test_compare_log.txt'
+    avg_scores = []
+    with open(log_file_path, 'w') as f:
+        for item in results:
+            f.write(f'[Context   ] {item["context"]}\n')
+            f.write(f'[Response-1] {item["responses"][0]}\n')
+            f.write(f'[Response-2] {item["responses"][1]}\n')
+            f.write(f'[Comp-score] {item["score"]}\n\n')
+            avg_scores.append(item['score'])
+    avg_score = round(np.mean(avg_scores), 2)
+    print(f'[!] Write the log into {log_file_path}')
+    print(f'[!] Average Compare Scores: {avg_score}')
 
 
 def main_rerank(**args):
@@ -273,5 +311,7 @@ if __name__ == "__main__":
         main_es_recall(**args)
     elif args['mode'] == 'rerank':
         main_rerank(**args)
+    elif args['mode'] == 'compare':
+        main_compare(**args)
     else:
         raise Exception(f'[!] Unknown mode: {args["mode"]}')

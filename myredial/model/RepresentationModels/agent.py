@@ -188,6 +188,13 @@ class RepresentationAgent(RetrievalBaseAgent):
         correct, s, oom_t = 0, 0, 0
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
+
+            if self.args['model'] in ['dual-bert-gray-writer']:
+                cid, cid_mask = self.totensor(batch['context'], ctx=True)
+                rid, rid_mask = self.totensor(batch['responses'], ctx=False)
+                batch['cid'], batch['cid_mask'] = cid, cid_mask
+                batch['rid'], batch['rid_mask'] = rid, rid_mask
+
             with autocast():
                 loss, acc = self.model(batch)
             self.scaler.scale(loss).backward()
@@ -255,8 +262,7 @@ class RepresentationAgent(RetrievalBaseAgent):
                     'scores': scores,
                 }
                 # only the scores has been update
-                # scores = rerank_agent.compare_reorder(packup)
-                scores = rerank_agent.compare_reorder_fast(packup)
+                scores = rerank_agent.compare_reorder(packup)
 
             # print output
             if print_output:

@@ -15,7 +15,7 @@ train:
     warmup_ratio: 0.
     checkpoint: 
         path: bert-post/best_nspmlm.pt
-        is_load: true
+        is_load: false
 
 # test configuration
 test:

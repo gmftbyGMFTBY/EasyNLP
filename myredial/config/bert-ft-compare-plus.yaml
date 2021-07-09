@@ -6,7 +6,7 @@ inner_bsz: 48
 # the number of the negative samples will be considered in each batch
 k: 2
 compare_turn_num: 2
-rank: bert-ft-compare-plus
+rank: null
 positive_margin: 0.
 positive_margin_delta: 0.0
 

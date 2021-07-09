@@ -15,6 +15,30 @@ def read_json_data_dual_bert(path, lang='zh'):
     return dataset
 
 
+def read_json_data_arxiv(path, lang='zh'):
+    with open(path) as f:
+        responses_ = []
+        for line in tqdm(list(f.readlines())):
+            item = json.loads(line.strip())
+            responses_.append(item['r'])
+            responses_.extend(item['q'])
+
+    with open(path) as f:
+        dataset = []
+        for line in tqdm(list(f.readlines())):
+            line = line.strip()
+            item = json.loads(line)
+            context = item['q']
+            response = item['r']
+            if len(context) < 9:
+                candidates = context + random.sample(responses_, 9 - len(context))
+            else:
+                candidates = random.sample(context, 9)
+            dataset.append((context, response, candidates))
+    print(f'[!] load {len(dataset)} samples from {path}')
+    return dataset
+
+
 def read_json_data(path, lang='zh'):
     with open(path) as f:
         dataset = []
@@ -161,8 +185,8 @@ def read_response_data(path, lang='zh'):
         dataset = []
         for line in f.readlines():
             utterance = line.strip().split('\t')
-            # if int(utterance[0]) == 0:
-            #    continue
+            if int(utterance[0]) == 0:
+               continue
             utterance = utterance[-1]
             if lang == 'zh':
                 utterance = ''.join(utterance.split())
@@ -217,4 +241,24 @@ def read_text_data_with_source(path, lang='zh'):
             response = json.loads(line[1])
             dataset.append(([context], response[0], response[1], response[2]))
         print(f'[!] collect: {len(dataset)} utterances for inference')
+    return dataset
+
+def read_text_data_from_log_file(path, lang='zh'):
+    '''
+    [Context ] context sentence ....
+    [Resoibse] response setnecen ....
+    
+    [Context ] context sentence2 ....
+    [Response] response sentencen2 ....'''
+    with open(path) as f:
+        dataset = []
+        lines = f.readlines()
+        assert len(lines) % 3 == 0
+
+        for i in range(0, len(lines), 3):
+            session = lines[i:i+3]
+            context = session[0].lstrip('[Context ]').strip()
+            response = session[1].lstrip('[Response]').strip()
+            dataset.append((context, response))
+        print(f'[!] collect {len(dataset)} sessions')
     return dataset

@@ -201,8 +201,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
     def fully_compare(self, batch):
         self.model.eval() 
         pos_margin = self.args['positive_margin']
-        context = batch['context']
-        items = self.vocab.batch_encode_plus([context] + batch['responses'])['input_ids']
+        items = self.vocab.batch_encode_plus([batch['context']] + batch['responses'])['input_ids']
         cids = self._length_limit(items[0])
         rids = [self._length_limit_res(i) for i in items[1:]]
 
@@ -228,6 +227,24 @@ class CompareInteractionAgent(RetrievalBaseAgent):
             scores = deepcopy(new_scores)
         scores = [scores[i] for i in range(len(rids))]
         return scores
+
+    @torch.no_grad()
+    def compare_evaluation(self, test_iter):
+        rest = []
+        for batch in test_iter:
+            scores = self.fully_compare(batch)
+            c = batch['context']
+            r1, r2 = batch['responses']
+            items = self.vocab.batch_encode_plus([c, r1, r2])['input_ids']
+            cids = self._length_limit(items[0])
+            rids = [self._length_limit_res(i) for i in items[1:]]
+            tickets = [(0, 1)]
+            label = self.compare_one_turn(cids, rids, tickets, margin=0, fast=True)
+            label = label.tolist()[0]
+            s = round(label*100, 2)
+            item = {'context': c, 'responses': (r1, r2), 'score': s}
+            rest.append(item)
+        return rest
     
     @torch.no_grad()
     def compare_reorder(self, batch):
@@ -322,39 +339,6 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         scores = [scores[backup_map[i]] for i in range(len(order))]
         return scores
     
-    @torch.no_grad()
-    def compare_reorder_fast(self, batch):
-        '''
-        input: batch = {
-            'context': 'text string of the multi-turn conversation context, [SEP] is used for cancatenation',
-            'responses': ['candidate1', 'candidate2', ...],
-            'scores': [s1, s2, ...],
-        }
-        output the updated scores for the batch, the order of the responses should not be changed, only the scores are changed.
-        '''
-        self.model.eval() 
-        compare_turn_num = self.args['compare_turn_num']
-        pos_margin = self.args['positive_margin']
-        pos_margin_delta = self.args['positive_margin_delta']
-
-        context = batch['context']
-        scores = batch['scores']
-        items = self.vocab.batch_encode_plus([context] + batch['responses'])['input_ids']
-        cids = self._length_limit(items[0])
-        rids = [self._length_limit_res(i) for i in items[1:]]
-
-        # baseline (median)
-        median_index = np.argsort(scores)[len(scores)//2]
-        baseline = rids[median_index]
-
-        tickets = []
-        for i in range(len(rids)):
-            tickets.append((i, median_index))
-        scores = self.compare_one_turn(cids, rids, tickets, margin=pos_margin, fast=True)
-        baseline_scores = scores[median_index].item()
-        scores -= baseline_scores
-        return scores.tolist()
-
     def _length_limit(self, ids):
         if len(ids) > self.args['max_len']:
             # cls tokens

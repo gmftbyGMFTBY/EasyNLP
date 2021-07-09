@@ -363,3 +363,54 @@ class BERTFTCompDataset(Dataset):
                 'responses': batch[0][1],
                 'label': batch[0][2],
             }
+
+class BERTFTCompEvaluationDataset(Dataset):
+    
+    '''Compare the evaluation results of the generated responses from two systems'''
+
+    def __init__(self, vocab, path, **args):
+        self.args = args
+        self.vocab = vocab
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+
+        # 22335: bm25+BERT-FP; 22336: dual-bert
+        ports = args['file_tags'].split(',')
+        path1 = f'{os.path.split(path)[0]}/test_api_pipeline_{ports[0]}_log.txt'
+        path2 = f'{os.path.split(path)[0]}/test_api_pipeline_{ports[1]}_log.txt'
+        print(f'[!] load file from:\n {path1}\n {path2}')
+        
+        data1 = read_text_data_from_log_file(path1, lang=args['lang'])
+        data2 = read_text_data_from_log_file(path2, lang=args['lang'])
+
+        self.data = []
+        for (ctx1, res1), (ctx2, res2) in zip(data1, data2):
+            assert ctx1 == ctx2
+            self.data.append({
+                'context': ctx1,
+                'responses': [res1, res2]
+            })
+                
+    def _length_limit(self, ids):
+        if len(ids) > self.args['max_len']:
+            # minus 2: cls and sep tokens
+            ids = [ids[0]] + ids[-(self.args['max_len']-1):]
+        return ids
+
+    def _length_limit_res(self, rids):
+        if len(rids) > self.args['res_max_len']:
+            # ignore the cls token
+            rids = rids[1:self.args['res_max_len']] + [self.sep]
+        else:
+            rids = rids[1:]
+        return rids
+                
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, i):
+        return self.data[i]
+
+    def collate(self, batch):
+        assert len(batch) == 1
+        return batch[0]

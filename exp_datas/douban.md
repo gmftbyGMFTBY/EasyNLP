@@ -75,5 +75,7 @@ Comparison experments
 | SOTA               | 31.8  | 48.2  | 85.8  | 66.4  | 49.9  | 62.5   |
 | HCL                | 33.0  | 53.1  | 85.8  | 68.1  | 51.4  | 63.9   |
 | BERT-FP            | 32.4  | 54.2  | 87.0  | 68.0  | 51.2  | 64.4   |
+| bert-ft-compare    | 33.41 | 53.95 | 86.4  | 68.87 | 52.02 | 64.56  |
 | dual-bert(seed=0; bsz=64; max_len=256,64; epoch=10, warmup_ratio=0.; lr=5e-5, grad_clip=5)      | 33.13  | 53.99  | 86.0  | 68.41  | 51.27  | 64.28   |
+| dual-bert+compare(seed=0; bsz=64; max_len=256,64; epoch=10, warmup_ratio=0.; lr=5e-5, grad_clip=5; compare_turn=2; margin=0.05)      | 33.51  | 53.41  | 87.05  | 68.59  | 51.87  | 64.76   |
 | bert-ft(seed=0; bsz=64; max_len=256; epoch=2, warmup_ratio=0.; lr=1e-5, grad_clip=5)            | 31.1  | 54.52  | 86.36  | 67.72  | 49.93  | 63.76   |
