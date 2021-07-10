@@ -31,7 +31,7 @@
 | dual-bert      | 88.57 | 95.06 | 99.09 | - |
 | bert-ft        | 90.16 | 95.82 | 99.25 | - |
 
-### 1.4 Restoration-200l Dataset
+### 1.4 Restoration-200k Dataset
 
 * ES test set
 
