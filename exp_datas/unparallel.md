@@ -53,10 +53,10 @@ The restoration-200k dataset is used for this full-rank comparison protocol
 test set is not used in the faiss index; 
 put the context utterances in the index(faiss and ES q-q matching index) 
 -->
-| Methods      | Average Human Evaluation | 
-| ------------ | ------------------------ |
-| BM25+BERT-FP |                          |
-| dual-bert+   |                          |
+| Methods          | 1 | 2 | 3 | 4 | 5 | Average Human Evaluation | 
+| ---------------- | - | - | - | - | - | ------------------------ |
+| BM25+BERT-FP     |   |   |   |   |   |                          |
+| dual-bert+   |   |   |   |   |   |                          |
 
 **The kappa among annotators**: 
 
@@ -66,8 +66,23 @@ Use the extra data (out of domain) monolingual samples to enrich the dual-bert i
 <!-- 
 test set is not used in the faiss index; put the context utterances in the index(faiss and ES q-q matching index) 
 EXT means the extra data is used
+BERT-FP=bert-ft+
 -->
-| Methods          | Average Human Evaluation | 
-| ---------------- | ------------------------ |
-| BM25+BERT-FP     |                          |
-| EXT-dual-bert+   |                          |
+| Methods          | 1 | 2 | 3 | 4 | 5 | Average Human Evaluation | 
+| ---------------- | - | - | - | - | - | ------------------------ |
+| BM25+BERT-FP     |   |   |   |   |   |                          |
+| EXT-dual-bert+   |   |   |   |   |   |                          |
+
+**The kappa among annotators**: 
+
+## 4. Appendix
+
+### 4.1 Human Evaluation Standard
+
+| Label |  Meaning |
+| ----- | -------- |
+| 1     | 回复与用户输入完全没有关联，不属于同一个话题，答非所问，完全跑题（若回复为空，同样视为此类型） | 
+| 2     | 回复质量介于1-3之间，难以确定 |
+| 3     | 回复内容与用户问题关联度很小，或者回复内容存在以下一种或者多种情况：（1）回复与问题重复或者高度相似；（2）前后内容有一定关联性但是较低；（3）回复没有任何和用户提问相关的内容，信息量少的万能回复。|
+| 4     | 回复质量基于3-5之间，难以确定 |
+| 5     | 直接回复了问题，前后衔接流畅  |
