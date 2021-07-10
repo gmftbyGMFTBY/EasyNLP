@@ -8,7 +8,7 @@
 | HCL            | 86.7 | 94.0 | 99.2 | 97.7  |
 | BERT-FP        | 91.1  | 96.2  | 99.4  | 0.977  |
 | dual-bert(lr=5e-5; epoch=10; seed=0; warmup=0; max_len=256,64) | 88.57 | 95.06 | 99.09 | - |
-| bert-ft(lr=5e-5; epoch=5; seed=0; warmup=0; max_len=256,64) | 91.3 | 96.7 | 99.5 | - |
+| bert-ft(lr=5e-5; epoch=5; seed=0; warmup=0; max_len=256,64) | 90.16 | 95.82 | 99.25 | - |
 
     1000 test samples for fast iterations
 

@@ -1,6 +1,3 @@
-# basic configuration for building the model
-dropout: 0.1
-gray_cand_num: 10
 # [inner_bsz] the batch for one train step is to big, split and run it in multiple times
 # then the gradient accumulation is used
 inner_bsz: 64
@@ -19,8 +16,8 @@ train:
     grad_clip: 5.0
     seed: 0
     batch_size: 32
-    max_len: 288    # 252 + 32
-    epoch: 10 
+    max_len: 288    # 256 + 32
+    epoch: 5
     warmup_ratio: 0.
     checkpoint: 
         path: bert-post/best_nspmlm.pt

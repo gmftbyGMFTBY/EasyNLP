@@ -11,8 +11,7 @@ class PostTrainDataset(Dataset):
     def __init__(self, vocab, path, **args):
         self.args = args
         self.vocab = vocab
-        special_tokens_dict = {'eos_token': '[EOS]'}
-        self.vocab.add_special_tokens(special_tokens_dict)
+        self.vocab.add_tokens(['[EOS]'])
 
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
@@ -51,10 +50,6 @@ class PostTrainDataset(Dataset):
                 # check if the context and response are legal
                 if sum(l[:i+1]) > self.args['min_token_length'] and l[i] > 0:
                     self.table.append((offset, offset+i, len(self.data)))
-            if len(item) < self.args['min_context_length']:
-                # collect
-                if sum(l) > self.args['min_token_length'] and l[-1] > 0:
-                    self.table.append((offset, offset+len(self.data)-1, len(self.data)))
 
     def __len__(self):
         return len(self.table)
@@ -87,15 +82,15 @@ class PostTrainDataset(Dataset):
             response = self.data[rand_idx]
             label = 0
 
-        _truncate_pair(tokens, response, self.args['max_len'])
+        truncate_pair(tokens, response, self.args['max_len'])
         ids = [self.cls] + tokens + [self.sep] + response + [self.sep]
         tids = [0] * (len(tokens) + 2) + [1] * (len(response) + 1)
-        mask_labels = _mask_sentence(
+        mask_labels = mask_sentence(
             ids,
             self.args['min_mask_num'], 
             self.args['max_mask_num'], 
             self.args['masked_lm_prob'], 
-            special_tokens=[self.cls, self.eos, self.sep, self.pad, self.unk], 
+            special_tokens=self.special_tokens, 
             mask=self.mask, 
             vocab_size=len(self.vocab),
         )

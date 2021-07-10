@@ -6,7 +6,6 @@ class BERTComparePlusRetrieval(nn.Module):
     def __init__(self, **args):
         super(BERTComparePlusRetrieval, self).__init__()
         model = args['pretrained_model']
-        p = args['dropout']
         self.inner_bsz = args['inner_bsz']
         self.num_labels = args['num_labels']
         self.model = BertForSequenceClassification.from_pretrained(model, num_labels=self.num_labels)

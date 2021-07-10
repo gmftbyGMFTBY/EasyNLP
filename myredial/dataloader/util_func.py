@@ -1,4 +1,5 @@
 import torch
+import ipdb
 import random
 
 def truncate_pair(cids, rids, max_length):
@@ -63,7 +64,7 @@ def mask_sentence(
     )
 
     mask_pos = [idx for idx, i in enumerate(ids) if i not in special_tokens]
-    mask_idx = random.sample(mask_pos, mask_pos)
+    mask_idx = random.sample(mask_pos, num_mask)
     mask_label = []
     for idx, i in enumerate(ids):
         if idx in mask_idx:

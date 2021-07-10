@@ -65,7 +65,6 @@ class CompareInteractionAgent(RetrievalBaseAgent):
             recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
             recoder.add_scalar(f'train-epoch-{idx_}/Acc', correct/s, idx)
             recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', now_correct/len(label), idx)
-
             pbar.set_description(f'[!] train loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(now_correct/len(label), 4)}|{round(correct/s, 4)}')
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/Acc', correct/s, idx_)
@@ -168,9 +167,9 @@ class CompareInteractionAgent(RetrievalBaseAgent):
             return comp_label, new_recoder
         elif self.args['num_labels'] == 1:
             if self.args['mode'] == 'train':
-                comp_scores = torch.sigmoid(self.model.module.predict(batch_packup))    # [B]
+                comp_scores = self.model.module.predict(batch_packup)    # [B]
             else:
-                comp_scores = torch.sigmoid(self.model.predict(batch_packup))    # [B]
+                comp_scores = self.model.predict(batch_packup)    # [B]
         else:
             raise Exception(f'[!] donot support num_labels={self.args["num_labels"]}')
 
@@ -212,7 +211,6 @@ class CompareInteractionAgent(RetrievalBaseAgent):
                 if i < j:
                     tickets.append((i, j))
         label, recoder = self.compare_one_turn(cids, rids, tickets, margin=pos_margin, fully=True)
-        
         # iterate to generate the scores
         # PageRank
         chain = {i: [] for i in range(len(rids))}    # key is bigger than value
