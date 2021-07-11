@@ -108,7 +108,7 @@ class InteractionAgent(RetrievalBaseAgent):
                     context = batch['context'][counter]
                     responses = batch['responses'][i:i+10]
                     packup = {
-                        'context': context,
+                        'context': context.split(' [SEP] '),
                         'responses': responses, 
                         'scores': subscores
                     }

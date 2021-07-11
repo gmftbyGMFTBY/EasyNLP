@@ -81,11 +81,7 @@ class RepresentationAgent(RetrievalBaseAgent):
     def load_bert_model(self, path):
         state_dict = torch.load(path, map_location=torch.device('cpu'))
         self.model.ctx_encoder.load_bert_model(state_dict)
-        try:
-            # simcse model doesn't have can_encoder
-            self.model.can_encoder.load_bert_model(state_dict)
-        except Exception as error:
-            print(error)
+        self.model.can_encoder.load_bert_model(state_dict)
         print(f'[!] load pretrained BERT model from {path}')
     
     def train_model_hash(self, train_iter, test_iter, recoder=None, idx_=0):

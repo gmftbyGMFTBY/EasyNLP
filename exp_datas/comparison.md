@@ -21,7 +21,7 @@ In traditional settings, the comparison-based DRS model use the fully comparison
 | ------------------ | ----- | ----- | ----- | ----- | ----- | ------ |
 | SA-BERT+HCL        | 33.0  | 53.1  | 85.8  | 68.1  | **51.4**  | 63.9   |
 | BERT-FP            | 32.4  | 54.2  | **87.0**  | 68.0  | 51.2  | **64.4**   |
-| BERT-CCE           |       |       |       |       |
+| BERT-CCE           | 32.79 | 53.46 | 87.24 | 68.62 | 51.72 | 64.67 |
 
 ### 1.3 Ubuntu-v1 Dataset
 
@@ -72,7 +72,7 @@ max_mask_num=20; masked_lm_prob=0.15; min_context_length=2; min_token_length=20;
 | Models             | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   |
 | ------------------ | ----- | ----- | ----- | ----- | ----- | ------ |
 | BERT-FP            | 32.4  | 54.2  | **87.0**  | 68.0  | 51.2  | **64.4**   |
-| BERT-FP+CCE        | 32.4  | 54.2  | **87.0**  | 68.0  | 51.2  | **64.4**   |
+| BERT-FP+CCE        | 33.0  | 53.56 | **86.65**  | 68.72  | 52.17  | **64.41**   |
 | UMS-BERT           |       |       |       |       |       |        |
 | UMS-BERT+CCE       |       |       |       |       |       |        |
 | dual-bert          |       |       |       |       |       |        |

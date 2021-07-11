@@ -2,6 +2,43 @@ import torch
 import ipdb
 import random
 
+
+def modify_sentence(ids, prob=0.1, k=2):
+    def _random_deletion(rids):
+        num_deletion = min(1, int(prob*len(rids)))
+        delete_idx = random.sample(range(len(rids)), num_deletion)
+        n_ids = [rids[i] for i in range(len(rids)) if i not in delete_idx]
+        return n_ids
+    def _random_swap(rids):
+        num_swap = min(1, int(prob*len(rids)))
+        swap_idx = [random.sample(range(len(rids)), 2) for _ in range(num_swap)]
+        n_ids = deepcopy(rids)
+        for i, j in swap_idx:
+            n_ids[i], n_ids[j] = n_ids[j], n_ids[i]
+        return n_ids
+    def _random_duplicate(rids):
+        # 1-gram or 2-gram
+        num_duplicate = min(1, int(prob*len(rids)))
+        duplicate_idx = random.sample(range(len(rids)-1), num_duplicate)
+        n_rids = []
+        for idx, i in enumerate(rids):
+            if idx in duplicate_idx:
+                if random.random() > 0.5:
+                    # 2-gram
+                    n_rids.extend([rids[idx], rids[idx+1], rids[idx], rids[idx+1]])
+                else:
+                    n_rids.extend([rids[idx], rids[idx]])
+            else:
+                n_rids.append(i)
+        return n_rids
+    rest = []
+    for _ in range(k):
+        rids = _random_deletion(ids)
+        rids = _random_swap(rids)
+        rids = _random_duplicate(rids)
+        rest.append(rids)
+    return rest
+
 def truncate_pair(cids, rids, max_length):
     # change the cids and rids in place
     max_length -= 3    # [CLS], [SEP], [SEP]

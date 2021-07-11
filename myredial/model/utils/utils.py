@@ -81,14 +81,19 @@ class BertEmbedding(nn.Module):
         self.model.resize_token_embeddings(self.model.config.vocab_size + 1)
 
     def forward(self, ids, attn_mask, speaker_type_ids=None):
-        embds = self.model(ids, attention_mask=attn_mask)[0]
-        embds = embds[:, 0, :]     # [CLS]
+        embds = self.model(ids, attention_mask=attn_mask)[1]
+        # embds = self.model(ids, attention_mask=attn_mask)[0][:, 0, :]
         return embds
 
     def load_bert_model(self, state_dict):
         # load the post train checkpoint from BERT-FP (NAACL 2021)
         new_state_dict = OrderedDict()
         for k, v in state_dict.items():
+            if k.startswith('model.bert.'):
+                k = k.replace('model.bert.', '')
+            if k.startswith('model.cls.'):
+                # for bertembedding, cls head is useless
+                continue
             new_state_dict[k] = v
         # position_ids
         new_state_dict['embeddings.position_ids'] = torch.arange(512).expand((1, -1))
@@ -286,3 +291,27 @@ class Metrics:
                   sum_r_1/total_s,
                   sum_r_2/total_s,
                   sum_r_5/total_s)
+
+# ========== Topo Sort ========= #
+class Graph: 
+    def __init__(self, vertices): 
+        self.graph = defaultdict(list) 
+        self.V = vertices
+  
+    def addEdge(self,u,v): 
+        self.graph[u].append(v) 
+  
+    def topologicalSortUtil(self,v,visited,stack): 
+        visited[v] = True
+        for i in self.graph[v]: 
+            if visited[i] == False: 
+                self.topologicalSortUtil(i,visited,stack) 
+        stack.insert(0,v) 
+  
+    def topologicalSort(self): 
+        visited = [False]*self.V 
+        stack = [] 
+        for i in range(self.V): 
+            if visited[i] == False: 
+                self.topologicalSortUtil(i,visited,stack) 
+        return stack

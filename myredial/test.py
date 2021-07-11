@@ -116,6 +116,10 @@ def main_rerank(**args):
     config = load_config(args)
     args.update(config)
     # print('test', args)
+
+    if args['model'] in args['no_test_models']:
+        print(f'[!] model {args["model"]} doesn"t support test')
+        return
     
     if args['rank']:
         new_args['model'] = args['rank']

@@ -78,7 +78,7 @@ class BERTComparePlusRetrieval(nn.Module):
             token_type_ids=tids,
         )[0]    # [B, 3] / [B, 1]
         if self.num_labels == 1:
-            logits = torch.sigmoid(logits.squeeze())    # [B]
+            logits = torch.sigmoid(logits.squeeze(dim=-1))    # [B]
         else:
             logits = F.softmax(logits, dim=-1)    # [B, 3]
         return logits

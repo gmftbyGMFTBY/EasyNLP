@@ -170,6 +170,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
                 comp_scores = self.model.module.predict(batch_packup)    # [B]
             else:
                 comp_scores = self.model.predict(batch_packup)    # [B]
+            comp_scores = comp_scores.tolist()
         else:
             raise Exception(f'[!] donot support num_labels={self.args["num_labels"]}')
 
@@ -211,21 +212,14 @@ class CompareInteractionAgent(RetrievalBaseAgent):
                 if i < j:
                     tickets.append((i, j))
         label, recoder = self.compare_one_turn(cids, rids, tickets, margin=pos_margin, fully=True)
-        # iterate to generate the scores
-        # PageRank
-        chain = {i: [] for i in range(len(rids))}    # key is bigger than value
+        chain = {i: [] for i in range(len(rids))}
+        # key is bigger than values
         for l, (i, j) in zip(label, recoder):
             if l is True:
                 chain[i].append(j)
             else:
                 chain[j].append(i)
-        scores = {i:1 for i in chain}
-        for _ in range(5):
-            new_scores = deepcopy(scores)
-            for i, i_list in chain.items():
-                new_scores[i] += sum([scores[j] for j in i_list])
-            scores = deepcopy(new_scores)
-        scores = [scores[i] for i in range(len(rids))]
+        scores = self.generate_scores(chain)
         return scores
 
     @torch.no_grad()
@@ -265,12 +259,10 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         compare_turn_num = self.args['compare_turn_num']
         pos_margin = self.args['positive_margin']
         pos_margin_delta = self.args['positive_margin_delta']
-
-        context = batch['context']
         scores = batch['scores']
-
-        items = self.convert_text_to_ids(context + batch['responses'])['input_ids']
-        cids_, rids = items[:len(context)], items[len(context):]
+        length = len(batch['context'])
+        items = self.convert_text_to_ids(batch['context'] + batch['responses'])
+        cids_, rids = items[:length], items[length:]
         cids = []
         for u in cids_:
             cids.extend(u + [self.eos])
@@ -280,14 +272,10 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         order = np.argsort(scores)[::-1].tolist()
         backup_map = {o:i for i, o in enumerate(order)}    # old:new
         rids = [rids[i] for i in order]
-        scores = [scores[i] for i in order]
+        scores = [100*scores[i] for i in order]
 
         # tickets to the comparsion function
         before_dict = {i:i-1 for i in range(len(rids))}
-        # first compare, second resolve the conjuction
-        # each pair in tickets (i, j), i must has the front position of the j (before), which means
-        # i has the higher scores than j (during the comparison, the False means the i < j,
-        # and need to be swaped).
         for idx in range(compare_turn_num):
             tickets = []
             if idx == 0:
@@ -311,9 +299,6 @@ class CompareInteractionAgent(RetrievalBaseAgent):
                             tickets.append((i, j))
                     elif len(pair) > 2:
                         raise Exception()
-
-                # tickets.extend(not_sure_tickets)
-                # tickets = list(set(tickets))
             # abort
             if len(tickets) == 0:
                 break
@@ -321,9 +306,6 @@ class CompareInteractionAgent(RetrievalBaseAgent):
             label, recoder = self.compare_one_turn(cids, rids, tickets, margin=pos_margin)
             d = {j:i for l, (i, j) in zip(label, recoder) if l is False}
             d = sorted(list(d.items()), key=lambda x:x[0])    # left to right
-
-            # not_sure_tickets = []
-
             for j, i in d:
                 # put the j before i (plus the scores)
                 s_j, s_i = scores[j], scores[i]
@@ -339,12 +321,6 @@ class CompareInteractionAgent(RetrievalBaseAgent):
                 before_dict[j] = before_dict[i]
                 before_dict[i] = j
 
-                # not sure
-                # if before_dict[j] != -1:
-                #     not_sure_tickets.append((before_dict[j], j))
-            # changing becomer harder and harder
-            pos_margin -= pos_margin_delta
-
         # backup the scores
         scores = [scores[backup_map[i]] for i in range(len(order))]
         return scores
@@ -352,3 +328,17 @@ class CompareInteractionAgent(RetrievalBaseAgent):
     def convert_text_to_ids(self, texts):
         items = self.vocab.batch_encode_plus(texts, add_special_tokens=False)['input_ids']
         return items
+
+    def generate_scores(self, edges):
+        # len(edges) = the number of the vertices
+        num = len(edges)
+        g = Graph(num)
+        for i, item_list in edges.items():
+            for j in item_list:
+                g.addEdge(i, j)
+        rest = g.topologicalSort()
+        scores = list(reversed(range(num)))
+        scores = [(i, j) for i, j in zip(rest, scores)]
+        scores = sorted(scores, key=lambda x:x[0])
+        scores = [j for i, j in scores]
+        return scores

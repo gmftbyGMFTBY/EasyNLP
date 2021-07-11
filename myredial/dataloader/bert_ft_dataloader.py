@@ -1,5 +1,6 @@
 from header import *
 from .utils import *
+from .util_func import *
 
 
 class BERTFTDataset(Dataset):
@@ -32,7 +33,7 @@ class BERTFTDataset(Dataset):
                     context.extend(u + [self.eos])
                 context.pop()
                 response = item[-1]
-                self._truncate_pair(context, response, self.args['max_len'])
+                truncate_pair(context, response, self.args['max_len'])
                 ids = [self.cls] + context + [self.sep] + response + [self.sep]
                 tids = [0] * (len(context) + 2) + [1] * (len(response) + 1)
                 self.data.append({
@@ -49,18 +50,18 @@ class BERTFTDataset(Dataset):
                     label = b[0]
                     utterances = b[1]
                     item = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']
-                    context = []
+                    cids = []
                     for u in item[:-1]:
-                        context.extend(u + [self.eos])
-                    context.pop()
-                    response = item[-1]
-                    self._truncate_pair(context, response, self.args['max_len'])
-                    ids_ = [self.cls] + context + [self.sep] + response + [self.sep]
-                    tids_ = [0] * (len(context) + 2) + [1] * (len(response) + 1)
+                        cids.extend(u + [self.eos])
+                    cids.pop()
+                    rids = item[-1]
+                    truncate_pair(cids, rids, self.args['max_len'])
+                    ids_ = [self.cls] + cids + [self.sep] + rids + [self.sep]
+                    tids_ = [0] * (len(cids) + 2) + [1] * (len(rids) + 1)
                     ids.append(ids_)
                     tids.append(tids_)
-                    context.append(' [SEP] '.join(utterances[:-1]))
                     responses.append(utterances[-1])
+                context = ' [SEP] '.join(utterances[:-1])
                 self.data.append({
                     'label': [b[0] for b in batch],
                     'ids': ids,
@@ -69,19 +70,6 @@ class BERTFTDataset(Dataset):
                     'responses': responses,
                 })    
 
-    def _truncate_pair(self, cids, rids, max_length):
-        # ignore the [CLS], [SEP], [SEP]
-        max_length -= 3
-        while True:
-            l = len(cids) + len(rids)
-            if l <= max_length:
-                break
-            # follow the bert-fp
-            if len(cids) > len(rids):
-                cids.pop(0)
-            else:
-                rids.pop()
-                
     def __len__(self):
         return len(self.data)
 
@@ -103,13 +91,6 @@ class BERTFTDataset(Dataset):
         data = torch.save(self.data, self.pp_path)
         print(f'[!] save preprocessed dataset into {self.pp_path}')
         
-    def generate_mask(self, ids):
-        attn_mask_index = ids.nonzero().tolist()   # [PAD] IS 0
-        attn_mask_index_x, attn_mask_index_y = [i[0] for i in attn_mask_index], [i[1] for i in attn_mask_index]
-        attn_mask = torch.zeros_like(ids)
-        attn_mask[attn_mask_index_x, attn_mask_index_y] = 1
-        return attn_mask
-        
     def collate(self, batch):
         if self.args['mode'] == 'train':
             ids, tids, label = [i[0] for i in batch], [i[1] for i in batch], [i[2] for i in batch]
@@ -125,10 +106,9 @@ class BERTFTDataset(Dataset):
                 responses.extend(b[4])
         ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
         tids = pad_sequence(tids, batch_first=True, padding_value=self.pad)
-        mask = self.generate_mask(ids)
+        mask = generate_mask(ids)
         label = torch.LongTensor(label)
-        if torch.cuda.is_available():
-            ids, tids, mask, label = ids.cuda(), tids.cuda(), mask.cuda(), label.cuda()
+        ids, tids, mask, label = to_cuda(ids, tids, mask, label)
         if self.args['mode'] == 'train':
             return {
                 'ids': ids, 

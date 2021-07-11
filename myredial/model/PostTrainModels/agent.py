@@ -78,6 +78,11 @@ class PostTrainAgent(RetrievalBaseAgent):
         recoder.add_scalar(f'train-whole/TokenAcc', total_mlm_acc/batch_num, idx_)
         recoder.add_scalar(f'train-whole/Acc', total_cls_acc/batch_num, idx_)
 
+        # save the model
+        pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
+        save_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_{pretrained_model_name}.pt'
+        self.save_model(save_path)
+
     @torch.no_grad()
     def test_model(self, test_iter, print_output=False, rerank_agent=None):
         self.model.eval()
