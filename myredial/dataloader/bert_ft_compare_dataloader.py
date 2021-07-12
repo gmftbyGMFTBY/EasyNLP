@@ -98,7 +98,7 @@ class BERTFTCompDataset(Dataset):
                 label.append(l)
             # label 0/2: positive vs. modified positive
             ipdb.set_trace()
-            m_rids = modify_sentence(ids, k=k)
+            m_rids = modify_sentence(rids, k=self.k)
             for m in m_rids:
                 if random.random() > 0.5:
                     ids_, tids_ = self._packup(cids, rids, m)

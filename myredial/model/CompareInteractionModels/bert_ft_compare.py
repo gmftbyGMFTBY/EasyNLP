@@ -1,10 +1,10 @@
 from model.utils import *
 from dataloader.util_func import *
 
-class BERTComparePlusRetrieval(nn.Module):
+class BERTCompareRetrieval(nn.Module):
 
     def __init__(self, **args):
-        super(BERTComparePlusRetrieval, self).__init__()
+        super(BERTCompareRetrieval, self).__init__()
         model = args['pretrained_model']
         self.inner_bsz = args['inner_bsz']
         self.num_labels = args['num_labels']
@@ -87,5 +87,4 @@ class BERTComparePlusRetrieval(nn.Module):
         new_state_dict = OrderedDict()
         for k, v in state_dict.items():
             new_state_dict[k] = v
-        new_state_dict['embeddings.position_ids'] = torch.arange(512).expand((1, -1))
-        self.model.bert.load_state_dict(new_state_dict)
+        self.model.bert.load_state_dict(old_state_dict)

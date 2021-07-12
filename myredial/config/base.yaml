@@ -123,7 +123,7 @@ models:
         inference_dataset_name: null 
     bert-ft-compare: 
         type: CompareInteraction
-        model_name: BERTComparePlusRetrieval
+        model_name: BERTCompareRetrieval
         dataset_name: BERTFTCompDataset
         # BERTFTCompEvaluationDataset used for test.sh[compare mode]
         # dataset_name: BERTFTCompEvaluationDataset
