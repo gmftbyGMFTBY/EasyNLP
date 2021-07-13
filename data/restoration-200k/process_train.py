@@ -9,7 +9,7 @@ def load_data_train(path):
             utterances = line.split('\t')
             context = utterances[:4]
             response = utterances[4]
-            responses.extend(utterances[:5])
+            responses.extend(utterances[:6])
             dataset.append((context, response))
     responses = list(set(responses))
     d = []

@@ -87,4 +87,4 @@ class BERTCompareRetrieval(nn.Module):
         new_state_dict = OrderedDict()
         for k, v in state_dict.items():
             new_state_dict[k] = v
-        self.model.bert.load_state_dict(old_state_dict)
+        self.model.bert.load_state_dict(new_state_dict)

@@ -36,38 +36,44 @@ class CompareInteractionAgent(RetrievalBaseAgent):
     def train_model(self, train_iter, test_iter, recoder=None, idx_=0):
         self.model.train()
         total_loss, batch_num, correct, s = 0, 0, 0, 0
+        total_acc = 0
         pbar = tqdm(train_iter)
         correct, s = 0, 0
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
-            # gradient accumulation
-            loss, output, label = self.model(batch, scaler=self.scaler, optimizer=self.optimizer)
+            if self.args['model'] in ['bert-ft-compare']:
+                # gradient accumulation
+                loss, output, label = self.model(batch, scaler=self.scaler, optimizer=self.optimizer)
+                if self.args['num_labels'] == 1:
+                    output = torch.sigmoid(output) > 0.5
+                    now_correct = torch.sum(output == label).item()
+                else:
+                    output = output.max(dim=-1)[1]
+                    now_correct = (output.cpu() == label.cpu()).sum().item()
+                acc = now_correct/len(label)
+            else:
+                with autocast():
+                    loss, acc = self.model(batch)
+                self.scaler.scale(loss).backward()
             self.scaler.unscale_(self.optimizer)
             clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
             self.scaler.step(self.optimizer)
             self.scaler.update()
             self.scheduler.step()
 
-            if self.args['num_labels'] == 1:
-                output = torch.sigmoid(output) > 0.5
-                now_correct = torch.sum(output == label).item()
-            else:
-                output = output.max(dim=-1)[1]
-                now_correct = (output.cpu() == label.cpu()).sum().item()
-            correct += now_correct
-            s += len(label)
             total_loss += loss.item()
+            total_acc += acc
             batch_num += 1
             if batch_num in self.args['test_step']:
                 self.test_now(test_iter, recoder)
             
             recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
             recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/Acc', correct/s, idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', now_correct/len(label), idx)
-            pbar.set_description(f'[!] train loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(now_correct/len(label), 4)}|{round(correct/s, 4)}')
+            recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
+            pbar.set_description(f'[!] train loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
-        recoder.add_scalar(f'train-whole/Acc', correct/s, idx_)
+        recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
         return round(total_loss / batch_num, 4)
     
     @torch.no_grad()

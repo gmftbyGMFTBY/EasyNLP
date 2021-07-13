@@ -60,12 +60,23 @@ The restoration-200k dataset is used for this full-rank comparison protocol
 
 <!-- 
 test set is not used in the faiss index; 
-put the context utterances in the index(faiss and ES q-q matching index) 
+put the context utterances in the index(faiss and ES q-q matching index);
+INBS is in-batch negative sampling
 -->
-| Methods          | 1 | 2 | 3 | 4 | 5 | Average Human Evaluation | 
-| ---------------- | - | - | - | - | - | ------------------------ |
-| BM25+BERT-FP     |   |   |   |   |   |                          |
-| dual-bert+   |   |   |   |   |   |                          |
+| Methods                     | 1 | 2 | 3 | 4 | 5 | Average Human Evaluation | Average Time Cost | 
+| --------------------------- | - | - | - | - | - | ------------------------ | ----------------- |
+| BM25(q-q, topk=10)+BERT-FP  |   |   |   |   |   |                          |                   |
+| BM25(q-q, topk=100)+BERT-FP |   |   |   |   |   |                          |                   |
+| BM25(q-q, topk=1000)+BERT-FP|   |   |   |   |   |                          |                   |
+| BM25(q-r, topk=10)+BERT-FP  |   |   |   |   |   |                          |                   |
+| BM25(q-r, topk=100)+BERT-FP |   |   |   |   |   |                          |                   |
+| BM25(q-r, topk=1000)+BERT-FP|   |   |   |   |   |                          |                   |
+| dual-bert(topk=10)          |   |   |   |   |   |                          |                   |
+| dual-bert(topk=100)         |   |   |   |   |   |                          |                   |
+| dual-bert(topk=1000)        |   |   |   |   |   |                          |                   |
+| dual-bert(topk=10)+BERT-FP  |   |   |   |   |   |                          |                   |
+| dual-bert(topk=100)+BERT-FP |   |   |   |   |   |                          |                   |
+| dual-bert(topk=1000)+BERT-FP|   |   |   |   |   |                          |                   |
 
 **The kappa among annotators**: 
 
@@ -77,10 +88,14 @@ test set is not used in the faiss index; put the context utterances in the index
 EXT means the extra data is used
 BERT-FP=bert-ft+
 -->
-| Methods          | 1 | 2 | 3 | 4 | 5 | Average Human Evaluation | 
-| ---------------- | - | - | - | - | - | ------------------------ |
-| BM25+BERT-FP     |   |   |   |   |   |                          |
-| EXT-dual-bert+   |   |   |   |   |   |                          |
+| Methods(EXT-Data)           | 1 | 2 | 3 | 4 | 5 | Average Human Evaluation | Average Time Cost | 
+| --------------------------- | - | - | - | - | - | ------------------------ | ----------------- |
+| dual-bert(topk=10)          |   |   |   |   |   |                          |                   |
+| dual-bert(topk=100)         |   |   |   |   |   |                          |                   |
+| dual-bert(topk=1000)        |   |   |   |   |   |                          |                   |
+| dual-bert(topk=10)+BERT-FP  |   |   |   |   |   |                          |                   |
+| dual-bert(topk=100)+BERT-FP |   |   |   |   |   |                          |                   |
+| dual-bert(topk=1000)+BERT-FP|   |   |   |   |   |                          |                   |
 
 **The kappa among annotators**: 
 

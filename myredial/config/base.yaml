@@ -61,11 +61,6 @@ models:
         model_name: BERTDualFusionGrayFullEncoder
         dataset_name: BERTDualFullWithNegDataset
         inference_dataset_name: BERTDualCLInferenceDataset
-    dual-bert-compare: 
-        type: LatentInteraction
-        model_name: BERTDualCompEncoder
-        dataset_name: BERTDualWithNegDataset
-        inference_dataset_name: BERTDualInferenceDataset
     hash-bert: 
         type: Representation
         model_name: HashBERTDualEncoder
@@ -127,6 +122,11 @@ models:
         dataset_name: BERTFTCompDataset
         # BERTFTCompEvaluationDataset used for test.sh[compare mode]
         # dataset_name: BERTFTCompEvaluationDataset
+        inference_dataset_name: null
+    dual-bert-compare: 
+        type: CompareInteraction
+        model_name: BERTDualCompEncoder
+        dataset_name: BERTDualWithNegDataset
         inference_dataset_name: null
     sa-bert: 
         type: Interaction
