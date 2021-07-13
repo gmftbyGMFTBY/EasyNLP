@@ -5,7 +5,7 @@ nhead: 6
 dim_ffd: 1024
 dropout: 0.1
 num_encoder_layers: 4
-gray_cand_num: 5
+gray_cand_num: 6
 
 
 # train configuration

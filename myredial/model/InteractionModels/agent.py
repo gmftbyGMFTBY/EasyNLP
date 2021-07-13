@@ -160,7 +160,13 @@ class InteractionAgent(RetrievalBaseAgent):
         self.model.eval()
         scores = []
         for batch in batches:
-            batch['context'] = [u.strip() for u in batch['context'].split('[SEP]')]
+            if type(batch['context']) == str:
+                batch['context'] = [u.strip() for u in batch['context'].split('[SEP]')]
+            elif type(batch['context']) == list:
+                # perfect
+                pass
+            else:
+                raise Exception()
             ids, tids, mask = self.totensor_interaction(batch['context'], batch['candidates'])
             batch['ids'] = ids
             batch['tids'] = tids

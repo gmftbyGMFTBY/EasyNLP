@@ -57,7 +57,7 @@ It should be noted that:
 ```bash
 # work_mode=response, inference the response and save into faiss (for q-r matching) [dual-bert/dual-bert-fusion]
 # work_mode=context, inference the context to do q-q matching
-# work_mode=gray, inference the context; read the faiss(work_mode=response), search the topk hard negative samples; remember to set the BERTDualInferenceContextDataloader in config/base.yaml
+# work_mode=gray, inference the context; read the faiss(work_mode=response has already been done), search the topk hard negative samples; remember to set the BERTDualInferenceContextDataloader in config/base.yaml
 ./scripts/inference.sh <dataset_name> <model_name> <cuda_ids>
 ```
 
@@ -65,10 +65,13 @@ If you want to generate the gray dataset for the dataset:
 
 ```bash
 # 1. set the mode as the **response**, to generate the response faiss index; corresponding dataset name: BERTDualInferenceDataset
-./scripts/inference.sh <dataset_name> <model_name> <cuda_ids>
+./scripts/inference.sh <dataset_name> response <cuda_ids>
 
 # 2. set the mode as the **gray**, to inference the context in the train.txt and search the top-k candidates as the gray(hard negative) samples; corresponding dataset name: BERTDualInferenceContextDataset
-./scripts/inference.sh <dataset_name> <model_name> <cuda_ids>
+./scripts/inference.sh <dataset_name> gray <cuda_ids>
+
+# 3. set the mode as the **gray-one2many** if you want to generate the extra positive samples for each context in the train set, the needings of this mode is the same as the **gray** work mode
+./scripts/inference.sh <dataset_name> gray-one2many <cuda_ids>
 ```
 
 6. deploy the rerank and recall model

@@ -97,8 +97,8 @@ models:
     dual-bert-gray-writer: 
         type: Representation
         model_name: BERTDualGrayFullEncoder
-        # dataset_name: BERTDualFullWithNegDataset
-        dataset_name: BERTDualArxivDataset
+        dataset_name: BERTDualFullWithNegDataset
+        # dataset_name: BERTDualArxivDataset
         # inference_dataset_name: BERTDualFullInferenceDataset
         inference_dataset_name: BERTDualFullWithSourceInferenceDataset
     dual-bert-hierarchical: 

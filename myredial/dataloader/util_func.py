@@ -119,13 +119,13 @@ def mask_sentence(
 
 # ========== dual-bert ========== #
 def length_limit(ids, max_len):
-    # also return the speaker embeddings
+    '''the first token must be [CLS]'''
     if len(ids) > max_len:
         ids = [ids[0]] + ids[-(max_len-1):]
     return ids
 
 def length_limit_res(ids, max_len, sep=0):
-    # cut tail
+    '''the last token must be [SEP], and the first token must be [CLS]'''
     if len(ids) > max_len:
         ids = ids[:max_len-1] + [sep]
     return ids

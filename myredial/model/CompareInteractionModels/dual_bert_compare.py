@@ -59,14 +59,14 @@ class BERTDualCompEncoder(nn.Module):
                 rid_rep_,    # [b_c, b_r, e]
                 cid_rep_,    # [b_c, b_r, e]
                 cross_rep,    # [b_c, b_r, e]
-            ])
+            ], dim=-1)
         )    # [b_c, b_r, e]
 
         final_rid_rep = gate * rid_rep_ + (1 - gate) * cross_rep    # [b_c, b_r, e]
         final_rid_rep = final_rid_rep.permute(0, 2, 1)    # [b_c, e, b_r]
         cid_rep_ = cid_rep.unsqueeze(1)    # [b_c, 1, e]
         # [b_c, 1, e] x [b_c, e, b_r]
-        dot_product = torch.bmm(cid_rep, final_rid_rep).squeeze(1)    # [b_c, b_r]
+        dot_product = torch.bmm(cid_rep_, final_rid_rep).squeeze(1)    # [b_c, b_r]
         return dot_product
 
     @torch.no_grad()

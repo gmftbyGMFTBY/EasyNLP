@@ -1,6 +1,7 @@
 from header import *
 from .utils import *
 from .randomaccess import *
+from .util_func import *
 
 
 class BERTDualFullWithNegDataset(Dataset):
@@ -53,18 +54,6 @@ class BERTDualFullWithNegDataset(Dataset):
                 })
             self.size = len(self.data)
 
-    def _length_limit(self, ids):
-        # also return the speaker embeddings
-        if len(ids) > self.args['max_len']:
-            ids = [ids[0]] + ids[-(self.args['max_len']-1):]
-        return ids
-    
-    def _length_limit_res(self, ids):
-        # cut tail
-        if len(ids) > self.args['res_max_len']:
-            ids = ids[:self.args['res_max_len']-1] + [self.sep]
-        return ids
-                
     def __len__(self):
         return self.size
 
@@ -89,13 +78,6 @@ class BERTDualFullWithNegDataset(Dataset):
 
     def save(self):
         pass
-        
-    def generate_mask(self, ids):
-        attn_mask_index = ids.nonzero().tolist()   # [PAD] IS 0
-        attn_mask_index_x, attn_mask_index_y = [i[0] for i in attn_mask_index], [i[1] for i in attn_mask_index]
-        attn_mask = torch.zeros_like(ids)
-        attn_mask[attn_mask_index_x, attn_mask_index_y] = 1
-        return attn_mask
         
     def collate(self, batch):
         if self.args['mode'] == 'train':
