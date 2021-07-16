@@ -96,7 +96,7 @@ def read_text_data_utterances_compare_test(path, lang='zh', size=10):
 
 
 def read_text_data_utterances_compare(path, lang='zh'):
-    '''read from the train_gray dataset'''
+    '''read from the train_gray dataset''' 
     with open(path) as f:
         dataset = []
         for line in tqdm(list(f.readlines())):
@@ -147,6 +147,20 @@ def read_text_data_with_neg_inner_session_neg(path, lang='zh'):
     print(f'[!] load {len(dataset)} samples from {path}')
     print(f'[!] load {len(responses)} utterances from {path}')
     return dataset, responses
+
+
+def read_text_data_with_super_hard_q_r(path, lang='zh'):
+    path = f'{os.path.splitext(path)[0]}_gray.txt'
+    with open(path) as f:
+        dataset = []
+        for line in f.readlines():
+            line = json.loads(line.strip())
+            context = line['q']
+            response = line['r']
+            candidates = line['snr']
+            dataset.append((context, response, candidates))
+    print(f'[!] load {len(dataset)} samples from {path}')
+    return dataset
 
 
 def read_text_data_with_neg_q_r_neg(path, lang='zh'):
@@ -262,3 +276,12 @@ def read_text_data_from_log_file(path, lang='zh'):
             dataset.append((context, response))
         print(f'[!] collect {len(dataset)} sessions')
     return dataset
+
+def read_essay_test_data(path):
+    with open(path) as f:
+        lines = f.read()
+        lines = lines.split('\n\n')
+        test_dataset = []
+        for passage in lines:
+            sentences = re.split('。|？|！', passage)
+

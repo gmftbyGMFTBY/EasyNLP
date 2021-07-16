@@ -19,38 +19,6 @@ class PositionEmbedding(nn.Module):
         return self.dropout(x)
 
 
-class BertMLEmbedding(nn.Module):
-
-    '''bert model which returns multi layer'''
-    
-    def __init__(self, model='bert-base-chinese', layer=5):
-        super(BertMLEmbedding, self).__init__()
-        self.model = BertModel.from_pretrained(model)
-        # bert-fp checkpoint has the special token: [EOS]
-        self.model.resize_token_embeddings(self.model.config.vocab_size + 1)
-        self.layer = layer
-
-    def forward(self, ids, attn_mask, speaker_type_ids=None):
-        embds = self.model(
-            ids, 
-            attention_mask=attn_mask, 
-            output_hidden_states=True
-        )
-        layers = embds.hidden_states[-self.layer:]
-        # L * [B, E]
-        layers = [i[:, 0, :] for i in layers]
-        return layers
-
-    def load_bert_model(self, state_dict):
-        # load the post train checkpoint from BERT-FP (NAACL 2021)
-        new_state_dict = OrderedDict()
-        for k, v in state_dict.items():
-            new_state_dict[k] = v
-        # position_ids
-        new_state_dict['embeddings.position_ids'] = torch.arange(512).expand((1, -1))
-        self.model.load_state_dict(new_state_dict)
-
-
 class BertFullEmbedding(nn.Module):
     
     def __init__(self, model='bert-base-chinese'):
@@ -60,17 +28,9 @@ class BertFullEmbedding(nn.Module):
         self.model.resize_token_embeddings(self.model.config.vocab_size + 1)
 
     def forward(self, ids, attn_mask, speaker_type_ids=None):
+        # return: [B, S, E]
         embds = self.model(ids, attention_mask=attn_mask)[0]
         return embds
-
-    def load_bert_model(self, state_dict):
-        # load the post train checkpoint from BERT-FP (NAACL 2021)
-        new_state_dict = OrderedDict()
-        for k, v in state_dict.items():
-            new_state_dict[k] = v
-        # position_ids
-        new_state_dict['embeddings.position_ids'] = torch.arange(512).expand((1, -1))
-
 
 class BertEmbedding(nn.Module):
     
@@ -81,23 +41,9 @@ class BertEmbedding(nn.Module):
         self.model.resize_token_embeddings(self.model.config.vocab_size + 1)
 
     def forward(self, ids, attn_mask, speaker_type_ids=None):
-        embds = self.model(ids, attention_mask=attn_mask)[1]
-        # embds = self.model(ids, attention_mask=attn_mask)[0][:, 0, :]
-        return embds
-
-    def load_bert_model(self, state_dict):
-        # load the post train checkpoint from BERT-FP (NAACL 2021)
-        new_state_dict = OrderedDict()
-        for k, v in state_dict.items():
-            if k.startswith('model.bert.'):
-                k = k.replace('model.bert.', '')
-            if k.startswith('model.cls.'):
-                # for bertembedding, cls head is useless
-                continue
-            new_state_dict[k] = v
-        # position_ids
-        new_state_dict['embeddings.position_ids'] = torch.arange(512).expand((1, -1))
-        self.model.load_state_dict(new_state_dict)
+        # embds = self.model(ids, attention_mask=attn_mask)[1]
+        embds = self.model(ids, attention_mask=attn_mask)[0]
+        return embds[:, 0, :]
 
 # label smoothing loss
 class LabelSmoothLoss(nn.Module):
@@ -115,7 +61,6 @@ class LabelSmoothLoss(nn.Module):
         return loss
 
 '''https://github.com/taesunwhang/BERT-ResSel/blob/master/evaluation.py'''
-
 def calculate_candidates_ranking(prediction, ground_truth, eval_candidates_num=10):
     total_num_split = len(ground_truth) / eval_candidates_num
     pred_split = np.split(prediction, total_num_split)
@@ -146,7 +91,6 @@ def logits_recall_at_k(pos_index, k_list=[1, 2, 5, 10]):
     # prediction_score : [batch_size]
     # target : [batch_size] e.g. 1 0 0 0 0 0 0 0 0 0
     # e.g. batch : 100 -> 100/10 = 10
-
     num_correct = np.zeros([len(pos_index), len(k_list)])
     index_dict = dict()
     for i, p_i in enumerate(pos_index):
@@ -229,7 +173,6 @@ class Metrics:
         return sessions
 
     def __mean_average_precision(self, sort_data):
-        #to do
         count_1 = 0
         sum_precision = 0
         for index in range(len(sort_data)):
@@ -315,3 +258,89 @@ class Graph:
             if visited[i] == False: 
                 self.topologicalSortUtil(i,visited,stack) 
         return stack
+
+# ========== Model State Dict Adapter ========= #
+class CheckpointAdapter:
+
+    '''convert the from named paramters to target named paramters'''
+
+    def __init__(self):
+        self.prefix_list = ['bert_model', 'model']
+        self.maybe_missing_list = [
+            'embeddings.position_ids', 
+        ]
+
+    def clean(self, name):
+        for prefix in self.prefix_list:
+            name = name.lstrip(f'{prefix}.')
+        return name
+
+    def init(self, from_np, target_np):
+        self.mapping, self.missing, self.unused = self._init(from_np, target_np)
+        self.show_inf()
+
+    def _init(self, from_np, target_np):
+        def _target_to_from():
+            mapping = {}
+            missing = []
+            for tname in target_np:
+                for fname in from_np:
+                    if self.clean(tname) in self.clean(fname):
+                        mapping[fname] = tname
+                        break
+                else:
+                    missing.append(tname)
+            return mapping, missing
+
+        def _from_to_target():
+            mapping = {}
+            for fname in from_np:
+                for tname in target_np:
+                    if self.clean(fname) in self.clean(tname):
+                        mapping[fname] = tname
+                        break
+            missing = list(set(target_np) - set(mapping.values()))
+            return mapping, missing
+        
+        def _judge(collected_paramters, missing):
+            try:
+                assert len(collected_paramters) > 0
+                assert len(collected_paramters) == len(set(collected_paramters))
+                for i in missing:
+                    for k in self.maybe_missing_list:
+                        if k in i:
+                            break
+                    else:
+                        raise Exception(f'[!] ERROR find missing parameters: {i}')
+            except:
+                return False
+            return True
+        from_np, target_np = list(from_np), list(target_np)
+        mapping, missing = _target_to_from()
+        collected_paramters = list(mapping.values())
+        if _judge(collected_paramters, missing):
+            unused = list(set(collected_paramters) - set(target_np))
+            return mapping, missing, unused
+        mapping, missing = _from_to_target()
+        collected_paramters = list(mapping.values())
+        if _judge(collected_paramters, missing):
+            unused = list(set(collected_paramters) - set(target_np))
+            return mapping, missing, unused
+        raise Exception(f'[!] Load checkpoint failed')
+
+    def show_inf(self):
+        if len(self.unused) > 0:
+            print(f'[!] Find unused parameters:')
+            for i in self.unused:
+                print(f'   - ', i)
+
+    def convert(self, from_state_dict):
+        new_state_dict = OrderedDict()
+        for k, v in from_state_dict.items():
+            if k in self.mapping:
+                k_ = self.mapping[k]
+                new_state_dict[k_] = v
+        for i in self.missing:
+            # missing parameters are the position ids
+            new_state_dict[i] = torch.arange(512).expand((1, -1))
+        return new_state_dict

@@ -1,34 +1,34 @@
-smoothing: 0.1
-radius: 0.05
-ssl_interval: 0.01
-low_conf: 0.5
-# rewrite this gray_cand_num parameter in the base.yaml
-gray_cand_num: 10
+# rank: bert-ft-compare
+rank: null
+dropout: 0.1
+topk: 5
 
 # train configuration
 train:
     lr: 0.00005
-    grad_clip: 1.0
-    seed: 50
+    grad_clip: 5.0
+    seed: 0
     batch_size: 32
     max_len: 256
     res_max_len: 64
     epoch: 10
-    warmup_ratio: 0.1
+    # no wamrup, set 0.0 (BERT-FP and UMS_BERT)
+    warmup_ratio: 0.
     checkpoint: 
-        path: dual-bert/best_bert-base-chinese.pt
+        path: bert-post/best_nspmlm.pt
+        # path: bert-fp/best_bert-base-chinese.pt
         is_load: true
 
 # test configuration
 test:
-    seed: 50
+    seed: 0
     batch_size: 1
     max_len: 256
     res_max_len: 64
 
 # inference configuration
 inference:
-    seed: 50
+    seed: 0
     batch_size: 128
     max_len: 64
     topk: 20

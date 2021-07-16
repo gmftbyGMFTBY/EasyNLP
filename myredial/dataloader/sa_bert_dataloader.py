@@ -3,6 +3,9 @@ from .utils import *
 from .util_func import *
 
 
+'''The dataloader are questionable, need to be fixed'''
+
+
 class SABERTWithNegDataset(Dataset):
 
     def __init__(self, vocab, path, **args):
@@ -160,8 +163,7 @@ class SABERTWithNegDataset(Dataset):
         sids = pad_sequence(sids, batch_first=True, padding_value=self.pad)
         mask = generate_mask(ids)
         label = torch.LongTensor(label)
-        if torch.cuda.is_available():
-            ids, tids, sids, mask, label = ids.cuda(), tids.cuda(), sids.cuda(), mask.cuda(), label.cuda()
+        ids, tids, sids, mask, label = to_cuda(ids, tids, sids, mask, label)
         return {
             'ids': ids, 
             'tids': tids, 
@@ -274,8 +276,7 @@ class SABERTFTDataset(Dataset):
         sids = pad_sequence(sids, batch_first=True, padding_value=self.pad)
         mask = generate_mask(ids)
         label = torch.LongTensor(label)
-        if torch.cuda.is_available():
-            ids, tids, sids, mask, label = ids.cuda(), tids.cuda(), sids.cuda(), mask.cuda(), label.cuda()
+        ids, tids, sids, mask, label = to_cuda(ids, tids, sids, mask, label)
         return {
             'ids': ids, 
             'tids': tids, 

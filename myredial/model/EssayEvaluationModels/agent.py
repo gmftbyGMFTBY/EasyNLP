@@ -1,18 +1,14 @@
 from model.utils import *
 
-class InteractionAgent(RetrievalBaseAgent):
+class EssayEvaluationAgent(RetrievalBaseAgent):
 
     def __init__(self, vocab, model, args):
         super(InteractionAgent, self).__init__()
         self.args = args
         self.vocab, self.model = vocab, model
-
-        if self.args['model'] in ['bert-fp-original', 'bert-ft']:
-            self.vocab.add_tokens(['[EOS]'])
-
+        self.vocab.add_tokens(['[EOS]'])
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
-
         if args['mode'] == 'train':
             self.set_test_interval()
             self.load_checkpoint()
@@ -37,18 +33,9 @@ class InteractionAgent(RetrievalBaseAgent):
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
             with autocast():
-                if self.args['model'] in ['bert-ft-compare']:
-                    output = self.model(batch)    # [B]
-                    label = batch['label']
-                    loss = self.criterion(output, label.to(torch.float))
-                elif self.args['model'] in ['bert-ft-compare-plus']:
-                    label = batch['label']
-                    loss = self.model(batch)
-                else:
-                    # bert-ft
-                    output = self.model(batch)    # [B]
-                    label = batch['label']
-                    loss = self.criterion(output, label.to(torch.float))
+                output = self.model(batch)    # [B]
+                label = batch['label']
+                loss = self.criterion(output, label.to(torch.float))
 
             self.scaler.scale(loss).backward()
             self.scaler.unscale_(self.optimizer)

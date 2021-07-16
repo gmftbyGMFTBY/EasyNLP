@@ -1,4 +1,5 @@
 from model.utils import *
+from dataloader.util_func import *
 
 class RepresentationAgent(RetrievalBaseAgent):
     
@@ -11,21 +12,14 @@ class RepresentationAgent(RetrievalBaseAgent):
 
         if args['mode'] == 'train':
             # hash-bert parameter setting
-            if self.args['model'] in ['hash-bert', 'has-bert-poly']:
+            if self.args['model'] in ['hash-bert']:
                 self.q_alpha = self.args['q_alpha']
                 self.q_alpha_step = (self.args['q_alpha_max'] - self.args['q_alpha']) / int(self.args['total_step'] / torch.distributed.get_world_size())
-                self.load_bert_model = self.load_bert_model_dual_bert
                 self.train_model = self.train_model_hash
             elif self.args['model'] in ['dual-bert-ssl']:
-                self.load_bert_model = self.load_bert_model_ssl
                 self.train_model = self.train_model_ssl
                 # set hyperparameters
                 self.model.ssl_interval_step = int(self.args['total_step'] * self.args['ssl_interval'])
-
-            if self.args['checkpoint']['is_load'] and 'dual-bert-pt' in self.args['checkpoint']['path']:
-                # load the dual-bert-pt model
-                self.load_bert_model = self.load_bert_model_dual_bert
-                print(f'[!] load pre-trained model from dual-bert-pt')
 
             self.set_test_interval()
             self.load_checkpoint()
@@ -45,45 +39,6 @@ class RepresentationAgent(RetrievalBaseAgent):
         # Metrics object
         self.metrics = Metrics()
 
-    def load_bert_model_dual_bert(self, path):
-        state_dict = torch.load(path, map_location=torch.device('cpu'))
-        ctx_state_dict = OrderedDict()
-        can_state_dict = OrderedDict()
-        for k, v in state_dict.items():
-            if k.startswith('ctx_encoder'):
-                k = k.lstrip('ctx_encoder.')
-                ctx_state_dict[k] = v
-            elif k.startswith('can_encoder'):
-                k = k.lstrip('can_encoder.')
-                can_state_dict[k] = v
-            else:
-                print(f'[!] Ignore unexcepted parameter: {k}')
-        self.model.ctx_encoder.load_state_dict(ctx_state_dict)
-        self.model.can_encoder.load_state_dict(can_state_dict)
-        # freeze some layers in hash bert (only fine-tune partial parameters)
-        # self.model.freeze_some_layers()
-
-    def load_bert_model_ssl(self, path):
-        state_dict = torch.load(path, map_location=torch.device('cpu'))
-        new_state_dict = OrderedDict()
-        for k, v in state_dict.items():
-            new_state_dict[k] = v
-            if k.startswith('ctx_encoder'):
-                new_k = k.replace('ctx_encoder', 'ctx_encoder_shadow')
-                new_state_dict[new_k] = v
-            elif k.startswith('can_encoder'):
-                new_k = k.replace('can_encoder', 'can_encoder_shadow')
-                new_state_dict[new_k] = v
-            else:
-                raise Exception(f'[!] {k} parameters cannot be used')
-        self.model.load_state_dict(new_state_dict)
-
-    def load_bert_model(self, path):
-        state_dict = torch.load(path, map_location=torch.device('cpu'))
-        self.model.ctx_encoder.load_bert_model(state_dict)
-        self.model.can_encoder.load_bert_model(state_dict)
-        print(f'[!] load pretrained BERT model from {path}')
-    
     def train_model_hash(self, train_iter, test_iter, recoder=None, idx_=0):
         self.model.train()
         total_loss, batch_num = 0, 0
@@ -401,13 +356,6 @@ class RepresentationAgent(RetrievalBaseAgent):
                 f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
             )
 
-    def generate_mask(self, ids):
-        attn_mask_index = ids.nonzero().tolist()   # [PAD] IS 0
-        attn_mask_index_x, attn_mask_index_y = [i[0] for i in attn_mask_index], [i[1] for i in attn_mask_index]
-        attn_mask = torch.zeros_like(ids)
-        attn_mask[attn_mask_index_x, attn_mask_index_y] = 1
-        return attn_mask
-
     @torch.no_grad()
     def encode_queries(self, texts):
         self.model.eval()
@@ -439,4 +387,30 @@ class RepresentationAgent(RetrievalBaseAgent):
                 self.model.predict(batch).tolist()
             )
         return scores
+
+    def load_model(self, path):
+        state_dict = torch.load(path, map_location=torch.device('cpu'))
+        self.checkpointadapeter.init(
+            state_dict.keys(),
+            self.model.ctx_encoder.state_dict().keys(),
+        )
+        new_state_dict = self.checkpointadapeter.convert(state_dict)
+        self.model.ctx_encoder.load_state_dict(new_state_dict)
+
+        if self.args['model'] in ['dual-bert-one2many']:
+            self.checkpointadapeter.init(
+                state_dict.keys(),
+                self.model.can_encoders[0].state_dict().keys(),
+            )
+            new_state_dict = self.checkpointadapeter.convert(state_dict)
+            for i in range(self.args['topk']):
+                self.model.can_encoders[i].load_state_dict(new_state_dict)
+        else:
+            self.checkpointadapeter.init(
+                state_dict.keys(),
+                self.model.can_encoder.state_dict().keys(),
+            )
+            new_state_dict = self.checkpointadapeter.convert(state_dict)
+            self.model.can_encoder.load_state_dict(new_state_dict)
+        print(f'[!] load model from {path}')
 

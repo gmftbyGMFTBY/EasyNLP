@@ -10,6 +10,7 @@
 - [x] fix the bugs of _length_limit of the bert-ft
 - [x] dynamic margin (consider the margin between the original rerank scores)
 - [x] comparison: bce to three-classification(positive, negative, hard to tell); hard to tell could use the self-comparison and the comparison with the top-1 retrieved result
+- [ ] test dual-bert-compare
 
 ## How to Use
 
@@ -64,7 +65,7 @@ It should be noted that:
 If you want to generate the gray dataset for the dataset:
 
 ```bash
-# 1. set the mode as the **response**, to generate the response faiss index; corresponding dataset name: BERTDualInferenceDataset
+# 1. set the mode as the **response**, to generate the response faiss index; corresponding dataset name: BERTDualInferenceDataset;
 ./scripts/inference.sh <dataset_name> response <cuda_ids>
 
 # 2. set the mode as the **gray**, to inference the context in the train.txt and search the top-k candidates as the gray(hard negative) samples; corresponding dataset name: BERTDualInferenceContextDataset

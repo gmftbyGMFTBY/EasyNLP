@@ -1,7 +1,5 @@
-# basic configuration for building the model
-dropout: 0.1
-rank: bert-ft-compare
-# rank: null
+# rank: bert-ft-compare
+rank: null
 
 # do not train on this checkpoint (maybe you can?)
 

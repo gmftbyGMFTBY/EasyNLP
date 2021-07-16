@@ -143,7 +143,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         tids = [torch.LongTensor(i) for i in tids]
         ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
         tids = pad_sequence(tids, batch_first=True, padding_value=self.pad)
-        mask = self.generate_mask(ids)
+        mask = generate_mask(ids)
         ids, tids, mask = to_cuda(ids, tids, mask)
         # ===== make compare ===== # 
         batch_packup = {

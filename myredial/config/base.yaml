@@ -11,6 +11,7 @@ datasets:
     baike_summary: zh
     arxiv: en
     restoration-200k: zh
+    essay: zh
 
 # pretrained model and tokenizer
 tokenizer:
@@ -40,17 +41,12 @@ models:
         dataset_name: BERTDualDataset
         # inference_dataset_name: BERTDualInferenceDataset
         inference_dataset_name: BERTDualInferenceContextDataset
-    dual-bert-ssl: 
+    dual-bert-one2many: 
         type: Representation
-        model_name: BERTDualSSLEncoder
-        dataset_name: BERTDualWithNegDataset
-        inference_dataset_name: BERTDualInferenceDataset
-        # inference_dataset_name: BERTDualInferenceContextDataset
-    dual-bert-cl: 
-        type: Representation
-        model_name: BERTDualCLEncoder
-        dataset_name: BERTDualCLDataset
-        inference_dataset_name: BERTDualInferenceDataset
+        model_name: BERTDualO2MEncoder
+        dataset_name: BERTDualO2MDataset
+        # inference_dataset_name: BERTDualInferenceDataset
+        inference_dataset_name: BERTDualInferenceContextDataset
     dual-bert-fusion: 
         type: Representation
         model_name: BERTDualFusionEncoder
@@ -68,17 +64,6 @@ models:
         # dataset_name: BERTDualDataset
         inference_dataset_name: BERTDualFullInferenceDataset
         # inference_dataset_name: BERTDualInferenceDataset
-    hash-bert-poly: 
-        type: Representation
-        model_name: HashBERTPolyDualEncoder
-        # dataset_name: BERTDualFullWithNegDataset
-        dataset_name: BERTDualDataset
-        inference_dataset_name: BERTDualInferenceDataset
-    dual-bert-cb: 
-        type: Representation
-        model_name: BERTDualCBEncoder
-        dataset_name: BERTDualDataset
-        inference_dataset_name: BERTDualInferenceDataset
     dual-bert-gen: 
         type: Generation
         model_name: BERTSeq2SeqDualEncoder
@@ -155,8 +140,8 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # root_dir: /home/johntianlan/sources/MyReDial
 
 # test interval: higher than 1 means that we donot test during training procedure, which is necessary for the corpus which has the big test set
-# test_interval: 1.1
-test_interval: 0.1
+test_interval: 1.1
+# test_interval: 0.1
 
 
 # ========== deploy parameters ========== #

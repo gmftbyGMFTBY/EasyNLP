@@ -22,16 +22,10 @@ def gray_one2many_strategy(args):
     print(f'[!] load bert-fp agent over')
 
     # read the embeddings of the conversation context
-    embds, contexts, responses = [], [], []
-    for i in tqdm(range(args['nums'])):
-        embd, context, response = torch.load(
-            f'{args["root_dir"]}/data/{args["dataset"]}/inference_context_{args["model"]}_{i}.pt'
-        )
-        embds.append(embd)
-        contexts.extend(context)
-        responses.extend(response)
-    embds = np.concatenate(embds) 
-    print(f'[!] load context size: {len(embds)}')
+    embds, contexts, responses = torch.load(
+        f'{args["root_dir"]}/data/{args["dataset"]}/inference_context_{args["model"]}_{args["local_rank"]}.pt'
+    )
+    print(f'[!] {args["local_rank"]} load context size: {len(embds)}')
     assert len(embds) == len(contexts) and len(contexts) == len(responses)
 
     # read the candidate faiss index
@@ -43,7 +37,7 @@ def gray_one2many_strategy(args):
         f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt',
     )
     # speed up with gpu
-    searcher.move_to_all_gpus(args['local_rank'])
+    searcher.move_to_gpu(args['local_rank'])
     print(f'[!] read the faiss index over, begin to search from the index')
 
     # search and re-label (pesudo label)
@@ -55,14 +49,13 @@ def gray_one2many_strategy(args):
         result = searcher._search(batch, topk=args['pool_size'])
         packages = []
         for c, r, rest in zip(context, response, result):
-            ipdb.set_trace()
             if r in rest:
                 rest.remove(r)
-            responses = [r] + rest[:args['topk']]
+            responses_ = [r] + rest[:args['topk']]
             # label by bert-fp
             packages.append({
                 'context': c,
-                'candidates': responses,
+                'candidates': responses_,
             })
         scores_list = bert_fp_agent.rerank(packages)
         for score, package in zip(scores_list, packages):
@@ -73,7 +66,7 @@ def gray_one2many_strategy(args):
             collection.append({'q': package['context'], 'r': package['candidates'][0], 'pnr': nr})
 
     # write into new file
-    path = f'{args["root_dir"]}/data/{args["dataset"]}/train_gray_one2many.txt'
+    path = f'{args["root_dir"]}/data/{args["dataset"]}/train_gray_one2many_local_rank_{args["local_rank"]}.txt'
     with open(path, 'w') as f:
         for item in tqdm(collection):
             string = json.dumps(item)

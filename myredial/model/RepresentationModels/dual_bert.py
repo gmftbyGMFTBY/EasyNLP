@@ -2,8 +2,6 @@ from model.utils import *
 
 class BERTDualEncoder(nn.Module):
 
-    '''dual bert and dual latent interaction: one-to-many mechanism'''
-    
     def __init__(self, **args):
         super(BERTDualEncoder, self).__init__()
         model = args['pretrained_model']

@@ -1,4 +1,6 @@
 from .header import *
+from dataloader.util_func import *
+from .utils import *
 
 '''
 Base Agent
@@ -9,7 +11,7 @@ class RetrievalBaseAgent:
     def __init__(self):
         # open the test save scores file handler
         self.best_test = None 
-        pass
+        self.checkpointadapeter = CheckpointAdapter()
 
     def show_parameters(self, args):
         print(f'========== Model Parameters ==========')
@@ -100,15 +102,12 @@ class RetrievalBaseAgent:
             if self.args['checkpoint']['is_load']:
                 path = self.args['checkpoint']['path']
                 path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{path}'
-                self.load_bert_model(path)
+                self.load_model(path)
                 print(f'[!] load checkpoint from {path}')
             else:
                 print(f'[!] DONOT load checkpoint')
         else:
             print(f'[!] No checkpoint information found')
-
-    def load_bert_model(self, path):
-        raise NotImplementedError
 
     def set_optimizer_scheduler_ddp(self):
         if self.args['mode'] in ['train']:
@@ -142,10 +141,12 @@ class RetrievalBaseAgent:
     def load_model(self, path):
         # for test and inference
         state_dict = torch.load(path, map_location=torch.device('cpu'))
-        try:
-            self.model.module.load_state_dict(state_dict)
-        except:
-            self.model.load_state_dict(state_dict)
+        self.checkpointadapeter.init(
+            state_dict.keys(),
+            self.model.state_dict().keys(),
+        )
+        new_state_dict = self.checkpointadapeter.convert(state_dict)
+        self.model.load_state_dict(new_state_dict)
         print(f'[!] load model from {path}')
 
     def convert_to_text(self, ids, lang='zh'):
@@ -165,78 +166,52 @@ class RetrievalBaseAgent:
     def rerank(self, contexts, candidates):
         raise NotImplementedError
 
-    def _length_limit(self, ids):
-        # also return the speaker embeddings
-        if len(ids) > self.args['max_len']:
-            ids = [ids[0]] + ids[-(self.args['max_len']-1):]
-        return ids
-    
-    def _length_limit_res(self, ids):
-        # cut tail
-        if len(ids) > self.args['res_max_len']:
-            ids = ids[:self.args['res_max_len']-1] + [self.sep]
-        return ids
-
     def totensor(self, texts, ctx=True):
         items = self.vocab.batch_encode_plus(texts)['input_ids']
         if ctx:
-            ids = [torch.LongTensor(self._length_limit(i)) for i in items]
+            ids = [torch.LongTensor(length_limit(i, self.args['max_len'])) for i in items]
         else:
-            ids = [torch.LongTensor(self._length_limit_res(i)) for i in items]
+            ids = [torch.LongTensor(length_limit_res(i, self.args['res_max_len'], sep=self.sep)) for i in items]
         ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
-        mask = self.generate_mask(ids)
-        if torch.cuda.is_available():
-            ids, mask = ids.cuda(), mask.cuda()
+        mask = generate_mask(ids)
+        ids, mask = to_cuda(ids, mask)
         return ids, mask
 
-    def totensor_interaction(self, ctx, responses):
+    def totensor_interaction(self, ctx_, responses_):
         '''for Interaction Models'''
+        def _encode_one_session(ctx, responses):
+            context_length = len(ctx)
+            utterances = self.vocab.batch_encode_plus(ctx + responses, add_special_tokens=False)['input_ids']
+            context_utterances = utterances[:context_length]
+            response_utterances = utterances[context_length:]
+
+            context = []
+            for u in context_utterances:
+                context.extend(u + [self.eos])
+            context.pop()
+    
+            ids, tids = [], []
+            for res in response_utterances:
+                ctx = deepcopy(context)
+                truncate_pair(ctx, res, self.args['max_len'])
+                ids_ = [self.cls] + ctx + [self.sep] + res + [self.sep]
+                tids_ = [0] * (len(ctx) + 2) + [1] * (len(res) + 1)
+                ids.append(torch.LongTensor(ids_))
+                tids.append(torch.LongTensor(tids_))
+            return ids, tids
+
         self.eos = self.vocab.convert_tokens_to_ids('[EOS]')
         self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        ids, tids = [], []
+        for ctx, responses in zip(ctx_, responses_):
+            ids_, tids_ = _encode_one_session(ctx, responses)
+            ids.extend(ids_)
+            tids.extend(tids_)
 
-        context_length = len(ctx)
-        utterances = self.vocab.batch_encode_plus(ctx + responses, add_special_tokens=False)['input_ids']
-        context_utterances = utterances[:context_length]
-        response_utterances = utterances[context_length:]
-
-        context = []
-        for u in context_utterances:
-            context.extend(u + [self.eos])
-        context.pop()
-
-        ids, tids, mask = [], [], []
-        for res in response_utterances:
-            ctx = deepcopy(context)
-            self._truncate_pair_interaction(ctx, res, self.args['max_len'])
-            ids_ = [self.cls] + ctx + [self.sep] + res + [self.sep]
-            tids_ = [0] * (len(ctx) + 2) + [1] * (len(res) + 1)
-            ids.append(torch.LongTensor(ids_))
-            tids.append(torch.LongTensor(tids_))
-        ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
-        tids = pad_sequence(tids, batch_first=True, padding_value=self.pad)
-        mask = self.generate_mask(ids)
-        if torch.cuda.is_available():
-            ids, tids, mask = ids.cuda(), tids.cuda(), mask.cuda()
+        ids = pad_sequence(ids_, batch_first=True, padding_value=self.pad)
+        tids = pad_sequence(tids_, batch_first=True, padding_value=self.pad)
+        mask = generate_mask(ids)
+        ids, tids, mask = to_cuda(ids, tids, mask)
         return ids, tids, mask
-
-    def _truncate_pair_interaction(self, cids, rids, max_length):
-        # ignore the [CLS], [SEP], [SEP]
-        max_length -= 3
-        while True:
-            l = len(cids) + len(rids)
-            if l <= max_length:
-                break
-            # follow the bert-fp
-            if len(cids) > len(rids):
-                cids.pop(0)
-            else:
-                rids.pop()
-        
-    def generate_mask(self, ids):
-        attn_mask_index = ids.nonzero().tolist()   # [PAD] IS 0
-        attn_mask_index_x, attn_mask_index_y = [i[0] for i in attn_mask_index], [i[1] for i in attn_mask_index]
-        attn_mask = torch.zeros_like(ids)
-        attn_mask[attn_mask_index_x, attn_mask_index_y] = 1
-        return attn_mask
