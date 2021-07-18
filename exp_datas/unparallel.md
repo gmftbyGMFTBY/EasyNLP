@@ -43,6 +43,7 @@ max_mask_num=20; masked_lm_prob=0.15; min_context_length=2; min_token_length=20;
 | dual-bert          | 45.08 | 61.74 | 87.38 | 62.17 |
 | bert-ft            | 39.22 | 56.6  | 84.54 | 57.63 |
 | dual-bert+         | 45.67 | 63.21 | 87.56 | 62.91 |
+| dual-bert+         | 46.85 | 63.3  | 87.36 | 63.48 |
 | BERT-FP(bert-ft+)  | 45.77 | 62.19 | 87.3  | 62.68 |
 
 * ES test set with human label
@@ -65,14 +66,11 @@ INBS is in-batch negative sampling
 -->
 | Methods                     | 1 | 2 | 3 | 4 | 5 | Average Human Evaluation | Average Time Cost | 
 | --------------------------- | - | - | - | - | - | ------------------------ | ----------------- |
-| BM25(q-q, topk=10)+BERT-FP  |   |   |   |   |   |                          |                   |
-| BM25(q-q, topk=100)+BERT-FP |   |   |   |   |   |                          |                   |
-| BM25(q-r, topk=10)+BERT-FP  |   |   |   |   |   |                          |                   |
-| BM25(q-r, topk=100)+BERT-FP |   |   |   |   |   |                          |                   |
-| dual-bert(topk=10)          |   |   |   |   |   |                          |                   |
-| dual-bert(topk=100)         |   |   |   |   |   |                          |                   |
-| dual-bert(topk=10)+BERT-FP  |   |   |   |   |   |                          |                   |
-| dual-bert(topk=100)+BERT-FP |   |   |   |   |   |                          |                   |
+| BM25(q-q, topk=)+BERT-FP    |   |   |   |   |   |                          |                   |
+| BM25(q-r, topk=)+BERT-FP    |   |   |   |   |   |                          |                   |
+| dual-bert(topk=)+BERT-FP    |   |   |   |   |   |                          |                   |
+| BERT-FP(full-rank)          |   |   |   |   |   |                          |                   |
+| dual-bert(full-rank)        |   |   |   |   |   |                          |                   |
 
 **The kappa among annotators**: 
 
@@ -86,16 +84,29 @@ BERT-FP=bert-ft+
 -->
 | Methods(EXT-Data)           | 1 | 2 | 3 | 4 | 5 | Average Human Evaluation | Average Time Cost | 
 | --------------------------- | - | - | - | - | - | ------------------------ | ----------------- |
-| dual-bert(topk=10)          |   |   |   |   |   |                          |                   |
-| dual-bert(topk=100)         |   |   |   |   |   |                          |                   |
-| dual-bert(topk=10)+BERT-FP  |   |   |   |   |   |                          |                   |
-| dual-bert(topk=100)+BERT-FP |   |   |   |   |   |                          |                   |
+| dual-bert(topk=)+BERT-FP    |   |   |   |   |   |                          |                   |
+| dual-bert(full-rank)        |   |   |   |   |   |                          |                   |
+| BERT-FP(full-rank)          |   |   |   |   |   |                          |                   |
 
 **The kappa among annotators**: 
 
-## 4. Appendix
+## 4. Hyper-parameter recall top-k
 
-### 4.1 Human Evaluation Standard
+Choose the propoer top-k value for the full-rank setting and extended full-rank setting epxeriments
+<!-- 
+AHE means the average human evaluation
+ATC means the average time cost
+-->
+| Models                  | 1 | 2 | 3 | 4 | 5 | AHE | ATC |
+| ----------------------- | - | - | - | - | - | --- | --- |
+| BM25(topk=10)+BERT-FP   |   |   |   |   |   |     |     | 
+| BM25(topk=100)+BERT-FP  |   |   |   |   |   |     |     | 
+| BM25(topk=500)+BERT-FP  |   |   |   |   |   |     |     | 
+| BM25(topk=1000)+BERT-FP |   |   |   |   |   |     |     | 
+
+## 5. Appendix
+
+### 5.1 Human Evaluation Standard
 
 | Label |  Meaning |
 | ----- | -------- |

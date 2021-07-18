@@ -49,7 +49,7 @@ def load_deploy_config(api_name):
         args.update(args['deploy'][api_name])
         model = args['model']
 
-        if model == 'bm25':
+        if model in ['bm25', 'full']:
             return args
 
         config_path = f'config/{model}.yaml'

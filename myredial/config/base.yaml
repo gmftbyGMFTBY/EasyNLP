@@ -168,7 +168,7 @@ deploy:
     res_max_len: 64
     recall:
         activate: false
-        model: bm25
+        model: full
         # default topk
         topk: 100
         # only the arxiv, writer dataset need the with_source
@@ -176,7 +176,7 @@ deploy:
         index_type: LSH 
         dimension: 768
     rerank:
-        activate: true
-        model: gpt2lm
-    pipeline:
         activate: false
+        model: bert-ft
+    pipeline:
+        activate: true

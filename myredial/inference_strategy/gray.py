@@ -25,7 +25,7 @@ def gray_strategy(args):
         f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt',
     )
     # speed up with gpu
-    searcher.move_to_all_gpus()
+    searcher.move_to_gpu()
     print(f'[!] read the faiss index over, begin to search from the index')
 
     # search

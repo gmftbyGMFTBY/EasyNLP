@@ -139,7 +139,8 @@ if __name__ == "__main__":
     # barries
     torch.distributed.barrier()
 
-    if args['work_mode'] not in ['gray-one2many'] and args['local_rank'] != 0:
+    # if args['work_mode'] not in ['gray-one2many'] and args['local_rank'] != 0:
+    if args['local_rank'] != 0:
         # gray-one2many may need the multiple gpus to speed up
         exit()
 

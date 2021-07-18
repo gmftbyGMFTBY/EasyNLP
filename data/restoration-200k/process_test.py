@@ -174,7 +174,8 @@ if __name__ == "__main__":
     test_data, _ = load_data_train('test_.txt')
 
     # only sample 1200 test data for human labeling
-    test_data = random.sample(test_data, 1200)
+    # NOTE:
+    # test_data = random.sample(test_data, 1200)
 
     esutils = ESBuilder('restoration-200k', create_index=True, q_q=True)
     data = [(' '.join(pair[0]), pair[1]) for pair in train_data + test_data]
@@ -186,13 +187,17 @@ if __name__ == "__main__":
         for i in range(0, len(test_data), inner_bsz):
             batch = test_data[i:i+inner_bsz]
             queries = [' '.join(i[0]) for i in batch] 
-            rest = eschat.msearch(queries, topk=15, limit=128)
+            # NOTE:
+            # rest = eschat.msearch(queries, topk=15, limit=128)
+            rest = eschat.msearch(queries, topk=10, limit=128)
             responses = [i[1] for i in batch]
             context = [i[0] for i in batch]
             for c, r, cands in zip(context, responses, rest):
                 if r in cands:
                     cands.remove(r)
-                cands = cands[:14]
+                # NOTE:
+                # cands = cands[:14]
+                cands = cands[:9]
                 c = '\t'.join(c)
                 f.write(f'1\t{c}\t{r}\n')
                 for cand in cands:

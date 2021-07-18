@@ -22,7 +22,10 @@ def load_dataset(args):
     else:
         raise Exception(f'[!] Unknown mode: {args["mode"]}')
 
-    path = f'{args["root_dir"]}/data/{args["dataset"]}/{args["mode"]}.txt'
+    if args['mode'] in ['inference']:
+        path = f'{args["root_dir"]}/data/{args["dataset"]}/train.txt'
+    else:
+        path = f'{args["root_dir"]}/data/{args["dataset"]}/{args["mode"]}.txt'
     vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
     data = dataset_t(vocab, path, **args)
 

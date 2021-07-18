@@ -147,32 +147,25 @@ class InteractionAgent(RetrievalBaseAgent):
         }
 
     @torch.no_grad()
-    def rerank(self, batches, inner_bsz=16):
+    def rerank(self, batches, inner_bsz=512):
         '''for bert-fp-original and bert-ft, the [EOS] token is used'''
         self.model.eval()
         scores = []
-        for idx in range(0, len(batches), inner_bsz):
-            batches_ = batches[idx:idx+inner_bsz]
+        for batch in batches:
             # collect ctx
-            ctx = []
-            for batch in batches_:
-                if type(batch['context']) == str:
-                    batch['context'] = [u.strip() for u in batch['context'].split('[SEP]')]
-                elif type(batch['context']) == list:
-                    # perfect
-                    pass
-                else:
-                    raise Exception()
-                ctx.append(batch['context'])
-            candidates = [batch['candidates'] for batch in batches_]
-            length_of_candidates = [len(i) for i in candidates]
-            ids, tids, mask = self.totensor_interaction(ctx, candidates)
-            batch['ids'] = ids
-            batch['tids'] = tids
-            batch['mask'] = mask
-            ipdb.set_trace()
-            scores_ = torch.split(self.model(batch), length_of_candidates)
-            scores_ = [score_.tolist() for score_ in scores_]
-            scores.extend(scores_)
+            if type(batch['context']) == str:
+                batch['context'] = [u.strip() for u in batch['context'].split('[SEP]')]
+            elif type(batch['context']) == list:
+                # perfect
+                pass
+            else:
+                raise Exception()
+            subscores = []
+            pbar = tqdm(range(0, len(batch['candidates']), inner_bsz))
+            for idx in pbar:
+                candidates = batch['candidates'][idx:idx+inner_bsz]
+                ids, tids, mask = self.totensor_interaction(batch['context'], candidates)
+                batch['ids'], batch['tids'], batch['mask'] = ids, tids, mask
+                subscores.extend(self.model(batch).tolist())
+            scores.append(subscores)
         return scores
-

@@ -33,7 +33,6 @@ class BERTDualDataset(Dataset):
                 cids, rids = item[:-1], item[-1]
                 ids = []
                 for u in cids:
-                    # ids.extend(u + [self.eos])
                     ids.extend(u + [self.sep])
                 ids.pop()
                 ids = ids[-(self.args['max_len']-2):]    # ignore [CLS] and [SEP]
@@ -56,7 +55,6 @@ class BERTDualDataset(Dataset):
                     cids, rids_ = item[:-1], item[-1]
                     ids = []
                     for u in cids:
-                        # ids.extend(u + [self.eos])
                         ids.extend(u + [self.sep])
                     ids.pop()
                     ids = ids[-(self.args['max_len']-2):]    # ignore [CLS] and [SEP]

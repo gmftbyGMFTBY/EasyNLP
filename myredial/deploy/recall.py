@@ -12,6 +12,13 @@ def init_recall(args):
         # Elasticsearch
         searcher = ESSearcher(f'{args["dataset"]}_q-q', q_q=True)
         agent = None
+    elif args['model'] == 'full':
+        model_name = 'dual-bert'
+        pretrained_model_name = args['pretrained_model']['zh']
+        path_corpus = f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt'
+        with open(path_corpus, 'rb') as f:
+            searcher = joblib.load(f)
+        agent = None
     else:
         searcher = Searcher(args['index_type'], dimension=args['dimension'], with_source=args['with_source'])
         model_name = args['model']
@@ -50,6 +57,8 @@ class RecallAgent:
         topk = topk if topk else self.args['topk']
         if self.args['model'] == 'bm25':
             rest_ = self.searcher.msearch(batch, topk=topk)
+        elif self.args['model'] == 'full':
+            rest_ = [self.searcher]
         else:
             vectors = self.agent.encode_queries(batch)    # [B, E]
             rest_ = self.searcher._search(vectors, topk=topk)
