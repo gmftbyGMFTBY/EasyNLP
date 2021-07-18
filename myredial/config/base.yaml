@@ -45,8 +45,8 @@ models:
         type: Representation
         model_name: BERTDualO2MEncoder
         dataset_name: BERTDualO2MDataset
-        # inference_dataset_name: BERTDualInferenceDataset
-        inference_dataset_name: BERTDualInferenceContextDataset
+        inference_dataset_name: BERTDualInferenceDataset
+        # inference_dataset_name: BERTDualInferenceContextDataset
     dual-bert-fusion: 
         type: Representation
         model_name: BERTDualFusionEncoder
@@ -168,7 +168,7 @@ deploy:
     res_max_len: 64
     recall:
         activate: false
-        model: full
+        model: dual-bert-one2many
         # default topk
         topk: 100
         # only the arxiv, writer dataset need the with_source
@@ -177,6 +177,6 @@ deploy:
         dimension: 768
     rerank:
         activate: false
-        model: bert-ft
+        model: dual-bert
     pipeline:
         activate: true

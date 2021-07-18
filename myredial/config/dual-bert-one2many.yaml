@@ -2,7 +2,7 @@
 rank: null
 dropout: 0.1
 # make sure the topk is the same as the gray_cand_num
-topk: 5
+topk_encoder: 5
 gray_cand_num: 5
 
 # train configuration

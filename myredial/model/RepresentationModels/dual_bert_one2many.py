@@ -7,7 +7,7 @@ class BERTDualO2MEncoder(nn.Module):
     def __init__(self, **args):
         super(BERTDualO2MEncoder, self).__init__()
         model = args['pretrained_model']
-        self.topk = args['topk']
+        self.topk = args['topk_encoder']
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoders = nn.ModuleList([
             BertEmbedding(model=model) for _ in range(self.topk) 
@@ -25,7 +25,12 @@ class BERTDualO2MEncoder(nn.Module):
 
     @torch.no_grad()
     def get_cand(self, ids, attn_mask):
-        rid_rep = self.can_encoder(ids, attn_mask)
+        rid_reps = []
+        for idx in range(self.topk):
+            rid_rep = self.can_encoders[idx](ids, attn_mask)
+            rid_reps.append(rid_rep)
+        # K*[B, E]
+        rid_rep = torch.cat(rid_reps)    # [B*K, E]
         return rid_rep
 
     @torch.no_grad()
@@ -55,12 +60,6 @@ class BERTDualO2MEncoder(nn.Module):
         rid = batch['rids']
         cid_mask = batch['ids_mask']
         rid_mask = batch['rids_mask']
-
-        # shuffle
-        # random_idx = list(range(self.topk))
-        # random.shuffle(random_idx)
-        # rid = [rid[i] for i in random_idx]
-        # rid_mask = [rid_mask[i] for i in random_idx]
 
         batch_size = len(cid)
         cid_rep, rid_reps = self._encode(cid, rid, cid_mask, rid_mask)

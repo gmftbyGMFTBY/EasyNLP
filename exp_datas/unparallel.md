@@ -44,6 +44,7 @@ max_mask_num=20; masked_lm_prob=0.15; min_context_length=2; min_token_length=20;
 | bert-ft            | 39.22 | 56.6  | 84.54 | 57.63 |
 | dual-bert+         | 45.67 | 63.21 | 87.56 | 62.91 |
 | dual-bert+         | 46.85 | 63.3  | 87.36 | 63.48 |
+| dual-bert-one2many+| 47.88 | 63.7  | 88.19 | 64.14 |
 | BERT-FP(bert-ft+)  | 45.77 | 62.19 | 87.3  | 62.68 |
 
 * ES test set with human label

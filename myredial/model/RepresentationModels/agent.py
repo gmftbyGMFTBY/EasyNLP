@@ -31,6 +31,9 @@ class RepresentationAgent(RetrievalBaseAgent):
             if args['model'] in ['dual-bert-fusion']:
                 self.inference = self.inference2
                 print(f'[!] switch the inference function')
+            elif args['model'] in ['dual-bert-one2many']:
+                self.inference = self.inference_one2many
+                print(f'[!] switch the inference function')
         if torch.cuda.is_available():
             self.model.cuda()
         if args['mode'] in ['train', 'inference']:
@@ -286,6 +289,29 @@ class RepresentationAgent(RetrievalBaseAgent):
 
         # save sub-source
         torch.save(source, f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_subsource_{self.args["model"]}_{self.args["local_rank"]}.pt')
+    
+    @torch.no_grad()
+    def inference_one2many(self, inf_iter, size=500000):
+        '''1 million cut'''
+        self.model.eval()
+        pbar = tqdm(inf_iter)
+        embds, texts = [], []
+        for batch in pbar:
+            rid = batch['ids']
+            rid_mask = batch['mask']
+            text = batch['text']
+            res = self.model.module.get_cand(rid, rid_mask).cpu()
+            embds.append(res)
+            texts.extend(text * self.args['topk_encoder'])
+        embds = torch.cat(embds, dim=0).numpy()
+
+        for idx, i in enumerate(range(0, len(embds), size)):
+            embd = embds[i:i+size]
+            text = texts[i:i+size]
+            torch.save(
+                (embd, text), 
+                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
+            )
 
     @torch.no_grad()
     def inference(self, inf_iter, size=500000):
@@ -414,7 +440,7 @@ class RepresentationAgent(RetrievalBaseAgent):
                 new_state_dict = self.checkpointadapeter.convert(state_dict)
                 self.model.can_encoder.load_state_dict(new_state_dict)
         else:
-            # test mode
+            # test and inference mode
             self.checkpointadapeter.init(
                 state_dict.keys(),
                 self.model.state_dict().keys(),
