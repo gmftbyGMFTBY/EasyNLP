@@ -1,0 +1,21 @@
+# n-gram model for reranking of the incompleted query
+lm_ckpt_path: /dockerdata/johntianlan/sources/kenlm-writer/ckpt/fine.klm
+# char-level lm model doesn't need the parse (chinese parse)
+char_lm: false
+texsmart_path: /dockerdata/johntianlan/sources/texsmart-sdk-0.3.0-m-zh/lib
+
+# test configuration
+test:
+    seed: 0
+    batch_size: 1
+    max_len: 256
+    res_max_len: 64
+
+# inference configuration
+inference:
+    seed: 0
+    batch_size: 128
+    max_len: 64
+    topk: 20
+    index_type: LSH
+    dimension: 768

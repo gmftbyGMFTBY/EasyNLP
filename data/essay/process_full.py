@@ -21,27 +21,7 @@ def load_file(path):
             responses.append(sentence)
         responses = list(set(responses))
         print(f'[!] collect {len(dataset)} sentences')
-
-    train_dataset = []
-    essay_point, passage_point = 0, 0
-    for i in range(1, len(dataset)):
-        if dataset[i-1][0] == dataset[i][0]:
-            if dataset[i-1][1] == dataset[i][1]:
-                # same essay, same passage, add positive sample
-                ctx = [dataset[j][-1] for j in range(passage_point, i)]
-                train_dataset.append((1, ctx, dataset[i][-1]))
-                for j in range(passage_point, i):
-                    train_dataset.append((0, ctx, dataset[j][-1]))
-                # random negative 
-                random_neg = random.sample(responses, 5)
-                for neg in random_neg:
-                    train_dataset.append((0, ctx, neg))
-            else:
-                passage_point = i
-        else:
-            essay_point = i
-    print(f'[!] collect {len(train_dataset)} training samples')
-    return train_dataset, dataset
+    return dataset, responses
 
 def write_file(dataset, path):
     with open(path, 'w') as f:

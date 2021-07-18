@@ -139,7 +139,7 @@ class RetrievalBaseAgent:
             pass
 
     def load_model(self, path):
-        # for test and inference
+        # for test and inference, just load them all
         state_dict = torch.load(path, map_location=torch.device('cpu'))
         self.checkpointadapeter.init(
             state_dict.keys(),

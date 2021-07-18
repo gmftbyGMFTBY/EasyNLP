@@ -277,11 +277,23 @@ def read_text_data_from_log_file(path, lang='zh'):
         print(f'[!] collect {len(dataset)} sessions')
     return dataset
 
-def read_essay_test_data(path):
+def read_essay_dataset(path):
     with open(path) as f:
-        lines = f.read()
-        lines = lines.split('\n\n')
-        test_dataset = []
-        for passage in lines:
-            sentences = re.split('。|？|！', passage)
-
+        dataset = []    # essay
+        responses = []
+        for line in f.readlines():
+            line = line.strip().split('\t')
+            essay_id, passage_id, _, sentence_id, _, sentence = line
+            essay_id = int(essay_id)
+            passage_id = int(passage_id)
+            sentence_id = int(sentence_id)
+            sentence = sentence.replace('|', '')
+            if len(sentence) < 5:
+                continue
+            dataset.append((
+                essay_id, passage_id, sentence_id, sentence    
+            ))
+            responses.append(sentence)
+        responses = list(set(responses))
+        print(f'[!] collect {len(dataset)} sentences')
+    return dataset, responses

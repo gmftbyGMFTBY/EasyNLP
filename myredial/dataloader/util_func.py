@@ -129,3 +129,72 @@ def length_limit_res(ids, max_len, sep=0):
     if len(ids) > max_len:
         ids = ids[:max_len-1] + [sep]
     return ids
+
+# ======== Evaluation Perturbation ========== # 
+def delete(ids, tids, delete_ratio=0.15, min_delete_num=2, special_tokens=[]):
+    delete_num = max(
+        min_delete_num,
+        min(
+            len(ids),
+            int(len(ids) * delete_ratio),
+        )
+    )
+    delete_idx = [i for i in range(len(ids)) if ids[i] not in special_tokens]
+    delete_idx = random.sample(delete_idx, delete_num)
+
+    new_ids, delete_label, new_tids = [], [], []
+    for i in ids:
+        if i not in delete_idx:
+            new_ids.append(i)
+            delete_label.append(-1)
+        else:
+            delete_label.append(len(new_ids))
+    pert_label = [-1 if i == -1 else 0 for i in delete_label]
+    return new_ids, delete_label, pert_label
+
+def duplicate(ids, duplicate_ratio=0.15, min_duplicate_num=2, special_tokens=[]):
+    duplicate_num = max(
+        min_duplicate_num,
+        min(
+            len(ids),
+            int(len(ids) * duplicate_ratio),
+        )
+    )
+    duplicate_idx = [i for i in range(len(ids)) if ids[i] not in special_tokens]
+    duplicate_idx = random.sample(duplicate_idx, duplicate_num)
+
+    new_ids, duplicate_label = [], []
+    for i in ids:
+        if i not in duplicate_idx:
+            new_ids.append(i)
+            duplicate_label.append(-1)
+        else:
+            num = random.choice([2, 3, 4])
+            new_ids.extend([i] * num)
+            duplicate_label.extend([len(new_ids)-i_ for i_ in range(num)])
+    pert_label = [-1 if i == -1 else 1 for i in duplicate_label]
+    return new_ids, duplicate_label, pert_label
+
+
+def replacement(ids, replace_ratio=0.15, min_replace_num=2, vocab_size=0, special_tokens=[]):
+    replace_num = max(
+        min_replace_num,
+        min(
+            len(ids),
+            int(len(ids) * replace_ratio),
+        )
+    )
+    replace_idx = [i for i in range(len(ids)) if ids[i] not in special_tokens]
+    replace_idx = random.sample(replace_idx, replace_num)
+
+    new_ids, replace_label = [], []
+    for i in ids:
+        if i not in replace_idx:
+            new_ids.append(i)
+            replace_label.append(-1)
+        else:
+            # random replace
+            new_ids.append(random.choice(range(vocab_size)))
+            replace_label.append(i)
+    pert_label = [-1 if i == -1 else 2 for i in replace_label]
+    return new_ids, replace_label, pert_label

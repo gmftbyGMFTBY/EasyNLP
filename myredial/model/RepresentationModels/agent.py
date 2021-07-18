@@ -390,27 +390,35 @@ class RepresentationAgent(RetrievalBaseAgent):
 
     def load_model(self, path):
         state_dict = torch.load(path, map_location=torch.device('cpu'))
-        self.checkpointadapeter.init(
-            state_dict.keys(),
-            self.model.ctx_encoder.state_dict().keys(),
-        )
-        new_state_dict = self.checkpointadapeter.convert(state_dict)
-        self.model.ctx_encoder.load_state_dict(new_state_dict)
-
-        if self.args['model'] in ['dual-bert-one2many']:
+        if self.args['mode'] == 'train':
             self.checkpointadapeter.init(
                 state_dict.keys(),
-                self.model.can_encoders[0].state_dict().keys(),
+                self.model.ctx_encoder.state_dict().keys(),
             )
             new_state_dict = self.checkpointadapeter.convert(state_dict)
-            for i in range(self.args['topk']):
-                self.model.can_encoders[i].load_state_dict(new_state_dict)
+            self.model.ctx_encoder.load_state_dict(new_state_dict)
+
+            if self.args['model'] in ['dual-bert-one2many']:
+                for i in range(self.args['topk']):
+                    self.checkpointadapeter.init(
+                        state_dict.keys(),
+                        self.model.can_encoders[i].state_dict().keys(),
+                    )
+                    new_state_dict = self.checkpointadapeter.convert(state_dict)
+                    self.model.can_encoders[i].load_state_dict(new_state_dict)
+            else:
+                self.checkpointadapeter.init(
+                    state_dict.keys(),
+                    self.model.can_encoder.state_dict().keys(),
+                )
+                new_state_dict = self.checkpointadapeter.convert(state_dict)
+                self.model.can_encoder.load_state_dict(new_state_dict)
         else:
+            # test mode
             self.checkpointadapeter.init(
                 state_dict.keys(),
-                self.model.can_encoder.state_dict().keys(),
+                self.model.state_dict().keys(),
             )
             new_state_dict = self.checkpointadapeter.convert(state_dict)
-            self.model.can_encoder.load_state_dict(new_state_dict)
+            self.model.load_state_dict(new_state_dict)
         print(f'[!] load model from {path}')
-

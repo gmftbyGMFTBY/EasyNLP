@@ -96,6 +96,11 @@ models:
         model_name: BERTRetrieval
         dataset_name: BERTFTDataset
         inference_dataset_name: null 
+    bert-ft-essay: 
+        type: Evaluation
+        model_name: BERTEssayRetrieval
+        dataset_name: BERTFTEssayDataset
+        inference_dataset_name: null 
     bert-fp-original: 
         type: Interaction
         model_name: BERTFPRetrieval
@@ -134,14 +139,24 @@ models:
         dataset_name: BERTDualPTDataset
         # inference_dataset_name: BERTDualInferenceDataset
         inference_dataset_name: BERTDualInferenceContextDataset
+    kenlm:
+        type: LanguageModel
+        model_name: KeNLM
+        dataset_name: null
+        inference_dataset_name: null
+    gpt2lm:
+        type: LanguageModel
+        model_name: GPT2LM
+        dataset_name: null
+        inference_dataset_name: null
 
 # huge file are saved in the root dir
 root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # root_dir: /home/johntianlan/sources/MyReDial
 
 # test interval: higher than 1 means that we donot test during training procedure, which is necessary for the corpus which has the big test set
-test_interval: 1.1
-# test_interval: 0.1
+# test_interval: 1.1
+test_interval: 0.1
 
 
 # ========== deploy parameters ========== #
@@ -161,7 +176,7 @@ deploy:
         index_type: LSH 
         dimension: 768
     rerank:
-        activate: false
-        model: bert-ft
-    pipeline:
         activate: true
+        model: gpt2lm
+    pipeline:
+        activate: false

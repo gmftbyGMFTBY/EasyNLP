@@ -14,8 +14,8 @@ train:
     # no wamrup, set 0.0 (BERT-FP and UMS_BERT)
     warmup_ratio: 0.
     checkpoint: 
-        path: bert-post/best_nspmlm.pt
-        # path: bert-fp/best_bert-base-chinese.pt
+        # path: bert-post/best_nspmlm.pt
+        path: bert-fp/best_bert-base-chinese.pt
         is_load: true
 
 # test configuration

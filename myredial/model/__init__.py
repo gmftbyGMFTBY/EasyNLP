@@ -2,8 +2,10 @@ from .InteractionModels import *
 from .CompareInteractionModels import *
 from .RepresentationModels import *
 from .LatentInteractionModels import *
+from .EvaluationModels import *
 from .GenerationModels import *
 from .PostTrainModels import *
+from .LanguageModels import *
 
 def load_model(args):
     model_type, model_name = args['models'][args['model']]['type'], args['models'][args['model']]['model_name']
@@ -14,6 +16,8 @@ def load_model(args):
         'Generation': GenerationAgent,
         'CompareInteraction': CompareInteractionAgent,
         'PostTrain': PostTrainAgent,
+        'Evaluation': EvaluationAgent,
+        'LanguageModel': LanguageModelsAgent,
     }
     if model_type in MAP:
         agent_t = MAP[model_type]
@@ -21,6 +25,7 @@ def load_model(args):
         raise Exception(f'[!] Unknown type {model_type} for {model_name}')
 
     vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
+    vocab.add_tokens(['[EOS]'])
     args['vocab_size'] = vocab.vocab_size
 
     if model_type == 'Generation':

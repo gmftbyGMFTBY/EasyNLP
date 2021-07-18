@@ -272,33 +272,28 @@ class BERTFTEssayDataset(Dataset):
                     'tids': tids,
                 })
         else:
-            for i in tqdm(range(0, len(data), 10)):
-                batch = data[i:i+10]
-                ids, tids = [], []
-                context, responses = [], []
-                for b in batch:
-                    label = b[0]
-                    utterances = b[1]
-                    item = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']
-                    cids = []
-                    for u in item[:-1]:
-                        cids.extend(u + [self.eos])
-                    cids.pop()
-                    rids = item[-1]
-                    truncate_pair(cids, rids, self.args['max_len'])
-                    ids_ = [self.cls] + cids + [self.sep] + rids + [self.sep]
-                    tids_ = [0] * (len(cids) + 2) + [1] * (len(rids) + 1)
-                    ids.append(ids_)
-                    tids.append(tids_)
-                    responses.append(utterances[-1])
-                context = ' [SEP] '.join(utterances[:-1])
-                self.data.append({
-                    'label': [b[0] for b in batch],
-                    'ids': ids,
-                    'tids': tids,
-                    'context': context,
-                    'responses': responses,
-                })    
+            with open(path) as f:
+                for line in f.readlines():
+                    session = re.split('。|；|！|？', line.strip())
+                    session = [i.strip() for i in session if i.strip()]
+                    item = self.vocab.batch_encode_plus(session, add_special_tokens=False)['input_ids']
+                    ids, tids = [], []
+                    for i in range(1, len(item)):
+                        ctx, res = item[:i], item[i]
+                        context = []
+                        for u in ctx:
+                            context.extend(u + [self.eos])
+                        context.pop()
+                        truncate_pair(context, res, self.args['max_len'])
+                        ids_ = [self.cls] + context + [self.sep] + res + [self.sep]
+                        tids_ = [0] * (len(context) + 2) + [1] * (len(res) + 1)
+                        ids.append(ids_)
+                        tids.append(tids_)
+                    self.data.append({
+                        'ids': ids,
+                        'tids': tids,
+                        'sentences': [session[i] for i in range(1, len(session))], 
+                    })    
 
     def __len__(self):
         return len(self.data)
@@ -313,9 +308,7 @@ class BERTFTEssayDataset(Dataset):
         else:
             ids = [torch.LongTensor(i) for i in bundle['ids']]
             tids = [torch.LongTensor(i) for i in bundle['tids']]
-            context = bundle['context']
-            responses = bundle['responses']
-            return ids, tids, bundle['label'], context, responses
+            return ids, tids, bundle['sentences']
 
     def save(self):
         data = torch.save(self.data, self.pp_path)
@@ -324,22 +317,11 @@ class BERTFTEssayDataset(Dataset):
     def collate(self, batch):
         if self.args['mode'] == 'train':
             ids, tids, label = [i[0] for i in batch], [i[1] for i in batch], [i[2] for i in batch]
-        else:
-            # batch size is batch_size * 10
-            ids, tids, label = [], [], []
-            context, responses = [], []
-            for b in batch:
-                ids.extend(b[0])
-                tids.extend(b[1])
-                label.extend(b[2])
-                context.append(b[3])
-                responses.extend(b[4])
-        ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
-        tids = pad_sequence(tids, batch_first=True, padding_value=self.pad)
-        mask = generate_mask(ids)
-        label = torch.LongTensor(label)
-        ids, tids, mask, label = to_cuda(ids, tids, mask, label)
-        if self.args['mode'] == 'train':
+            ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+            tids = pad_sequence(tids, batch_first=True, padding_value=self.pad)
+            mask = generate_mask(ids)
+            label = torch.LongTensor(label)
+            ids, tids, mask, label = to_cuda(ids, tids, mask, label)
             return {
                 'ids': ids, 
                 'tids': tids, 
@@ -347,11 +329,19 @@ class BERTFTEssayDataset(Dataset):
                 'label': label
             }
         else:
+            # batch size is batch_size * 10
+            ids, tids, sentences = [], [], []
+            for b in batch:
+                ids.extend(b[0])
+                tids.extend(b[1])
+                sentences.extend(b[2])
+            ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+            tids = pad_sequence(tids, batch_first=True, padding_value=self.pad)
+            mask = generate_mask(ids)
+            ids, tids, mask = to_cuda(ids, tids, mask)
             return {
                 'ids': ids, 
                 'tids': tids, 
                 'mask': mask, 
-                'label': label,
-                'context': context,
-                'responses': responses,
+                'sentences': sentences,
             }

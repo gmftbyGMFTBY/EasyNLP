@@ -67,16 +67,12 @@ INBS is in-batch negative sampling
 | --------------------------- | - | - | - | - | - | ------------------------ | ----------------- |
 | BM25(q-q, topk=10)+BERT-FP  |   |   |   |   |   |                          |                   |
 | BM25(q-q, topk=100)+BERT-FP |   |   |   |   |   |                          |                   |
-| BM25(q-q, topk=1000)+BERT-FP|   |   |   |   |   |                          |                   |
 | BM25(q-r, topk=10)+BERT-FP  |   |   |   |   |   |                          |                   |
 | BM25(q-r, topk=100)+BERT-FP |   |   |   |   |   |                          |                   |
-| BM25(q-r, topk=1000)+BERT-FP|   |   |   |   |   |                          |                   |
 | dual-bert(topk=10)          |   |   |   |   |   |                          |                   |
 | dual-bert(topk=100)         |   |   |   |   |   |                          |                   |
-| dual-bert(topk=1000)        |   |   |   |   |   |                          |                   |
 | dual-bert(topk=10)+BERT-FP  |   |   |   |   |   |                          |                   |
 | dual-bert(topk=100)+BERT-FP |   |   |   |   |   |                          |                   |
-| dual-bert(topk=1000)+BERT-FP|   |   |   |   |   |                          |                   |
 
 **The kappa among annotators**: 
 
@@ -92,10 +88,8 @@ BERT-FP=bert-ft+
 | --------------------------- | - | - | - | - | - | ------------------------ | ----------------- |
 | dual-bert(topk=10)          |   |   |   |   |   |                          |                   |
 | dual-bert(topk=100)         |   |   |   |   |   |                          |                   |
-| dual-bert(topk=1000)        |   |   |   |   |   |                          |                   |
 | dual-bert(topk=10)+BERT-FP  |   |   |   |   |   |                          |                   |
 | dual-bert(topk=100)+BERT-FP |   |   |   |   |   |                          |                   |
-| dual-bert(topk=1000)+BERT-FP|   |   |   |   |   |                          |                   |
 
 **The kappa among annotators**: 
 
