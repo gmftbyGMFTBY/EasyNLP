@@ -3,9 +3,9 @@
 mode=$1
 dataset=$2
 python test_api.py \
-    --size 100 \
+    --size 10 \
     --url 9.91.66.241 \
-    --port 22335 \
+    --port 8096 \
     --mode $mode \
     --dataset $dataset \
     --topk 10 \

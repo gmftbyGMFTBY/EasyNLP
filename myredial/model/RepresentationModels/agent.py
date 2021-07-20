@@ -425,7 +425,7 @@ class RepresentationAgent(RetrievalBaseAgent):
             self.model.ctx_encoder.load_state_dict(new_state_dict)
 
             if self.args['model'] in ['dual-bert-one2many']:
-                for i in range(self.args['topk']):
+                for i in range(self.args['topk_encoder']):
                     self.checkpointadapeter.init(
                         state_dict.keys(),
                         self.model.can_encoders[i].state_dict().keys(),

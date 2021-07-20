@@ -1,25 +1,27 @@
 from model.utils import *
+from dataloader.util_func import *
 
 class BERTDualPTEncoder(nn.Module):
 
-    '''dual bert and dual latent interaction: one-to-many mechanism'''
+    '''constrastive learning loss and MLM loss'''
     
     def __init__(self, **args):
         super(BERTDualPTEncoder, self).__init__()
         model = args['pretrained_model']
-        s = args['smoothing']
-
-        self.ctx_encoder = BertFullEmbedding(model=model)
-        self.can_encoder = BertFullEmbedding(model=model)
+        self.ctx_encoder = BertForPreTraining.from_pretrained(model=model)
+        self.can_encoder = BertForPreTraining.from_pretrained(model=model)
+        # [EOS] token
+        self.ctx_encoder.resize_token_embeddings(self.ctx_encoder.config.vocab_size+1)
+        self.can_encoder.resize_token_embeddings(self.can_encoder.config.vocab_size+1)
         self.criterion = nn.CrossEntropyLoss(ignore_index=-1)
         self.vocab_size = self.ctx_encoder.model.config.vocab_size
-        self.hidden_size = self.ctx_encoder.model.config.hidden_size
-        self.lm_head = nn.Linear(self.hidden_size, self.vocab_size)
 
-    def _encode(self, cid, rid, cid_mask, rid_mask):
-        cid_rep = self.ctx_encoder(cid, cid_mask)
-        rid_rep = self.can_encoder(rid, rid_mask)
-        cid_lm, rid_lm = self.lm_head(cid_rep), self.lm_head(rid_rep)
+    def _encode(self, cid, rid, cid_mask_ids, rid_mask_ids, cid_mask, rid_mask):
+        cid_output = self.ctx_encoder(cid_mask_ids, cid_mask)
+        rid_output = self.can_encoder(rid_mask_ids, rid_mask)
+
+        cid_mlm_logits, cid_cls_logits = cid_output.prediction_logits, cid_output.seq_relationship_logits
+        rid_mlm_logits, rid_cls_logits = rid_output.prediction_logits, rid_output.seq_relationship_logits
         return cid_rep[:, 0, :], rid_rep[:, 0, :], cid_lm, rid_lm
 
     @torch.no_grad()

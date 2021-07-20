@@ -28,9 +28,6 @@ def load_model(args):
     vocab.add_tokens(['[EOS]'])
     args['vocab_size'] = vocab.vocab_size
 
-    if model_type == 'Generation':
-        model = globals()[model_name](vocab, **args)
-    else:
-        model = globals()[model_name](**args)
+    model = globals()[model_name](**args)
     agent = agent_t(vocab, model, args)
     return agent

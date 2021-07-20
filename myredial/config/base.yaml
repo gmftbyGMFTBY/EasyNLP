@@ -38,12 +38,19 @@ models:
     dual-bert: 
         type: Representation
         model_name: BERTDualEncoder
-        dataset_name: BERTDualDataset
-        # inference_dataset_name: BERTDualInferenceDataset
-        inference_dataset_name: BERTDualInferenceContextDataset
+        # dataset_name: BERTDualDataset
+        dataset_name: BERTDualFullDataset
+        inference_dataset_name: BERTDualInferenceDataset
+        # inference_dataset_name: BERTDualInferenceContextDataset
+    dual-bert-phrase: 
+        type: Generation
+        model_name: BERTDualPhraseEncoder
+        dataset_name: BERTDualPhraseDataset
+        inference_dataset_name: null
     dual-bert-one2many: 
         type: Representation
         model_name: BERTDualO2MEncoder
+        # model_name: BERTDualO2MTopKEncoder
         dataset_name: BERTDualO2MDataset
         inference_dataset_name: BERTDualInferenceDataset
         # inference_dataset_name: BERTDualInferenceContextDataset
@@ -162,21 +169,21 @@ test_interval: 0.1
 # ========== deploy parameters ========== #
 deploy:
     host: '0.0.0.0'
-    port: 22335
-    dataset: restoration-200k
+    port: 8096
+    dataset: writer
     max_len: 256
     res_max_len: 64
     recall:
         activate: false
-        model: dual-bert-one2many
+        model: full 
         # default topk
         topk: 100
         # only the arxiv, writer dataset need the with_source
         with_source: false
-        index_type: LSH 
+        index_type: Flat 
         dimension: 768
     rerank:
-        activate: false
-        model: dual-bert
-    pipeline:
         activate: true
+        model: gpt2lm 
+    pipeline:
+        activate: false

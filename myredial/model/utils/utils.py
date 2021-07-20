@@ -19,6 +19,27 @@ class PositionEmbedding(nn.Module):
         return self.dropout(x)
 
 
+class GPT2LMIRModel(nn.Module):
+
+    '''except for the LM output, also return the last hidden state for phrase-level information retrieval'''
+
+    def __init__(self, model='uer/gpt2-base-chinese-cluecorpussmall'):
+        super(GPT2LMIRModel, self).__init__()
+        self.model = GPT2LMHeadModel.from_pretrained(model)
+        self.vocab = BertTokenizer.from_pretrained(model)
+
+    def forward(self, ids, attn_mask):
+        output = self.model(
+            input_ids=ids,
+            attention_mask=attn_mask,
+            output_hidden_states=True,
+        )
+        lm_logits = output.logits
+        hidden_state = output.hidden_states[-1]
+        # lm_logits: [B, S, V]; hidden_state: [B, S, E]
+        return lm_logits, hidden_state
+
+
 class BertFullEmbedding(nn.Module):
     
     def __init__(self, model='bert-base-chinese'):
@@ -31,6 +52,41 @@ class BertFullEmbedding(nn.Module):
         # return: [B, S, E]
         embds = self.model(ids, attention_mask=attn_mask)[0]
         return embds
+
+
+class TopKBertEmbedding(nn.Module):
+
+    '''bert embedding with m query heads'''
+    
+    def __init__(self, model='bert-base-chinese', m=5):
+        super(TopKBertEmbedding, self).__init__()
+        self.model = BertModel.from_pretrained(model)
+        self.m = m
+        # bert-fp checkpoint has the special token: [EOS]
+        self.model.resize_token_embeddings(self.model.config.vocab_size + 1)
+        self.queries = nn.Parameter(torch.randn(512, 768))    # [M, E] with maxium length 512
+
+    def get_padding_mask_weight(self, attn_mask):
+        weight = torch.where(attn_mask != 0, torch.zeros_like(attn_mask), torch.ones_like(attn_mask))
+        weight = weight * -1e3    # [B, S]
+        weight = weight.unsqueeze(1).repeat(1, self.m, 1)    # [B, M, S]
+        return weight
+
+    def forward(self, ids, attn_mask, speaker_type_ids=None):
+        # embds = self.model(ids, attention_mask=attn_mask)[1]
+        embds = self.model(ids, attention_mask=attn_mask)[0]     # [B, S, E]
+        
+        # [B, S, E] x [M, E] -> [B, S, E] x [E, M] -> [B, S, M] -> [B, M, S]
+        queries = self.queries[:self.m, :]    # [M, E]
+        scores = torch.matmul(embds, queries.t()).permute(0, 2, 1)
+        scores /= np.sqrt(768)
+        weight = self.get_padding_mask_weight(attn_mask)    # [B, M, S]
+        scores += weight
+        scores = F.softmax(scores, dim=-1)    # [B, M, S]
+
+        # [B, M, S] x [B, S, E] -> [B, M, E]
+        rep = torch.bmm(scores, embds)
+        return rep
 
 class BertEmbedding(nn.Module):
     
@@ -268,6 +324,9 @@ class CheckpointAdapter:
         self.prefix_list = ['bert_model', 'model']
         self.maybe_missing_list = [
             'embeddings.position_ids', 
+            'model.embeddings.position_ids', 
+            # the followings are the BERTDualO2MTopKEmbedding extra parameters
+            'queries',
         ]
 
     def clean(self, name):
@@ -326,6 +385,11 @@ class CheckpointAdapter:
         if _judge(collected_paramters, missing):
             unused = list(set(collected_paramters) - set(target_np))
             return mapping, missing, unused
+        # show the error log
+        if len(missing) > 0:
+            print(f'[!] !!!!! Find missing parameters !!!!!')
+            for i in missing:
+                print(f'   - ', i)
         raise Exception(f'[!] Load checkpoint failed')
 
     def show_inf(self):
@@ -342,5 +406,8 @@ class CheckpointAdapter:
                 new_state_dict[k_] = v
         for i in self.missing:
             # missing parameters are the position ids
-            new_state_dict[i] = torch.arange(512).expand((1, -1))
+            if i in ['embeddings.position_ids', 'model.embeddings.position_ids']:
+                new_state_dict[i] = torch.arange(512).expand((1, -1))
+            elif i in ['queries']:
+                new_state_dict[i] = torch.randn(512, 768)
         return new_state_dict

@@ -9,11 +9,12 @@ class GPT2LM(nn.Module):
         self.model = GPT2LMHeadModel.from_pretrained(tokenizer)
         self.vocab = BertTokenizer.from_pretrained(pretrained_model)
         self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
-        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.args = args
 
     def _gpt2_convert_to_ids(self, context, sentence):
         cids, rids = self.vocab.batch_encode_plus([context, sentence], add_special_tokens=False)['input_ids']
+        truncate_pair(cids, rids, self.args['max_len']+1)
         ids = [self.cls] + cids + rids + [self.sep]
         label = [-100] * (len(cids) + 1) + rids + [-100]
         ids = torch.LongTensor(ids)

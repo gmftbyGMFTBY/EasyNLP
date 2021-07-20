@@ -1,16 +1,12 @@
-# rank: bert-ft-compare
 rank: null
-dropout: 0.1
-# make sure the topk is the same as the gray_cand_num
-topk_encoder: 5
-gray_cand_num: 5
+gpt2_lm_model: uer/gpt2-chinese-cluecorpussmall
 
 # train configuration
 train:
     lr: 0.00005
     grad_clip: 5.0
     seed: 0
-    batch_size: 32
+    batch_size: 64
     max_len: 256
     res_max_len: 64
     epoch: 10
