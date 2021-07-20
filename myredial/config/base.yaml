@@ -39,7 +39,8 @@ models:
         type: Representation
         model_name: BERTDualEncoder
         # dataset_name: BERTDualDataset
-        dataset_name: BERTDualFullDataset
+        # dataset_name: BERTDualFullDataset
+        dataset_name: BERTDualPesudoDataset
         inference_dataset_name: BERTDualInferenceDataset
         # inference_dataset_name: BERTDualInferenceContextDataset
     dual-bert-phrase: 

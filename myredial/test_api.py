@@ -20,6 +20,7 @@ def parser_args():
     parser.add_argument('--port', type=int, default=22335)
     parser.add_argument('--dataset', type=str, default='douban')
     parser.add_argument('--seed', type=float, default=0.0)
+    parser.add_argument('--prefix_name', type=str, default='')
     return parser.parse_args()
 
 
@@ -250,7 +251,7 @@ if __name__ == '__main__':
     collections = MAP[args['mode']](args)
     
     # write into log file
-    write_path = f'{args["root_dir"]}/data/{args["dataset"]}/test_api_{args["mode"]}_{args["port"]}_log.txt'
+    write_path = f'{args["root_dir"]}/data/{args["dataset"]}/test_api_{args["mode"]}_{args["port"]}_{args["prefix_name"]}_log.txt'
     with open(write_path, 'w') as f:
         for sample in tqdm(collections):
             data = sample['item_list']

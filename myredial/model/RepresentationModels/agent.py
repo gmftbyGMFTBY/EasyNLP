@@ -337,6 +337,29 @@ class RepresentationAgent(RetrievalBaseAgent):
             )
     
     @torch.no_grad()
+    def inference_context_for_response(self, inf_iter, size=1000000):
+        '''inference the context for searching the hard negative data'''
+        self.model.eval()
+        pbar = tqdm(inf_iter)
+        embds, responses = [], []
+        for batch in pbar:
+            ids = batch['ids']
+            ids_mask = batch['mask']
+            response = batch['text']
+            embd = self.model.module.get_ctx(ids, ids_mask).cpu()
+            embds.append(embd)
+            responses.extend(response)
+        embds = torch.cat(embds, dim=0).numpy()
+        for idx, i in enumerate(range(0, len(embds), size)):
+            embd = embds[i:i+size]
+            text = responses[i:i+size]
+            torch.save(
+                (embd, text), 
+                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_context_for_response_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
+            )
+    
+    
+    @torch.no_grad()
     def inference_context(self, inf_iter):
         '''inference the context for searching the hard negative data'''
         self.model.eval()

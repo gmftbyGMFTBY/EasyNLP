@@ -26,7 +26,6 @@ class GPT2LMIRModel(nn.Module):
     def __init__(self, model='uer/gpt2-base-chinese-cluecorpussmall'):
         super(GPT2LMIRModel, self).__init__()
         self.model = GPT2LMHeadModel.from_pretrained(model)
-        self.vocab = BertTokenizer.from_pretrained(model)
 
     def forward(self, ids, attn_mask):
         output = self.model(

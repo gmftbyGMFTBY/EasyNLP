@@ -30,14 +30,13 @@ class BERTDualPhraseEncoder(nn.Module):
         cid_mask = torch.ones_like(cid)
         batch_size = cid.shape[0]
         _, cid_rep, rid_rep = self._encode(cid, cid_mask)
-        dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
         # phrase-level extraction loss
         rid_rep = rid_rep[:, 1:, :]
         cid_rep = cid_rep[:, :-1, :]
         # cid_rep: [B, S-1, E]; rid_rep: [B, S-1, E]
         dot_product = torch.bmm(cid_rep, rid_rep.permute(0, 2, 1)).squeeze(0)    # [S-1, S-1]
         acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(len(dot_product))).cuda()).sum().item()
-        acc /= len(dot_product)
+        acc = acc_num / len(dot_product)
         return acc
     
     def forward(self, batch):

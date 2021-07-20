@@ -2,6 +2,7 @@
 
 mode=$1
 dataset=$2
+prefix_name=$3
 python test_api.py \
     --size 10 \
     --url 9.91.66.241 \
@@ -10,4 +11,5 @@ python test_api.py \
     --dataset $dataset \
     --topk 10 \
     --seed 0 \
-    --block_size 1
+    --block_size 1 \
+    --prefix_name $prefix_name

@@ -194,6 +194,25 @@ def read_text_data_dual_bert(path, lang='zh'):
     return dataset
 
 
+def read_response_data_full(path, lang='zh'):
+    '''all the sentences in the corpus will be used, for unparallel inference work_mode'''
+    with open(path) as f:
+        dataset = []
+        for line in f.readlines():
+            utterance = line.strip().split('\t')
+            if int(utterance[0]) == 0:
+                dataset.append(utterance[-1])
+                continue
+            utterance = utterance[1:]
+            if lang == 'zh':
+                utterance = [''.join(i.split()) for i in utterance]
+            dataset.extend(utterance)
+    # delete the duplicate responses
+    dataset = list(set(dataset))
+    print(f'[!] load {len(dataset)} responses from {path}')
+    return dataset
+
+
 def read_response_data(path, lang='zh'):
     with open(path) as f:
         dataset = []
@@ -297,3 +316,15 @@ def read_essay_dataset(path):
         responses = list(set(responses))
         print(f'[!] collect {len(dataset)} sentences')
     return dataset, responses
+
+def read_text_data_utterances_and_pesudo_pairs(path1, path2, lang='zh'):
+    dataset1 = read_text_data_utterances(path1, lang=lang)
+    with open(path2) as f:
+        dataset2 = []
+        for line in f.readlines():
+            line = json.loads(line.strip())
+            # pos = random.choice(line['snr'])
+            # utterances = [line['q'], pos]
+            utterances = [line['q'], line['snr'][0]]
+            dataset2.append((1, utterances))
+    return dataset1 + dataset2

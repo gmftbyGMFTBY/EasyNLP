@@ -75,6 +75,13 @@ If you want to generate the gray dataset for the dataset:
 ./scripts/inference.sh <dataset_name> gray-one2many <cuda_ids>
 ```
 
+If you want to generate the pesudo positive pairs, run the following commands:
+
+```bash
+# make sure the dual-bert inference dataset name is BERTDualInferenceDataset
+./scripts/inference.sh <dataset_name> unparallel <cuda_ids>
+```
+
 6. deploy the rerank and recall model
 
 ```bash

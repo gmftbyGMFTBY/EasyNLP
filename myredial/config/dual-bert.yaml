@@ -14,8 +14,8 @@ train:
     # no wamrup, set 0.0 (BERT-FP and UMS_BERT)
     warmup_ratio: 0.
     checkpoint: 
-        path: bert-post/best_nspmlm.pt
-        # path: bert-fp/best_bert-base-chinese.pt
+        # path: bert-post/best_nspmlm.pt
+        path: bert-fp/best_bert-base-chinese.pt
         is_load: true
 
 # test configuration
@@ -31,5 +31,5 @@ inference:
     batch_size: 128
     max_len: 64
     topk: 20
-    index_type: Flat
+    index_type: LSH
     dimension: 768
