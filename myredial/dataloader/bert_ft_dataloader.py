@@ -23,7 +23,10 @@ class BERTFTDataset(Dataset):
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
 
-        data = read_text_data_utterances(path, lang=self.args['lang'])
+        # data = read_text_data_utterances(path, lang=self.args['lang'])
+        # full and pseudo pairs
+        pseudo_path = f'{os.path.splitext(path)[0]}_gray_unparallel.txt'
+        data = read_text_data_utterances_and_full_and_pesudo_pairs_ft(path, pseudo_path, lang=self.args['lang'])
         self.data = []
         if self.args['mode'] == 'train':
             for label, utterances in tqdm(data):
@@ -231,117 +234,3 @@ class BERTFTWithNegDataset(Dataset):
             'mask': mask, 
             'label': label
         }
-
-        
-class BERTFTEssayDataset(Dataset):
-    
-    def __init__(self, vocab, path, **args):
-        self.args = args
-        self.vocab = vocab
-        self.vocab.add_tokens(['[EOS]'])
-
-        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
-        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
-        self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
-        self.unk = self.vocab.convert_tokens_to_ids('[UNK]')
-        self.eos = self.vocab.convert_tokens_to_ids('[EOS]')
-
-        suffix = args['tokenizer'].replace('/', '_')
-        self.pp_path = f'{os.path.splitext(path)[0]}_ft_essay_{suffix}.pt'
-        if os.path.exists(self.pp_path):
-            self.data = torch.load(self.pp_path)
-            print(f'[!] load preprocessed file from {self.pp_path}')
-            return None
-
-        self.data = []
-        if self.args['mode'] == 'train':
-            data = read_text_data_utterances(path, lang=self.args['lang'])
-            for label, utterances in tqdm(data):
-                item = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']
-                context = []
-                for u in item[:-1]:
-                    context.extend(u + [self.eos])
-                context.pop()
-                response = item[-1]
-                truncate_pair(context, response, self.args['max_len'])
-                ids = [self.cls] + context + [self.sep] + response + [self.sep]
-                tids = [0] * (len(context) + 2) + [1] * (len(response) + 1)
-                self.data.append({
-                    'label': label, 
-                    'ids': ids,
-                    'tids': tids,
-                })
-        else:
-            with open(path) as f:
-                for line in f.readlines():
-                    session = re.split('。|；|！|？', line.strip())
-                    session = [i.strip() for i in session if i.strip()]
-                    item = self.vocab.batch_encode_plus(session, add_special_tokens=False)['input_ids']
-                    ids, tids = [], []
-                    for i in range(1, len(item)):
-                        ctx, res = item[:i], item[i]
-                        context = []
-                        for u in ctx:
-                            context.extend(u + [self.eos])
-                        context.pop()
-                        truncate_pair(context, res, self.args['max_len'])
-                        ids_ = [self.cls] + context + [self.sep] + res + [self.sep]
-                        tids_ = [0] * (len(context) + 2) + [1] * (len(res) + 1)
-                        ids.append(ids_)
-                        tids.append(tids_)
-                    self.data.append({
-                        'ids': ids,
-                        'tids': tids,
-                        'sentences': [session[i] for i in range(1, len(session))], 
-                    })    
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, i):
-        bundle = self.data[i]
-        if self.args['mode'] == 'train':
-            ids = torch.LongTensor(bundle['ids'])
-            tids = torch.LongTensor(bundle['tids'])
-            label = bundle['label']
-            return ids, tids, label
-        else:
-            ids = [torch.LongTensor(i) for i in bundle['ids']]
-            tids = [torch.LongTensor(i) for i in bundle['tids']]
-            return ids, tids, bundle['sentences']
-
-    def save(self):
-        data = torch.save(self.data, self.pp_path)
-        print(f'[!] save preprocessed dataset into {self.pp_path}')
-        
-    def collate(self, batch):
-        if self.args['mode'] == 'train':
-            ids, tids, label = [i[0] for i in batch], [i[1] for i in batch], [i[2] for i in batch]
-            ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
-            tids = pad_sequence(tids, batch_first=True, padding_value=self.pad)
-            mask = generate_mask(ids)
-            label = torch.LongTensor(label)
-            ids, tids, mask, label = to_cuda(ids, tids, mask, label)
-            return {
-                'ids': ids, 
-                'tids': tids, 
-                'mask': mask, 
-                'label': label
-            }
-        else:
-            # batch size is batch_size * 10
-            ids, tids, sentences = [], [], []
-            for b in batch:
-                ids.extend(b[0])
-                tids.extend(b[1])
-                sentences.extend(b[2])
-            ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
-            tids = pad_sequence(tids, batch_first=True, padding_value=self.pad)
-            mask = generate_mask(ids)
-            ids, tids, mask = to_cuda(ids, tids, mask)
-            return {
-                'ids': ids, 
-                'tids': tids, 
-                'mask': mask, 
-                'sentences': sentences,
-            }

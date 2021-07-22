@@ -4,9 +4,9 @@ mode=$1
 dataset=$2
 prefix_name=$3
 python test_api.py \
-    --size 10 \
+    --size 100 \
     --url 9.91.66.241 \
-    --port 8096 \
+    --port 22335 \
     --mode $mode \
     --dataset $dataset \
     --topk 10 \

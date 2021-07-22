@@ -165,3 +165,14 @@ def load_qa_pair(path, lang='zh'):
             a = utterances[-1]
             dataset.append((q, a))
     return dataset
+
+
+def load_qa_pair_extened(path, lang='zh'):
+    with open(path) as f:
+        dataset = []
+        for line in f.readlines():
+            item = json.loads(line.strip())
+            q = item['q']
+            r = item['snr'][0]
+            dataset.append((q, r))
+        return dataset

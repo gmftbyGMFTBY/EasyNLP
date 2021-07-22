@@ -307,14 +307,28 @@ def read_essay_dataset(path):
             passage_id = int(passage_id)
             sentence_id = int(sentence_id)
             sentence = sentence.replace('|', '')
-            if len(sentence) < 5:
+            if len(sentence) < 3:
                 continue
             dataset.append((
                 essay_id, passage_id, sentence_id, sentence    
             ))
             responses.append(sentence)
         responses = list(set(responses))
-        print(f'[!] collect {len(dataset)} sentences')
+
+        data, cache = []
+        last_p_id = -1
+        for e_id, p_id, _, s in dataset:
+            if p_id != last_p_id:
+                if cache:
+                    data.append(cache)
+                cache = [s]
+                if last_p_id != p_id:
+                    last_p_id = p_id
+            else:
+                cache.append(s)
+        if cache:
+            data.append(cache)
+        print(f'[!] collect {len(data)} sentences')
     return dataset, responses
 
 def read_text_data_utterances_and_pesudo_pairs(path1, path2, lang='zh'):
@@ -327,4 +341,68 @@ def read_text_data_utterances_and_pesudo_pairs(path1, path2, lang='zh'):
             # utterances = [line['q'], pos]
             utterances = [line['q'], line['snr'][0]]
             dataset2.append((1, utterances))
+    return dataset1 + dataset2
+
+def read_text_data_utterances_and_full_and_pesudo_pairs(path1, path2, lang='zh'):
+    dataset1_ = read_text_data_utterances(path1, lang=lang)
+    dataset1 = []
+    for label, utterances in dataset1_:
+        if label == 0:
+            continue
+        start_num = max(1, len(utterances) - 5)
+        for i in range(start_num, len(utterances)):
+            dataset1.append((1, utterances[:i+1]))
+    with open(path2) as f:
+        dataset2 = []
+        for line in tqdm(f.readlines()):
+            line = json.loads(line.strip())
+            # pos = random.choice(line['snr'])
+            # utterances = [line['q'], pos]
+            utterances = [line['q'], line['snr'][0]]
+            dataset2.append((1, utterances))
+    return dataset1 + dataset2
+
+def read_extended_douban_corpus(path):
+    with open(path) as f:
+        dataset = []
+        for line in f.readlines():
+            line = line.strip()
+            dataset.append(line)
+    print(f'[!] read {len(dataset)} utterances from extended douban corpus')
+    return dataset
+
+
+def read_text_data_utterances_and_full_and_pesudo_pairs_ft(path1, path2, lang='zh'):
+    dataset1_ = read_text_data_utterances(path1, lang=lang)
+
+    # negative utterances pool
+    utterances = []
+    for label, us in dataset1_:
+        utterances.extend(us)
+    with open(path2) as f:
+        dataset2 = []
+        for line in f.readlines():
+            line = json.loads(line.strip())
+            utterances.extend(line['snr'])
+    utterances_pool = list(set(utterances))
+
+    dataset1 = []
+    for label, utterances in dataset1_:
+        if label == 0:
+            continue
+        start_num = max(1, len(utterances) - 5)
+        for i in range(start_num, len(utterances)):
+            dataset1.append((1, utterances[:i+1]))
+            neg = random.choice(utterances_pool)
+            dataset1.append((0, utterances[:i] + [neg]))
+    with open(path2) as f:
+        dataset2 = []
+        for line in f.readlines():
+            line = json.loads(line.strip())
+            # pos = random.choice(line['snr'])
+            # utterances = [line['q'], pos]
+            utterances = [line['q'], line['snr'][0]]
+            dataset2.append((1, utterances))
+            neg = random.choice(utterances_pool)
+            dataset2.append((0, [line['q'], neg]))
     return dataset1 + dataset2

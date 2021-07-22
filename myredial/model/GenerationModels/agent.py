@@ -107,3 +107,24 @@ class GenerationAgent(RetrievalBaseAgent):
             new_state_dict = self.checkpointadapeter.convert(state_dict)
             self.model.load_state_dict(new_state_dict)
         print(f'[!] load model from {path}')
+
+
+    @torch.no_grad()
+    def inference(self, inf_iter, size=500000):
+        self.model.eval()
+        pbar = tqdm(inf_iter)
+        embds, texts = [], []
+        for batch in pbar:
+            rid = batch['ids']
+            rid_mask = batch['mask']
+            embeddings, ts = self.model.module.get_cand(rid, rid_mask)    # [B, S, E]
+            embds.append(embeddings.cpu())
+            texts.extend(ts)
+        embds = torch.cat(embds, dim=0).numpy()
+        for counter, i in enumerate(range(0, len(embds), size)):
+            embd = embds[i:i+size]
+            text = texts[i:i+size]
+            torch.save(
+                (embd, text), 
+                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
+            )

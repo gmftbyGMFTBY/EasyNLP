@@ -14,15 +14,32 @@ class BERTDualPhraseEncoder(nn.Module):
         self.can_encoder = BertFullEmbedding(model=model)
         self.criterion = nn.CrossEntropyLoss(ignore_index=self.pad)
 
+        # p = args['dropout']
+        # self.proj_query = nn.Sequential(
+        #     nn.Dropout(p=p),
+        #     nn.Linear(768, 768),
+        # )
+
     def _encode(self, cid, cid_mask):
         cid_logits, cid_rep = self.ctx_encoder(cid, cid_mask)
+        cid_rep = self.proj_query(cid_proj)
         rid_rep = self.can_encoder(cid, cid_mask)
         return cid_logits, cid_rep, rid_rep
 
     @torch.no_grad()
     def get_cand(self, ids, attn_mask):
-        rid_rep = self.can_encoder(ids, attn_mask)
-        return rid_rep
+        rid_rep = self.can_encoder(ids, attn_mask)    # [B, S, E]
+        embeddings, texts = [], []
+        for rid_rep_, ids_, mask in zip(rid_rep, ids, attn_mask):
+            # rid_rep_: [S, E]; ids_: [S]; mask: [S]
+            num_nonzero = ids_.nonzero().size()[0]
+            # ignore [CLS] and [SEP]
+            for i in range(1, num_nonzero):
+                embeddings.append(rid_rep_[i])
+                text = ''.join(self.vocab.decode(ids_[i:num_nonzero-1]).split())
+                texts.append(text)
+        embeddings = torch.stack(embeddings)    # [N, E]
+        return embeddings, texts 
 
     @torch.no_grad()
     def predict(self, batch):
@@ -69,9 +86,11 @@ class BERTDualPhraseEncoder(nn.Module):
         mask = torch.zeros_like(dot_product)    # [B, S-1, S-1]
         mask[:, range(batch_size), range(batch_size)] = 1. 
         # ignore the pad
+        length = len(cid_mask[0])
         for i in range(len(mask)):
             num_nonzero = cid_mask[i].nonzero().size(0)
-            mask[i][range(num_nonzero), range(num_nonzero)] = 0.
+            # -1 means ignore the last [SEP] token, which is useless
+            mask[i][range(num_nonzero-1, length), range(num_nonzero-1, length)] = 0.
         loss_ = F.log_softmax(dot_product, dim=-1) * mask    # [B, S-1, S-1]
         loss = -loss_.sum(dim=2)    # [B, S-1]
         loss = loss.view(-1).mean()    # [B*(S-1)]

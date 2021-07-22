@@ -18,6 +18,12 @@ class BERTDualInferenceDataset(Dataset):
         # except the response in the train dataset, test dataset responses are included for inference test
         # for inference[gray mode] do not use the test set responses
         responses = read_response_data_full(path, lang=self.args['lang'])
+        # add the extended douban utterances
+        extended_path = f'{args["root_dir"]}/data/ext_douban/train.txt'
+        extended_responses = read_extended_douban_corpus(extended_path)
+        responses += extended_responses
+        responses = list(set(responses))
+
         self.data = []
         for res in tqdm(responses):
             rids = length_limit_res(self.vocab.encode(res), self.args['max_len'], sep=self.sep)

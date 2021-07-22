@@ -169,3 +169,22 @@ class InteractionAgent(RetrievalBaseAgent):
                 subscores.extend(self.model(batch).tolist())
             scores.append(subscores)
         return scores
+    
+    def load_model(self, path):
+        state_dict = torch.load(path, map_location=torch.device('cpu'))
+        if self.args['mode'] == 'train':
+            self.checkpointadapeter.init(
+                state_dict.keys(),
+                self.model.model.bert.state_dict().keys(),
+            )
+            new_state_dict = self.checkpointadapeter.convert(state_dict)
+            self.model.model.bert.load_state_dict(new_state_dict)
+        else:
+            # test and inference mode
+            self.checkpointadapeter.init(
+                state_dict.keys(),
+                self.model.state_dict().keys(),
+            )
+            new_state_dict = self.checkpointadapeter.convert(state_dict)
+            self.model.load_state_dict(new_state_dict)
+        print(f'[!] load model from {path}')

@@ -606,14 +606,7 @@ class BERTDualFullDataset(Dataset):
                 if label == 0:
                     continue
                 item = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']
-
-                # start_num = 1    # for restoration-200k
-
-                # only for douban
-                start_num = len(item) - 5    # for douban
-                if start_num < 1: 
-                    start_num = 1
-
+                start_num = max(1, len(item) - 5) 
                 for i in range(start_num, len(item)):
                     cids, rids = item[:i], item[i]
                     ids = []
@@ -711,7 +704,7 @@ class BERTDualFullDataset(Dataset):
             }
 
             
-class BERTDualPesudoDataset(Dataset):
+class BERTDualPseudoDataset(Dataset):
     
     def __init__(self, vocab, path, **args):
         self.args = args
@@ -724,7 +717,7 @@ class BERTDualPesudoDataset(Dataset):
         self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
 
         suffix = args['tokenizer'].replace('/', '_')
-        self.pp_path = f'{os.path.splitext(path)[0]}_dual_pesudo_{suffix}.pt'
+        self.pp_path = f'{os.path.splitext(path)[0]}_dual_pseudo_{suffix}.pt'
         if os.path.exists(self.pp_path):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
@@ -733,8 +726,9 @@ class BERTDualPesudoDataset(Dataset):
 
         self.data = []
         if self.args['mode'] == 'train':
-            pesudo_path = f'{os.path.splitext(path)[0]}_gray_unparallel.txt'
-            data = read_text_data_utterances_and_pesudo_pairs(path, pesudo_path, lang=self.args['lang'])
+            pseudo_path = f'{os.path.splitext(path)[0]}_gray_unparallel.txt'
+            # data = read_text_data_utterances_and_pesudo_pairs(path, pseudo_path, lang=self.args['lang'])
+            data = read_text_data_utterances_and_full_and_pesudo_pairs(path, pseudo_path, lang=self.args['lang'])
             for label, utterances in tqdm(data):
                 if label == 0:
                     continue
