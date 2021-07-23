@@ -136,7 +136,10 @@ def create_app():
                 item = {'context': batch['context']}
                 item['candidates'] = []
                 for s, cand in zip(scores, batch['candidates']):
-                    item['candidates'].append({'str': cand, 'score': s})
+                    if rerank_args['model'] in ['gpt2lm', 'kenlm']:
+                        item['candidates'].append({'str': cand, 'score': s[1], 'ppl': s[0]})
+                    else:
+                        item['candidates'].append({'str': cand, 'score': s})
                 rest_.append(item)
             result['item_list'] = rest_
         else:

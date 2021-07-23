@@ -22,7 +22,8 @@ class BERTDualDataset(Dataset):
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
 
-        data = read_text_data_utterances(path, lang=self.args['lang'])
+        # data = read_text_data_utterances(path, lang=self.args['lang'])
+        data = read_text_data_utterances_full(path, lang=self.args['lang'])
 
         self.data = []
         if self.args['mode'] == 'train':
@@ -482,7 +483,8 @@ class BERTDualO2MDataset(Dataset):
         
         self.data = []
         if self.args['mode'] == 'train':
-            data = read_text_data_with_super_hard_q_r(path, lang=self.args['lang'])
+            # data = read_text_data_with_super_hard_q_r(path, lang=self.args['lang'])
+            data = read_text_data_one2many_pesudo(path, lang=self.args['lang'])
             for context, response, candidates in tqdm(data):
                 item = self.vocab.batch_encode_plus(context + [response] + candidates, add_special_tokens=False)['input_ids']
                 cids = item[:len(context)]

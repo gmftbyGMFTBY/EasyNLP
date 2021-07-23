@@ -49,6 +49,7 @@ max_mask_num=20; masked_lm_prob=0.15; min_context_length=2; min_token_length=20;
 | dual-bert-full+    | 49.82 | 65.62 | 89.05 | 65.73 |
 | dual-bert-pesudo+  | 49.37 | 65.99 | 88.54 | 65.5  |
 | dual-bert-full-pesudo+  | 50.57 | 65.99 | 88.99 | 66.14  |
+| dual-bert-full-pesudo(350w)+  | 49.22 | 66.38 | 88.24 | 65.39  |
 | dual-bert-one2many+| 47.88 | 63.7  | 88.19 | 64.14 |
 | dual-bert-one2many-topk+| 47.1 | 63.85  | 87.52 | 63.65 |
 | BERT-FP(bert-ft+)  | 45.77 | 62.19 | 87.3  | 62.68 |
@@ -88,12 +89,11 @@ test set is not used in the faiss index; put the context utterances in the index
 EXT means the extra data is used
 BERT-FP=bert-ft+
 -->
-| Methods(EXT-Data)           | 1 | 2 | 3 | 4 | 5 | Average Human Evaluation | Average Time Cost | 
+| Methods                     | 1 | 2 | 3 | 4 | 5 | Average Human Evaluation | Average Time Cost | 
 | --------------------------- | - | - | - | - | - | ------------------------ | ----------------- |
 | BM25(q-q, topk=)+BERT-FP    |   |   |   |   |   |                          |                   |
-| BM25(q-q, ext_data, topk=)+BERT-FP    |   |   |   |   |   |                          |                   |
 | BM25(q-r, ext_data, topk=)+BERT-FP    |   |   |   |   |   |                          |                   |
-| dual-bert(ext_data)         |   |   |   |   |   |                          |                   |
+| dual-bert(ext_data)+None    |   |   |   |   |   |                          |                   |
 | dual-bert(ext_data, topk=)+BERT-FP    |   |   |   |   |   |                          |                   |
 
 **The kappa among annotators**: 

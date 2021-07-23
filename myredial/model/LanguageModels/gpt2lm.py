@@ -32,4 +32,8 @@ class GPT2LM(nn.Module):
             loss = self.model(ids, labels=label)[0]    # loss
             ppl = math.exp(loss.item())
             rest.append(ppl)
+        # normalization
+        norm = torch.tensor(rest)
+        norm = 1 - (norm - norm.min()) / (norm.max() - norm.min())
+        rest = [(ppl, norm_) for ppl, norm_ in zip(rest, norm.tolist())]
         return rest

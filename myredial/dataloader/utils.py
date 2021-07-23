@@ -163,6 +163,28 @@ def read_text_data_with_super_hard_q_r(path, lang='zh'):
     return dataset
 
 
+def read_text_data_one2many_pesudo(path, lang='zh'):
+    path_ = f'{os.path.splitext(path)[0]}_gray.txt'
+    with open(path_) as f:
+        dataset = []
+        for line in f.readlines():
+            line = json.loads(line.strip())
+            context = line['q']
+            response = line['r']
+            candidates = line['snr']
+            dataset.append((context, response, candidates))
+    ext_path = f'{os.path.splitext(path)[0]}_gray_unparallel.txt'
+    with open(ext_path) as f:
+        for line in tqdm(f.readlines()):
+            line = json.loads(line.strip())
+            context = line['q']
+            response = line['snr'][0]
+            candidates = line['snr'][1:]
+            dataset.append(([context], response, candidates))
+    print(f'[!] load {len(dataset)} samples from {path} and {ext_path}')
+    return dataset
+
+
 def read_text_data_with_neg_q_r_neg(path, lang='zh'):
     path = f'{os.path.splitext(path)[0]}_gray.txt'
     with open(path) as f:
@@ -342,6 +364,33 @@ def read_text_data_utterances_and_pesudo_pairs(path1, path2, lang='zh'):
             utterances = [line['q'], line['snr'][0]]
             dataset2.append((1, utterances))
     return dataset1 + dataset2
+
+def read_text_data_utterances_full(path, lang='zh'):
+    '''the full conversation context will be used:
+        for the given conversation: 1, 2, 3 -> 4
+        we can get the trainig samples:
+            a. 1, 2, 3 -> 4
+               2, 3 -> 4
+               3 -> 4
+            b. 1, 2 -> 3
+               2 -> 3
+            c. 1 -> 2
+            '''
+    dataset = read_text_data_utterances(path, lang=lang)
+    data = []
+    for label, utterances in dataset:
+        if label == 0:
+            continue
+        start_num = max(1, len(utterances) - 5)
+        for i in range(start_num, len(utterances)):
+            # i is the index of the response
+            data.append((1, utterances[:i+1]))
+            ctx_start_num = max(1, i - 5)    # 0 index has been added in the utterances[:i+1]
+            for j in range(ctx_start_num, i):
+                # j is the index of the start utterance of the context
+                data.append((1, utterances[j:i+1]))
+    print(f'[!] collect {len(data)} samples for training')
+    return data
 
 def read_text_data_utterances_and_full_and_pesudo_pairs(path1, path2, lang='zh'):
     dataset1_ = read_text_data_utterances(path1, lang=lang)

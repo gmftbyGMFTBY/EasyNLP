@@ -38,9 +38,9 @@ models:
     dual-bert: 
         type: Representation
         model_name: BERTDualEncoder
-        # dataset_name: BERTDualDataset
+        dataset_name: BERTDualDataset
         # dataset_name: BERTDualFullDataset
-        dataset_name: BERTDualPseudoDataset
+        # dataset_name: BERTDualPseudoDataset
         inference_dataset_name: BERTDualInferenceDataset
         # inference_dataset_name: BERTDualInferenceContextDataset
     dual-bert-phrase: 
@@ -170,8 +170,8 @@ test_interval: 0.1
 # ========== deploy parameters ========== #
 deploy:
     host: '0.0.0.0'
-    port: 22335 
-    dataset: restoration-200k
+    port:  8096
+    dataset: writer
     max_len: 256
     res_max_len: 64
     recall:
@@ -184,7 +184,7 @@ deploy:
         index_type: LSH 
         dimension: 768
     rerank:
-        activate: false
-        model: bert-ft
-    pipeline:
         activate: true
+        model: gpt2lm
+    pipeline:
+        activate: false
