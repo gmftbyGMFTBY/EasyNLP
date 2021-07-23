@@ -1,16 +1,15 @@
 smoothing: 0.1
+dropout: 0.1
 # rank: bert-ft-compare
 rank: null
-# whether fake monoligual context respone pairs is used
-fake_activate: true
-fake_num: 2
+bow_loss_lambda: 0.1
 
 # train configuration
 train:
     lr: 0.00005
     grad_clip: 5.0
     seed: 0
-    batch_size: 32
+    batch_size: 64
     max_len: 256
     res_max_len: 64
     epoch: 10

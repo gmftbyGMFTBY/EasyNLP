@@ -7,6 +7,7 @@ class RepresentationAgent(RetrievalBaseAgent):
         super(RepresentationAgent, self).__init__()
         self.args = args
         self.vocab, self.model = vocab, model
+
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
 
@@ -36,8 +37,18 @@ class RepresentationAgent(RetrievalBaseAgent):
                 print(f'[!] switch the inference function')
         if torch.cuda.is_available():
             self.model.cuda()
+        
+        
+        # add the [CTX] token, resize the word embeddings in the bert model
+        if args['model'] in ['dual-bert']:
+            if args['fake_activate']:
+                # only resize the context encoder token embeddings
+                self.model.ctx_encoder.resize(1)
+
         if args['mode'] in ['train', 'inference']:
             self.set_optimizer_scheduler_ddp()
+
+
         self.show_parameters(self.args)
         # Metrics object
         self.metrics = Metrics()

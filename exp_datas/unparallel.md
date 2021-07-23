@@ -47,10 +47,13 @@ max_mask_num=20; masked_lm_prob=0.15; min_context_length=2; min_token_length=20;
 | bert-ft            | 39.22 | 56.6  | 84.54 | 57.63 |
 | dual-bert+         | 46.85 | 63.3  | 87.36 | 63.48 |
 | dual-bert-full+    | 49.82 | 65.62 | 89.05 | 65.73 |
+| dual-bert-bow-full+    | 46.45 | 62.36 | 87.09 | 62.97 |
+| dual-bert-full-fake+    | 50.02 | 66.32 | 88.6 | 65.98 |
 | dual-bert-pesudo+  | 49.37 | 65.99 | 88.54 | 65.5  |
 | dual-bert-full-pesudo+  | 50.57 | 65.99 | 88.99 | 66.14  |
 | dual-bert-full-pesudo(350w)+  | 49.22 | 66.38 | 88.24 | 65.39  |
 | dual-bert-one2many+| 47.88 | 63.7  | 88.19 | 64.14 |
+| dual-bert-one2many-full-pseudo+| 51.23 | 67.95  | 89.54 | 66.97 |
 | dual-bert-one2many-topk+| 47.1 | 63.85  | 87.52 | 63.65 |
 | BERT-FP(bert-ft+)  | 45.77 | 62.19 | 87.3  | 62.68 |
 | BERT-FP(bert-ft+)-full-pesudo+  | 44.95 | 63.28 | 88.22  | 62.42 |

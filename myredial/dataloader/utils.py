@@ -392,6 +392,23 @@ def read_text_data_utterances_full(path, lang='zh'):
     print(f'[!] collect {len(data)} samples for training')
     return data
 
+def read_text_data_utterances_full_fake_ctx(path1, path2, lang='zh'):
+    dataset = read_text_data_utterances(path1, lang=lang)
+    data = []
+    for label, utterances in dataset:
+        if label == 0:
+            continue
+        start_num = max(1, len(utterances) - 5)
+        for i in range(start_num, len(utterances)):
+            data.append((1, utterances[:i+1]))
+    ext_data = []
+    with open(path2) as f:
+        for line in tqdm(f.readlines()):
+            line = line.strip()
+            ext_data.append((1, [line, line]))
+    print(f'[!] collect {len(data)} pair samples and {len(ext_data)} monolingual samples')
+    return data, ext_data
+
 def read_text_data_utterances_and_full_and_pesudo_pairs(path1, path2, lang='zh'):
     dataset1_ = read_text_data_utterances(path1, lang=lang)
     dataset1 = []

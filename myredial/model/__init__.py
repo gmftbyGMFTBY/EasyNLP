@@ -26,6 +26,8 @@ def load_model(args):
 
     vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
     vocab.add_tokens(['[EOS]'])
+    if 'fake_activate' in args and args['fake_activate']:
+        vocab.add_tokens(['[CTX]'])
     args['vocab_size'] = vocab.vocab_size
 
     model = globals()[model_name](**args)

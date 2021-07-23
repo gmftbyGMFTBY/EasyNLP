@@ -38,11 +38,17 @@ models:
     dual-bert: 
         type: Representation
         model_name: BERTDualEncoder
-        dataset_name: BERTDualDataset
+        dataset_name: BERTDualFullFakeCtxDataset
+        # dataset_name: BERTDualDataset
         # dataset_name: BERTDualFullDataset
         # dataset_name: BERTDualPseudoDataset
         inference_dataset_name: BERTDualInferenceDataset
         # inference_dataset_name: BERTDualInferenceContextDataset
+    dual-bert-bow: 
+        type: Representation
+        model_name: BERTDualBOWEncoder
+        dataset_name: BERTDualFullDataset
+        inference_dataset_name: BERTDualInferenceDataset
     dual-bert-phrase: 
         type: Generation
         model_name: BERTDualPhraseEncoder

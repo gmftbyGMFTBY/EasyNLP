@@ -1,5 +1,6 @@
 from .agent import *
 from .dual_bert import *
+from .dual_bert_bow import *
 from .dual_bert_one2many import *
 from .dual_bert_fusion import *
 from .dual_bert_fusion_gray_writer import *

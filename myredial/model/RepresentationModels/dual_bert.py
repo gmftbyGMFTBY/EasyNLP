@@ -5,11 +5,8 @@ class BERTDualEncoder(nn.Module):
     def __init__(self, **args):
         super(BERTDualEncoder, self).__init__()
         model = args['pretrained_model']
-        s = args['smoothing']
-
-        self.ctx_encoder = BertEmbedding(model=model)
-        self.can_encoder = BertEmbedding(model=model)
-        self.label_smooth_loss = LabelSmoothLoss(smoothing=s)
+        self.ctx_encoder = BertEmbedding(model=model, add_tokens=1)
+        self.can_encoder = BertEmbedding(model=model, add_tokens=1)
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
@@ -54,10 +51,6 @@ class BERTDualEncoder(nn.Module):
         loss_ = F.log_softmax(dot_product, dim=-1) * mask
         loss = (-loss_.sum(dim=1)).mean()
         
-        # label smooth loss
-        # gold = torch.arange(batch_size).cuda()
-        # loss = self.label_smooth_loss(dot_product, gold)
-
         # acc
         acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
         acc = acc_num / batch_size

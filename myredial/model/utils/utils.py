@@ -87,13 +87,17 @@ class TopKBertEmbedding(nn.Module):
         rep = torch.bmm(scores, embds)
         return rep
 
+
 class BertEmbedding(nn.Module):
     
-    def __init__(self, model='bert-base-chinese'):
+    def __init__(self, model='bert-base-chinese', add_tokens=1):
         super(BertEmbedding, self).__init__()
         self.model = BertModel.from_pretrained(model)
         # bert-fp checkpoint has the special token: [EOS]
-        self.model.resize_token_embeddings(self.model.config.vocab_size + 1)
+        self.resize(add_tokens)
+
+    def resize(self, num):
+        self.model.resize_token_embeddings(self.model.config.vocab_size + num)
 
     def forward(self, ids, attn_mask, speaker_type_ids=None):
         # embds = self.model(ids, attention_mask=attn_mask)[1]
