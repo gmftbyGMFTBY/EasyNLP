@@ -1,10 +1,6 @@
 smoothing: 0.1
 # rank: bert-ft-compare
 rank: null
-# whether fake monoligual context respone pairs is used
-fake_activate: true
-fake_num: 2
-ext_num: 2
 
 # train configuration
 train:

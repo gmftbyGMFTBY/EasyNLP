@@ -1,9 +1,7 @@
 smoothing: 0.1
 # rank: bert-ft-compare
 rank: null
-# whether fake monoligual context respone pairs is used
-fake_activate: true
-fake_num: 2
+# ext_num*bsz extended unsupervised responses utterances will be used to formalize the semantic embedding space
 ext_num: 2
 
 # train configuration
@@ -11,10 +9,10 @@ train:
     lr: 0.00005
     grad_clip: 5.0
     seed: 0
-    batch_size: 64
+    batch_size: 32
     max_len: 256
     res_max_len: 64
-    epoch: 10
+    epoch: 20
     # no wamrup, set 0.0 (BERT-FP and UMS_BERT)
     warmup_ratio: 0.
     checkpoint: 

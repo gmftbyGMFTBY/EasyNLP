@@ -35,10 +35,22 @@ no_train_models:
     - bert-fp-original
 
 models:
+    dual-bert-mixup: 
+        type: Representation
+        model_name: BERTDualMixUpEncoder
+        dataset_name: BERTDualFullDataset
+        inference_dataset_name: BERTDualInferenceDataset
+    dual-bert-semi: 
+        type: Representation
+        model_name: BERTDualSemiEncoder
+        dataset_name: BERTDualSemiDataset
+        inference_dataset_name: BERTDualInferenceDataset
+        # inference_dataset_name: BERTDualInferenceContextDataset
     dual-bert: 
         type: Representation
         model_name: BERTDualEncoder
-        dataset_name: BERTDualFullFakeCtxDataset
+        dataset_name: BERTDualExtraNoCtxDataset
+        # dataset_name: BERTDualFullFakeCtxDataset
         # dataset_name: BERTDualDataset
         # dataset_name: BERTDualFullDataset
         # dataset_name: BERTDualPseudoDataset

@@ -40,13 +40,17 @@
 
 <!-- + means the post-train has been used;
 bert-fp parameters: lr=3e-5; grad_clip=5.0; see0; batch_size=96; max_len=256, min_mask_num=2;
-max_mask_num=20; masked_lm_prob=0.15; min_context_length=2; min_token_length=20; epoch=25; warmup_ratio=0.01-->
+max_mask_num=20; masked_lm_prob=0.15; min_context_length=2; min_token_length=20; epoch=25; warmup_ratio=0.01
+pseudo means the utterances in the train.txt is used for psuedo
+pseudo(350w) means the extra douban corpus is used for pseudo
+-->
 | Models             | R10@1 | R10@2 | R10@5 | MRR   |
 | ------------------ | ----- | ----- | ----- | ----- |
 | dual-bert          | 45.08 | 61.74 | 87.38 | 62.17 |
 | bert-ft            | 39.22 | 56.6  | 84.54 | 57.63 |
 | dual-bert+         | 46.85 | 63.3  | 87.36 | 63.48 |
 | dual-bert-full+    | 49.82 | 65.62 | 89.05 | 65.73 |
+| dual-bert-full-unparallel(350w)+    | 50.1 | 66.63 | 88.99 | 66.0 |
 | dual-bert-bow-full+    | 46.45 | 62.36 | 87.09 | 62.97 |
 | dual-bert-full-fake+    | 50.02 | 66.32 | 88.6 | 65.98 |
 | dual-bert-pesudo+  | 49.37 | 65.99 | 88.54 | 65.5  |

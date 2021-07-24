@@ -366,16 +366,7 @@ def read_text_data_utterances_and_pesudo_pairs(path1, path2, lang='zh'):
     return dataset1 + dataset2
 
 def read_text_data_utterances_full(path, lang='zh'):
-    '''the full conversation context will be used:
-        for the given conversation: 1, 2, 3 -> 4
-        we can get the trainig samples:
-            a. 1, 2, 3 -> 4
-               2, 3 -> 4
-               3 -> 4
-            b. 1, 2 -> 3
-               2 -> 3
-            c. 1 -> 2
-            '''
+    '''the full conversation context will be used'''
     dataset = read_text_data_utterances(path, lang=lang)
     data = []
     for label, utterances in dataset:
@@ -385,10 +376,6 @@ def read_text_data_utterances_full(path, lang='zh'):
         for i in range(start_num, len(utterances)):
             # i is the index of the response
             data.append((1, utterances[:i+1]))
-            ctx_start_num = max(1, i - 5)    # 0 index has been added in the utterances[:i+1]
-            for j in range(ctx_start_num, i):
-                # j is the index of the start utterance of the context
-                data.append((1, utterances[j:i+1]))
     print(f'[!] collect {len(data)} samples for training')
     return data
 
