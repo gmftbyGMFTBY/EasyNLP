@@ -50,6 +50,7 @@ pseudo(350w) means the extra douban corpus is used for pseudo
 | bert-ft            | 39.22 | 56.6  | 84.54 | 57.63 |
 | dual-bert+         | 46.85 | 63.3  | 87.36 | 63.48 |
 | dual-bert-full+    | 49.82 | 65.62 | 89.05 | 65.73 |
+| dual-bert-semi-full+    | 50.18 | 66.36 | 88.95 | 65.99 |
 | dual-bert-full-unparallel(350w)+    | 50.1 | 66.63 | 88.99 | 66.0 |
 | dual-bert-bow-full+    | 46.45 | 62.36 | 87.09 | 62.97 |
 | dual-bert-full-fake+    | 50.02 | 66.32 | 88.6 | 65.98 |

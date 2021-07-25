@@ -9,21 +9,16 @@ unparallel strategy generates the pesudo positive pair given the built index
 
 def unparallel_strategy(args):
     # load the context embeddings of the extra data samples
-    embds, responses = [], []
+    embds, contexts, responses = [], [], []
     for i in tqdm(range(args['nums'])):
-        for idx in range(100):
-            try:
-                embd, response = torch.load(
-                    f'{args["root_dir"]}/data/{args["dataset"]}/inference_context_for_response_{args["model"]}_{i}_{idx}.pt'        
-                )
-                print(f'[!] load {args["root_dir"]}/data/{args["dataset"]}/inference_context_for_response_{args["model"]}_{i}_{idx}.pt')
-            except:
-                break
-            embds.append(embd)
-            responses.extend(response)
+        embd, context, response = torch.load(
+            f'{args["root_dir"]}/data/{args["dataset"]}/inference_context_{args["model"]}_{i}.pt'        
+        )
+        print(f'[!] load {args["root_dir"]}/data/{args["dataset"]}/inference_context_{args["model"]}_{i}.pt')
+        embds.append(embd)
+        responses.extend(response)
+        contexts.extend(context)
     embds = np.concatenate(embds) 
-    contexts = responses
-
     # read faiss index
     model_name = args['model']
     pretrained_model_name = args['pretrained_model'].replace('/', '_')
@@ -42,12 +37,13 @@ def unparallel_strategy(args):
     for i in tqdm(range(0, len(embds), args['batch_size'])):
         batch = embds[i:i+args['batch_size']]    # [B, E]
         context = contexts[i:i+args['batch_size']]
-        result = searcher._search(batch, topk=args['pool_size'])
-        for c, rest in zip(context, result):
-            if c in rest:
-                rest.remove(c)
+        response = responses[i:i+args['batch_size']]
+        result = searcher._search(batch, topk=args['pool_size']+1)
+        for c, r, rest in zip(context, response, result):
+            if r in rest:
+                rest.remove(r)
             snr = rest[:args['topk']]
-            collection.append({'q': c, 'snr': snr})
+            collection.append({'q': c, 'r': r, 'snr': snr})
 
     # write into new file
     path = f'{args["root_dir"]}/data/{args["dataset"]}/train_gray_unparallel.txt'

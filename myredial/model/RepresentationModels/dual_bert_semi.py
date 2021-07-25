@@ -26,8 +26,8 @@ class BERTDualSemiEncoder(nn.Module):
         rid_mask = batch['rids_mask']
 
         batch_size = rid.shape[0]
-        cid_rep = self.ctx_encode(cid, cid_mask)
-        rid_rep = self.can_encode(rid, rid_mask)
+        cid_rep = self.ctx_encoder(cid, cid_mask)
+        rid_rep = self.can_encoder(rid, rid_mask)
         dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
         return dot_product
     
@@ -49,29 +49,29 @@ class BERTDualSemiEncoder(nn.Module):
         # loss 1
         loss1 = 0
         dot_products = []
-        for rid_rep in [rid_rep_1, rid_rep_2]:
-            for ext_rid_rep in [ext_rid_rep_1, ext_rid_rep_2]:
-                rid_rep = torch.cat([rid_rep, ext_rid_rep], dim=0)    # [B+N, E]
-                dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, B+N]
-                dot_products.append(dot_product.detach())
-                mask = torch.zeros_like(dot_product)
-                mask[range(batch_size), range(batch_size)] = 1. 
-                loss_ = F.log_softmax(dot_product, dim=-1) * mask
-                loss1 += (-loss_.sum(dim=1)).mean()
+        for rid_rep, ext_rid_rep in zip([rid_rep_1, rid_rep_2], [ext_rid_rep_1, ext_rid_rep_2]):
+            rid_rep = torch.cat([rid_rep, ext_rid_rep], dim=0)    # [B+N, E]
+            dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, B+N]
+            mask = torch.zeros_like(dot_product)
+            mask[range(batch_size), range(batch_size)] = 1. 
+            loss_ = F.log_softmax(dot_product, dim=-1) * mask
+            loss1 += (-loss_.sum(dim=1)).mean()
+            dot_products.append(dot_product.detach())
+        loss1 /= 2
 
         # loss 2: unsupervised constrastive loss
         rid_rep_1 = torch.cat([rid_rep_1, ext_rid_rep_1], dim=0)    # [B+N, E]
         rid_rep_2 = torch.cat([rid_rep_2, ext_rid_rep_2], dim=0)    # [B+N, E]
         dot_product = torch.matmul(rid_rep_1, rid_rep_2.t())
         mask = torch.zeros_like(dot_product)
-        mask[range(batch_size), range(batch_size)] = 1. 
+        mask[range(len(dot_product)), range(len(dot_product))] = 1. 
         loss_ = F.log_softmax(dot_product, dim=-1) * mask
         loss2 = (-loss_.sum(dim=1)).mean()
         
         # acc
         acc_num = 0
         for dp in dot_products:
-            acc_num = (F.softmax(dp, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
+            acc_num += (F.softmax(dp, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
         acc = acc_num / batch_size / len(dot_products)
 
         # total loss

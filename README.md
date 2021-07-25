@@ -11,6 +11,7 @@
 - [x] dynamic margin (consider the margin between the original rerank scores)
 - [x] comparison: bce to three-classification(positive, negative, hard to tell); hard to tell could use the self-comparison and the comparison with the top-1 retrieved result
 - [ ] test dual-bert-compare
+- [x] twice dropout means the consistency regularization in the semi-supervised learning
 
 ## How to Use
 

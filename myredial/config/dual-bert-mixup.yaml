@@ -1,6 +1,7 @@
 smoothing: 0.1
 # rank: bert-ft-compare
 rank: null
+dropout: 0.1
 
 # train configuration
 train:

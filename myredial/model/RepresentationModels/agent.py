@@ -39,12 +39,6 @@ class RepresentationAgent(RetrievalBaseAgent):
             self.model.cuda()
         
         
-        # add the [CTX] token, resize the word embeddings in the bert model
-        if args['model'] in ['dual-bert']:
-            if args['fake_activate']:
-                # only resize the context encoder token embeddings
-                self.model.ctx_encoder.resize(1)
-
         if args['mode'] in ['train', 'inference']:
             self.set_optimizer_scheduler_ddp()
 
@@ -371,7 +365,7 @@ class RepresentationAgent(RetrievalBaseAgent):
     
     
     @torch.no_grad()
-    def inference_context(self, inf_iter):
+    def inference_context(self, inf_iter, size=500000):
         '''inference the context for searching the hard negative data'''
         self.model.eval()
         pbar = tqdm(inf_iter)
@@ -386,11 +380,14 @@ class RepresentationAgent(RetrievalBaseAgent):
             contexts.extend(context)
             responses.extend(response)
         embds = torch.cat(embds, dim=0).numpy()
-
-        torch.save(
-            (embds, contexts, responses), 
-            f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_context_{self.args["model"]}_{self.args["local_rank"]}.pt'
-        )
+        for idx, i in enumerate(range(0, len(embds), size)):
+            embd = embds[i:i+size]
+            context = contexts[i:i+size]
+            response = responses[i:i+size]
+            torch.save(
+                (embd, context, response), 
+                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_context_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
+            )
     
     @torch.no_grad()
     def inference2(self, inf_iter, size=500000):

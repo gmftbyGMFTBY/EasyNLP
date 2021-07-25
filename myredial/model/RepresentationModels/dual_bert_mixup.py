@@ -7,8 +7,15 @@ class BERTDualMixUpEncoder(nn.Module):
     def __init__(self, **args):
         super(BERTDualMixUpEncoder, self).__init__()
         model = args['pretrained_model']
+        p = args['dropout']
         self.ctx_encoder = BertEmbedding(model=model, add_tokens=1)
         self.can_encoder = BertEmbedding(model=model, add_tokens=1)
+        self.mixup_proj = nn.Sequential(
+            nn.Linear(768, 768),
+            nn.Tanh(),
+            nn.Dropout(p=p),
+            nn.Linear(768, 768)
+        )
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
@@ -39,14 +46,13 @@ class BERTDualMixUpEncoder(nn.Module):
 
     def mixup(self, x, y, alpha=1.0):
         '''https://github.com/facebookresearch/mixup-cifar10/blob/master/train.py'''
-        if alpha > 0:
-            lam = np.random.beta(alpha, alpha)
-        else:
-            lam = 1.
+        lam = np.random.beta(alpha, alpha)
         bsz = x.size()[0]
         index = torch.randperm(bsz)
         mixed_x = lam * x + (1 - lam) * x[index, :]
         mixed_y = lam * y + (1 - lam) * y[index, :]
+        mixed_x = self.mixup_proj(mixed_x)
+        mixed_y = self.mixup_proj(mixed_y)
         return mixed_x, mixed_y
     
     def forward(self, batch):
@@ -55,19 +61,17 @@ class BERTDualMixUpEncoder(nn.Module):
         cid_mask = batch['ids_mask']
         rid_mask = batch['rids_mask']
 
-        batch_size = cid.shape[0]
+        batch_size = cid.shape[0] * 2
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
         mixed_cid_rep, mixed_rid_rep = self.mixup(cid_rep, rid_rep)
+        cid_rep = torch.cat([cid_rep, mixed_cid_rep], dim=0)
+        rid_rep = torch.cat([rid_rep, mixed_rid_rep], dim=0)
         dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, B]
-        mixed_dot_product = torch.matmul(mixed_cid_rep, mixed_rid_rep.t())
-
         # constrastive loss
         mask = torch.zeros_like(dot_product)
         mask[range(batch_size), range(batch_size)] = 1. 
         loss_ = F.log_softmax(dot_product, dim=-1) * mask
         loss = (-loss_.sum(dim=1)).mean()
-        loss_ = F.log_softmax(mixed_dot_product, dim=-1) * mask
-        loss += (-loss_.sum(dim=1)).mean()
         
         # acc
         acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()

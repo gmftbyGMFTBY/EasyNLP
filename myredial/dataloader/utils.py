@@ -162,6 +162,19 @@ def read_text_data_with_super_hard_q_r(path, lang='zh'):
     print(f'[!] load {len(dataset)} samples from {path}')
     return dataset
 
+def read_text_data_one2many(path, lang='zh'):
+    path_ = f'{os.path.splitext(path)[0]}_gray_unparallel.txt'
+    with open(path_) as f:
+        dataset = []
+        for line in f.readlines():
+            line = json.loads(line.strip())
+            context = line['q']
+            response = line['r']
+            candidates = line['snr']
+            dataset.append((context, response, candidates))
+    print(f'[!] load {len(dataset)} samples from {path_}')
+    return dataset
+
 
 def read_text_data_one2many_pesudo(path, lang='zh'):
     path_ = f'{os.path.splitext(path)[0]}_gray.txt'
