@@ -167,10 +167,23 @@ class RetrievalBaseAgent:
         raise NotImplementedError
 
     def totensor(self, texts, ctx=True):
-        items = self.vocab.batch_encode_plus(texts)['input_ids']
         if ctx:
-            ids = [torch.LongTensor(length_limit(i, self.args['max_len'])) for i in items]
+            if type(texts[0]) == list:
+                ids = []
+                for text in texts:
+                    item = self.vocab.batch_encode_plus(text, add_special_tokens=False)['input_ids']
+                    context = []
+                    for u in item:
+                        context.extend(u+[self.eos])
+                    context.pop()
+                    context = context[-(self.args['max_len']-2):]
+                    context = [self.cls] + context + [self.sep]
+                    ids.append(torch.LongTensor(context))
+            else:
+                items = self.vocab.batch_encode_plus(texts)['input_ids']
+                ids = [torch.LongTensor(length_limit(i, self.args['max_len'])) for i in items]
         else:
+            items = self.vocab.batch_encode_plus(texts)['input_ids']
             ids = [torch.LongTensor(length_limit_res(i, self.args['res_max_len'], sep=self.sep)) for i in items]
         ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
         mask = generate_mask(ids)

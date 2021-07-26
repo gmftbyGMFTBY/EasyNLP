@@ -2,7 +2,6 @@ from header import *
 from model import *
 from config import *
 from dataloader import *
-from inference import Searcher
 from .utils import *
 
 

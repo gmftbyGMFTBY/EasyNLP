@@ -1,5 +1,6 @@
 from inference import *
 from header import *
+from .utils import *
 
 '''response strategy:
 Read the candidate embeddings and save it into the faiss index
@@ -24,7 +25,7 @@ def response_strategy(args):
             break
     embds = np.concatenate(embds) 
     searcher = Searcher(args['index_type'], dimension=args['dimension'])
-    searcher._build(embds, texts)
+    searcher._build(embds, texts, speedup=True)
     print(f'[!] train the searcher over')
 
     # add the external dataset

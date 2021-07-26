@@ -12,6 +12,7 @@
 - [x] comparison: bce to three-classification(positive, negative, hard to tell); hard to tell could use the self-comparison and the comparison with the top-1 retrieved result
 - [ ] test dual-bert-compare
 - [x] twice dropout means the consistency regularization in the semi-supervised learning
+- [ ] LSH faiss index cannot use GPU, IVF index can use it and running very fast
 
 ## How to Use
 

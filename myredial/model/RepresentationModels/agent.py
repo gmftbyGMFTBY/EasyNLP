@@ -7,9 +7,12 @@ class RepresentationAgent(RetrievalBaseAgent):
         super(RepresentationAgent, self).__init__()
         self.args = args
         self.vocab, self.model = vocab, model
+        self.vocab.add_tokens(['[EOS]'])
 
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.eos = self.vocab.convert_tokens_to_ids('[EOS]')
+        self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
 
         if args['mode'] == 'train':
             # hash-bert parameter setting
@@ -37,12 +40,8 @@ class RepresentationAgent(RetrievalBaseAgent):
                 print(f'[!] switch the inference function')
         if torch.cuda.is_available():
             self.model.cuda()
-        
-        
         if args['mode'] in ['train', 'inference']:
             self.set_optimizer_scheduler_ddp()
-
-
         self.show_parameters(self.args)
         # Metrics object
         self.metrics = Metrics()

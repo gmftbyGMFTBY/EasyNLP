@@ -23,11 +23,10 @@ class PostTrainAgent(RetrievalBaseAgent):
             self.model.cuda()
         if args['mode'] in ['train', 'inference']:
             self.set_optimizer_scheduler_ddp()
+        if args['model'] in ['simcse']:
+            self.train_model = self.train_model_simcse
         self.show_parameters(self.args)
         
-    def load_bert_model(self, path):
-        pass
-
     def train_model(self, train_iter, test_iter, recoder=None, idx_=0):
         self.model.train()
 
@@ -82,6 +81,42 @@ class PostTrainAgent(RetrievalBaseAgent):
         pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
         save_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_{pretrained_model_name}.pt'
         self.save_model(save_path)
+    
+    def train_model_simcse(self, train_iter, test_iter, recoder=None, idx_=0):
+        self.model.train()
+        total_loss, total_acc, batch_num = 0, 0, 0
+        total_tloss, total_bloss = 0, 0
+        pbar = tqdm(train_iter)
+        correct, s, oom_t = 0, 0, 0
+        for idx, batch in enumerate(pbar):
+            self.optimizer.zero_grad()
+            with autocast():
+                loss, acc = self.model(batch)
+            self.scaler.scale(loss).backward()
+            self.scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            
+            self.scheduler.step()
+
+            total_loss += loss.item()
+            total_acc += acc
+            batch_num += 1
+
+            if batch_num in self.args['test_step']:
+                self.test_now(test_iter, recoder)
+            
+            recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
+             
+            pbar.set_description(f'[!] loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
+
+        recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
+        recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
+        return round(total_loss / batch_num, 4)
 
     @torch.no_grad()
     def test_model(self, test_iter, print_output=False, rerank_agent=None):
@@ -171,3 +206,20 @@ class PostTrainAgent(RetrievalBaseAgent):
             'P@1': round(avg_prec_at_one, 4),
             'MAP': round(avg_map, 4),
         }
+
+    def load_model(self, path):
+        if self.args['model'] in ['simcse']:
+            state_dict = torch.load(path, map_location=torch.device('cpu'))
+            self.checkpointadapeter.init(
+                state_dict.keys(),
+                self.model.ctx_encoder.state_dict().keys(),
+            )
+            new_state_dict = self.checkpointadapeter.convert(state_dict)
+            self.model.ctx_encoder.load_state_dict(new_state_dict)
+            self.checkpointadapeter.init(
+                state_dict.keys(),
+                self.model.can_encoder.state_dict().keys(),
+            )
+            new_state_dict = self.checkpointadapeter.convert(state_dict)
+            self.model.can_encoder.load_state_dict(new_state_dict)
+            print(f'[!] simcse loads pre-trained model from {path}')

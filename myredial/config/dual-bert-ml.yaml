@@ -1,6 +1,7 @@
 smoothing: 0.1
 # rank: bert-ft-compare
 rank: null
+topk_layer_num: 3
 
 # train configuration
 train:
@@ -28,9 +29,8 @@ test:
 # inference configuration
 inference:
     seed: 0
-    batch_size: 128 
+    batch_size: 128
     max_len: 64
     topk: 20
-    # index_type: IVF3722,Flat
-    index_type: IVF8557,Flat
+    index_type: LSH
     dimension: 768

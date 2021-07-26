@@ -1,12 +1,15 @@
 from model.utils import *
 
-class BERTDualEncoder(nn.Module):
+class BERTDualMLEncoder(nn.Module):
+
+    '''Dual bert with multi layer'''
 
     def __init__(self, **args):
-        super(BERTDualEncoder, self).__init__()
+        super(BERTDualMLEncoder, self).__init__()
         model = args['pretrained_model']
-        self.ctx_encoder = BertEmbedding(model=model, add_tokens=1)
-        self.can_encoder = BertEmbedding(model=model, add_tokens=1)
+        topk_layer_num = args['topk_layer_num']
+        self.ctx_encoder = BertMLEmbedding(model=model, add_tokens=1, topk_layer_num=topk_layer_num)
+        self.can_encoder = BertMLEmbedding(model=model, add_tokens=1, topk_layer_num=topk_layer_num)
         self.args = args
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
@@ -44,9 +47,9 @@ class BERTDualEncoder(nn.Module):
 
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
         # distributed samples collected
-        cid_reps, rid_reps = distributed_collect(cid_rep, rid_rep)
-        dot_product = torch.matmul(cid_reps, rid_reps.t())     # [B, B]
-        batch_size = len(cid_reps)
+        # cid_reps, rid_reps = distributed_collect(cid_rep, rid_rep)
+        dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, B]
+        batch_size = len(cid_rep)
 
         # constrastive loss
         mask = torch.zeros_like(dot_product)

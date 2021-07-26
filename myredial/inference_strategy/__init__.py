@@ -4,3 +4,4 @@ from .context import *
 from .gray import *
 from .gray_one2many import *
 from .unparallel import *
+from .self_play import *

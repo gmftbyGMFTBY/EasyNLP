@@ -88,6 +88,25 @@ class TopKBertEmbedding(nn.Module):
         return rep
 
 
+class BertMLEmbedding(nn.Module):
+    
+    def __init__(self, model='bert-base-chinese', add_tokens=1, topk_layer_num=3):
+        super(BertMLEmbedding, self).__init__()
+        self.topk_layer_num = topk_layer_num
+        self.model = BertModel.from_pretrained(model)
+        # bert-fp checkpoint has the special token: [EOS]
+        self.resize(add_tokens)
+
+    def resize(self, num):
+        self.model.resize_token_embeddings(self.model.config.vocab_size + num)
+
+    def forward(self, ids, attn_mask, speaker_type_ids=None):
+        embds = self.model(ids, attention_mask=attn_mask, output_hidden_states=True)[2]    # 13 * [B, S, E]
+        embds = [embd[:, 0, :] for embd in embds[-self.topk_layer_num:]]
+        embds = torch.cat(embds, dim=-1)    # 3*[B, E] -> [B, 3*E]
+        return embds
+
+
 class BertEmbedding(nn.Module):
     
     def __init__(self, model='bert-base-chinese', add_tokens=1):
@@ -414,3 +433,18 @@ class CheckpointAdapter:
             elif i in ['queries']:
                 new_state_dict[i] = torch.randn(512, 768)
         return new_state_dict
+
+def distributed_collect(cid_rep, rid_rep):
+    # all_gather collects the samples of other processes for distributed training
+    # More details can be found in this link:
+    #     https://github.com/princeton-nlp/SimCSE/blob/main/simcse/models.py#L170
+    cid_reps = [torch.zeros_like(cid_rep) for _ in range(dist.get_world_size())]
+    rid_reps = [torch.zeros_like(rid_rep) for _ in range(dist.get_world_size())]
+    dist.all_gather(tensor_list=cid_reps, tensor=cid_rep.contiguous())
+    dist.all_gather(tensor_list=rid_reps, tensor=rid_rep.contiguous())
+    # only the current process's tensors have the gradient
+    cid_reps[dist.get_rank()] = cid_rep
+    rid_reps[dist.get_rank()] = rid_rep
+    cid_reps = torch.cat(cid_reps, dim=0)
+    rid_reps = torch.cat(rid_reps, dim=0)
+    return cid_reps, rid_reps

@@ -8,9 +8,23 @@ def read_json_data_dual_bert(path, lang='zh'):
         for line in tqdm(list(f.readlines())):
             line = line.strip()
             item = json.loads(line)
-            context = ' [SEP] '.join(item['q'])
+            context = item['q']
             response = item['r'].strip()
-            dataset.append((1, context, response))
+            dataset.append((1, context + [response]))
+    print(f'[!] load {len(dataset)} samples from {path}')
+    return dataset
+
+
+def read_json_data_dual_bert_full(path, lang='zh'):
+    with open(path) as f:
+        dataset = []
+        for line in tqdm(list(f.readlines())):
+            line = line.strip()
+            item = json.loads(line)
+            utterances = item['q'] + [item['r']]
+            start_num = max(1, len(utterances) - 5)
+            for i in range(start_num, len(utterances)):
+                dataset.append((1, utterances[:i+1]))
     print(f'[!] load {len(dataset)} samples from {path}')
     return dataset
 
@@ -127,7 +141,6 @@ def read_text_data_utterances(path, lang='zh'):
     print(f'[!] load {len(dataset)} utterances from {path}')
     return dataset
 
-
 def read_text_data_with_neg_inner_session_neg(path, lang='zh'):
     with open(path) as f:
         dataset, responses = [], []
@@ -229,8 +242,7 @@ def read_text_data_dual_bert(path, lang='zh'):
     return dataset
 
 
-def read_response_data_full(path, lang='zh'):
-    '''all the sentences in the corpus will be used, for unparallel inference work_mode'''
+def read_response_data_full(path, lang='zh', turn_length=5):
     with open(path) as f:
         dataset = []
         for line in f.readlines():
@@ -239,6 +251,9 @@ def read_response_data_full(path, lang='zh'):
                 dataset.append(utterance[-1])
                 continue
             utterance = utterance[1:]
+            if len(utterance) > turn_length:
+                # only part of the utterances will be used for inference
+                utterance = utterance[-turn_length:]
             if lang == 'zh':
                 utterance = [''.join(i.split()) for i in utterance]
             dataset.extend(utterance)

@@ -30,11 +30,22 @@ rank: null
 
 no_test_models:
     - bert-fp
+    - simcse
 
 no_train_models:
     - bert-fp-original
 
 models:
+    dual-bert-ml: 
+        type: Representation
+        model_name: BERTDualMLEncoder
+        dataset_name: BERTDualFullDataset
+        inference_dataset_name: BERTDualInferenceDataset
+    simcse: 
+        type: PostTrain
+        model_name: SimCSE
+        dataset_name: SimCSEDataset
+        inference_dataset_name: null
     dual-bert-mixup: 
         type: Representation
         model_name: BERTDualMixUpEncoder
@@ -49,10 +60,11 @@ models:
     dual-bert: 
         type: Representation
         model_name: BERTDualEncoder
-        dataset_name: BERTDualExtraNoCtxDataset
+        # dataset_name: BERTDualExtraNoCtxDataset
         # dataset_name: BERTDualFullFakeCtxDataset
         # dataset_name: BERTDualDataset
         # dataset_name: BERTDualFullDataset
+        dataset_name: BERTDualFullWithSelfPlayDataset
         # dataset_name: BERTDualPseudoDataset
         inference_dataset_name: BERTDualInferenceDataset
         # inference_dataset_name: BERTDualInferenceFullContextDataset
@@ -188,21 +200,22 @@ test_interval: 0.1
 # ========== deploy parameters ========== #
 deploy:
     host: '0.0.0.0'
-    port:  8096
-    dataset: writer
+    port:  22335
+    dataset: restoration-200k
     max_len: 256
     res_max_len: 64
     recall:
         activate: false
-        model: full 
+        model: dual-bert
         # default topk
         topk: 100
         # only the arxiv, writer dataset need the with_source
         with_source: false
-        index_type: LSH 
+        # index_type: IVF3722,Flat
+        index_type: IVF8557,Flat
         dimension: 768
     rerank:
-        activate: true
-        model: gpt2lm
-    pipeline:
         activate: false
+        model: dual-bert
+    pipeline:
+        activate: true

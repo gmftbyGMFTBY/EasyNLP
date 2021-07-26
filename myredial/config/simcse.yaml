@@ -1,0 +1,14 @@
+# train configuration
+train:
+    lr: 0.00005
+    grad_clip: 5.0
+    seed: 0
+    batch_size: 256
+    res_max_len: 64
+    epoch: 1
+    # no wamrup, set 0.0 (BERT-FP and UMS_BERT)
+    warmup_ratio: 0.
+    checkpoint: 
+        # path: bert-post/best_nspmlm.pt
+        path: bert-fp/best_bert-base-chinese.pt
+        is_load: true
