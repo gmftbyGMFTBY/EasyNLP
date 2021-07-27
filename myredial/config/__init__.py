@@ -49,7 +49,9 @@ def load_deploy_config(api_name):
         args.update(args['deploy'][api_name])
         model = args['model']
 
-        if model in ['bm25', 'full']:
+        if model in [None, 'bm25', 'full']:
+            # None and full for rerank agent
+            # bm25 for recall agent
             return args
 
         config_path = f'config/{model}.yaml'

@@ -1,5 +1,4 @@
 from model.utils import *
-from deploy import timethis
 
 class InteractionAgent(RetrievalBaseAgent):
 

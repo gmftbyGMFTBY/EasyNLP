@@ -91,8 +91,10 @@ def load_fake_rerank_data(path, size=1000):
 def load_fake_recall_data(path, size=1000):
     '''for pipeline and recall test'''
     if args['dataset'] in ['douban', 'ecommerce', 'ubuntu', 'lccc', 'lccc-large', 'restoration-200k']:
+        # test set only use the context 
         dataset = read_text_data_utterances(path, lang='zh')
-        dataset = [(utterances[:-1], utterances[-1], None) for _, utterances in dataset]
+        dataset = [(utterances[:-1], utterances[-1], None) for label, utterances in dataset]
+        dataset = [dataset[i] for i in range(0, len(dataset), 10)]
     elif args['dataset'] in ['poetry', 'novel_selected']:
         dataset = read_text_data_with_source(path, lang='zh')
     else:
@@ -105,7 +107,7 @@ def load_fake_recall_data(path, size=1000):
             data.append({
                 'segment_list': [
                     {
-                        'str': ' [SEP] '.join(j[0]), 
+                        'str': j[0], 
                         'status': 'editing'
                     } for j in cache
                 ],
@@ -117,7 +119,19 @@ def load_fake_recall_data(path, size=1000):
         else:
             current_num += 1
             cache.append(i)
-    data = random.sample(data, size)
+    if cache:
+        data.append({
+            'segment_list': [
+                {
+                    'str': j[0], 
+                    'status': 'editing'
+                } for j in cache
+            ],
+            'lang': 'zh',
+            'topk': args['topk'],
+        })
+    # data = random.sample(data, size)
+    print(f'[!] collect {len(data)} samples for pipeline agent')
     return data
 
 def SendPOST(url, port, method, params):
@@ -231,11 +245,13 @@ def test_pipeline(args):
             avg_times.append(rest['header']['core_time_cost_ms'])
         pbar.set_description(f'[!] time: {round(np.mean(avg_times), 2)} ms; error: {error_counter}')
     avg_t = round(np.mean(avg_times), 4)
-    print(f'[!] avg rerank time cost: {avg_t} ms; error ratio: {round(error_counter/len(data), 4)}')
+    sum_t = round(sum(avg_times), 4)
+    print(f'[!] sum time cost: {sum_t} ms; avg time cost: {avg_t} ms; error ratio: {round(error_counter/len(data), 4)}')
     return collections
 
 
 if __name__ == '__main__':
+    # topk rewrite
     args = vars(parser_args())
 
     # set the random seed
@@ -259,7 +275,8 @@ if __name__ == '__main__':
                 continue
             if args['mode'] == 'pipeline':
                 for item in data:
-                    f.write(f'[Context ] {item["context"]}\n')
+                    string = '\t'.join(item['context'])
+                    f.write(f'[Context ] {string}\n')
                     f.write(f'[Response] {item["response"]}\n\n')
             elif args['mode'] == 'recall':
                 for item in data:

@@ -22,13 +22,15 @@ if __name__ == "__main__":
     random.seed(args['seed'])
 
     train_path = f'{args["root_dir"]}/data/{args["dataset"]}/train.txt'
-    extend_path = f'{args["root_dir"]}/data/{args["dataset"]}/train_gray_unparallel.txt'
+    # extend_path = f'{args["root_dir"]}/data/{args["dataset"]}/train_gray_unparallel.txt'
     # test_path = f'{args["root_dir"]}/data/{args["dataset"]}/test.txt'
 
     train_data = load_qa_pair(train_path, lang=args['lang'])
     # test_data = load_qa_pair(test_path, lang=args['lang'])
-    extend_data = load_qa_pair_extend(extend_data, lang=args['lang'])
-    data = train_data + extend_data
+    # extend_data = load_qa_pair_extend(extend_data, lang=args['lang'])
+
+    # data = train_data + extend_data
+    data = train_data
 
     builder = ESBuilder(
         f'{args["dataset"]}_{args["recall_mode"]}',

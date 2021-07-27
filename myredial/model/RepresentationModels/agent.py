@@ -1,6 +1,5 @@
 from model.utils import *
 from dataloader.util_func import *
-from deploy import timethis
 
 class RepresentationAgent(RetrievalBaseAgent):
     
@@ -428,21 +427,22 @@ class RepresentationAgent(RetrievalBaseAgent):
         return vectors.cpu().numpy()
 
     @torch.no_grad()
-    def rerank(self, batches):
+    def rerank(self, batches, inner_bsz=2048):
         self.model.eval()
         scores = []
         for batch in batches:
-            # compatible for the predict function
-            batch['responses'] = batch['candidates']
+            subscores = []
+            pbar = tqdm(range(0, len(batch['candidates']), inner_bsz))
             cid, cid_mask = self.totensor([batch['context']], ctx=True)
-            rid, rid_mask = self.totensor(batch['responses'], ctx=True)
-            batch['ids'] = cid
-            batch['ids_mask'] = cid_mask
-            batch['rids'] = rid
-            batch['rids_mask'] = rid_mask
-            scores.append(
-                self.model.predict(batch).tolist()
-            )
+            for idx in pbar:
+                candidates = batch['candidates'][idx:idx+idx+inner_bsz]
+                rid, rid_mask = self.totensor(candidates, ctx=False)
+                batch['ids'] = cid
+                batch['ids_mask'] = cid_mask
+                batch['rids'] = rid
+                batch['rids_mask'] = rid_mask
+                subscores.extend(self.model.predict(batch).tolist())
+            scores.append(subscores)
         return scores
 
     def load_model(self, path):

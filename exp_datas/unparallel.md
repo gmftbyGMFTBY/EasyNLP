@@ -141,3 +141,25 @@ ATC means the average time cost
 | 3     | 回复内容与用户问题关联度很小，或者回复内容存在以下一种或者多种情况：（1）回复与问题重复或者高度相似；（2）前后内容有一定关联性但是较低；（3）回复没有任何和用户提问相关的内容，信息量少的万能回复。|
 | 4     | 回复质量基于3-5之间，难以确定 |
 | 5     | 直接回复了问题，前后衔接流畅  |
+
+### 5.2 Time Cost for different settings
+
+<!-- for 1000 test samples -->
+| Methods   | Total Time Cost(ms) |
+| --------- | --------------------- |
+| Pure BM25 | 19503.566 |
+| BM25(top=100)+BERT-FP | 168504.7786 |
+| dual-bert+all(full-rank) | 168504.7786 |
+
+
+## 6. How to reproduce our results
+
+### 1.
+
+### 2. generate the samples for human annotations
+
+#### 2.1 pure BM25 (q-q matching)
+
+
+
+#### 2.2 BM25 (q-q matching, topk=100) + BERT-FP

@@ -202,13 +202,13 @@ test_interval: 0.1
 # ========== deploy parameters ========== #
 deploy:
     host: '0.0.0.0'
-    port:  22335
+    port: 22335
     dataset: restoration-200k
     max_len: 256
     res_max_len: 64
     recall:
         activate: false
-        model: dual-bert
+        model: full
         # default topk
         topk: 100
         # only the arxiv, writer dataset need the with_source

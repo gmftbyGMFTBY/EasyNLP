@@ -1,4 +1,3 @@
-from model import *
 from config import *
 from header import *
 from flask import Flask, request, jsonify, make_response, session

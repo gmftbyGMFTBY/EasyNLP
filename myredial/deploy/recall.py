@@ -13,12 +13,9 @@ def init_recall(args):
         searcher = ESSearcher(f'{args["dataset"]}_q-q', q_q=True)
         agent = None
     elif args['model'] == 'full':
-        model_name = 'dual-bert'
-        pretrained_model_name = args['pretrained_model']['zh']
-        path_corpus = f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt'
-        with open(path_corpus, 'rb') as f:
-            searcher = joblib.load(f)
+        searcher = [a for _, a in load_qa_pair(f'{args["root_dir"]}/data/{args["dataset"]}/train.txt')]
         agent = None
+        print(f'[!] load {len(searcher)} samples for full-rerank mode')
     else:
         searcher = Searcher(args['index_type'], dimension=args['dimension'], with_source=args['with_source'])
         model_name = args['model']
@@ -56,6 +53,7 @@ class RecallAgent:
         batch = [i['str'] for i in batch]
         topk = topk if topk else self.args['topk']
         if self.args['model'] == 'bm25':
+            batch = [' '.join(i) for i in batch]
             rest_ = self.searcher.msearch(batch, topk=topk)
         elif self.args['model'] == 'full':
             rest_ = [self.searcher]
