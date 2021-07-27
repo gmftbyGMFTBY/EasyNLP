@@ -1,5 +1,6 @@
 from model.utils import *
 from dataloader.util_func import *
+from deploy import timethis
 
 class RepresentationAgent(RetrievalBaseAgent):
     
@@ -180,7 +181,7 @@ class RepresentationAgent(RetrievalBaseAgent):
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
         return round(total_loss / batch_num, 4)
-    
+   
     @torch.no_grad()
     def test_model(self, test_iter, print_output=False, rerank_agent=None):
         self.model.eval()
@@ -244,7 +245,7 @@ class RepresentationAgent(RetrievalBaseAgent):
                 np.array(label.cpu().tolist()),
                 10)
             num_correct = logits_recall_at_k(pos_index, k_list)
-            if self.args['dataset'] in ["douban"]:
+            if self.args['dataset'] in ["douban", "restoration-200k"]:
                 total_prec_at_one += precision_at_one(rank_by_pred)
                 total_map += mean_average_precision(pos_index)
                 for pred in rank_by_pred:

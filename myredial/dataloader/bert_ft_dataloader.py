@@ -23,10 +23,12 @@ class BERTFTDataset(Dataset):
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
 
-        # data = read_text_data_utterances(path, lang=self.args['lang'])
+        data = read_text_data_utterances(path, lang=self.args['lang'])
+        
         # full and pseudo pairs
-        pseudo_path = f'{os.path.splitext(path)[0]}_gray_unparallel.txt'
-        data = read_text_data_utterances_and_full_and_pesudo_pairs_ft(path, pseudo_path, lang=self.args['lang'])
+        # pseudo_path = f'{os.path.splitext(path)[0]}_gray_unparallel.txt'
+        # data = read_text_data_utterances_and_full_and_pesudo_pairs_ft(path, pseudo_path, lang=self.args['lang'])
+        
         self.data = []
         if self.args['mode'] == 'train':
             for label, utterances in tqdm(data):

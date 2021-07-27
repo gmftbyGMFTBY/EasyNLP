@@ -1,4 +1,5 @@
 from model.utils import *
+from deploy import timethis
 
 class InteractionAgent(RetrievalBaseAgent):
 
@@ -125,7 +126,7 @@ class InteractionAgent(RetrievalBaseAgent):
                 np.array(label.cpu().tolist()),
                 10)
             num_correct = logits_recall_at_k(pos_index, k_list)
-            if self.args['dataset'] in ["douban"]:
+            if self.args['dataset'] in ["douban", "restoration-200k"]:
                 total_prec_at_one += precision_at_one(rank_by_pred)
                 total_map += mean_average_precision(pos_index)
                 for pred in rank_by_pred:

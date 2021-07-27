@@ -10,18 +10,17 @@
 | BERT-FP            | 87.0  | 95.6  | 99.3  | 92.52 |
 | dual-bert          | 92.5  | 97.0  | 99.4  | 95.49 |
 | dual-bert-full     | **95.1**  | **98.0**  | **99.6**  | **97.08** |
-| bert-ft            |       |       |       |       |
 
 ### 1.2 Douban Dataset
 
 <!-- seed=0; bsz=64; max_len=256,64; epoch=10; lr=5e-5; warmup_ratio=0.0l grad_clip=5.0;-->
-| Models             | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   |
-| ------------------ | ----- | ----- | ----- | ----- | ----- | ------ |
-| SA-BERT+HCL        | 33.0  | 53.1  | 85.8  | 68.1  | 51.4  | 63.9   |
-| BERT-FP            | 32.4  | 54.2  | **87.0**  | 68.0  | 51.2  | 64.4   |
-| dual-bert          | 33.13 | 53.99 | 86.0  | 68.41 | 51.27 | 64.28  |
-| dual-bert-full     | **34.17** | 53.95 | 85.89  | **69.06** | **53.37** | **64.77**  |
-| bert-ft            | 31.1  | **54.52** | 86.36 | 67.72 | 49.93 | 63.76  |
+| Models             | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   | Time Cost(ms) |
+| ------------------ | ----- | ----- | ----- | ----- | ----- | ------ | --------- |
+| SA-BERT+HCL        | 33.0  | 53.1  | 85.8  | 68.1  | 51.4  | 63.9   |           |
+| BERT-FP            | 32.4  | 54.2  | **87.0**  | 68.0  | 51.2  | 64.4   |  64775.34        |
+| dual-bert          | 33.13 | 53.99 | 86.0  | 68.41 | 51.27 | 64.28  |           |
+| dual-bert-full     | **34.17** | 53.95 | 85.89  | **69.06** | **53.37** | **64.77**  |      |
+| bert-ft            | 31.1  | **54.52** | 86.36 | 67.72 | 49.93 | 63.76  |           |
 
 ### 1.3 Ubuntu-v1 Dataset
 
@@ -43,6 +42,7 @@ bert-fp parameters: lr=3e-5; grad_clip=5.0; see0; batch_size=96; max_len=256, mi
 max_mask_num=20; masked_lm_prob=0.15; min_context_length=2; min_token_length=20; epoch=25; warmup_ratio=0.01
 pseudo means the utterances in the train.txt is used for psuedo
 pseudo(350w) means the extra douban corpus is used for pseudo
+ISN means the inner session negative (hard negative)
 -->
 | Models             | R10@1 | R10@2 | R10@5 | MRR   |
 | ------------------ | ----- | ----- | ----- | ----- |
@@ -53,6 +53,7 @@ pseudo(350w) means the extra douban corpus is used for pseudo
 | dual-bert+         | 46.85 | 63.3  | 87.36 | 63.48 |
 | dual-bert-bow-full+    | 46.45 | 62.36 | 87.09 | 62.97 |
 | dual-bert-full+    | 49.82 | 65.62 | 89.05 | 65.73 |
+| dual-bert-full+ISN    | 50.72 | 67.75 | 89.66 | 66.79 |
 | dual-bert-full-mixup+    | 49.76 | 65.6 | 88.36 | 65.55 |
 | dual-bert-pesudo+  | 49.37 | 65.99 | 88.54 | 65.5  |
 | dual-bert-full-distributed_gather+    | 49.69 | 65.81 | 89.24 | 65.72 |
@@ -75,12 +76,11 @@ pseudo(350w) means the extra douban corpus is used for pseudo
 
 * ES test set with human label
 
-| Models             | R10@1 | R10@2 | R10@5 | MRR   |
-| ------------------ | ----- | ----- | ----- | ----- |
-| dual-bert          | | | | |
-| bert-ft            | | | | |
-| dual-bert+         | | | | |
-| bert-ft+           | | | | |
+| Models             | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   | Time Cost(ms) |
+| ------------------ | ----- | ----- | ----- | ----- | ----- | ------ | --------- |
+| BERT-FP            | 49.32 | 69.89 | 91.86 | 70.81 | 54.55 | 69.8  | 21150.52   |
+| dual-bert+full     | | | | |
+| dual-bert+full+ISN | 55.56 | 74.36 | 93.91 | 75.28 | 61.11 | 74.24  | 19678.29  |
 
 ## 2. Full-rank Comparison Protocol
 

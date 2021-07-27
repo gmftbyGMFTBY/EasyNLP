@@ -347,6 +347,7 @@ class CheckpointAdapter:
         self.maybe_missing_list = [
             'embeddings.position_ids', 
             'model.embeddings.position_ids', 
+            'model.bert.embeddings.position_ids', 
             # the followings are the BERTDualO2MTopKEmbedding extra parameters
             'queries',
         ]
@@ -428,7 +429,7 @@ class CheckpointAdapter:
                 new_state_dict[k_] = v
         for i in self.missing:
             # missing parameters are the position ids
-            if i in ['embeddings.position_ids', 'model.embeddings.position_ids']:
+            if i in ['model.bert.embeddings.position_ids', 'embeddings.position_ids', 'model.embeddings.position_ids']:
                 new_state_dict[i] = torch.arange(512).expand((1, -1))
             elif i in ['queries']:
                 new_state_dict[i] = torch.randn(512, 768)

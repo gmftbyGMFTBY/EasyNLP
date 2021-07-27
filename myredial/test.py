@@ -151,11 +151,15 @@ def main_rerank(**args):
     else:
         rerank_agent = None
 
+    bt = time.time()
     outputs = agent.test_model(test_iter, print_output=True, rerank_agent=rerank_agent)
+    cost_time = time.time() - bt
+    cost_time *= 1000    # ms
 
     with open(f'{args["root_dir"]}/rest/{args["dataset"]}/{args["model"]}/test_result_rerank_{pretrained_model_name}.txt', 'w') as f:
         for key, value in outputs.items():
             print(f'{key}: {value}', file=f)
+        print(f'Cost-Time: {round(cost_time, 2)} ms', file=f)
 
 
 def main_es_recall(**args):
