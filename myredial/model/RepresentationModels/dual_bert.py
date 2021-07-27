@@ -44,16 +44,16 @@ class BERTDualEncoder(nn.Module):
 
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
         # distributed samples collected
-        cid_reps, rid_reps = distributed_collect(cid_rep, rid_rep)
-        dot_product = torch.matmul(cid_reps, rid_reps.t())     # [B, B]
-        batch_size = len(cid_reps)
+        # cid_reps, rid_reps = distributed_collect(cid_rep, rid_rep)
+        dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, B]
+        batch_size = len(cid_rep)
 
         # constrastive loss
         mask = torch.zeros_like(dot_product)
         mask[range(batch_size), range(batch_size)] = 1. 
         loss_ = F.log_softmax(dot_product, dim=-1) * mask
         loss = (-loss_.sum(dim=1)).mean()
-        
+
         # acc
         acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
         acc = acc_num / batch_size

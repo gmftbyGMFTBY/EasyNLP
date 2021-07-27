@@ -63,10 +63,11 @@ models:
         # dataset_name: BERTDualExtraNoCtxDataset
         # dataset_name: BERTDualFullFakeCtxDataset
         # dataset_name: BERTDualDataset
-        # dataset_name: BERTDualFullDataset
-        dataset_name: BERTDualFullWithSelfPlayDataset
+        dataset_name: BERTDualFullDataset
+        # dataset_name: BERTDualFullWithSelfPlayDataset
         # dataset_name: BERTDualPseudoDataset
-        inference_dataset_name: BERTDualInferenceDataset
+        # inference_dataset_name: BERTDualInferenceDataset
+        inference_dataset_name: BERTDualInferenceContextDataset
         # inference_dataset_name: BERTDualInferenceFullContextDataset
     dual-bert-bow: 
         type: Representation
@@ -212,7 +213,7 @@ deploy:
         # only the arxiv, writer dataset need the with_source
         with_source: false
         # index_type: IVF3722,Flat
-        index_type: IVF8557,Flat
+        index_type: IVF6509,Flat
         dimension: 768
     rerank:
         activate: false

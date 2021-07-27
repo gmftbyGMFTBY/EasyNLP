@@ -19,9 +19,9 @@ class BERTDualInferenceDataset(Dataset):
         # for inference[gray mode] do not use the test set responses
         responses = read_response_data_full(path, lang=self.args['lang'], turn_length=5)
         # add the extended douban utterances
-        extended_path = f'{args["root_dir"]}/data/ext_douban/train.txt'
-        extended_responses = read_extended_douban_corpus(extended_path)
-        responses += extended_responses
+        # extended_path = f'{args["root_dir"]}/data/ext_douban/train.txt'
+        # extended_responses = read_extended_douban_corpus(extended_path)
+        # responses += extended_responses
         responses = list(set(responses))
         print(f'[!] load {len(responses)} responses for inference')
 

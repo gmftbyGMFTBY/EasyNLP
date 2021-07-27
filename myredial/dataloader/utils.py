@@ -176,10 +176,11 @@ def read_text_data_with_super_hard_q_r(path, lang='zh'):
     return dataset
 
 def read_text_data_one2many(path, lang='zh'):
-    path_ = f'{os.path.splitext(path)[0]}_gray_unparallel.txt'
+    # path_ = f'{os.path.splitext(path)[0]}_gray_unparallel.txt'
+    path_ = f'{os.path.splitext(path)[0]}_gray.txt'
     with open(path_) as f:
         dataset = []
-        for line in f.readlines():
+        for line in tqdm(f.readlines()):
             line = json.loads(line.strip())
             context = line['q']
             response = line['r']

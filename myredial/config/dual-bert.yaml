@@ -32,5 +32,5 @@ inference:
     max_len: 64
     topk: 20
     # index_type: IVF3722,Flat
-    index_type: IVF8557,Flat
+    index_type: IVF6509,Flat
     dimension: 768
