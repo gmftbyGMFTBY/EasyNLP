@@ -488,3 +488,20 @@ def read_text_data_utterances_and_full_and_pesudo_pairs_ft(path1, path2, lang='z
             neg = random.choice(utterances_pool)
             dataset2.append((0, [line['q'], neg]))
     return dataset1 + dataset2
+
+
+def read_text_data_utterances_full_neg_session(path, lang='zh'):
+    '''the full conversation context will be used; the utterance in the same context will be treated as the hard negative samples'''
+    dataset = read_text_data_utterances(path, lang=lang)
+    data = []
+    for label, utterances in dataset:
+        if label == 0:
+            continue
+        start_num = max(1, len(utterances) - 5)
+        for i in range(start_num, len(utterances)):
+            # neg_session samples
+            neg_session = deepcopy(utterances)
+            neg_session.remove(utterances[i])
+            data.append((1, utterances[:i+1], neg_session))
+    print(f'[!] collect {len(data)} samples for training')
+    return data

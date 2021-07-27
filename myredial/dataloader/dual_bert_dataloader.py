@@ -486,22 +486,10 @@ class BERTDualO2MDataset(Dataset):
             # data = read_text_data_one2many_pesudo(path, lang=self.args['lang'])
             data = read_text_data_one2many(path, lang=self.args['lang'])
             for context, response, candidates in tqdm(data):
-                item = self.vocab.batch_encode_plus(context + [response] + candidates, add_special_tokens=False)['input_ids']
-                cids = item[:len(context)]
-                rids = item[len(context)]
-                cand_rids = item[-len(candidates):]
-
-                ids = [self.cls]
-                for u in cids:
-                    ids.extend(u + [self.eos])
-                ids[-1] = self.sep
-                ids = length_limit(ids, self.args['max_len'])
-                rids = length_limit_res([self.cls] + rids + [self.sep], self.args['res_max_len'], sep=self.sep)
-                cand_rids = [length_limit_res([self.cls] + i + [self.sep], self.args['res_max_len'], sep=self.sep) for i in cand_rids]
                 self.data.append({
-                    'ids': ids,
-                    'rids': rids,
-                    'cand_rids': cand_rids,
+                    'context': context,
+                    'response': response,
+                    'candidates': candidates,
                 })
         else:
             data = read_text_data_utterances(path, lang='zh')
@@ -529,9 +517,21 @@ class BERTDualO2MDataset(Dataset):
     def __getitem__(self, i):
         bundle = self.data[i]
         if self.args['mode'] == 'train':
-            ids = torch.LongTensor(bundle['ids'])
-            pos_rids = bundle['rids']
-            rids = [pos_rids] + random.sample(bundle['cand_rids'], self.args['gray_cand_num'])
+            context, response, candidates = bundle['context'], bundle['response'], bundle['candidates']
+            item = self.vocab.batch_encode_plus(context + [response] + candidates, add_special_tokens=False)['input_ids']
+            cids = item[:len(context)]
+            rids = item[len(context)]
+            cand_rids = item[-len(candidates):]
+            ids = [self.cls]
+            for u in cids:
+                ids.extend(u + [self.eos])
+            ids[-1] = self.sep
+            ids = length_limit(ids, self.args['max_len'])
+            rids = length_limit_res([self.cls] + rids + [self.sep], self.args['res_max_len'], sep=self.sep)
+            cand_rids = [length_limit_res([self.cls] + i + [self.sep], self.args['res_max_len'], sep=self.sep) for i in cand_rids]
+            ids = torch.LongTensor(ids)
+            pos_rids = rids
+            rids = [pos_rids] + random.sample(cand_rids, self.args['gray_cand_num'])
             rids = [torch.LongTensor(i) for i in rids]
             return ids, rids
         else:
@@ -1402,6 +1402,132 @@ class BERTDualFullWithSelfPlayDataset(Dataset):
                 'rids_mask': rids_mask,
                 'ctext': ctext,
                 'rtext': rtext,
+            }
+        else:
+            # batch size is batch_size * 10
+            assert len(batch) == 1
+            batch = batch[0]
+            ids, rids, label = batch[0], batch[1], batch[2]
+            text = batch[3]
+            rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
+            rids_mask = generate_mask(rids)
+            label = torch.LongTensor(label)
+            ids, rids, rids_mask, label = to_cuda(ids, rids, rids_mask, label)
+            return {
+                'ids': ids, 
+                'rids': rids, 
+                'rids_mask': rids_mask, 
+                'label': label,
+                'text': text
+            }
+
+            
+class BERTDualFullNegSessionDataset(Dataset):
+
+    '''more positive pairs to train the dual bert model, with hard negative samples which are in the same session'''
+    
+    def __init__(self, vocab, path, **args):
+        self.args = args
+        self.vocab = vocab
+        self.vocab.add_tokens(['[EOS]'])
+
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.eos = self.vocab.convert_tokens_to_ids('[EOS]')
+        self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
+
+        suffix = args['tokenizer'].replace('/', '_')
+        self.pp_path = f'{os.path.splitext(path)[0]}_dual_full_neg_session_{suffix}.pt'
+        if os.path.exists(self.pp_path):
+            self.data = torch.load(self.pp_path)
+            print(f'[!] load preprocessed file from {self.pp_path}')
+            return None
+
+        self.data = []
+        if self.args['mode'] == 'train':
+            data = read_text_data_utterances_full_neg_session(path, lang=self.args['lang'])
+            for label, utterances, neg in tqdm(data):
+                if label == 0:
+                    continue
+                self.data.append({
+                    'utterances': utterances,
+                    'neg': neg,
+                })
+        else:
+            data = read_text_data_utterances(path, lang=self.args['lang'])
+            for i in tqdm(range(0, len(data), 10)):
+                batch = data[i:i+10]
+                rids = []
+                gt_text = []
+                for label, utterances in batch:
+                    item = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']
+                    cids, rids_ = item[:-1], item[-1]
+                    ids = []
+                    for u in cids:
+                        ids.extend(u + [self.sep])
+                    ids.pop()
+                    ids = ids[-(self.args['max_len']-2):]    # ignore [CLS] and [SEP]
+                    rids_ = rids_[:(self.args['res_max_len']-2)]
+                    ids = [self.cls] + ids + [self.sep]
+                    rids_ = [self.cls] + rids_ + [self.sep]
+                    rids.append(rids_)
+                    if label == 1:
+                        gt_text.append(utterances[-1])
+                self.data.append({
+                    'label': [b[0] for b in batch],
+                    'ids': ids,
+                    'rids': rids,
+                    'text': gt_text,
+                })    
+                
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, i):
+        bundle = self.data[i]
+        if self.args['mode'] == 'train':
+            utterances, neg = bundle['utterances'], bundle['neg']
+            item = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']
+            cids, rids = item[:-1], item[-1]
+            ids = []
+            for u in cids:
+                ids.extend(u + [self.sep])
+            ids.pop()
+            ids = ids[-(self.args['max_len']-2):]    # ignore [CLS] and [SEP]
+            rids = rids[:(self.args['res_max_len']-2)]
+            ids = [self.cls] + ids + [self.sep]
+            rids = [self.cls] + rids + [self.sep]
+            # neg inner nession
+            nrids = self.vocab.encode(random.choice(neg), add_special_tokens=False)
+            nrids = [self.cls] + nrids[:(self.args['res_max_len']-2)] + [self.sep]
+            ids = torch.LongTensor(ids)
+            rids = torch.LongTensor(rids)
+            nrids = torch.LongTensor(nrids)
+            return ids, rids, nrids
+        else:
+            ids = torch.LongTensor(bundle['ids'])
+            rids = [torch.LongTensor(i) for i in bundle['rids']]
+            return ids, rids, bundle['label'], bundle['text']
+
+    def save(self):
+        data = torch.save(self.data, self.pp_path)
+        print(f'[!] save preprocessed dataset into {self.pp_path}')
+        
+    def collate(self, batch):
+        if self.args['mode'] == 'train':
+            ids = [i[0] for i in batch]
+            rids, nrids = [i[1] for i in batch], [i[2] for i in batch]
+            rids += nrids
+            ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+            rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
+            ids_mask = generate_mask(ids)
+            rids_mask = generate_mask(rids)
+            ids, rids, ids_mask, rids_mask = to_cuda(ids, rids, ids_mask, rids_mask)
+            return {
+                'ids': ids, 
+                'rids': rids,    # [2*B, E] 
+                'ids_mask': ids_mask, 
+                'rids_mask': rids_mask,
             }
         else:
             # batch size is batch_size * 10

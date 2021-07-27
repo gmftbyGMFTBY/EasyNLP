@@ -3,7 +3,9 @@ from header import *
 from .utils import *
 
 '''
-gray strategy generates the hard negative samples (gray samples) for each conversation context in the training and testing dataset'''
+gray strategy generates the hard negative samples (gray samples) for each conversation context in the training and testing dataset:
+
+Need the BERTDualInferenceFullContextDataset'''
 
 def gray_strategy(args):
     # collect the gray negative dataset
@@ -37,19 +39,26 @@ def gray_strategy(args):
     # NOTE: Make sure the responses are saved in the faiss index
     collection = []
     lossing = 0
-    for i in tqdm(range(0, len(embds), args['batch_size'])):
+    pbar = tqdm(range(0, len(embds), args['batch_size']))
+    for i in pbar:
         batch = embds[i:i+args['batch_size']]    # [B, E]
         context = contexts[i:i+args['batch_size']]
         response = responses[i:i+args['batch_size']]
         result = searcher._search(batch, topk=args['pool_size'])
         for c, r, rest in zip(context, response, result):
             rest = remove_duplicate_and_hold_the_order(rest)
+            # remove the candidate that in the conversation context
+            for uc in c:
+                if uc in rest:
+                    rest.remove(uc)
+            # remove the ground-truth
             if r in rest:
                 rest.remove(r)
-            if len(rest) < args['topk']:
+            if len(rest) < args['gray_topk']:
                 lossing += 1
                 continue
             collection.append({'q': c, 'r': r, 'snr': rest[:args["topk"]]})
+        pbar.set_description(f'[!] found {lossing} error samples')
     print(f'[!] lossing {lossing} samples that are invalid')
 
     # write into new file
