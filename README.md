@@ -5,14 +5,15 @@
 - [x] The rerank performance of dual-bert-fusion is bad, the reason maybe that the context information is only for ground-truth, but the other negative samples lost their corresponding context, and during rerank procedure, we use the context of the ground-truth for all the candidates, which may pertubate the decison of the model.
 - [x] Generate the gray data need the faiss Flat  index runnign on GPU, which only costs 6~7mins for 0.5 million dataset
 - [ ] implement UMS-BERT and BERT-SL using the post-train checkpoint of the BERT-FP
-- [ ] implement my own post train procedure
-- [ ] implement R-Drop for bert-ft (add the similarity on the cls embedding) and dual-bert
+- [x] implement my own post train procedure
+- [x] implement R-Drop for bert-ft (add the similarity on the cls embedding) and dual-bert
 - [x] fix the bugs of _length_limit of the bert-ft
 - [x] dynamic margin (consider the margin between the original rerank scores)
 - [x] comparison: bce to three-classification(positive, negative, hard to tell); hard to tell could use the self-comparison and the comparison with the top-1 retrieved result
-- [ ] test dual-bert-compare
+- [x] test dual-bert-compare
 - [x] twice dropout means the consistency regularization in the semi-supervised learning
-- [ ] LSH faiss index cannot use GPU, IVF index can use it and running very fast
+- [x] LSH faiss index cannot use GPU, IVF index can use it and running very fast
+- [x] ISN (Inner session negative) seems useless all the datasets
 
 ## How to Use
 

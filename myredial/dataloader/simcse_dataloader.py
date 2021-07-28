@@ -21,8 +21,8 @@ class SimCSEDataset(Dataset):
 
         data = read_text_data_utterances(path, lang=self.args['lang'])
         data = list(chain(*[u for label, u in data if label == 1]))
-        ext_data = read_extended_douban_corpus(f'{args["root_dir"]}/data/ext_douban/train.txt')
-        data += ext_data
+        # ext_data = read_extended_douban_corpus(f'{args["root_dir"]}/data/ext_douban/train.txt')
+        # data += ext_data
         data = list(set(data))
         print(f'[!] collect {len(data)} samples for simcse')
 

@@ -69,6 +69,14 @@ class RetrievalBaseAgent:
             return False
 
     def test_now(self, test_iter, recoder):
+        # if the model is the no-test-model, save the checkpoint and return
+        if self.args['model'] in self.args['no_test_models']:
+            if self.args['local_rank'] == 0:
+                pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
+                save_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_{pretrained_model_name}.pt'
+                self.save_model(save_path)
+            return
+
         index = self.test_step_counter
         test_rest = self.test_model(test_iter)
         r10_1 = test_rest['R10@1']

@@ -57,14 +57,19 @@ models:
         dataset_name: BERTDualSemiDataset
         inference_dataset_name: BERTDualInferenceDataset
         # inference_dataset_name: BERTDualInferenceContextDataset
+    dual-bert-grading: 
+        type: Representation
+        model_name: BERTDualGradingEncoder
+        dataset_name: BERTDualFullNegSessionDataset
+        inference_dataset_name: BERTDualInferenceDataset
     dual-bert: 
         type: Representation
         model_name: BERTDualEncoder
         # dataset_name: BERTDualExtraNoCtxDataset
         # dataset_name: BERTDualFullFakeCtxDataset
         # dataset_name: BERTDualDataset
-        # dataset_name: BERTDualFullDataset
-        dataset_name: BERTDualFullNegSessionDataset
+        dataset_name: BERTDualFullDataset
+        # dataset_name: BERTDualFullNegSessionDataset
         # dataset_name: BERTDualFullWithSelfPlayDataset
         # dataset_name: BERTDualPseudoDataset
         # inference_dataset_name: BERTDualInferenceDataset
@@ -208,16 +213,17 @@ deploy:
     res_max_len: 64
     recall:
         activate: false
-        model: full
+        model: dual-bert
         # default topk
         topk: 100
         # only the arxiv, writer dataset need the with_source
         with_source: false
         # index_type: IVF3722,Flat
         index_type: IVF6509,Flat
+        # index_type: Flat
         dimension: 768
     rerank:
         activate: false
-        model: dual-bert
+        model: null
     pipeline:
         activate: true

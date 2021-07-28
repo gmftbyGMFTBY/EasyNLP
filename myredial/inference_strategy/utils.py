@@ -82,7 +82,7 @@ class Searcher:
         self.corpus.extend(texts)
         print(f'[!] add {len(texts)} dataset over')
 
-    def move_to_gpu(self, device=1):
+    def move_to_gpu(self, device=0):
         # self.searcher = faiss.index_cpu_to_all_gpus(self.searcher)
         res = faiss.StandardGpuResources()
         self.searcher = faiss.index_cpu_to_gpu(res, device, self.searcher)

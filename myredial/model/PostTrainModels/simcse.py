@@ -21,7 +21,7 @@ class SimCSE(nn.Module):
         ids_mask = batch['ids_mask']
 
         cid_rep, rid_rep = self._encode(ids, ids, ids_mask, ids_mask)
-        cid_rep, rid_rep = F.normalize(cid_rep), F.normalize(rid_rep)
+        # cid_rep, rid_rep = F.normalize(cid_rep), F.normalize(rid_rep)
         # distributed samples collected
         cid_reps, rid_reps = distributed_collect(cid_rep, rid_rep)
         dot_product = torch.matmul(cid_reps, rid_reps.t())     # [B, B]

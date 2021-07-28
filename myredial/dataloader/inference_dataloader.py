@@ -17,6 +17,7 @@ class BERTDualInferenceDataset(Dataset):
             return None
         # except the response in the train dataset, test dataset responses are included for inference test
         # for inference[gray mode] do not use the test set responses
+        # ========== for full response recall, build the one2many corpus ========== #
         responses = read_response_data_full(path, lang=self.args['lang'], turn_length=5)
         # add the extended douban utterances
         # extended_path = f'{args["root_dir"]}/data/ext_douban/train.txt'
@@ -24,6 +25,11 @@ class BERTDualInferenceDataset(Dataset):
         # responses += extended_responses
         responses = list(set(responses))
         print(f'[!] load {len(responses)} responses for inference')
+
+        # ========== for full-rank response recall ========= #
+        # responses = read_response_data(path, lang=self.args['lang'])
+        # responses = list(set(responses))
+        # print(f'[!] load {len(responses)} responses for inference finally')
 
         self.data = []
         for res in tqdm(responses):

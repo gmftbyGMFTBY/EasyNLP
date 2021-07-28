@@ -435,7 +435,7 @@ class RepresentationAgent(RetrievalBaseAgent):
             pbar = tqdm(range(0, len(batch['candidates']), inner_bsz))
             cid, cid_mask = self.totensor([batch['context']], ctx=True)
             for idx in pbar:
-                candidates = batch['candidates'][idx:idx+idx+inner_bsz]
+                candidates = batch['candidates'][idx:idx+inner_bsz]
                 rid, rid_mask = self.totensor(candidates, ctx=False)
                 batch['ids'] = cid
                 batch['ids_mask'] = cid_mask
@@ -448,28 +448,37 @@ class RepresentationAgent(RetrievalBaseAgent):
     def load_model(self, path):
         state_dict = torch.load(path, map_location=torch.device('cpu'))
         if self.args['mode'] == 'train':
-            self.checkpointadapeter.init(
-                state_dict.keys(),
-                self.model.ctx_encoder.state_dict().keys(),
-            )
-            new_state_dict = self.checkpointadapeter.convert(state_dict)
-            self.model.ctx_encoder.load_state_dict(new_state_dict)
-
-            if self.args['model'] in ['dual-bert-one2many']:
-                for i in range(self.args['topk_encoder']):
-                    self.checkpointadapeter.init(
-                        state_dict.keys(),
-                        self.model.can_encoders[i].state_dict().keys(),
-                    )
-                    new_state_dict = self.checkpointadapeter.convert(state_dict)
-                    self.model.can_encoders[i].load_state_dict(new_state_dict)
+            if 'simsce' in path:
+                self.checkpointadapeter.init(
+                    state_dict.keys(),
+                    self.model.state_dict().keys(),
+                )
+                new_state_dict = self.checkpointadapeter.convert(state_dict)
+                self.model.load_state_dict(new_state_dict)
+                print(f'[!] load the simcse pre-trained model')
             else:
                 self.checkpointadapeter.init(
                     state_dict.keys(),
-                    self.model.can_encoder.state_dict().keys(),
+                    self.model.ctx_encoder.state_dict().keys(),
                 )
                 new_state_dict = self.checkpointadapeter.convert(state_dict)
-                self.model.can_encoder.load_state_dict(new_state_dict)
+                self.model.ctx_encoder.load_state_dict(new_state_dict)
+
+                if self.args['model'] in ['dual-bert-one2many']:
+                    for i in range(self.args['topk_encoder']):
+                        self.checkpointadapeter.init(
+                            state_dict.keys(),
+                            self.model.can_encoders[i].state_dict().keys(),
+                        )
+                        new_state_dict = self.checkpointadapeter.convert(state_dict)
+                        self.model.can_encoders[i].load_state_dict(new_state_dict)
+                else:
+                    self.checkpointadapeter.init(
+                        state_dict.keys(),
+                        self.model.can_encoder.state_dict().keys(),
+                    )
+                    new_state_dict = self.checkpointadapeter.convert(state_dict)
+                    self.model.can_encoder.load_state_dict(new_state_dict)
         else:
             # test and inference mode
             self.checkpointadapeter.init(

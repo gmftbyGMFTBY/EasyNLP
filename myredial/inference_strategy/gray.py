@@ -57,7 +57,7 @@ def gray_strategy(args):
             if len(rest) < args['gray_topk']:
                 lossing += 1
                 continue
-            collection.append({'q': c, 'r': r, 'snr': rest[:args["topk"]]})
+            collection.append({'q': c, 'r': r, 'snr': rest[:args["gray_topk"]]})
         pbar.set_description(f'[!] found {lossing} error samples')
     print(f'[!] lossing {lossing} samples that are invalid')
 

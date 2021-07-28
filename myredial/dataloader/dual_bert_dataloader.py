@@ -518,6 +518,7 @@ class BERTDualO2MDataset(Dataset):
         bundle = self.data[i]
         if self.args['mode'] == 'train':
             context, response, candidates = bundle['context'], bundle['response'], bundle['candidates']
+            candidates = random.sample(candidates, self.args['gray_cand_num'])
             item = self.vocab.batch_encode_plus(context + [response] + candidates, add_special_tokens=False)['input_ids']
             cids = item[:len(context)]
             rids = item[len(context)]
@@ -531,7 +532,7 @@ class BERTDualO2MDataset(Dataset):
             cand_rids = [length_limit_res([self.cls] + i + [self.sep], self.args['res_max_len'], sep=self.sep) for i in cand_rids]
             ids = torch.LongTensor(ids)
             pos_rids = rids
-            rids = [pos_rids] + random.sample(cand_rids, self.args['gray_cand_num'])
+            rids = [pos_rids] + cand_rids
             rids = [torch.LongTensor(i) for i in rids]
             return ids, rids
         else:
@@ -600,10 +601,10 @@ class BERTDualFullDataset(Dataset):
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
 
-        data = read_text_data_utterances_full(path, lang=self.args['lang'])
 
         self.data = []
         if self.args['mode'] == 'train':
+            data = read_text_data_utterances_full(path, lang=self.args['lang'])
             for label, utterances in tqdm(data):
                 if label == 0:
                     continue
@@ -624,6 +625,7 @@ class BERTDualFullDataset(Dataset):
                     'rtext': utterances[-1],
                 })
         else:
+            data = read_text_data_utterances(path, lang=self.args['lang'])
             for i in tqdm(range(0, len(data), 10)):
                 batch = data[i:i+10]
                 rids = []

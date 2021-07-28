@@ -78,8 +78,10 @@ ISN means the inner session negative (hard negative)
 
 | Models             | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   | Time Cost(ms) |
 | ------------------ | ----- | ----- | ----- | ----- | ----- | ------ | --------- |
-| BERT-FP            | 49.32 | 69.89 | 91.86 | 70.81 | 54.55 | 69.8  | 21150.52   |
-| dual-bert+full     | | | | |
+| BERT-FP            | 49.32 | 69.89 | 91.86 | 70.81 | 54.55 | 69.8   | 21150.52  |
+| dual-bert+full     | 56.76 | 73.92 | 93.98 | 76.06 | 62.83 | 74.87  | 24070.67  |
+| dual-bert+full+simsce     | 56.24 | 75.64 | 93.4 | 75.87 | 62.12 | 74.84  | 24070.67  |
+| dual-bert+full+one2many     | 55.56 | 74.53 | 94.33 | 75.37 | 61.52 | 74.28  | 68816.42  |
 | dual-bert+full+ISN | 55.56 | 74.36 | 93.91 | 75.28 | 61.11 | 74.24  | 19678.29  |
 
 ## 2. Full-rank Comparison Protocol
@@ -91,11 +93,18 @@ The corpus is the responses in the train set.
 test set is not used in the faiss index; 
 put the context utterances in the index(faiss and ES q-q matching index);
 INBS is in-batch negative sampling
+all means full+ISN
 -->
 | Methods                     | 1 | 2 | 3 | 4 | 5 | Average Human Evaluation | Average Time Cost | 
 | --------------------------- | - | - | - | - | - | ------------------------ | ----------------- |
+| BM25(q-q)                   |   |   |   |   |   |                          |                   |
+| BM25(q-q, topk=100)+BERT-FP |   |   |   |   |   |                          |                   |
 | BERT-FP(full-rank)          |   |   |   |   |   |                          |                   |
 | dual-bert(full-rank)        |   |   |   |   |   |                          |                   |
+| dual-bert+all(full-rank)    |   |   |   |   |   |                          |                   |
+| dual-bert+one2many(full-rank) |   |   |   |   |   |                          |                   |
+| dual-bert+all+one2many(full-rank) |   |   |   |   |   |                          |                   |
+| dual-bert(topk=100)+BERT-FP |   |   |   |   |   |                          |                   |
 
 **The kappa among annotators**: 
 
@@ -109,10 +118,8 @@ BERT-FP=bert-ft+
 -->
 | Methods                     | 1 | 2 | 3 | 4 | 5 | Average Human Evaluation | Average Time Cost | 
 | --------------------------- | - | - | - | - | - | ------------------------ | ----------------- |
-| BM25(q-q, topk=)+BERT-FP    |   |   |   |   |   |                          |                   |
-| BM25(q-r, ext_data, topk=)+BERT-FP    |   |   |   |   |   |                          |                   |
-| dual-bert(ext_data)+None    |   |   |   |   |   |                          |                   |
-| dual-bert(ext_data, topk=)+BERT-FP    |   |   |   |   |   |                          |                   |
+| dual-bert(topk=100, in-dataset-extend)+BERT-FP    |   |   |   |   |   |                          |                   |
+| dual-bert(topk=100, in-dataset+out-dataset-extend)+BERT-FP    |   |   |   |   |   |                          |                   |
 
 **The kappa among annotators**: 
 
@@ -149,7 +156,7 @@ ATC means the average time cost
 | --------- | --------------------- |
 | Pure BM25 | 19503.566 |
 | BM25(top=100)+BERT-FP | 168504.7786 |
-| dual-bert+all(full-rank) | 168504.7786 |
+| dual-bert+all(full-rank) | 211419.1337 |
 
 
 ## 6. How to reproduce our results
