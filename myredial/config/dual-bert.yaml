@@ -1,6 +1,9 @@
 smoothing: 0.1
 # rank: bert-ft-compare
 rank: null
+temp: 1.
+# for restoration-200k, it is 5, for douban and ubuntu, it can be more
+full_turn_length: 7
 
 # train configuration
 train:
@@ -14,9 +17,9 @@ train:
     # no wamrup, set 0.0 (BERT-FP and UMS_BERT)
     warmup_ratio: 0.
     checkpoint: 
-        # path: bert-post/best_nspmlm.pt
+        path: bert-post/best_nspmlm.pt
         # path: bert-fp/best_bert-base-chinese.pt
-        path: simcse/best_bert-base-chinese.pt
+        # path: simcse/best_bert-base-chinese.pt
         is_load: true
 
 # test configuration

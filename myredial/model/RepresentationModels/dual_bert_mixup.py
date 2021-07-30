@@ -7,15 +7,8 @@ class BERTDualMixUpEncoder(nn.Module):
     def __init__(self, **args):
         super(BERTDualMixUpEncoder, self).__init__()
         model = args['pretrained_model']
-        p = args['dropout']
         self.ctx_encoder = BertEmbedding(model=model, add_tokens=1)
         self.can_encoder = BertEmbedding(model=model, add_tokens=1)
-        self.mixup_proj = nn.Sequential(
-            nn.Linear(768, 768),
-            nn.Tanh(),
-            nn.Dropout(p=p),
-            nn.Linear(768, 768)
-        )
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
@@ -46,13 +39,15 @@ class BERTDualMixUpEncoder(nn.Module):
 
     def mixup(self, x, y, alpha=1.0):
         '''https://github.com/facebookresearch/mixup-cifar10/blob/master/train.py'''
-        lam = np.random.beta(alpha, alpha)
         bsz = x.size()[0]
+        lam = torch.zeros_like(x)    # [B, E]
+        for i in range(bsz):
+            for j in range(x.size()[1]):
+                lam[i, j] = np.random.beta(alpha, alpha)
         index = torch.randperm(bsz)
+        # x, y: [B, E]
         mixed_x = lam * x + (1 - lam) * x[index, :]
         mixed_y = lam * y + (1 - lam) * y[index, :]
-        mixed_x = self.mixup_proj(mixed_x)
-        mixed_y = self.mixup_proj(mixed_y)
         return mixed_x, mixed_y
     
     def forward(self, batch):

@@ -7,7 +7,6 @@ cuda=$3
 # ========== metadata ========== #
 
 root_dir=$(cat config/base.yaml | shyaml get-value root_dir)
-echo "redirect the output: ${root_dir}/log/${dataset}/${model}/log.txt"
 
 # backup
 mv $root_dir/ckpt/$dataset/$model/*.pt $root_dir/bak/$dataset/$model

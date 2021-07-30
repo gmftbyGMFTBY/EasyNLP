@@ -57,13 +57,21 @@ class TopKBertEmbedding(nn.Module):
 
     '''bert embedding with m query heads'''
     
-    def __init__(self, model='bert-base-chinese', m=5):
+    def __init__(self, model='bert-base-chinese', m=5, dropout=0.1):
         super(TopKBertEmbedding, self).__init__()
         self.model = BertModel.from_pretrained(model)
         self.m = m
         # bert-fp checkpoint has the special token: [EOS]
         self.model.resize_token_embeddings(self.model.config.vocab_size + 1)
         self.queries = nn.Parameter(torch.randn(512, 768))    # [M, E] with maxium length 512
+        self.proj_heads = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(768, 768),
+                nn.Tanh(),
+                nn.Dropout(p=dropout),
+                nn.Linear(768, 768)
+            ) for _ in range(m)    
+        ])
 
     def get_padding_mask_weight(self, attn_mask):
         weight = torch.where(attn_mask != 0, torch.zeros_like(attn_mask), torch.ones_like(attn_mask))
@@ -85,7 +93,16 @@ class TopKBertEmbedding(nn.Module):
 
         # [B, M, S] x [B, S, E] -> [B, M, E]
         rep = torch.bmm(scores, embds)
-        return rep
+
+        # project m times
+        reps = []
+        for idx, rep_ in enumerate(rep.permute(1, 0, 2)):
+            # rep_: [B, E]
+            # residual connection
+            rep_ = rep_ + self.proj_heads[idx](rep_)
+            reps.append(rep_)
+        reps = torch.stack(reps)    # [M, B, E]
+        return reps
 
 
 class BertMLEmbedding(nn.Module):

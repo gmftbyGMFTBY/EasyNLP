@@ -62,6 +62,11 @@ models:
         model_name: BERTDualGradingEncoder
         dataset_name: BERTDualFullNegSessionDataset
         inference_dataset_name: BERTDualInferenceDataset
+    dual-bert-ishn: 
+        type: Representation
+        model_name: BERTDualISHNEncoder
+        dataset_name: BERTDualFullISHNDataset
+        inference_dataset_name: BERTDualInferenceDataset
     dual-bert: 
         type: Representation
         model_name: BERTDualEncoder
@@ -87,8 +92,8 @@ models:
         inference_dataset_name: BERTDualInferencePhraseDataset
     dual-bert-one2many: 
         type: Representation
-        model_name: BERTDualO2MEncoder
-        # model_name: BERTDualO2MTopKEncoder
+        # model_name: BERTDualO2MEncoder
+        model_name: BERTDualO2MTopKEncoder
         dataset_name: BERTDualO2MDataset
         inference_dataset_name: BERTDualInferenceDataset
         # inference_dataset_name: BERTDualInferenceContextDataset

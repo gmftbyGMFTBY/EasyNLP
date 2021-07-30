@@ -457,14 +457,22 @@ class RepresentationAgent(RetrievalBaseAgent):
                 self.model.load_state_dict(new_state_dict)
                 print(f'[!] load the simcse pre-trained model')
             else:
-                self.checkpointadapeter.init(
-                    state_dict.keys(),
-                    self.model.ctx_encoder.state_dict().keys(),
-                )
-                new_state_dict = self.checkpointadapeter.convert(state_dict)
-                self.model.ctx_encoder.load_state_dict(new_state_dict)
-
                 if self.args['model'] in ['dual-bert-one2many']:
+                    self.checkpointadapeter.init(
+                        state_dict.keys(),
+                        self.model.ctx_encoder.model.state_dict().keys(),
+                    )
+                    new_state_dict = self.checkpointadapeter.convert(state_dict)
+                    self.model.ctx_encoder.model.load_state_dict(new_state_dict)
+                else:
+                    self.checkpointadapeter.init(
+                        state_dict.keys(),
+                        self.model.ctx_encoder.state_dict().keys(),
+                    )
+                    new_state_dict = self.checkpointadapeter.convert(state_dict)
+                    self.model.ctx_encoder.load_state_dict(new_state_dict)
+
+                if self.args['model'] in ['dual-bert-grading']:
                     for i in range(self.args['topk_encoder']):
                         self.checkpointadapeter.init(
                             state_dict.keys(),

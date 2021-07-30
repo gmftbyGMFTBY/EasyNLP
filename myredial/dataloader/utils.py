@@ -394,14 +394,14 @@ def read_text_data_utterances_and_pesudo_pairs(path1, path2, lang='zh'):
             dataset2.append((1, utterances))
     return dataset1 + dataset2
 
-def read_text_data_utterances_full(path, lang='zh'):
+def read_text_data_utterances_full(path, lang='zh', turn_length=5):
     '''the full conversation context will be used'''
     dataset = read_text_data_utterances(path, lang=lang)
     data = []
     for label, utterances in dataset:
         if label == 0:
             continue
-        start_num = max(1, len(utterances) - 5)
+        start_num = max(1, len(utterances) - turn_length)
         for i in range(start_num, len(utterances)):
             # i is the index of the response
             data.append((1, utterances[:i+1]))

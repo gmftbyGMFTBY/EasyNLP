@@ -1,24 +1,24 @@
+smoothing: 0.1
 # rank: bert-ft-compare
 rank: null
-dropout: 0.1
-# make sure that topk_encoder = gray_cand_num + 1
-topk_encoder: 5
-gray_cand_num: 4
+temp: 0.07
+gray_cand_num: 2
 
 # train configuration
 train:
     lr: 0.00005
     grad_clip: 5.0
     seed: 0
-    batch_size: 32
+    batch_size: 64
     max_len: 256
     res_max_len: 64
-    epoch: 5
+    epoch: 10
     # no wamrup, set 0.0 (BERT-FP and UMS_BERT)
-    warmup_ratio: 0.
+    warmup_ratio: 0.05
     checkpoint: 
         # path: bert-post/best_nspmlm.pt
         path: bert-fp/best_bert-base-chinese.pt
+        # path: simcse/best_bert-base-chinese.pt
         is_load: true
 
 # test configuration
@@ -31,8 +31,10 @@ test:
 # inference configuration
 inference:
     seed: 0
-    batch_size: 128
+    batch_size: 128 
     max_len: 64
     topk: 20
-    index_type: Flat
+    # index_type: IVF3722,Flat
+    index_type: IVF6509,Flat
+    # index_type: Flat
     dimension: 768

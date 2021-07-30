@@ -16,8 +16,7 @@ class BERTDualO2MEncoder(nn.Module):
     def _encode(self, cid, rid, cid_mask, rid_mask, test=False):
         cid_rep = self.ctx_encoder(cid, cid_mask)    # [B, E]
         rid_reps = []
-        num = self.topk
-        for idx in range(num):
+        for idx in range(self.topk):
             rid_rep = self.can_encoders[idx](rid[idx], rid_mask[idx])
             rid_reps.append(rid_rep)
         return cid_rep, rid_reps
@@ -59,6 +58,11 @@ class BERTDualO2MEncoder(nn.Module):
         rid = batch['rids']
         cid_mask = batch['ids_mask']
         rid_mask = batch['rids_mask']
+        
+        # random_idx = list(range(len(rid)))
+        # random.shuffle(random_idx)
+        # rid = [rid[i] for i in random_idx]
+        # rid_mask = [rid_mask[i] for i in random_idx]
 
         batch_size = len(cid)
         cid_rep, rid_reps = self._encode(cid, rid, cid_mask, rid_mask)
@@ -94,27 +98,22 @@ class BERTDualO2MTopKEncoder(nn.Module):
         model = args['pretrained_model']
         self.topk = args['topk_encoder']
         self.ctx_encoder = TopKBertEmbedding(model=model, m=self.topk)
-        self.can_encoders = nn.ModuleList([
-            BertEmbedding(model=model) for _ in range(self.topk) 
-        ])
+        self.can_encoder = BertEmbedding(model=model)
 
     def _encode(self, cid, rid, cid_mask, rid_mask, test=False):
-        cid_rep = self.ctx_encoder(cid, cid_mask).permute(1, 0, 2)    # [B, M, E] -> [M, B, E]
-        rid_reps = []
-        num = self.topk
-        for idx in range(num):
-            rid_rep = self.can_encoders[idx](rid[idx], rid_mask[idx])
-            rid_reps.append(rid_rep)
-        return cid_rep, rid_reps
+        assert self.topk == len(rid)
+        cid_rep = self.ctx_encoder(cid, cid_mask)    # [M+1, B, E]
+        # [M+1, B, E]
+        rid_rep = []
+        for rid_, rid_mask_ in zip(rid, rid_mask):
+            rid_rep_ = self.can_encoder(rid_, rid_mask_)    # [B, E]
+            rid_rep.append(rid_rep_)
+        rid_rep = torch.stack(rid_rep)    # [M+1, B, E]
+        return cid_rep, rid_rep
 
     @torch.no_grad()
     def get_cand(self, ids, attn_mask):
-        rid_reps = []
-        for idx in range(self.topk):
-            rid_rep = self.can_encoders[idx](ids, attn_mask)
-            rid_reps.append(rid_rep)
-        # K*[B, E]
-        rid_rep = torch.cat(rid_reps)    # [B*K, E]
+        rid_rep = self.can_encoder(ids, attn_mask)
         return rid_rep
 
     @torch.no_grad()
@@ -130,13 +129,14 @@ class BERTDualO2MTopKEncoder(nn.Module):
         rid_mask = batch['rids_mask']
 
         batch_size = rid.shape[0]
-        # [M, 1, E]; M*[10, E]
+        # [M, 1, E]; [M, 10, E]
         cid_reps, rid_reps = self._encode(cid, [rid] * self.topk, cid_mask, [rid_mask] * self.topk, test=True)
         dot_products = []
         for rid_rep in rid_reps:
             # [M, 1, E] x [E, 10] -> [M, 1, 10]
             dot_product = torch.matmul(cid_reps, rid_rep.t()).squeeze(1)    # [M, 10]
             dot_products.append(dot_product)
+        # greedy matching
         dot_products = torch.cat(dot_products)    # [M*M, 10]
         score = dot_products.max(dim=0)[0]
         return score
@@ -148,8 +148,14 @@ class BERTDualO2MTopKEncoder(nn.Module):
         rid_mask = batch['rids_mask']
 
         batch_size = len(cid)
-        # [M, B, E], M*[B, E]
+        # [M+1, B, E], [M+1, B, E]
         cid_reps, rid_reps = self._encode(cid, rid, cid_mask, rid_mask)
+
+        # shuffle
+        random_idx = list(range(self.topk))
+        random.shuffle(random_idx)
+        rid_reps = [rid_reps[i] for i in random_idx]
+
         loss = 0
         dot_products = []
         for cid_rep, rid_rep in zip(cid_reps, rid_reps):

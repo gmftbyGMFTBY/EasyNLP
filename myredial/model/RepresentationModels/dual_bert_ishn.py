@@ -1,11 +1,12 @@
 from model.utils import *
 
-class BERTDualEncoder(nn.Module):
+class BERTDualISHNEncoder(nn.Module):
 
     def __init__(self, **args):
-        super(BERTDualEncoder, self).__init__()
+        super(BERTDualISHNEncoder, self).__init__()
         model = args['pretrained_model']
         self.temp = args['temp']
+        self.topk = args['gray_cand_num']
         self.ctx_encoder = BertEmbedding(model=model, add_tokens=1)
         self.can_encoder = BertEmbedding(model=model, add_tokens=1)
         self.args = args
@@ -39,7 +40,7 @@ class BERTDualEncoder(nn.Module):
     
     def forward(self, batch):
         cid = batch['ids']
-        rid = batch['rids']
+        rid = batch['rids']    # [B*(1+K), E]
         cid_mask = batch['ids_mask']
         rid_mask = batch['rids_mask']
 
@@ -52,12 +53,12 @@ class BERTDualEncoder(nn.Module):
 
         # constrastive loss
         mask = torch.zeros_like(dot_product)
-        mask[range(batch_size), range(batch_size)] = 1. 
+        mask[range(batch_size), range(0, len(rid), self.topk+1)] = 1. 
         loss_ = F.log_softmax(dot_product, dim=-1) * mask
         loss = (-loss_.sum(dim=1)).mean()
 
         # acc
-        acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
+        acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(0, len(rid), self.topk+1)).cuda()).sum().item()
         acc = acc_num / batch_size
 
         return loss, acc
