@@ -425,24 +425,24 @@ def read_text_data_utterances_full_fake_ctx(path1, path2, lang='zh'):
     print(f'[!] collect {len(data)} pair samples and {len(ext_data)} monolingual samples')
     return data, ext_data
 
-def read_text_data_utterances_and_full_and_pesudo_pairs(path1, path2, lang='zh'):
+def read_text_data_utterances_and_full_and_pesudo_pairs(path1, path2, lang='zh', turn_length=5):
     dataset1_ = read_text_data_utterances(path1, lang=lang)
     dataset1 = []
     for label, utterances in dataset1_:
         if label == 0:
             continue
-        start_num = max(1, len(utterances) - 5)
+        start_num = max(1, len(utterances) - turn_length)
         for i in range(start_num, len(utterances)):
             dataset1.append((1, utterances[:i+1]))
     with open(path2) as f:
         dataset2 = []
         for line in tqdm(f.readlines()):
             line = json.loads(line.strip())
-            # pos = random.choice(line['snr'])
-            # utterances = [line['q'], pos]
             utterances = [line['q'], line['snr'][0]]
             dataset2.append((1, utterances))
-    return dataset1 + dataset2
+    dataset = dataset1 + dataset2
+    print(f'[!] collect {len(dataset)} training samples')
+    return dataset
 
 def read_extended_douban_corpus(path):
     with open(path) as f:

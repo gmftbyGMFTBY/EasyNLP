@@ -4,6 +4,7 @@ rank: null
 temp: 1.
 # for restoration-200k, it is 5, for douban and ubuntu, it can be more
 full_turn_length: 7
+ext_turn_size: 2
 
 # train configuration
 train:
@@ -13,12 +14,12 @@ train:
     batch_size: 64
     max_len: 256
     res_max_len: 64
-    epoch: 10
+    epoch: 5
     # no wamrup, set 0.0 (BERT-FP and UMS_BERT)
     warmup_ratio: 0.
     checkpoint: 
-        path: bert-post/best_nspmlm.pt
-        # path: bert-fp/best_bert-base-chinese.pt
+        # path: bert-post/best_nspmlm.pt
+        path: bert-fp/best_bert-base-chinese.pt
         # path: simcse/best_bert-base-chinese.pt
         is_load: true
 
@@ -36,6 +37,7 @@ inference:
     max_len: 64
     topk: 20
     # index_type: IVF3722,Flat
-    index_type: IVF6509,Flat
+    # index_type: IVF6509,Flat
+    index_type: IVF4309,Flat
     # index_type: Flat
     dimension: 768

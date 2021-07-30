@@ -4,6 +4,7 @@ rank: null
 gray_cand_num: 2
 topk_encoder: 2
 dropout: 0.1
+lambda: 0.8
 
 # train configuration
 train:

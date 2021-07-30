@@ -10,37 +10,6 @@ self-play strategy to generate the additional data samples for training
 Make sure the deploy config is set in the config/base.yaml
 '''
 
-def remove_duplicate_punctuation(utterance):
-    chars = []
-    punctuations = ['。', '.', '！', '#', '~', '～', '?', '!', '？', '·', ' ', '）', '（', '(', ')', '{', '}']
-    for i in utterance:
-        if i in punctuations:
-            if len(chars) > 0 and i == chars[-1]:
-                continue
-        chars.append(i)
-    return ''.join(chars)
-
-def load_utterances(args, path):
-    utterances = read_response_data_full(path, lang=args['lang'], turn_length=5)
-    utterances = list(set(utterances))
-    interval = len(utterances) // dist.get_world_size()
-    chunks = []
-    for i in range(0, len(utterances), interval):
-        chunks.append(utterances[i:i+interval])
-    chunks = chunks[:dist.get_world_size()]
-    assert len(chunks) == dist.get_world_size()
-    utterances = chunks[args['local_rank']]
-    print(f'[!] collect {len(utterances)} for process: {args["local_rank"]}')
-    return utterances
-
-def load_agent(args):
-    recall_args = load_deploy_config('recall')
-    recall_args['dataset'] = args['dataset']
-    recall_args['model'] = args['model']
-    recallagent = RecallAgent(recall_args)
-    print(f'[!] load the recall agents over')
-    return recallagent
-
 def self_play_strategy(args):
     # set the seed
     random.seed(args['seed'])

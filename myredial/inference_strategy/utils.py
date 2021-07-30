@@ -130,3 +130,44 @@ class RecallAgent:
                 cache.append({'text': i})
             rest.append(cache)
         return rest
+
+def remove_duplicate_punctuation(utterance):
+    chars = []
+    punctuations = ['。', '.', '！', '#', '~', '～', '?', '!', '？', '·', ' ', '）', '（', '(', ')', '{', '}']
+    for i in utterance:
+        if i in punctuations:
+            if len(chars) > 0 and i == chars[-1]:
+                continue
+        chars.append(i)
+    return ''.join(chars)
+
+def load_utterances(args, path):
+    utterances = read_response_data_full(path, lang=args['lang'], turn_length=5)
+    utterances = list(set(utterances))
+    interval = len(utterances) // dist.get_world_size()
+    chunks = []
+    for i in range(0, len(utterances), interval):
+        chunks.append(utterances[i:i+interval])
+    chunks = chunks[:dist.get_world_size()]
+    utterances = chunks[args['local_rank']]
+    print(f'[!] collect {len(utterances)} for process: {args["local_rank"]}')
+    return utterances
+
+def load_agent(args):
+    recall_args = load_deploy_config('recall')
+    recall_args['dataset'] = args['dataset']
+    recall_args['model'] = args['model']
+    recallagent = RecallAgent(recall_args)
+    print(f'[!] load the recall agents over')
+    return recallagent
+
+def combine_all_generate_samples(args):
+    if args['local_rank'] == 0:
+        dataset = []
+        with open(f'{args["root_dir"]}/data/{args["dataset"]}/train_gen_ext.txt', 'w') as fw:
+            for i in range(dist.get_world_size()):
+                with open(f'{args["root_dir"]}/data/{args["dataset"]}/train_gen_ext_{args["local_rank"]}.txt') as f:
+                    for line in f.readlines():
+                        dataset.append(line)
+            for line in dataset:
+                fw.write(line)

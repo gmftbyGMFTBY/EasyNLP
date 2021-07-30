@@ -12,28 +12,13 @@ class BERTDualGradingEncoder(nn.Module):
         self.can_encoders = nn.ModuleList([
             BertEmbedding(model=model) for _ in range(self.topk)    
         ])
-        self.combine_head = nn.Sequential(
-            nn.Linear(768*2, 768),
-            nn.Tanh(),
-            nn.Dropout(p=p),
-            nn.Linear(768, 768),
-        )
         self.args = args
-
-    def _encode(self, cid, rid, cid_mask, rid_mask, hrid=None, hrid_mask=None):
-        cid_rep = self.ctx_encoder(cid, cid_mask)
-        rid_rep = self.can_encoders[0](rid, rid_mask)
-        if hrid and hrid_mask:
-            hrid_rep = self.can_encoders[1](hrid, hrid_mask)
-            return cid_rep, rid_rep, hrid_rep
-        else:
-            return cid_rep, rid_rep
+        self.lamb = args['lambda']
 
     @torch.no_grad()
     def get_cand(self, ids, attn_mask):
         rid_rep_1 = self.can_encoders[0](ids, attn_mask)
         rid_rep_1 = self.can_encoders[1](ids, attn_mask)
-        rid_rep = self.combine_head(torch.cat([rid_rep_1, rid_rep_2], dim=1))
         return rid_rep
 
     @torch.no_grad()
@@ -52,8 +37,10 @@ class BERTDualGradingEncoder(nn.Module):
         cid_rep = self.ctx_encoder(cid, cid_mask)
         rid_rep_1 = self.can_encoders[0](rid, rid_mask)
         rid_rep_2 = self.can_encoders[1](rid, rid_mask)
-        rid_rep = self.combine_head(torch.cat([rid_rep_1, rid_rep_2], dim=1))    # [B, E]
-        dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
+        dot_product_1 = torch.matmul(cid_rep, rid_rep_1.t()).squeeze(0)
+        dot_product_2 = torch.matmul(cid_rep, rid_rep_2.t()).squeeze(0)
+
+        dot_product = self.lamb * dot_product_1 + (1-self.lamb) * dot_product_2
         return dot_product
     
     def forward(self, batch):
@@ -68,11 +55,7 @@ class BERTDualGradingEncoder(nn.Module):
         cid_rep = self.ctx_encoder(cid, cid_mask)    # [B, E]
         rid_rep_1 = self.can_encoders[0](rid, rid_mask)     # [B, E]
         rid_rep_2 = self.can_encoders[1](hrid, hrid_mask)     # [B*K, E]
-        # prepare the inpt for combination mode
-        rid_rep_11 = self.can_encoders[0](hrid, hrid_mask)    # [B*K, E]
         rid_rep_21 = self.can_encoders[1](rid, rid_mask)     # [B, E]
-        rid_rep_for_c_1 = torch.cat([rid_rep_1, rid_rep_11], dim=0)    # [B+B*K, E]
-        rid_rep_for_c_2 = torch.cat([rid_rep_21, rid_rep_2], dim=0)    # [B+B*K, E]
 
         loss = 0
         # easy negative 
@@ -81,6 +64,9 @@ class BERTDualGradingEncoder(nn.Module):
         mask[range(batch_size), range(batch_size)] = 1. 
         loss_ = F.log_softmax(dot_product, dim=-1) * mask
         loss += (-loss_.sum(dim=1)).mean()
+        # acc
+        acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
+        acc = acc_num / batch_size
        
         # hard negative
         # [B, K, E] -> [B, K+1, E]
@@ -92,18 +78,5 @@ class BERTDualGradingEncoder(nn.Module):
         mask[range(batch_size), 0] = 1. 
         loss_ = F.log_softmax(dot_product, dim=-1) * mask
         loss += (-loss_.sum(dim=1)).mean()
-
-        # combine 
-        # [B, B+K*B, E]
-        rid_rep = self.combine_head(torch.cat([rid_rep_for_c_1, rid_rep_for_c_2], dim=1))    # [B+B*K, E]
-        dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, B+B*K]
-        mask = torch.zeros_like(dot_product)
-        mask[range(batch_size), range(batch_size)] = 1. 
-        loss_ = F.log_softmax(dot_product, dim=-1) * mask
-        loss += (-loss_.sum(dim=1)).mean()
-        
-        # acc
-        acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
-        acc = acc_num / batch_size
 
         return loss, acc

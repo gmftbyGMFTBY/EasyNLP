@@ -76,10 +76,11 @@ models:
         dataset_name: BERTDualFullDataset
         # dataset_name: BERTDualFullNegSessionDataset
         # dataset_name: BERTDualFullWithSelfPlayDataset
-        # dataset_name: BERTDualPseudoDataset
+        # dataset_name: BERTDualFullPseudoDataset
         # inference_dataset_name: BERTDualInferenceDataset
         # inference_dataset_name: BERTDualInferenceContextDataset
-        inference_dataset_name: BERTDualInferenceFullContextDataset
+        # inference_dataset_name: BERTDualInferenceFullContextDataset
+        inference_dataset_name: BERTDualInferenceFullContextSingleExtendDataset
     dual-bert-bow: 
         type: Representation
         model_name: BERTDualBOWEncoder

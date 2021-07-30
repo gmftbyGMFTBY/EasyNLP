@@ -706,7 +706,7 @@ class BERTDualFullDataset(Dataset):
             }
 
             
-class BERTDualPseudoDataset(Dataset):
+class BERTDualFullPseudoDataset(Dataset):
     
     def __init__(self, vocab, path, **args):
         self.args = args
@@ -719,17 +719,15 @@ class BERTDualPseudoDataset(Dataset):
         self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
 
         suffix = args['tokenizer'].replace('/', '_')
-        self.pp_path = f'{os.path.splitext(path)[0]}_dual_pseudo_{suffix}.pt'
+        self.pp_path = f'{os.path.splitext(path)[0]}_dual_full_pseudo_{suffix}.pt'
         if os.path.exists(self.pp_path):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
 
-
         self.data = []
         if self.args['mode'] == 'train':
-            pseudo_path = f'{os.path.splitext(path)[0]}_gray_unparallel.txt'
-            # data = read_text_data_utterances_and_pesudo_pairs(path, pseudo_path, lang=self.args['lang'])
+            pseudo_path = f'{os.path.splitext(path)[0]}_gray.txt'
             data = read_text_data_utterances_and_full_and_pesudo_pairs(path, pseudo_path, lang=self.args['lang'])
             for label, utterances in tqdm(data):
                 if label == 0:
@@ -1314,7 +1312,6 @@ class BERTDualFullWithSelfPlayDataset(Dataset):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
-
 
         self.data = []
         if self.args['mode'] == 'train':

@@ -7,8 +7,8 @@ def load_data_train(path):
         dataset = []
         for line in f.readlines():
             utterances = line.split('\t')
-            context = utterances[:4]
-            response = utterances[4]
+            context = utterances[:5]
+            response = utterances[5]
             responses.extend(utterances[:6])
             dataset.append((context, response))
     responses = list(set(responses))
@@ -31,6 +31,7 @@ def write_train_file(path, data):
             f.write(f'0\t{c}\t{neg}\n')
 
 if __name__ == "__main__":
+    random.seed(0)
     train_set, _= load_data_train('train_.txt')
     write_train_file('train.txt', train_set)
 
