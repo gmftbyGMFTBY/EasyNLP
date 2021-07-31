@@ -1,11 +1,17 @@
 from inference import *
 from header import *
 from .utils import *
+from es.es_utils import *
 
 '''
 gray strategy generates the hard negative samples (gray samples) for each conversation context in the training and testing dataset:
 
 Need the BERTDualInferenceFullContextDataset'''
+
+
+def init_bm25(args):
+    bm25_model = ESSearcher(f'{args["dataset"]}_q-q', q_q=True)
+    return bm25_model
 
 def gray_strategy(args):
     # collect the gray negative dataset
@@ -22,21 +28,31 @@ def gray_strategy(args):
             except:
                 break
     embds = np.concatenate(embds) 
-    print(f'[!] load {len(contexts)} contexts for generating the gray number')
+    print(f'[!] load {len(contexts)} contexts for generating the gray candidates')
+
+    # random response pool
+    response_pool = []
+    for c, r in zip(contexts, responses):
+        response_pool.extend(c)
+        response_pool.append(r)
+    response_pool = list(set(response_pool))
+    print(f'[!] the random response pool size: {len(response_pool)}')
 
     # read faiss index
     model_name = args['model']
     pretrained_model_name = args['pretrained_model'].replace('/', '_')
-    searcher = Searcher(args['index_type'], dimension=args['dimension'])
+    searcher = Searcher(args['index_type'], dimension=args['dimension'], nprobe=args['index_nprobe'])
     searcher.load(
         f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_faiss.ckpt',
         f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt',
     )
     # speed up with gpu
-    searcher.move_to_gpu()
+    searcher.move_to_gpu(device=args['local_rank'])
+
+    # bm25 model
+    bm25_model = init_bm25(args)
 
     # search
-    # NOTE: Make sure the responses are saved in the faiss index
     collection = []
     lossing = 0
     pbar = tqdm(range(0, len(embds), args['batch_size']))
@@ -44,20 +60,26 @@ def gray_strategy(args):
         batch = embds[i:i+args['batch_size']]    # [B, E]
         context = contexts[i:i+args['batch_size']]
         response = responses[i:i+args['batch_size']]
-        result = searcher._search(batch, topk=args['pool_size'])
+        # result, distance = searcher._search_dis(batch, topk=args['gray_start']+args['gray_topk'])
+        result = searcher._search_dis(batch, topk=args['gray_start']+args['gray_topk'])
         for c, r, rest in zip(context, response, result):
+            ipdb.set_trace()
             rest = remove_duplicate_and_hold_the_order(rest)
             # remove the candidate that in the conversation context
-            for uc in c:
-                if uc in rest:
-                    rest.remove(uc)
+            rest = [u for u in rest if u not in c]
             # remove the ground-truth
             if r in rest:
                 rest.remove(r)
             if len(rest) < args['gray_topk']:
-                lossing += 1
-                continue
-            collection.append({'q': c, 'r': r, 'snr': rest[:args["gray_topk"]]})
+                # bm25 to supply
+                rest_ = bm25_model.msearch([' '.join(c)], topk=args['gray_start']+args['gray_topk'])[0]
+                rest.extend(rest_)
+                if len(rest) < args['gray_topk']:
+                    lossing += 1
+                    # random supply
+                    rest.extend(random.sample(response_pool, args['gray_topk']-len(rest)))
+                rest = rest[:args['gray_topk']]
+            collection.append({'q': c, 'r': r, 'snr': rest[-args['gray_topk']:]})
         pbar.set_description(f'[!] found {lossing} error samples')
     print(f'[!] lossing {lossing} samples that are invalid')
 
@@ -68,13 +90,3 @@ def gray_strategy(args):
             string = json.dumps(item)
             f.write(f'{string}\n')
 
-def remove_duplicate_and_hold_the_order(utterances):
-    counter = set()
-    data = []
-    for u in utterances:
-        if u in counter:
-            continue
-        else:
-            data.append(u)
-        counter.add(u)
-    return data

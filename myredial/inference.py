@@ -2,7 +2,7 @@ from header import *
 from dataloader import *
 from model import *
 from config import *
-from inference_strategy import *
+from inference_utils import *
 
 def parser_args():
     parser = argparse.ArgumentParser(description='train parameters')
@@ -14,6 +14,7 @@ def parser_args():
     parser.add_argument('--gen_dataset_ctx_length', type=int, default=5)
     parser.add_argument('--gen_dataset_topk', type=int, default=5)
     parser.add_argument('--gray_topk', type=int, default=5)
+    parser.add_argument('--gray_start', type=int, default=372)
     parser.add_argument('--cut_size', type=int, default=500000)
     # inference context parameters
     parser.add_argument('--work_mode', type=str, default='response')    # response or context
@@ -79,8 +80,6 @@ if __name__ == "__main__":
     elif args['work_mode'] in ['gray']:
         gray_strategy(args)
     elif args['work_mode'] in ['gray-one2many']:
-        # 1. run response
-        # 2. run gray-one2many will also tun the context work mode
         gray_one2many_strategy(args)
     elif args['work_mode'] == 'context':
         pass

@@ -49,7 +49,7 @@ class BERTDualO2MEncoder(nn.Module):
         for rid_rep in rid_reps:
             dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)    # [B]
             dot_products.append(dot_product)
-        dot_products = torch.stack(dot_products)
+        dot_products = torch.stack(dot_products)    # [K, B]
         score = dot_products.max(dim=0)[0]
         return score
     
@@ -58,11 +58,6 @@ class BERTDualO2MEncoder(nn.Module):
         rid = batch['rids']
         cid_mask = batch['ids_mask']
         rid_mask = batch['rids_mask']
-        
-        # random_idx = list(range(len(rid)))
-        # random.shuffle(random_idx)
-        # rid = [rid[i] for i in random_idx]
-        # rid_mask = [rid_mask[i] for i in random_idx]
 
         batch_size = len(cid)
         cid_rep, rid_reps = self._encode(cid, rid, cid_mask, rid_mask)

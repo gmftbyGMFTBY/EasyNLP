@@ -12,7 +12,7 @@ class Searcher:
         key is the title, value is the url(maybe the name)
     if with_source is true, then self.if_q_q is False (only do q-r matching)'''
 
-    def __init__(self, index_type, dimension=768, q_q=False, with_source=False):
+    def __init__(self, index_type, dimension=768, q_q=False, with_source=False, nprobe=1):
         if index_type.startswith('BHash') or index_type in ['BFlat']:
             binary = True
         else:
@@ -26,6 +26,7 @@ class Searcher:
         self.with_source = with_source
         self.source_corpus = {}
         self.if_q_q = q_q
+        self.nprobe = nprobe
 
     def _build(self, matrix, corpus, source_corpus=None, speedup=False):
         '''dataset: a list of tuple (vector, utterance)'''
@@ -39,8 +40,25 @@ class Searcher:
         if speedup:
             self.move_to_cpu()
         print(f'[!] build collection with {self.searcher.ntotal} samples')
+    
+    def _search_dis(self, vector, topk=20):
+        '''return the distance'''
+        self.searcher.nprobe = self.nprobe
+        D, I = self.searcher.search(vector, topk)
+        if self.with_source:
+            # pack up the source information and return
+            # return the tuple (text, title, url)
+            rest = [[(self.corpus[i][0], self.corpus[i][1], self.source_corpus[self.corpus[i][1]]) for i in N] for N in I]
+        elif self.if_q_q:
+            # the response is the second item in the tuple
+            rest = [[self.corpus[i][1] for i in N] for N in I]
+        else:
+            rest = [[self.corpus[i] for i in N] for N in I]
+            distance = [[i for i in N] for N in D]
+        return rest, distance
 
     def _search(self, vector, topk=20):
+        self.searcher.nprobe = self.nprobe
         D, I = self.searcher.search(vector, topk)
         if self.with_source:
             # pack up the source information and return
@@ -171,3 +189,14 @@ def combine_all_generate_samples(args):
                         dataset.append(line)
             for line in dataset:
                 fw.write(line)
+
+def remove_duplicate_and_hold_the_order(utterances):
+    counter = set()
+    data = []
+    for u in utterances:
+        if u in counter:
+            continue
+        else:
+            data.append(u)
+        counter.add(u)
+    return data

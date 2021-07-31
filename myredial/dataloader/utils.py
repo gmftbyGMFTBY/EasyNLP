@@ -166,7 +166,7 @@ def read_text_data_with_super_hard_q_r(path, lang='zh'):
     path = f'{os.path.splitext(path)[0]}_gray.txt'
     with open(path) as f:
         dataset = []
-        for line in f.readlines():
+        for line in tqdm(f.readlines()):
             line = json.loads(line.strip())
             context = line['q']
             response = line['r']
@@ -504,4 +504,19 @@ def read_text_data_utterances_full_neg_session(path, lang='zh'):
             neg_session.remove(utterances[i])
             data.append((1, utterances[:i+1], neg_session))
     print(f'[!] collect {len(data)} samples for training')
+    return data
+
+
+def read_text_data_ext_utterances_full(path, lang='zh', turn_length=5):
+    '''the full conversation context will be used'''
+    dataset = read_text_data_utterances(path, lang=lang)
+    data = []
+    for label, utterances in dataset:
+        if label == 0:
+            continue
+        start_num = max(1, len(utterances) - turn_length)
+        for i in range(start_num, len(utterances)):
+            # i is the index of the response
+            data.append((1, utterances[:i+1]))
+    print(f'[!] collect {len(data)} samples from the extended corpus: {path}')
     return data

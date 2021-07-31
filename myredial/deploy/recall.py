@@ -17,7 +17,7 @@ def init_recall(args):
         agent = None
         print(f'[!] load {len(searcher)} samples for full-rerank mode')
     else:
-        searcher = Searcher(args['index_type'], dimension=args['dimension'], with_source=args['with_source'])
+        searcher = Searcher(args['index_type'], dimension=args['dimension'], with_source=args['with_source'], nprobe=args['index_nprobe'])
         model_name = args['model']
         pretrained_model_name = args['pretrained_model']
         if args['with_source']:

@@ -3,8 +3,9 @@ smoothing: 0.1
 rank: null
 temp: 1.
 # for restoration-200k, it is 5, for douban and ubuntu, it can be more
-full_turn_length: 7
-ext_turn_size: 2
+full_turn_length: 9
+ext_turn_size: 4
+gray_cand_num: 2
 
 # train configuration
 train:
@@ -39,5 +40,6 @@ inference:
     # index_type: IVF3722,Flat
     # index_type: IVF6509,Flat
     index_type: IVF4309,Flat
+    index_nprobe: 10
     # index_type: Flat
     dimension: 768
