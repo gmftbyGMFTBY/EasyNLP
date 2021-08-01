@@ -4,7 +4,6 @@ dropout: 0.1
 # make sure that topk_encoder = gray_cand_num + 1
 topk_encoder: 5
 gray_cand_num: 4
-temp: 1.
 
 # train configuration
 train:

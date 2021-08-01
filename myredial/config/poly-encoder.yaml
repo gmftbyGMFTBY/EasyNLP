@@ -1,24 +1,24 @@
-poly_m: 32
+poly_m: 128
+full_turn_length: 5
 
 # train configuration
 train:
     lr: 0.00005
-    grad_clip: 1.0
-    dropout: 0.1
-    smoothing: 0.1
-    seed: 50
-    batch_size: 32
+    grad_clip: 5.0
+    seed: 0
+    batch_size: 64
     max_len: 256
     res_max_len: 64
     epoch: 5
-    warmup_ratio: 0.1
+    warmup_ratio: 0
     checkpoint: 
-        path: bert-post/best_nspmlm.pt
+        # path: bert-post/best_nspmlm.pt
+        path: bert-fp/best_bert-base-chinese.pt
         is_load: true
 
 # test configuration
 test:
-    seed: 50
+    seed: 0
     batch_size: 1
     max_len: 256
     res_max_len: 64

@@ -14,6 +14,8 @@
 - [x] twice dropout means the consistency regularization in the semi-supervised learning
 - [x] LSH faiss index cannot use GPU, IVF index can use it and running very fast
 - [x] ISN (Inner session negative) seems useless all the datasets
+- [ ] ATTENTION!!! Dual-bert must use [SEP] not [EOS], AND MAKE SURE THE TRAIN AND THE TEST ARE THE SAME!!!
+- [ ] extra neg seems useful (at least for restoration-200k dataset)
 
 ## How to Use
 

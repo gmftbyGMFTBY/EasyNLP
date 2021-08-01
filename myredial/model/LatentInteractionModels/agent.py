@@ -70,6 +70,8 @@ class LatentInteractionAgent(RetrievalBaseAgent):
         k_list = [1, 2, 5, 10]
         for idx, batch in tqdm(list(enumerate(pbar))):                
             label = batch['label']
+            batch['ids'] = batch['ids'].unsqueeze(0)
+            batch['ids_mask'] = torch.ones_like(batch['ids'])
             if self.args['mode'] in ['train']:
                 scores = self.model.module.predict(batch).cpu().tolist()    # [B]
             else:
@@ -111,3 +113,28 @@ class LatentInteractionAgent(RetrievalBaseAgent):
             'P@1': round(100*avg_prec_at_one, 2),
             'MAP': round(100*avg_map, 2),
         }
+    
+    def load_model(self, path):
+        state_dict = torch.load(path, map_location=torch.device('cpu'))
+        if self.args['mode'] == 'train':
+            # context encoder checkpoint
+            self.checkpointadapeter.init(
+                state_dict.keys(),
+                self.model.ctx_encoder.model.state_dict().keys(),
+            )
+            new_state_dict = self.checkpointadapeter.convert(state_dict)
+            self.model.ctx_encoder.model.load_state_dict(new_state_dict)
+            self.checkpointadapeter.init(
+                state_dict.keys(),
+                self.model.can_encoder.state_dict().keys(),
+            )
+            new_state_dict = self.checkpointadapeter.convert(state_dict)
+            self.model.can_encoder.load_state_dict(new_state_dict)
+        else:
+            # test and inference mode
+            self.checkpointadapeter.init(
+                state_dict.keys(),
+                self.model.state_dict().keys(),
+            )
+            new_state_dict = self.checkpointadapeter.convert(state_dict)
+            self.model.load_state_dict(new_state_dict)

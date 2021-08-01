@@ -126,354 +126,6 @@ class BERTDualDataset(Dataset):
             }
 
 
-class BERTDualHierarchicalDataset(Dataset):
-
-    def __init__(self, vocab, path, **args):
-        self.args = args
-
-        self.vocab = vocab
-        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
-        suffix = args['tokenizer'].replace('/', '_')
-        self.pp_path = f'{os.path.splitext(path)[0]}_dual_hier_{suffix}.pt'
-        if os.path.exists(self.pp_path):
-            self.data = torch.load(self.pp_path)
-            print(f'[!] load preprocessed file from {self.pp_path}')
-            return None
-        self.data = []
-        if self.args['mode'] == 'train':
-            data = read_text_data_utterances(path, lang=self.args['lang'])
-            for label, utterances in tqdm(data):
-                context = utterances[:-1]
-                response = utterances[-1]
-                if label == 0:
-                    continue
-                item = self.vocab.batch_encode_plus(context + [response])
-                cids, rids = item['input_ids'][:-1], item['input_ids'][-1]
-                cids, rids = [self._length_limit(ids) for ids in cids], self._length_limit(rids)
-                self.data.append({
-                    'cids': cids,
-                    'rids': rids,
-                    'cids_turn_length': len(cids)
-                })
-        else:
-            data = read_text_data_dual_bert(path, lang=self.args['lang'])
-            for i in tqdm(range(0, len(data), 10)):
-                batch = data[i:i+10]
-                rids = []
-                for item in batch:
-                    item = self.vocab.batch_encode_plus(item[1] + [item[2]])
-                    cids = item['input_ids'][:-1]
-                    rids.append(item['input_ids'][-1])
-                cids, rids = [self._length_limit(ids) for ids in cids], [self._length_limit(rids_) for rids_ in rids]
-                self.data.append({
-                    'label': [b[0] for b in batch],
-                    'cids': cids,
-                    'rids': rids,
-                    'cids_turn_length': len(cids)
-                })    
-                
-    def _length_limit(self, ids):
-        if len(ids) > self.args['max_len']:
-            ids = [ids[0]] + ids[-(self.args['max_len']-1):]
-        return ids
-                
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, i):
-        bundle = self.data[i]
-        if self.args['mode'] == 'train':
-            cids = [torch.LongTensor(i) for i in bundle['cids']]
-            rids = torch.LongTensor(bundle['rids'])
-            cids_turn_length = bundle['cids_turn_length']
-            return cids, rids, cids_turn_length
-        else:
-            cids = [torch.LongTensor(i) for i in bundle['cids']]
-            rids = [torch.LongTensor(i) for i in bundle['rids']]
-            cids_turn_length = bundle['cids_turn_length']
-            return cids, rids, cids_turn_length, bundle['label']
-
-    def save(self):
-        data = torch.save(self.data, self.pp_path)
-        print(f'[!] save preprocessed dataset into {self.pp_path}')
-        
-    def collate(self, batch):
-        if self.args['mode'] == 'train':
-            rids, cids_turn_length = [i[1] for i in batch], [i[2] for i in batch]
-            cids = []
-            for i in batch:
-                cids.extend(i[0])
-            # count the length
-            lengths = [len(i) for i in cids]
-            lengths_order = np.argsort(lengths)
-            cids = [cids[i] for i in lengths_order]
-            recover_mapping = {i:idx for idx, i in enumerate(lengths_order)}
-
-            chunks = [cids[i:i+self.inner_bsz] for i in range(0, len(lengths), self.inner_bsz)]
-            cids = [pad_sequence(item, batch_first=True, padding_value=self.pad).cuda() for item in chunks]
-            cids_mask = [generate_mask(item).cuda() for item in cids]
-            rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
-            rids_mask = generate_mask(rids)
-            rids, rids_mask = to_cuda(rids, rids_mask)
-            return {
-                'cids': cids, 
-                'rids': rids, 
-                'cids_turn_length': cids_turn_length, 
-                'cids_mask': cids_mask, 
-                'rids_mask': rids_mask, 
-                'recover_mapping': recover_mapping
-            }
-        else:
-            # batch size is batch_size * 10
-            assert len(batch) == 1
-            batch = batch[0]
-            cids, rids, cids_turn_length, label = batch[0], batch[1], batch[2], batch[3]
-            cids = pad_sequence(cids, batch_first=True, padding_value=self.pad)
-            rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
-            rids_mask = generate_mask(rids)
-            cids_mask = generate_mask(cids)
-            label = torch.LongTensor(label)
-            cids, rids, cids_mask, rids_mask, label = to_cuda(cids, rids, cids_mask, rids_mask, label)
-            return {
-                'ids': cids, 
-                'rids': rids, 
-                'cids_turn_length': cids_turn_length, 
-                'cids_mask': cids_mask, 
-                'rids_mask': rids_mask, 
-                'label': label
-            }
-
-class BERTDualFullWithHardNegDataset(Dataset):
-    
-    def __init__(self, vocab, path, **args):
-        self.args = args
-        self.vocab = vocab
-        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
-        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
-        self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
-        self.eos = self.vocab.convert_tokens_to_ids('[EOS]')
-
-        suffix = args['tokenizer'].replace('/', '_')
-        self.pp_path = f'{os.path.splitext(path)[0]}_dual_full_gray_{suffix}.pt'
-        if os.path.exists(self.pp_path):
-            self.data = torch.load(self.pp_path)
-            print(f'[!] load preprocessed file from {self.pp_path}')
-            return None
-
-        self.data = []
-        if self.args['mode'] == 'train':
-            data = read_text_data_with_super_hard_q_r(path, lang=self.args['lang'])
-            for context, response, candidates in tqdm(data):
-                item = self.vocab.batch_encode_plus(context + [response] + candidates, add_special_tokens=False)['input_ids']
-                cids = item[:len(context)]
-                rids = item[len(context)]
-                hrids = item[-len(candidates):]
-
-                ids = []
-                for u in cids:
-                    ids.extend(u + [self.sep])
-                ids.pop()
-                ids = ids[-(self.args['max_len']-2):]
-                rids = rids[:(self.args['res_max_len']-2)]
-                ids = [self.cls] + ids + [self.sep]
-                rids = [self.cls] + rids + [self.sep]
-                hrids = [[self.cls] + i[:(self.args['res_max_len']-2)] + [self.sep] for i in hrids]
-                self.data.append({
-                    'ids': ids,
-                    'rids': rids,
-                    'hrids': hrids,
-                    'ctext': context,
-                    'rtext': response,
-                    'candidates_text': candidates
-                })
-        else:
-            data = read_text_data_dual_bert(path, lang='zh')
-            for i in tqdm(range(0, len(data), 10)):
-                batch = data[i:i+10]
-                rids = []
-                for item in batch:
-                    item = self.vocab.batch_encode_plus([item[1], item[2]])
-                    ids = item['input_ids'][0]
-                    rids.append(item['input_ids'][1])
-                ids, rids = length_limit(ids, self.args['max_len']), [length_limit_res(rids_, self.args['res_max_len'], sep=self.sep) for rids_ in rids]
-                self.data.append({
-                    'label': [b[0] for b in batch],
-                    'ids': ids, 
-                    'rids': rids,
-                })
-                
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, i):
-        bundle = self.data[i]
-        if self.args['mode'] == 'train':
-            ids = torch.LongTensor(bundle['ids'])
-            rids = torch.LongTensor(bundle['rids'])
-            # sample based on the gray_cand_num parameter
-            hrids = random.sample(bundle['hrids'], self.args['gray_cand_num'])
-            hrids = [torch.LongTensor(i) for i in hrids]
-            return ids, rids, hrids
-        else:
-            ids = torch.LongTensor(bundle['ids'])
-            rids = [torch.LongTensor(i) for i in bundle['rids']]
-            return ids, rids, bundle['label']
-
-    def save(self):
-        data = torch.save(self.data, self.pp_path)
-        print(f'[!] save preprocessed dataset into {self.pp_path}')
-        
-    def collate(self, batch):
-        if self.args['mode'] == 'train':
-            ids = [i[0] for i in batch]
-            rids = [i[1] for i in batch]
-            for i in batch:
-                rids += i[2]
-            # [B, E]; [B+B*K, E]
-            ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
-            rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
-            ids_mask = generate_mask(ids)
-            rids_mask = generate_mask(rids)
-            ids, rids, ids_mask, rids_mask = to_cuda(ids, rids, ids_mask, rids_mask)
-            return {
-                'ids': ids, 
-                'rids': rids, 
-                'ids_mask': ids_mask, 
-                'rids_mask': rids_mask,
-            }
-        else:
-            assert len(batch) == 1
-            batch = batch[0]
-            ids, rids, label = batch[0], batch[1], batch[2]
-            rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
-            rids_mask = generate_mask(rids)
-            label = torch.LongTensor(label)
-            ids, rids, rids_mask, label = to_cuda(ids, rids, rids_mask, label)
-            return {
-                'ids': ids, 
-                'rids': rids, 
-                'rids_mask': rids_mask, 
-                'label': label
-            }
-
-class BERTDualCLDataset(Dataset):
-    
-    def __init__(self, vocab, path, **args):
-        self.args = args
-        self.vocab = vocab
-
-        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
-        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
-
-        suffix = args['tokenizer'].replace('/', '_')
-        self.pp_path = f'{os.path.splitext(path)[0]}_dualCL_{suffix}.pt'
-        if os.path.exists(self.pp_path):
-            self.data = torch.load(self.pp_path)
-            print(f'[!] load preprocessed file from {self.pp_path}')
-            return None
-
-        self.data = []
-        if self.args['mode'] == 'train':
-            data = read_text_data_utterances(path, lang=self.args['lang'])
-            for label, utterances in tqdm(data):
-                if label == 0:
-                    continue
-                context_utterances = utterances[:-1]
-                response = utterances[-1]
-                context = ' [SEP] '.join(context_utterances)
-
-                item = self.vocab.batch_encode_plus([context, response])
-                ids, rids = item['input_ids']
-                ids, rids = length_limit(ids, self.args['max_len']), length_limit_res(rids, self.args['res_max_len'], sep=self.sep)
-                self.data.append({
-                    'ids': ids,
-                    'context_utterances': context_utterances,
-                    'rids': rids,
-                })
-        else:
-            data = read_text_data_dual_bert(path, lang=self.args['lang'])
-            for i in tqdm(range(0, len(data), 10)):
-                batch = data[i:i+10]
-                rids = []
-                gt_text = []
-                for item_ in batch:
-                    item = self.vocab.batch_encode_plus([item_[1], item_[2]])
-                    ids = item['input_ids'][0]
-                    rids.append(item['input_ids'][1])
-                    if item_[0] == 1:
-                        gt_text.append(item_[2])
-                ids, rids = length_limit(ids, self.args['max_len']), [length_limit_res(rids_, self.args['res_max_len'], sep=self.sep) for rids_ in rids]
-                self.data.append({
-                    'label': [b[0] for b in batch],
-                    'ids': ids,
-                    'rids': rids,
-                    'text': gt_text,
-                })    
-                
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, i):
-        bundle = self.data[i]
-        if self.args['mode'] == 'train':
-            ids = torch.LongTensor(bundle['ids'])
-            rids = torch.LongTensor(bundle['rids'])
-            # random
-            context_utterances = bundle['context_utterances']
-            length = len(context_utterances) - 1
-            candidate_context_l = random.randint(0, length)
-            candidate_context = context_utterances[-1-candidate_context_l:]
-            candidate_context = ' [SEP] '.join(candidate_context)
-            ids_cand = length_limit(self.vocab.encode(candidate_context), self.args['max_len'])
-            ids_cand = torch.LongTensor(ids_cand)
-            return ids, ids_cand, rids
-        else:
-            ids = torch.LongTensor(bundle['ids'])
-            rids = [torch.LongTensor(i) for i in bundle['rids']]
-            return ids, rids, bundle['label'], bundle['text']
-
-    def save(self):
-        data = torch.save(self.data, self.pp_path)
-        print(f'[!] save preprocessed dataset into {self.pp_path}')
-        
-    def collate(self, batch):
-        if self.args['mode'] == 'train':
-            ids, ids_cand, rids = [i[0] for i in batch], [i[1] for i in batch], [i[2] for i in batch]
-            ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
-            ids_cand = pad_sequence(ids_cand, batch_first=True, padding_value=self.pad)
-            rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
-            ids_mask = generate_mask(ids)
-            ids_cand_mask = generate_mask(ids_cand)
-            rids_mask = generate_mask(rids)
-            ids, rids, ids_mask, rids_mask = to_cuda(ids, rids, ids_mask, rids_mask)
-            ids_cand, ids_cand_mask = to_cuda(ids_cand, ids_cand_mask)
-            return {
-                'ids': ids, 
-                'rids': rids, 
-                'ids_cand': ids_cand,
-                'ids_cand_mask': ids_cand_mask,
-                'ids_mask': ids_mask, 
-                'rids_mask': rids_mask
-            }
-        else:
-            # batch size is batch_size * 10
-            assert len(batch) == 1
-            batch = batch[0]
-            ids, rids, label = batch[0], batch[1], batch[2]
-            text = batch[3]
-            rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
-            rids_mask = generate_mask(rids)
-            label = torch.LongTensor(label)
-            ids, rids, rids_mask, label = to_cuda(ids, rids, rids_mask, label)
-            return {
-                'ids': ids, 
-                'rids': rids, 
-                'rids_mask': rids_mask, 
-                'label': label,
-                'text': text
-            }
-
-            
 class BERTDualO2MDataset(Dataset):
     
     def __init__(self, vocab, path, **args):
@@ -1008,12 +660,15 @@ class BERTDualFullFakeCtxDataset(Dataset):
             }
 
             
-class BERTDualExtraNoCtxDataset(Dataset):
+class BERTDualFullExtraNegDataset(Dataset):
+
+    '''add some extra negative samples for training'''
     
     def __init__(self, vocab, path, **args):
         self.args = args
         self.vocab = vocab
         self.vocab.add_tokens(['[EOS]'])
+        self.extra_neg = args['extra_neg']
 
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
@@ -1021,19 +676,16 @@ class BERTDualExtraNoCtxDataset(Dataset):
         self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
 
         suffix = args['tokenizer'].replace('/', '_')
-        self.pp_path = f'{os.path.splitext(path)[0]}_dual_extra_noctx_{suffix}.pt'
+        self.pp_path = f'{os.path.splitext(path)[0]}_dual_full_extra_neg_{suffix}.pt'
         if os.path.exists(self.pp_path):
-            if self.args['mode'] == 'train':
-                self.data, self.ext_data = torch.load(self.pp_path)
-            else:
-                self.data = torch.load(self.pp_path)
+            self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
 
 
         self.data = []
         if self.args['mode'] == 'train':
-            data = read_text_data_utterances_full(path, lang=self.args['lang'])
+            data = read_text_data_utterances_full(path, lang=self.args['lang'], turn_length=args['full_turn_length'])
             for label, utterances in tqdm(data):
                 if label == 0:
                     continue
@@ -1050,19 +702,9 @@ class BERTDualExtraNoCtxDataset(Dataset):
                 self.data.append({
                     'ids': ids,
                     'rids': rids,
-                    'ctext': ' [SEP] '.join(utterances[:-1]),
+                    'ctext': utterances[:-1],
                     'rtext': utterances[-1],
                 })
-            # extended unsupervised utterances
-            ext_path = f'{args["root_dir"]}/data/ext_douban/train.txt'
-            ext_data = read_extended_douban_corpus(ext_path)
-            self.ext_data = []
-            inner_bsz = 256
-            for idx in tqdm(range(0, len(ext_data), inner_bsz)):
-                utterances = ext_data[idx:idx+inner_bsz]
-                item = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']
-                rids = [[self.cls] + i[:self.args['res_max_len']-2] + [self.sep] for i in item]
-                self.ext_data.extend(rids)
         else:
             data = read_text_data_utterances(path, lang=self.args['lang'])
             for i in tqdm(range(0, len(data), 10)):
@@ -1098,17 +740,14 @@ class BERTDualExtraNoCtxDataset(Dataset):
         if self.args['mode'] == 'train':
             ids = torch.LongTensor(bundle['ids'])
             rids = torch.LongTensor(bundle['rids'])
-            return ids, rids, bundle['ctext'], bundle['rtext']
+            return ids, rids, bundle['ctext'], bundle['rtext'], i
         else:
             ids = torch.LongTensor(bundle['ids'])
             rids = [torch.LongTensor(i) for i in bundle['rids']]
             return ids, rids, bundle['label'], bundle['text']
 
     def save(self):
-        if self.args['mode'] == 'train':
-            torch.save((self.data, self.ext_data), self.pp_path)
-        else:
-            torch.save(self.data, self.pp_path)
+        torch.save(self.data, self.pp_path)
         print(f'[!] save preprocessed dataset into {self.pp_path}')
         
     def collate(self, batch):
@@ -1116,11 +755,14 @@ class BERTDualExtraNoCtxDataset(Dataset):
             ids, rids = [i[0] for i in batch], [i[1] for i in batch]
             ctext = [i[2] for i in batch]
             rtext = [i[3] for i in batch]
-
-            # extended dataset
-            ext_rids = random.sample(self.ext_data, len(batch)*self.args['ext_num'])
-            ext_rids = [torch.LongTensor(i) for i in ext_rids]
-            rids += ext_rids
+            index = [i[4] for i in batch]
+            # extra negative samples
+            while True:
+                random_idx = random.sample(range(len(self.data)), self.extra_neg)
+                if len(set(index) & set(random_idx)) == 0:
+                    break
+            erids = [torch.LongTensor(self.data[i]['rids']) for i in random_idx]    # [M]
+            rids += erids    # [B+M]
 
             ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
             rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)

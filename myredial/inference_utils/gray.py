@@ -60,10 +60,9 @@ def gray_strategy(args):
         batch = embds[i:i+args['batch_size']]    # [B, E]
         context = contexts[i:i+args['batch_size']]
         response = responses[i:i+args['batch_size']]
-        # result, distance = searcher._search_dis(batch, topk=args['gray_start']+args['gray_topk'])
-        result = searcher._search_dis(batch, topk=args['gray_start']+args['gray_topk'])
-        for c, r, rest in zip(context, response, result):
-            ipdb.set_trace()
+        result, distance = searcher._search_dis(batch, topk=args['gray_start']+args['gray_topk'])
+        for c, r, rest, dis in zip(context, response, result, distance):
+            rest = [i for i, j in zip(rest, dis) if j < 1e8]
             rest = remove_duplicate_and_hold_the_order(rest)
             # remove the candidate that in the conversation context
             rest = [u for u in rest if u not in c]

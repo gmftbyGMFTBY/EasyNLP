@@ -12,4 +12,4 @@ CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=$
     --work_mode gray \
     --cut_size 500000 \
     --gray_topk 20 \
-    --gray_start 512
+    --gray_start 1024

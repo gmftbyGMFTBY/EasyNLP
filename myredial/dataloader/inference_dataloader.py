@@ -3,6 +3,8 @@ from .utils import *
 from .util_func import *
 
 class BERTDualInferenceDataset(Dataset):
+
+    '''Only for full-rank, which only the response in the train.txt is used for inference'''
     
     def __init__(self, vocab, path, **args):
         self.args = args
@@ -15,21 +17,10 @@ class BERTDualInferenceDataset(Dataset):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
-        # except the response in the train dataset, test dataset responses are included for inference test
-        # for inference[gray mode] do not use the test set responses
-        # ========== for full response recall, build the one2many corpus ========== #
-        responses = read_response_data_full(path, lang=self.args['lang'], turn_length=5)
-        # add the extended douban utterances
-        # extended_path = f'{args["root_dir"]}/data/ext_douban/train.txt'
-        # extended_responses = read_extended_douban_corpus(extended_path)
-        # responses += extended_responses
-        responses = list(set(responses))
-        print(f'[!] load {len(responses)} responses for inference')
-
         # ========== for full-rank response recall ========= #
-        # responses = read_response_data(path, lang=self.args['lang'])
-        # responses = list(set(responses))
-        # print(f'[!] load {len(responses)} responses for inference finally')
+        responses = read_response_data(path, lang=self.args['lang'])
+        responses = list(set(responses))
+        print(f'[!] load {len(responses)} responses for inference finally')
 
         self.data = []
         for res in tqdm(responses):
@@ -153,5 +144,58 @@ class BERTDualCLInferenceDataset(Dataset):
             'mask': rid_mask, 
             'cid': cid,
             'cid_mask': cid_mask,
+            'text': rid_text
+        }
+
+
+class BERTDualInferenceFullDataset(Dataset):
+
+    '''all the in-dataset response'''
+    
+    def __init__(self, vocab, path, **args):
+        self.args = args
+        self.vocab = vocab
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        suffix = args['tokenizer'].replace('/', '_')
+        self.pp_path = f'{os.path.split(path)[0]}/inference_full_{suffix}.pt'
+        if os.path.exists(self.pp_path):
+            self.data = torch.load(self.pp_path)
+            print(f'[!] load preprocessed file from {self.pp_path}')
+            return None
+        responses = read_response_data_full(path, lang=self.args['lang'], turn_length=5)
+        responses = list(set(responses))
+        print(f'[!] load {len(responses)} responses for inference')
+
+        self.data = []
+        for res in tqdm(responses):
+            rids = length_limit_res(self.vocab.encode(res), self.args['max_len'], sep=self.sep)
+            self.data.append({
+                'ids': rids, 
+                'text': res
+            })
+                
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, i):
+        bundle = self.data[i]
+        rid = torch.LongTensor(bundle['ids'])
+        rid_text = bundle['text']
+        return rid, rid_text
+
+    def save(self):
+        data = torch.save(self.data, self.pp_path)
+        print(f'[!] save preprocessed dataset into {self.pp_path}')
+        
+    def collate(self, batch):
+        rid = [i[0] for i in batch]
+        rid_text = [i[1] for i in batch]
+        rid = pad_sequence(rid, batch_first=True, padding_value=self.pad)
+        rid_mask = generate_mask(rid)
+        rid, rid_mask = to_cuda(rid, rid_mask)
+        return {
+            'ids': rid, 
+            'mask': rid_mask, 
             'text': rid_text
         }

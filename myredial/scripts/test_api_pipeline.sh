@@ -6,7 +6,7 @@ prefix_name=$2
 python test_api.py \
     --size 1000 \
     --url 9.91.66.241 \
-    --port 22335 \
+    --port 22336 \
     --mode pipeline \
     --dataset $dataset \
     --topk 100 \

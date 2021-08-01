@@ -70,18 +70,19 @@ models:
     dual-bert: 
         type: Representation
         model_name: BERTDualEncoder
-        # dataset_name: BERTDualExtraNoCtxDataset
+        dataset_name: BERTDualFullExtraNegDataset
         # dataset_name: BERTDualFullFakeCtxDataset
         # dataset_name: BERTDualDataset
-        dataset_name: BERTDualFullWithHardNegDataset
+        # dataset_name: BERTDualFullWithHardNegDataset
         # dataset_name: BERTDualFullDataset
         # dataset_name: BERTDualExtFullDataset
         # dataset_name: BERTDualFullNegSessionDataset
         # dataset_name: BERTDualFullWithSelfPlayDataset
         # dataset_name: BERTDualFullPseudoDataset
-        # inference_dataset_name: BERTDualInferenceDataset
+        inference_dataset_name: BERTDualInferenceDataset
+        # inference_dataset_name: BERTDualInferenceFullDataset
         # inference_dataset_name: BERTDualInferenceContextDataset
-        inference_dataset_name: BERTDualInferenceFullContextDataset
+        # inference_dataset_name: BERTDualInferenceFullContextDataset
         # inference_dataset_name: BERTDualInferenceFullContextSingleExtendDataset
     dual-bert-bow: 
         type: Representation
@@ -93,6 +94,11 @@ models:
         model_name: BERTDualPhraseEncoder
         dataset_name: BERTDualPhraseDataset
         inference_dataset_name: BERTDualInferencePhraseDataset
+    dual-bert-one2many-original: 
+        type: Representation
+        model_name: BERTDualO2MOriginalEncoder
+        dataset_name: BERTDualO2MDataset
+        inference_dataset_name: BERTDualInferenceDataset
     dual-bert-one2many: 
         type: Representation
         model_name: BERTDualO2MEncoder
@@ -179,7 +185,7 @@ models:
     poly-encoder: 
         type: LatentInteraction
         model_name: PolyEncoder
-        dataset_name: BERTDualDataset
+        dataset_name: BERTDualFullDataset
         inference_dataset_name: null
     bert-fp: 
         type: PostTrain
@@ -215,7 +221,7 @@ test_interval: 0.1
 # ========== deploy parameters ========== #
 deploy:
     host: '0.0.0.0'
-    port: 22335
+    port: 22336
     dataset: restoration-200k
     max_len: 256
     res_max_len: 64
@@ -227,8 +233,9 @@ deploy:
         # only the arxiv, writer dataset need the with_source
         with_source: false
         # index_type: IVF3722,Flat
-        index_type: IVF6509,Flat
-        inedx_nprobe: 1
+        # index_type: IVF6509,Flat
+        index_type: Flat
+        index_nprobe: 1
         # index_type: Flat
         dimension: 768
     rerank:

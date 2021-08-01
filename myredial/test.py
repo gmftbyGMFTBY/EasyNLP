@@ -160,6 +160,9 @@ def main_rerank(**args):
         for key, value in outputs.items():
             print(f'{key}: {value}', file=f)
         print(f'Cost-Time: {round(cost_time, 2)} ms', file=f)
+    for key, value in outputs.items():
+        print(f'{key}: {value}')
+    print(f'Cost-Time: {round(cost_time, 2)} ms')
 
 
 def main_es_recall(**args):
