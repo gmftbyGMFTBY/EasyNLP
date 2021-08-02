@@ -465,7 +465,7 @@ class RepresentationAgent(RetrievalBaseAgent):
                 new_state_dict = self.checkpointadapeter.convert(state_dict)
                 self.model.ctx_encoder.load_state_dict(new_state_dict)
                 # response encoders checkpoint
-                if self.args['model'] in ['dual-bert-grading', 'dual-bert-one2many', 'dual-bert-one2many-original']:
+                if self.args['model'] in ['dual-bert-grading', 'dual-bert-one2many-original']:
                     for i in range(self.args['topk_encoder']):
                         self.checkpointadapeter.init(
                             state_dict.keys(),
@@ -473,6 +473,13 @@ class RepresentationAgent(RetrievalBaseAgent):
                         )
                         new_state_dict = self.checkpointadapeter.convert(state_dict)
                         self.model.can_encoders[i].load_state_dict(new_state_dict)
+                elif self.args['model'] in ['dual-bert-one2many']:
+                    self.checkpointadapeter.init(
+                        state_dict.keys(),
+                        self.model.can_encoder.model.state_dict().keys(),
+                    )
+                    new_state_dict = self.checkpointadapeter.convert(state_dict)
+                    self.model.can_encoder.model.load_state_dict(new_state_dict)
                 else:
                     self.checkpointadapeter.init(
                         state_dict.keys(),

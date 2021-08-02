@@ -227,7 +227,7 @@ deploy:
     res_max_len: 64
     recall:
         activate: false
-        model: dual-bert
+        model: dual-bert-one2many
         # default topk
         topk: 100
         # only the arxiv, writer dataset need the with_source
@@ -240,6 +240,6 @@ deploy:
         dimension: 768
     rerank:
         activate: false
-        model: null
+        model: bert-ft
     pipeline:
         activate: true

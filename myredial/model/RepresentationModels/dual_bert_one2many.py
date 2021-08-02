@@ -2,23 +2,21 @@ from model.utils import *
 
 class BERTDualO2MEncoder(nn.Module):
 
-    '''dual bert and dual latent interaction: one-to-many mechanism'''
-    
     def __init__(self, **args):
         super(BERTDualO2MEncoder, self).__init__()
         model = args['pretrained_model']
         self.topk = args['topk_encoder']
         self.temp = args['temp']
+        p = args['dropout']
+        
         self.ctx_encoder = BertEmbedding(model=model)
-        self.can_encoders = nn.ModuleList([
-            BertEmbedding(model=model) for _ in range(self.topk) 
-        ])
+        self.can_encoder = TopKBertEmbedding(model=model, m=self.topk, dropout=p)
 
-    def _encode(self, cid, rid, cid_mask, rid_mask, test=False):
+    def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)    # [B, E]
         rid_reps = []
-        for idx in range(self.topk):
-            rid_rep = self.can_encoders[idx](rid[idx], rid_mask[idx])
+        for rid_, rid_mask_ in zip(rid, rid_mask):
+            rid_rep = self.can_encoder(rid_, rid_mask_)    # [K, B, E]
             rid_reps.append(rid_rep)
         return cid_rep, rid_reps
 
@@ -45,7 +43,8 @@ class BERTDualO2MEncoder(nn.Module):
         rid_mask = batch['rids_mask']
 
         batch_size = rid.shape[0]
-        cid_rep, rid_reps = self._encode(cid, [rid] * self.topk, cid_mask, [rid_mask] * self.topk, test=True)
+        cid_rep, rid_reps = self._encode(cid, [rid], cid_mask, [rid_mask])
+        rid_reps = rid_reps[0]     # [K, B, E]
         dot_products = []
         for rid_rep in rid_reps:
             dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)    # [B]
@@ -53,44 +52,63 @@ class BERTDualO2MEncoder(nn.Module):
         dot_products = torch.stack(dot_products)    # [K, B]
         score = dot_products.max(dim=0)[0]
         return score
+
+    def get_offset(self, i_topk, i_bsz, j, batch_size):
+        return i_topk*batch_size*self.topk + i_bsz*self.topk + j
     
     def forward(self, batch):
-        cid = batch['ids']
-        rid = batch['rids']
+        cid = batch['ids']     # [B, S]
+        rid = batch['rids']     # K*[B, S]
         cid_mask = batch['ids_mask']
         rid_mask = batch['rids_mask']
 
         batch_size = len(cid)
-        cid_rep, rid_reps = self._encode(cid, rid, cid_mask, rid_mask)
-        rid_reps = torch.cat(rid_reps, dim=0)    # [B*M, E]
-        dot_product = torch.matmul(cid_rep, rid_reps.t())    # [B, B*M]
+        cid_rep, rid_reps_ = self._encode(cid, rid, cid_mask, rid_mask)
+        rid_reps = []
+        for rid_rep in rid_reps_:
+            # rid_rep: [K, B, E]
+            rid_reps.append(rid_rep.reshape(self.topk*batch_size, -1))    # [K*B, E]
+        rid_reps = torch.cat(rid_reps, dim=0)     # [K*K*B, E]
+        # cid_rep: [B, E]; rid_reps: [K*K*B, E]
+        dot_product = torch.matmul(cid_rep, rid_reps.t())     # [B, K*K*B]
         dot_product /= self.temp
 
         mask = torch.zeros_like(dot_product)
+        for i_bsz in range(batch_size):
+            one_index = []
+            for i_topk in range(self.topk):
+                one_index.extend([self.get_offset(i_topk, i_bsz, j, batch_size) for j in range(self.topk)])
+            mask[i_bsz, one_index] = 1.
+
+        select_index = [np.random.permutation(self.topk) for _ in range(batch_size)]
+        loss, dot_products, masks = 0, [], []
         for i_topk in range(self.topk):
-            mask[range(batch_size), range(i_topk*batch_size, i_topk*batch_size+batch_size)] = 1.
-        
-        loss = 0
-        dot_products = []
-        for i_topk in range(self.topk):
+            # collect the index to gather
             index = []
             for i_bsz in range(batch_size):
-                sp = list(range(i_bsz, batch_size*self.topk, batch_size))
-                sp.remove(sp[i_topk])
-                index_ = [i for i in range(batch_size*self.topk) if i not in sp]
+                # sp are the index that will be removed
+                sp = []
+                for k_topk in range(self.topk):
+                    sp.extend([self.get_offset(k_topk, i_bsz, j, batch_size) for j in range(self.topk)])
+                offset = self.get_offset(i_topk, i_bsz, select_index[i_bsz][i_topk], batch_size)
+                sp.remove(offset)
+                index_ = [i for i in range(batch_size*self.topk*self.topk) if i not in sp]
                 index.append(index_)
+            # each sample in this batch remove K*K-1 representations
             index = torch.tensor(index).cuda()
-            dp = dot_product.gather(1, index)    # [B, B*M-M+1]
+            dp = dot_product.gather(1, index)    # [B, K*K*B-K*K+1]
             mask_ = mask.gather(1, index)
             loss_ = F.log_softmax(dp, dim=-1) * mask_
             loss += (-loss_.sum(dim=1)).mean()
             dot_products.append(dp)
+            masks.append(mask_)
         loss /= self.topk
         
         # acc
         acc_num = 0
-        for dot_product_ in dot_products:
-            acc_num += (F.softmax(dot_product_, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
+        for i in range(self.topk):
+            dp, mask = dot_products[i], masks[i]
+            acc_num += ((dp == mask) & mask.to(torch.bool)).sum().item()
         acc = acc_num / batch_size / self.topk
         return loss, acc
 
