@@ -42,6 +42,8 @@ def inference(**args):
     if work_mode in ['response']:
         agent.inference(data_iter, size=args['cut_size'])
         pass
+    elif work_mode in ['full-ctx-res']:
+        agent.inference_full_ctx_res(data_iter, size=args['cut_size'])
     elif work_mode in ['writer-inference']:
         agent.inference_writer(data_iter, size=args['cut_size'])
     # elif work_mode in ['context', 'gray-one2many', 'gray', 'unparallel']:
@@ -77,12 +79,16 @@ if __name__ == "__main__":
         writer_with_source_strategy(args)
     elif args['work_mode'] in ['response']:
         response_strategy(args)
+    elif args['work_mode'] in ['full-ctx-res']:
+        context_response_strategy(args)
     elif args['work_mode'] in ['gray']:
         gray_strategy(args)
     elif args['work_mode'] in ['gray-one2many']:
         gray_one2many_strategy(args)
     elif args['work_mode'] == 'context':
         pass
+    elif args['work_mode'] == 'res-search-ctx':
+        res_search_ctx_strategy(args)
     elif args['work_mode'] == 'unparallel':
         # response_strategy(args)
         print(f'[!] build index for responses over')

@@ -263,6 +263,20 @@ def read_response_data_full(path, lang='zh', turn_length=5):
     print(f'[!] load {len(dataset)} responses from {path}')
     return dataset
 
+def read_response_and_context_full(path, lang='zh', turn_length=5):
+    dataset = read_text_data_utterances(path, lang=lang)
+    context, response = [], []
+    for label, utterances in dataset:
+        if label == 0:
+            continue
+        start_num = max(1, len(utterances) - turn_length)
+        for i in range(start_num, len(utterances)):
+            # i is the index of the response
+            context.append(utterances[:i])
+            response.append(utterances[i])
+    print(f'[!] collect {len(context)} samples for training')
+    return context, response
+
 
 def read_response_data(path, lang='zh'):
     with open(path) as f:

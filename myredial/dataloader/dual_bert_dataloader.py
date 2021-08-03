@@ -137,6 +137,7 @@ class BERTDualO2MDataset(Dataset):
         self.eos = self.vocab.convert_tokens_to_ids('[EOS]')
         self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
         self.unk = self.vocab.convert_tokens_to_ids('[UNK]')
+        self.gray_num = args['gray_cand_num']
        
         suffix = args['tokenizer'].replace('/', '_')
         self.pp_path = f'{os.path.splitext(path)[0]}_dual_gray_o2m_{suffix}.pt'
@@ -147,15 +148,14 @@ class BERTDualO2MDataset(Dataset):
         
         self.data = []
         if self.args['mode'] == 'train':
-            # data = read_text_data_with_super_hard_q_r(path, lang=self.args['lang'])
-            # data = read_text_data_one2many_pesudo(path, lang=self.args['lang'])
-            data = read_text_data_one2many(path, lang=self.args['lang'])
+            # data = read_text_data_one2many(path, lang=self.args['lang'])
             for context, response, candidates in tqdm(data):
-                self.data.append({
-                    'context': context,
-                    'response': response,
-                    'candidates': candidates,
-                })
+                candidates = candidates[:self.gray_num]
+                for res in [response] + candidates:
+                    self.data.append({
+                        'context': context,
+                        'response': res,
+                    })
         else:
             data = read_text_data_utterances(path, lang='zh')
             for i in tqdm(range(0, len(data), 10)):
@@ -182,23 +182,17 @@ class BERTDualO2MDataset(Dataset):
     def __getitem__(self, i):
         bundle = self.data[i]
         if self.args['mode'] == 'train':
-            context, response, candidates = bundle['context'], bundle['response'], bundle['candidates']
-            candidates = random.sample(candidates, self.args['gray_cand_num'])
-            item = self.vocab.batch_encode_plus(context + [response] + candidates, add_special_tokens=False)['input_ids']
-            cids = item[:len(context)]
-            rids = item[len(context)]
-            cand_rids = item[-len(candidates):]
+            context, response = bundle['context'], bundle['response']
+            item = self.vocab.batch_encode_plus(context + [response], add_special_tokens=False)['input_ids']
+            cids, rids = item[:-1], item[-1]
             ids = [self.cls]
             for u in cids:
                 ids.extend(u + [self.sep])
             ids[-1] = self.sep
             ids = length_limit(ids, self.args['max_len'])
             rids = length_limit_res([self.cls] + rids + [self.sep], self.args['res_max_len'], sep=self.sep)
-            cand_rids = [length_limit_res([self.cls] + i + [self.sep], self.args['res_max_len'], sep=self.sep) for i in cand_rids]
             ids = torch.LongTensor(ids)
-            pos_rids = rids
-            rids = [pos_rids] + cand_rids
-            rids = [torch.LongTensor(i) for i in rids]
+            rids = torch.LongTensor(rids)
             return ids, rids
         else:
             ids = torch.LongTensor(bundle['ids'])
@@ -212,22 +206,17 @@ class BERTDualO2MDataset(Dataset):
     def collate(self, batch):
         if self.args['mode'] == 'train':
             ids = [i[0] for i in batch]
+            rids = [i[1] for i in batch]
             ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+            rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
             ids_mask = generate_mask(ids)
-            ids = to_cuda(ids)[0]
-            rids, rids_mask = [], []
-            for i in range(0, self.args['gray_cand_num']+1):
-                rids_ = [item[1][i] for item in batch]
-                rids_ = pad_sequence(rids_, batch_first=True, padding_value=self.pad)
-                rids_mask_ = generate_mask(rids_)
-                rids_, rids_mask_ = to_cuda(rids_, rids_mask_)
-                rids.append(rids_)
-                rids_mask.append(rids_mask_)
+            rids_mask = generate_mask(rids)
+            ids, ids_mask, rids, rids_mask = to_cuda(ids, ids_mask, rids, rids_mask)
             return {
                 'ids': ids, 
                 'rids': rids, 
                 'ids_mask': ids_mask, 
-                'rids_mask': rids_mask
+                'rids_mask': rids_mask,
             }
         else:
             assert len(batch) == 1

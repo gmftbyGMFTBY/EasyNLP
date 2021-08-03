@@ -306,7 +306,7 @@ class RepresentationAgent(RetrievalBaseAgent):
             text = batch['text']
             res = self.model.module.get_cand(rid, rid_mask).cpu()
             embds.append(res)
-            texts.extend(text * self.args['topk_encoder'])
+            texts.extend(text * (self.args['gray_cand_num']+1))
         embds = torch.cat(embds, dim=0).numpy()
 
         for idx, i in enumerate(range(0, len(embds), size)):
@@ -315,6 +315,38 @@ class RepresentationAgent(RetrievalBaseAgent):
             torch.save(
                 (embd, text), 
                 f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
+            )
+    
+    @torch.no_grad()
+    def inference_full_ctx_res(self, inf_iter, size=500000):
+        '''1 million cut'''
+        self.model.eval()
+        pbar = tqdm(inf_iter)
+        res_embds, ctx_embds, ctexts, rtexts = [], [], [], []
+        for batch in pbar:
+            ids = batch['ids']
+            rids = batch['rids']
+            ids_mask = batch['ids_mask']
+            rids_mask = batch['rids_mask']
+            ctext = batch['ctext']
+            rtext = batch['rtext']
+            res = self.model.module.get_cand(rids, rids_mask).cpu()
+            ctx = self.model.module.get_ctx(ids, ids_mask).cpu()
+            res_embds.append(res)
+            ctx_embds.append(res)
+            ctexts.extend(ctext)
+            rtexts.extend(rtext)
+        res_embds = torch.cat(res_embds, dim=0).numpy()
+        ctx_embds = torch.cat(ctx_embds, dim=0).numpy()
+
+        for idx, i in enumerate(range(0, len(res_embds), size)):
+            res_embd = res_embds[i:i+size]
+            ctx_embd = ctx_embds[i:i+size]
+            ctext = ctexts[i:i+size]
+            rtext = rtexts[i:i+size]
+            torch.save(
+                (res_embd, ctx_embd, ctext, rtext), 
+                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_full_ctx_res_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
             )
 
     @torch.no_grad()
@@ -465,21 +497,14 @@ class RepresentationAgent(RetrievalBaseAgent):
                 new_state_dict = self.checkpointadapeter.convert(state_dict)
                 self.model.ctx_encoder.load_state_dict(new_state_dict)
                 # response encoders checkpoint
-                if self.args['model'] in ['dual-bert-grading', 'dual-bert-one2many-original']:
-                    for i in range(self.args['topk_encoder']):
+                if self.args['model'] in ['dual-bert-grading', 'dual-bert-one2many-original', 'dual-bert-one2many']:
+                    for i in range(self.args['gray_cand_num']+1):
                         self.checkpointadapeter.init(
                             state_dict.keys(),
                             self.model.can_encoders[i].state_dict().keys(),
                         )
                         new_state_dict = self.checkpointadapeter.convert(state_dict)
                         self.model.can_encoders[i].load_state_dict(new_state_dict)
-                elif self.args['model'] in ['dual-bert-one2many']:
-                    self.checkpointadapeter.init(
-                        state_dict.keys(),
-                        self.model.can_encoder.model.state_dict().keys(),
-                    )
-                    new_state_dict = self.checkpointadapeter.convert(state_dict)
-                    self.model.can_encoder.model.load_state_dict(new_state_dict)
                 else:
                     self.checkpointadapeter.init(
                         state_dict.keys(),

@@ -5,3 +5,5 @@ from .gray_extend import *
 from .gray_one2many import *
 from .unparallel import *
 from .self_play import *
+from .ctx_res import *
+from .res_search_ctx import *

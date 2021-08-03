@@ -66,8 +66,6 @@ class TopKBertEmbedding(nn.Module):
         self.queries = nn.Parameter(torch.randn(512, 768))    # [M, E] with maxium length 512
         self.proj_heads = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(768, 768),
-                nn.Tanh(),
                 nn.Dropout(p=dropout),
                 nn.Linear(768, 768)
             ) for _ in range(m)    
@@ -93,13 +91,13 @@ class TopKBertEmbedding(nn.Module):
 
         # [B, M, S] x [B, S, E] -> [B, M, E]
         rep = torch.bmm(scores, embds)
-
         # project m times
         reps = []
         for idx, rep_ in enumerate(rep.permute(1, 0, 2)):
             # rep_: [B, E]
             # residual connection
-            rep_ = rep_ + self.proj_heads[idx](rep_)
+            # rep_ = rep_ + self.proj_heads[idx](rep_)
+            rep_ = self.proj_heads[idx](rep_)
             reps.append(rep_)
         reps = torch.stack(reps)    # [M, B, E]
         return reps
