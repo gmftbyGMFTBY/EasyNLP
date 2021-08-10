@@ -69,7 +69,7 @@ def load_deploy_config(api_name):
         # mode (test: single GPU)
         args['mode'] = 'test'
         return args
-    elif api_name in ['pipeline']:
+    elif api_name in ['pipeline', 'pipeline_evaluation']:
         args.update(args['deploy'])
         args.update(args['deploy'][api_name])
 

@@ -8,7 +8,7 @@ gray strategy generates the hard negative samples (gray samples) for each conver
 Need the BERTDualInferenceFullContextDataset'''
 
 
-def gray_one2many_strategy(args):
+def gray_one2many_with_source_strategy(args):
     # collect the gray negative dataset
     embds, contexts, responses = [], [], []
     for i in tqdm(range(args['nums'])):
@@ -28,45 +28,45 @@ def gray_one2many_strategy(args):
     # read faiss index
     model_name = args['model']
     pretrained_model_name = args['pretrained_model'].replace('/', '_')
-    searcher = Searcher(args['index_type'], dimension=args['dimension'], nprobe=args['index_nprobe'])
+    searcher = Searcher(args['index_type'], dimension=args['dimension'], with_source=True, nprobe=args['index_nprobe'])
     searcher.load(
-        f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_faiss.ckpt',
-        f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt',
+        f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_with_source_faiss.ckpt',
+        f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_with_source_corpus.ckpt',
+        path_source_corpus=f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_with_source_source_corpus.ckpt',
     )
     # speed up with gpu
     searcher.move_to_gpu(device=args['local_rank'])
 
     # search
-    collection = []
+    collection = {}
     lossing = 0
     pbar = tqdm(range(0, len(embds), args['batch_size']))
     for i in pbar:
         batch = embds[i:i+args['batch_size']]    # [B, E]
         context = contexts[i:i+args['batch_size']]
         response = responses[i:i+args['batch_size']]
-        result, distance = searcher._search_dis(batch, topk=args['pool_size'])
-        for c, r, rest, dis in zip(context, response, result, distance):
-            ipdb.set_trace()
-            # ignore the invalid results in the faiss searching results
-            rest = [i for i, j in zip(rest, dis) if j < 1e8]
-            rest = remove_duplicate_and_hold_the_order(rest)
-            # remove the candidate that in the conversation context
-            rest = [u for u in rest if u not in c]
-            # remove the ground-truth
-            if r in rest:
-                rest.remove(r)
-            if len(rest) < args['gray_topk']:
-                lossing += 1
-                continue
-            rest = rest[:args['gray_topk']]
-            collection.append({'q': c, 'r': r, 'snr': rest})
-        pbar.set_description(f'[!] found {lossing} error samples')
-    print(f'[!] lossing {lossing} samples that are invalid')
+        result = searcher._search(batch, topk=args['pool_size'])
+        retrieved_response_pool = set()
+        for c, r, rest in zip(context, response, result):
+            for rest_res, rest_ctx in rest:
+                if rest_ctx != c:
+                    if rest_res in retrieved_response_pool:
+                        collection[rest_res].append(rest_ctx)
+                    else:
+                        collection[rest_res] = [c, rest_ctx]
+                    retrieved_response_pool.add(rest_res)
+        pbar.set_description(f'[!] found {len(collection)} new samples')
+    l = [len(collection[i]) for i in collection]
+    print(f'[!] max contexts num: {max(l)}')
+    print(f'[!] min contexts num: {min(l)}')
+    print(f'[!] avg contexts num: {round(np.mean(l), 4)}')
 
     # write into new file
     path = f'{args["root_dir"]}/data/{args["dataset"]}/train_gray.txt'
     with open(path, 'w') as f:
-        for item in tqdm(collection):
+        for key, values in tqdm(collection.items()):
+            ctxs = [values[0]] + random.sample(values[1:], 1)
+            item = {'res': key, 'ctx': ctxs}
             string = json.dumps(item)
             f.write(f'{string}\n')
 

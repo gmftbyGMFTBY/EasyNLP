@@ -206,20 +206,71 @@ class PostTrainAgent(RetrievalBaseAgent):
             'P@1': round(avg_prec_at_one, 4),
             'MAP': round(avg_map, 4),
         }
+    
+    @torch.no_grad()
+    def inference_simcse_ctx(self, inf_iter, size=500000):
+        self.model.eval()
+        pbar = tqdm(inf_iter)
+        embds, texts, indexes = [], [], []
+        for batch in pbar:
+            ids = batch['ids']
+            ids_mask = batch['mask']
+            text = batch['text']
+            res = self.model.module.get_embedding(ids, ids_mask).cpu()
+            embds.append(res)
+            texts.extend(text)
+            indexes.extend(batch['index'])
+        embds = torch.cat(embds, dim=0).numpy()
+
+        for idx, i in enumerate(range(0, len(embds), size)):
+            embd = embds[i:i+size]
+            text = texts[i:i+size]
+            index = indexes[i:i+size]
+            torch.save(
+                (embd, text, index), 
+                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_simcse_ctx_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
+            )
+    
+    @torch.no_grad()
+    def inference(self, inf_iter, size=500000):
+        self.model.eval()
+        pbar = tqdm(inf_iter)
+        embds, texts, contexts = [], [], []
+        for batch in pbar:
+            ids = batch['ids']
+            ids_mask = batch['mask']
+            text = batch['text']
+            res = self.model.module.get_embedding(ids, ids_mask).cpu()
+            embds.append(res)
+            texts.extend(text)
+        embds = torch.cat(embds, dim=0).numpy()
+
+        for idx, i in enumerate(range(0, len(embds), size)):
+            embd = embds[i:i+size]
+            text = texts[i:i+size]
+            torch.save(
+                (embd, text), 
+                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
+            )
 
     def load_model(self, path):
-        if self.args['model'] in ['simcse']:
+        if self.args['mode'] == 'train':
+            if self.args['model'] in ['simcse']:
+                state_dict = torch.load(path, map_location=torch.device('cpu'))
+                self.checkpointadapeter.init(
+                    state_dict.keys(),
+                    self.model.encoder.state_dict().keys(),
+                )
+                new_state_dict = self.checkpointadapeter.convert(state_dict)
+                self.model.encoder.load_state_dict(new_state_dict)
+                print(f'[!] simcse loads pre-trained model from {path}')
+        else:
+            # test or inference
             state_dict = torch.load(path, map_location=torch.device('cpu'))
             self.checkpointadapeter.init(
                 state_dict.keys(),
-                self.model.ctx_encoder.state_dict().keys(),
+                self.model.state_dict().keys(),
             )
             new_state_dict = self.checkpointadapeter.convert(state_dict)
-            self.model.ctx_encoder.load_state_dict(new_state_dict)
-            self.checkpointadapeter.init(
-                state_dict.keys(),
-                self.model.can_encoder.state_dict().keys(),
-            )
-            new_state_dict = self.checkpointadapeter.convert(state_dict)
-            self.model.can_encoder.load_state_dict(new_state_dict)
-            print(f'[!] simcse loads pre-trained model from {path}')
+            self.model.load_state_dict(new_state_dict)
+            print(f'[!] Inference mode: simcse loads pre-trained model from {path}')

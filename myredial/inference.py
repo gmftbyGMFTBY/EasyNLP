@@ -39,11 +39,17 @@ def inference(**args):
         agent.load_model(f'{args["root_dir"]}/ckpt/writer/{args["model"]}/best_{pretrained_model_name}.pt')
     else:
         agent.load_model(f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}.pt')
+
     if work_mode in ['response']:
         agent.inference(data_iter, size=args['cut_size'])
         pass
+    elif work_mode in ['simcse-ctx']:
+        agent.inference_simcse_ctx(data_iter, size=args['cut_size'])
+    elif work_mode in ['response-with-src']:
+        agent.inference_with_source(data_iter, size=args['cut_size'])
     elif work_mode in ['full-ctx-res']:
         agent.inference_full_ctx_res(data_iter, size=args['cut_size'])
+        pass
     elif work_mode in ['writer-inference']:
         agent.inference_writer(data_iter, size=args['cut_size'])
     # elif work_mode in ['context', 'gray-one2many', 'gray', 'unparallel']:
@@ -69,7 +75,7 @@ if __name__ == "__main__":
     torch.distributed.barrier()
 
     if args['local_rank'] != 0:
-        if args['work_mode'] in ['self-play']:
+        if args['work_mode'] in ['self-play', 'gray-simcse']:
             pass
         else:
             exit()
@@ -79,12 +85,22 @@ if __name__ == "__main__":
         writer_with_source_strategy(args)
     elif args['work_mode'] in ['response']:
         response_strategy(args)
+    elif args['work_mode'] in ['response-with-src']:
+        response_with_source_strategy(args)
     elif args['work_mode'] in ['full-ctx-res']:
         context_response_strategy(args)
     elif args['work_mode'] in ['gray']:
         gray_strategy(args)
     elif args['work_mode'] in ['gray-one2many']:
         gray_one2many_strategy(args)
+    elif args['work_mode'] in ['gray-simcse']:
+        # gray_simcse_strategy(args)
+        # combination
+        combine_all_generate_samples_pt(args)
+    elif args['work_mode'] in ['gray-one2many-with-src']:
+        gray_one2many_with_source_strategy(args)
+    elif args['work_mode'] in ['gray-hard']:
+        gray_hard_strategy(args)
     elif args['work_mode'] == 'context':
         pass
     elif args['work_mode'] == 'res-search-ctx':

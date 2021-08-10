@@ -23,6 +23,36 @@ def parser_args():
     parser.add_argument('--prefix_name', type=str, default='')
     return parser.parse_args()
 
+def load_pipeline_data(path, size=1000):
+    '''for pipeline and recall test'''
+    data = read_text_data_utterances(path, lang='zh')
+    dataset = []
+    for i in range(0, len(data), 10):
+        session = data[i:i+10]
+        cache = []
+        for label, utterances in session:
+            if label == 1:
+                cache.append(utterances[-1])
+        dataset.append({
+            'ctx': utterances[:-1],
+            'res': cache
+        })
+    cache, block_size = [], random.randint(1, args['block_size'])
+    current_num = 0
+    collector = []
+    for item in tqdm(dataset):
+        collector.append({
+            'segment_list': [{
+                'str': item['ctx'], 
+                'status': 'editing',
+                'ground-truth': item['res'],
+            }],
+            'lang': 'zh',
+            'topk': args['topk'],
+        })
+    print(f'[!] collect {len(collector)} samples for pipeline agent')
+    return collector
+
 
 def load_fake_partial_rerank_data(path, size=1000):
     # make sure the data reader
@@ -149,7 +179,7 @@ def SendPOST(url, port, method, params):
     conn.request('POST', method, params, headers)
     response = conn.getresponse()
     code = response.status
-    reason=response.reason
+    reason = response.reason
     data = json.loads(response.read().decode('utf-8'))
     conn.close()
     return data
@@ -225,7 +255,7 @@ def test_rerank(args):
     return collections
 
 def test_pipeline(args):
-    data = load_fake_recall_data(
+    data = load_pipeline_data(
         f'{args["root_dir"]}/data/{args["dataset"]}/test.txt',
         size=args['size'],
     )
@@ -236,6 +266,7 @@ def test_pipeline(args):
     pbar = tqdm(list(enumerate(data)))
     for idx, data in pbar:
         data = json.dumps(data)
+        # rest = SendPOST(args['url'], args['port'], '/pipeline_evaluation', data)
         rest = SendPOST(args['url'], args['port'], '/pipeline', data)
         if rest['header']['ret_code'] == 'fail':
             error_counter += 1

@@ -39,13 +39,16 @@ if __name__ == '__main__':
     read_path = f'{args["root_dir"]}/data/{args["dataset"]}/train.txt'
     write_path = f'{args["root_dir"]}/data/{args["dataset"]}/train_gray.txt'
 
-    dataset = read_text_data_dual_bert(read_path, lang=args['lang'])
-    data = [(context, response) for label, context, response in dataset if label == 1]
-    responses = [response for label, context, response in dataset]
+    # dataset = read_text_data_dual_bert(read_path, lang=args['lang'])
+    dataset = read_text_data_utterances_full(read_path, lang=args['lang'], turn_length=5)
+    # data = [(context, response) for label, context, response in dataset if label == 1]
+    data = [(utterances[:-1], utterances[-1])for label, utterances in dataset if label == 1]
+    responses = [utterances[-1] for label, utterances in dataset]
     collector = []
     pbar = tqdm(range(0, len(data), args['batch_size']))
     for idx in pbar:
-        context = [i[0] for i in data[idx:idx+args['batch_size']]]
+        # random choice the conversation context to search the topic related responses
+        context = [random.choice(i[0]) for i in data[idx:idx+args['batch_size']]]
         response = [i[1] for i in data[idx:idx+args['batch_size']]]
         rest_ = searcher.msearch(context, topk=args['pool_size'])
 

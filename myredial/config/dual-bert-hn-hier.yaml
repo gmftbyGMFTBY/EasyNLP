@@ -1,15 +1,8 @@
-smoothing: 0.1
 # rank: bert-ft-compare
 rank: null
-temp: 1.0
-# for restoration-200k, it is 5, for douban and ubuntu, it can be more
-full_turn_length: 5
-ext_turn_size: 4
-gray_cand_num: 2
-# extra_neg for dataset: BERTDualFullExtraNegDataset
-extra_neg: 256
-da_ctx_num: 2
-replace_ratio: 0.5
+gray_cand_num: 4
+gray_alpha: 1.0 
+dropout: 0.1
 
 # train configuration
 train:
@@ -24,7 +17,7 @@ train:
     warmup_ratio: 0.
     stop_train: false
     stop_train_trigger:
-        R10@1: 35.
+        R10@1: 40.
     checkpoint: 
         # path: bert-post/best_nspmlm.pt
         path: bert-fp/best_bert-base-chinese.pt

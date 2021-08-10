@@ -176,16 +176,27 @@ def read_text_data_with_super_hard_q_r(path, lang='zh'):
     return dataset
 
 def read_text_data_one2many(path, lang='zh'):
-    # path_ = f'{os.path.splitext(path)[0]}_gray_unparallel.txt'
     path_ = f'{os.path.splitext(path)[0]}_gray.txt'
     with open(path_) as f:
         dataset = []
         for line in tqdm(f.readlines()):
             line = json.loads(line.strip())
-            context = line['q']
-            response = line['r']
-            candidates = line['snr']
-            dataset.append((context, response, candidates))
+            q, r = line['q'], line['r']
+            cands = line['snr']
+            dataset.append((q, r, cands))
+    print(f'[!] load {len(dataset)} samples from {path_}')
+    return dataset
+
+def read_text_data_one2many_replace(path, lang='zh'):
+    path_ = f'{os.path.splitext(path)[0]}_gray.txt'
+    with open(path_) as f:
+        dataset = []
+        for line in tqdm(f.readlines()):
+            line = json.loads(line.strip())
+            q, r = line['q'], line['r']
+            cands = line['hp']
+            bad_response = line['bad_response']
+            dataset.append((q, r, cands, bad_response))
     print(f'[!] load {len(dataset)} samples from {path_}')
     return dataset
 
@@ -276,6 +287,40 @@ def read_response_and_context_full(path, lang='zh', turn_length=5):
             response.append(utterances[i])
     print(f'[!] collect {len(context)} samples for training')
     return context, response
+
+def read_response_data_with_context(path, lang='zh'):
+    with open(path) as f:
+        dataset = {}
+        for line in f.readlines():
+            utterance = line.strip().split('\t')
+            if int(utterance[0]) == 0:
+               continue
+            ctx, res = utterance[1:-1], utterance[-1]
+            if res in dataset:
+                dataset[res].append(ctx)
+            else:
+                dataset[res] = [ctx]
+        new_dataset = {}
+        for i, j in dataset.items():
+            if len(j) == 1:
+                new_dataset[i] = j
+    print(f'[!] load {len(new_dataset)} responses from {path}')
+    return new_dataset
+
+
+def read_response_data_test(path, lang='zh'):
+    with open(path) as f:
+        dataset = []
+        for line in f.readlines():
+            utterance = line.strip().split('\t')
+            utterance = utterance[-1]
+            if lang == 'zh':
+                utterance = ''.join(utterance.split())
+            dataset.append(utterance)
+    # delete the duplicate responses
+    dataset = list(set(dataset))
+    print(f'[!] load {len(dataset)} test responses from {path}')
+    return dataset
 
 
 def read_response_data(path, lang='zh'):
@@ -408,6 +453,30 @@ def read_text_data_utterances_and_pesudo_pairs(path1, path2, lang='zh'):
             dataset2.append((1, utterances))
     return dataset1 + dataset2
 
+def read_text_data_utterances_full_da_ctx(path, lang='zh', turn_length=5, da_ctx_num=1):
+    '''the full conversation context will be used'''
+    dataset = read_text_data_utterances(path, lang=lang)
+    data = []
+    aug_counter = 0
+    for label, utterances in dataset:
+        if label == 0:
+            continue
+        start_num = max(1, len(utterances) - turn_length)
+        for i in range(start_num, len(utterances)):
+            # i is the index of the response
+            data.append((1, utterances[:i+1]))
+            current_ctx_length = len(utterances[:i])
+            da_ctx_num_ = min(current_ctx_length-1, da_ctx_num)
+            if da_ctx_num_ == 0:
+                continue
+            for ii in range(da_ctx_num_):
+                ctx_length = current_ctx_length - ii - 1
+                sample = utterances[i-ctx_length:i+1]
+                data.append((1, sample))
+                aug_counter += 1
+    print(f'[!] collect {len(data)} samples for training; augmentation size: {aug_counter}')
+    return data
+
 def read_text_data_utterances_full(path, lang='zh', turn_length=5):
     '''the full conversation context will be used'''
     dataset = read_text_data_utterances(path, lang=lang)
@@ -534,3 +603,13 @@ def read_text_data_ext_utterances_full(path, lang='zh', turn_length=5):
             data.append((1, utterances[:i+1]))
     print(f'[!] collect {len(data)} samples from the extended corpus: {path}')
     return data
+
+def read_text_data_line_by_line(path):
+    dataset = []
+    with open(path) as f:
+        for line in tqdm(f.readlines()):
+            line = line.strip()
+            dataset.append(line)
+    print(f'[!] read {len(dataset)} lines')
+    return dataset
+

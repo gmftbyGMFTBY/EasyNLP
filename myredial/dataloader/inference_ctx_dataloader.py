@@ -81,7 +81,7 @@ class BERTDualInferenceFullContextDataset(Dataset):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
-        data = read_text_data_utterances_full(path, lang=self.args['lang'])
+        data = read_text_data_utterances_full(path, lang=self.args['lang'], turn_length=args['full_turn_length'])
         self.data = []
         for label, utterances in tqdm(data):
             if label == 0:

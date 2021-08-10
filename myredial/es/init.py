@@ -11,6 +11,22 @@ def parser_args():
     parser.add_argument('--recall_mode', default='q-r', type=str, help='q-q/q-r')
     return parser.parse_args()
 
+def q_q_dataset(args):
+    train_path = f'{args["root_dir"]}/data/{args["dataset"]}/train.txt'
+    train_data = load_qa_pair(train_path, lang=args['lang'])
+    print(f'[!] collect {len(data)} sentences for BM25 retrieval')
+    return train_data
+
+def q_r_dataset(args):
+    train_path = f'{args["root_dir"]}/data/{args["dataset"]}/train.txt'
+    extend_path = f'{args["root_dir"]}/data/ext_douban/train.txt'
+    train_data = load_sentences(train_path, lang=args['lang'])
+    extend_data = load_extended_sentences(extend_path)
+    data = train_data + extend_data
+    data = list(set(data))
+    print(f'[!] collect {len(data)} sentence for BM25 retrieval')
+    return data
+
 if __name__ == "__main__":
     args=  vars(parser_args())
     args['mode'] = 'test'
@@ -20,18 +36,10 @@ if __name__ == "__main__":
     print('test', args)
 
     random.seed(args['seed'])
-
-    train_path = f'{args["root_dir"]}/data/{args["dataset"]}/train.txt'
-    # extend_path = f'{args["root_dir"]}/data/{args["dataset"]}/train_gray_unparallel.txt'
-    # test_path = f'{args["root_dir"]}/data/{args["dataset"]}/test.txt'
-
-    train_data = load_qa_pair(train_path, lang=args['lang'])
-    # test_data = load_qa_pair(test_path, lang=args['lang'])
-    # extend_data = load_qa_pair_extend(extend_data, lang=args['lang'])
-
-    # data = train_data + extend_data
-    data = train_data
-
+    if args['recall_mode'] == 'q-q':
+        data = q_q_dataset(args)
+    else:
+        data = q_r_dataset(args)
     builder = ESBuilder(
         f'{args["dataset"]}_{args["recall_mode"]}',
         create_index=True,

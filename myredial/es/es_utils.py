@@ -46,15 +46,16 @@ class ESBuilder:
     def insert(self, pairs):
         count = self.es.count(index=self.index)['count']
         actions = []
-        for i, (q, a) in enumerate(tqdm(pairs)):
-            if self.q_q:
+        if self.q_q:
+            for i, (q, a) in enumerate(tqdm(pairs)):
                 actions.append({
                     '_index': self.index,
                     '_id': i + count,
                     'context': q,
                     'response': a,
                 })
-            else:
+        else:
+            for i, a in enumerate(tqdm(pairs)):
                 actions.append({
                     '_index': self.index,
                     '_id': i + count,
@@ -115,7 +116,8 @@ class ESSearcher:
             p = []
             try:
                 for utterance in each['hits']['hits']:
-                    p.append(utterance['fields']['response'][0])
+                    # p.append(utterance['fields']['response'][0])
+                    p.append(utterance['fields']['keyword'][0])
             except:
                 ipdb.set_trace()
             results.append(p)
@@ -164,6 +166,31 @@ def load_qa_pair(path, lang='zh'):
             q = ' '.join(utterances[1:-1])
             a = utterances[-1]
             dataset.append((q, a))
+    return dataset
+
+
+def load_sentences(path, lang='zh'):
+    with open(path) as f:
+        dataset = []
+        for line in f.readlines():
+            utterances = line.strip().split('\t')
+            # q-q matching only need the positive q-r pairs
+            if int(utterances[0]) == 0:
+                continue
+            if lang == 'zh':
+                utterances = [''.join(i.split()) for i in utterances]
+            a = utterances[-1]
+            dataset.append(a)
+    return dataset
+
+
+def load_extended_sentences(path):
+    with open(path) as f:
+        dataset = []
+        for line in f.readlines():
+            line = line.strip()
+            dataset.append(line)
+    print(f'[!] collect {len(dataset)} extended sentences')
     return dataset
 
 

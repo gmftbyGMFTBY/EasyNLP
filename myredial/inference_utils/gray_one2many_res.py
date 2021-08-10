@@ -17,7 +17,7 @@ def res_search_ctx_strategy(args):
     )
     searcher.move_to_gpu(device=args['local_rank'])
 
-    res_embds, rtexts = [], []
+    res_embds, rtexts, ctexts = [], [], []
     already_added = []
     for i in tqdm(range(args['nums'])):
         for idx in range(100):
@@ -30,6 +30,7 @@ def res_search_ctx_strategy(args):
                 break
             res_embds.append(res_embd)
             rtexts.extend(rtext)
+            ctexts.extend(ctext)
             already_added.append((i, idx))
         if len(res_embds) > 10000000:
             break
@@ -48,7 +49,8 @@ def res_search_ctx_strategy(args):
                 break
             res_embds.append(res_embd)
             rtexts.extend(rtext)
-    print(f'[!] total context samples: {ctx_searcher.searcher.ntotal}')
+            ctexts.extend(ctext)
+    print(f'[!] total context samples: {searcher.searcher.ntotal}')
     res_embds = np.concatenate(res_embds) 
     # search
     collection = []
@@ -57,9 +59,12 @@ def res_search_ctx_strategy(args):
     for i in pbar:
         batch = res_embds[i:i+args['batch_size']]    # [B, E]
         responses = rtexts[i:i+args['batch_size']]
-        result = searcher._search(batch, topk=args['pool_size'])
-        for c, r, rest in zip(context, response, result):
+        contexts = ctexts[i:i+args['batch_size']]
+        result, distance = searcher._search_dis(batch, topk=args['pool_size'])
+        ipdb.set_trace()
+        for c, r, rest, dis in zip(contexts, responses, result, distance):
             # rest = remove_duplicate_and_hold_the_order(rest)
+            rest = [i for i, j in zip(rest, dis) if j < 1e8]
             if c in rest:
                 rest.remove(c)
             # if len(rest) < args['gray_topk']:

@@ -323,6 +323,7 @@ class RepresentationAgent(RetrievalBaseAgent):
         self.model.eval()
         pbar = tqdm(inf_iter)
         res_embds, ctx_embds, ctexts, rtexts = [], [], [], []
+        counter = 0
         for batch in pbar:
             ids = batch['ids']
             rids = batch['rids']
@@ -333,20 +334,51 @@ class RepresentationAgent(RetrievalBaseAgent):
             res = self.model.module.get_cand(rids, rids_mask).cpu()
             ctx = self.model.module.get_ctx(ids, ids_mask).cpu()
             res_embds.append(res)
-            ctx_embds.append(res)
+            ctx_embds.append(ctx)
             ctexts.extend(ctext)
             rtexts.extend(rtext)
-        res_embds = torch.cat(res_embds, dim=0).numpy()
-        ctx_embds = torch.cat(ctx_embds, dim=0).numpy()
 
-        for idx, i in enumerate(range(0, len(res_embds), size)):
-            res_embd = res_embds[i:i+size]
-            ctx_embd = ctx_embds[i:i+size]
-            ctext = ctexts[i:i+size]
-            rtext = rtexts[i:i+size]
+            if len(ctexts) > size:
+                # save the memory
+                res_embds = torch.cat(res_embds, dim=0).numpy()
+                ctx_embds = torch.cat(ctx_embds, dim=0).numpy()
+                torch.save(
+                    (res_embds, ctx_embds, ctexts, rtexts), 
+                    f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_full_ctx_res_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
+                )
+                res_embds, ctx_embds, ctexts, rtexts = [], [], [], []
+                counter += 1
+        if len(ctexts) > 0:
+            res_embds = torch.cat(res_embds, dim=0).numpy()
+            ctx_embds = torch.cat(ctx_embds, dim=0).numpy()
             torch.save(
-                (res_embd, ctx_embd, ctext, rtext), 
-                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_full_ctx_res_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
+                (res_embds, ctx_embds, ctexts, rtexts), 
+                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_full_ctx_res_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
+            )
+    
+    @torch.no_grad()
+    def inference_with_source(self, inf_iter, size=500000):
+        self.model.eval()
+        pbar = tqdm(inf_iter)
+        embds, texts, sources = [], [], []
+        for batch in pbar:
+            rid = batch['ids']
+            rid_mask = batch['mask']
+            text = batch['text']
+            source = batch['ctext']
+            res = self.model.module.get_cand(rid, rid_mask).cpu()
+            embds.append(res)
+            texts.extend(text)
+            sources.extend(source)
+        embds = torch.cat(embds, dim=0).numpy()
+
+        for idx, i in enumerate(range(0, len(embds), size)):
+            embd = embds[i:i+size]
+            text = texts[i:i+size]
+            source = sources[i:i+size]
+            torch.save(
+                (embd, text, source), 
+                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_with_source_{self.args["local_rank"]}_{idx}.pt'
             )
 
     @torch.no_grad()
@@ -464,9 +496,10 @@ class RepresentationAgent(RetrievalBaseAgent):
         scores = []
         for batch in batches:
             subscores = []
-            pbar = tqdm(range(0, len(batch['candidates']), inner_bsz))
+            # pbar = tqdm(range(0, len(batch['candidates']), inner_bsz))
             cid, cid_mask = self.totensor([batch['context']], ctx=True)
-            for idx in pbar:
+            # for idx in pbar:
+            for idx in range(0, len(batch['candidates']), inner_bsz):
                 candidates = batch['candidates'][idx:idx+inner_bsz]
                 rid, rid_mask = self.totensor(candidates, ctx=False)
                 batch['ids'] = cid
@@ -488,16 +521,32 @@ class RepresentationAgent(RetrievalBaseAgent):
                 new_state_dict = self.checkpointadapeter.convert(state_dict)
                 self.model.load_state_dict(new_state_dict)
                 print(f'[!] load the simcse pre-trained model')
+            elif self.args['model'] in ['dual-bert-one2many']:
+                new_ctx_state_dict = OrderedDict()
+                new_res_state_dict = OrderedDict()
+                for k, v in state_dict.items():
+                    if 'ctx_encoder' in k:
+                        new_k = k.replace('ctx_encoder.', '')
+                        new_ctx_state_dict[new_k] = v
+                    elif 'can_encoder' in k:
+                        new_k = k.replace('can_encoder.', '')
+                        new_res_state_dict[new_k] = v
+                    else:
+                        raise Exception()
+                self.model.ctx_encoder.load_state_dict(new_ctx_state_dict)
+                self.model.can_encoders[0].load_state_dict(new_res_state_dict)
+                self.model.can_encoders[1].load_state_dict(new_res_state_dict)
             else:
                 # context encoder checkpoint
                 self.checkpointadapeter.init(
                     state_dict.keys(),
-                    self.model.ctx_encoder.state_dict().keys(),
+                    # NOTE
+                    self.model.ctx_encoder.model.state_dict().keys(),
                 )
                 new_state_dict = self.checkpointadapeter.convert(state_dict)
-                self.model.ctx_encoder.load_state_dict(new_state_dict)
+                self.model.ctx_encoder.model.load_state_dict(new_state_dict)
                 # response encoders checkpoint
-                if self.args['model'] in ['dual-bert-grading', 'dual-bert-one2many-original', 'dual-bert-one2many']:
+                if self.args['model'] in ['dual-bert-grading', 'dual-bert-one2many-original']:
                     for i in range(self.args['gray_cand_num']+1):
                         self.checkpointadapeter.init(
                             state_dict.keys(),

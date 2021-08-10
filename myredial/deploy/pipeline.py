@@ -38,5 +38,3 @@ class PipelineAgent:
             idx = np.argmax(score)
             responses.append(candidate[idx]['text'])
         return responses
-
-

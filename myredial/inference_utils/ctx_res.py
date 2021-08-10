@@ -21,7 +21,7 @@ def context_response_strategy(args):
             ctx_embds.append(ctx_embd)
             ctexts.extend(ctext)
             already_added.append((i, idx))
-        if len(res_embds) > 10000000:
+        if len(ctx_embds) > 10000000:
             break
     ctx_embds = np.concatenate(ctx_embds) 
     # searcher

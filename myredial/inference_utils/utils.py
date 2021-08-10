@@ -63,7 +63,8 @@ class Searcher:
         if self.with_source:
             # pack up the source information and return
             # return the tuple (text, title, url)
-            rest = [[(self.corpus[i][0], self.corpus[i][1], self.source_corpus[self.corpus[i][1]]) for i in N] for N in I]
+            # rest = [[(self.corpus[i][0], self.corpus[i][1], self.source_corpus[self.corpus[i][1]]) for i in N] for N in I]
+            rest = [[(self.corpus[i], self.source_corpus[i][0]) for i in N] for N in I]
         elif self.if_q_q:
             # the response is the second item in the tuple
             rest = [[self.corpus[i][1] for i in N] for N in I]
@@ -189,6 +190,16 @@ def combine_all_generate_samples(args):
                         dataset.append(line)
             for line in dataset:
                 fw.write(line)
+
+def combine_all_generate_samples_pt(args):
+    if args['local_rank'] == 0:
+        path = f'{args["root_dir"]}/data/{args["dataset"]}/train_gray_simcse.pt'
+        dataset = {}
+        for i in range(dist.get_world_size()):
+            data = torch.load(f'{args["root_dir"]}/data/{args["dataset"]}/train_gray_simcse_{i}.pt')
+            dataset.update(data)
+        print(f'[!] obtain the simcse augmentation dataset: {len(dataset)}')
+        torch.save(dataset, path)
 
 def remove_duplicate_and_hold_the_order(utterances):
     counter = set()

@@ -7,25 +7,32 @@ class SimCSE(nn.Module):
     def __init__(self, **args):
         super(SimCSE, self).__init__()
         model = args['pretrained_model']
-        self.ctx_encoder = BertEmbedding(model=model, add_tokens=1)
-        self.can_encoder = BertEmbedding(model=model, add_tokens=1)
+        self.temp = args['temp']
+        self.encoder = BertEmbedding(model=model, add_tokens=1)
         self.args = args
 
-    def _encode(self, cid, rid, cid_mask, rid_mask):
-        cid_rep = self.ctx_encoder(cid, cid_mask)
-        rid_rep = self.can_encoder(rid, rid_mask)
-        return cid_rep, rid_rep
+    def _encode(self, ids, ids_mask):
+        rep_1 = self.encoder(ids, ids_mask)
+        rep_2 = self.encoder(ids, ids_mask)
+        rep_1, rep_2 = F.normalize(rep_1), F.normalize(rep_2)
+        return rep_1, rep_2
+
+    @torch.no_grad()
+    def get_embedding(self, ids, ids_mask):
+        rep = self.encoder(ids, ids_mask)
+        rep = F.normalize(rep)
+        return rep
 
     def forward(self, batch):
         ids = batch['ids']
         ids_mask = batch['ids_mask']
 
-        cid_rep, rid_rep = self._encode(ids, ids, ids_mask, ids_mask)
-        # cid_rep, rid_rep = F.normalize(cid_rep), F.normalize(rid_rep)
+        rep_1, rep_2 = self._encode(ids, ids_mask)
         # distributed samples collected
-        cid_reps, rid_reps = distributed_collect(cid_rep, rid_rep)
-        dot_product = torch.matmul(cid_reps, rid_reps.t())     # [B, B]
-        batch_size = len(cid_reps)
+        rep_1s, rep_2s = distributed_collect(rep_1, rep_2)
+        dot_product = torch.matmul(rep_1s, rep_2s.t())     # [B, B]
+        dot_product /= self.temp
+        batch_size = len(rep_1s)
 
         # constrastive loss
         mask = torch.zeros_like(dot_product)
