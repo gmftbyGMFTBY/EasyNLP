@@ -264,6 +264,16 @@ class PostTrainAgent(RetrievalBaseAgent):
                 new_state_dict = self.checkpointadapeter.convert(state_dict)
                 self.model.encoder.load_state_dict(new_state_dict)
                 print(f'[!] simcse loads pre-trained model from {path}')
+            elif self.args['model'] in ['bert-fp-mono']:
+                state_dict = torch.load(path, map_location=torch.device('cpu'))
+                self.checkpointadapeter.init(
+                    state_dict.keys(),
+                    self.model.state_dict().keys(),
+                )
+                new_state_dict = self.checkpointadapeter.convert(state_dict)
+                self.model.load_state_dict(new_state_dict)
+                print(f'[!] bert-fp-mono loads pre-trained model from {path}')
+
         else:
             # test or inference
             state_dict = torch.load(path, map_location=torch.device('cpu'))

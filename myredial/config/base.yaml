@@ -13,6 +13,7 @@ datasets:
     restoration-200k: zh
     essay: zh
     unlikelyhood-gen: zh
+    ext_douban: zh
 
 # pretrained model and tokenizer
 tokenizer:
@@ -31,12 +32,19 @@ rank: null
 
 no_test_models:
     - bert-fp
+    - bert-fp-mono
     - simcse
+    - bert-mask-da
 
 no_train_models:
     - bert-fp-original
+    - bert-mask-da
 
 models:
+    bert-mask-da:
+        type: Augmentation
+        model_name: BERTMaskAugmentationModel
+        inference_dataset_name: BERTMaskAugmentationDataset
     dual-bert-ml: 
         type: Representation
         model_name: BERTDualMLEncoder
@@ -100,10 +108,10 @@ models:
         # dataset_name: BERTDualFullWithSelfPlayDataset
         # dataset_name: BERTDualFullPseudoDataset
         # inference_dataset_name: BERTDualInferenceDataset
-        # inference_dataset_name: BERTDualInferenceWithTestDataset
+        inference_dataset_name: BERTDualInferenceWithTestDataset
         # inference_dataset_name: BERTDualInferenceWithSourceDataset
         # inference_dataset_name: BERTDualInferenceFullDataset
-        inference_dataset_name: BERTDualInferenceFullEXTDataset
+        # inference_dataset_name: BERTDualInferenceFullEXTDataset
         # inference_dataset_name: BERTDualInferenceContextDataset
         # inference_dataset_name: BERTDualInferenceFullContextDataset
         # inference_dataset_name: BERTDualInferenceFullContextSingleExtendDataset
@@ -229,6 +237,11 @@ models:
         model_name: BERTFPPostTrain
         dataset_name: PostTrainDataset
         inference_dataset_name: null 
+    bert-fp-mono: 
+        type: PostTrain
+        model_name: BERTMonolingualPostTrain
+        dataset_name: PostTrainMonoDataset
+        inference_dataset_name: null 
     dual-bert-pt: 
         type: PostTrain 
         model_name: BERTDualPTEncoder
@@ -264,7 +277,7 @@ deploy:
     res_max_len: 64
     recall:
         activate: false
-        model: dual-bert-comp
+        model: dual-bert
         # default topk
         topk: 100
         # only the arxiv, writer dataset need the with_source
@@ -277,8 +290,8 @@ deploy:
         dimension: 768
     rerank:
         activate: false
-        model: dual-bert-comp
+        model: null
     pipeline:
-        activate: true
-    pipeline_evaluation:
         activate: false
+    pipeline_evaluation:
+        activate: true

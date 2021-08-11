@@ -54,11 +54,14 @@ def create_app():
         '''
         try:
             data = request.json
-            whole_size = pipelineevaluationagent.recallagent.searcher.searcher.ntotal
-            responses, core_time = pipelineevaluationagent.work_full_rank_evaluation(
-                data['segment_list'], whole_size=whole_size,
+            responses, core_time = pipelineevaluationagent.work(
+                data['segment_list'], topk=3200,
             )
             succ = True
+            # show the evaluation results
+            for name in ['R@1000', 'R@500', 'R@100', 'R@50', 'MRR']:
+                value = round(np.mean(pipelineevaluationagent.collection[name]), 4)
+                print(f'{name}: {value}')
         except Exception as error:
             core_time = 0
             print('ERROR:', error)

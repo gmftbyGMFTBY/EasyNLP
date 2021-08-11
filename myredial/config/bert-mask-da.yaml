@@ -1,0 +1,6 @@
+# inference configuration
+inference:
+    seed: 0
+    batch_size: 128 
+    res_max_len: 64
+    augmentation_t: 2

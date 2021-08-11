@@ -1,8 +1,8 @@
 # basic configuration for building the model
 tokenizer: 
-    zh: uer/gpt2-chinese-cluecorpussmall
+    zh: /apdcephfs/share_916081/johntianlan/gpt2_model
 pretrained_model: 
-    zh: uer/gpt2-chinese-cluecorpussmall
+    zh: /apdcephfs/share_916081/johntianlan/gpt2_model
 max_len: 128
 min_len: 16 
 topk: 50

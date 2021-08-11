@@ -1,4 +1,5 @@
 from .InteractionModels import *
+from .AugmentationModels import *
 from .CompareInteractionModels import *
 from .RepresentationModels import *
 from .LatentInteractionModels import *
@@ -10,6 +11,7 @@ from .LanguageModels import *
 def load_model(args):
     model_type, model_name = args['models'][args['model']]['type'], args['models'][args['model']]['model_name']
     MAP = {
+        'Augmentation': AugmentationAgent,
         'Representation': RepresentationAgent,
         'Interaction': InteractionAgent,
         'LatentInteraction': LatentInteractionAgent,

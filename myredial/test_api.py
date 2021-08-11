@@ -266,8 +266,8 @@ def test_pipeline(args):
     pbar = tqdm(list(enumerate(data)))
     for idx, data in pbar:
         data = json.dumps(data)
-        # rest = SendPOST(args['url'], args['port'], '/pipeline_evaluation', data)
-        rest = SendPOST(args['url'], args['port'], '/pipeline', data)
+        rest = SendPOST(args['url'], args['port'], '/pipeline_evaluation', data)
+        # rest = SendPOST(args['url'], args['port'], '/pipeline', data)
         if rest['header']['ret_code'] == 'fail':
             error_counter += 1
             print(f'[!] ERROR happens in sample {idx}')

@@ -11,6 +11,10 @@ from .recall import *
 
 class PipelineEvaluationAgent:
 
+    '''Evaluation:
+        R@1000, R@500, R@100, R@50, MRR
+    '''
+
     def __init__(self, args):
         self.args = args
         recall_args, rerank_args = args['recall'], args['rerank']
@@ -18,15 +22,18 @@ class PipelineEvaluationAgent:
         self.rerankagent = RerankAgent(rerank_args)
 
         # collection for calculating the metrics
-        self.collection = []
-        self.metrics = Metrics()
+        self.collection = {
+            'R@1000': [],
+            'R@500': [],
+            'R@100': [],
+            'R@50': [],
+            'MRR': [],
+        }
 
     @timethis
-    def work_full_rank_evaluation(self, batch, topk=None, whole_size=0):
-        self.metrics.segment = whole_size
+    def work(self, batch, topk=None):
         assert len(batch) == 1
         # recall
-        topk = topk if topk else self.args['recall']['topk']
         candidates, _ = self.recallagent.work(batch, topk=topk)
         
         # re-packup
@@ -38,31 +45,29 @@ class PipelineEvaluationAgent:
 
         # packup
         score, candidate = scores[0], candidates[0]
-        idx = np.argmax(score)
-        responses = [candidate[idx]['text']]
+        sort_index = np.argsort(score)[::-1]
+        score = [score[i] for i in sort_index]
+        candidate = [candidate[i]['text'] for i in sort_index]
         ground_truths = batch[0]['ground-truth']
-        
-        # add the evaluation results
-        e_scores, labels = [], []
-        gt_overlap = 0
-        for s, r in zip(score, candidate):
-            r = r['text']
-            if r in [ground_truths]:
-                labels.append(1)
-                gt_overlap += 1
-            else:
-                labels.append(0)
-            e_scores.append(s)
-        # add the other samples
-        o_scores = [0] * (whole_size - topk)
-        o_labels = [1] * (len(ground_truths) - gt_overlap) + [0] * (whole_size - topk + gt_overlap - len(ground_truths))
-        labels.extend(o_labels)
-        e_scores.extend(o_scores)
-        collection = [(s, l) for s, l in zip(e_scores, labels)]
-        self.collection.extend(collection)
 
-        scores = self.metrics.evaluate_all_metrics(self.collection)
-        for n, s in zip(['MAP', 'MRR', 'P@1', 'R@1', 'R@2', 'R@5'], scores):
-            print(f'[!] {n}: {round(s, 4)}')
+        # update the evaluation and the collector
+        # recall metrics
+        for idx in [1000, 500, 100, 50]:
+            counter = 0
+            for g in ground_truths:
+                if g in candidate[:idx]:
+                    counter += 1
+            self.collection[f'R@{idx}'].append(counter / len(ground_truths))
+        # mrr 
+        count_1 = 0
+        sum_p = 0
+        for g in ground_truths:
+            if g in candidate:
+                count_1 += 1
+                sum_p += 1.0 * count_1 / (candidate.index(g) + 1)
+        mrr = sum_p / count_1 if count_1 > 0 else 0
+        self.collection['MRR'].append(mrr)
 
-        return responses
+        return [candidate[0]]
+
+
