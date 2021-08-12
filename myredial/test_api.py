@@ -275,6 +275,9 @@ def test_pipeline(args):
             collections.append(rest)
             avg_times.append(rest['header']['core_time_cost_ms'])
         pbar.set_description(f'[!] time: {round(np.mean(avg_times), 2)} ms; error: {error_counter}')
+    # show the result
+    for name in ['R@1000', 'R@500', 'R@100', 'R@50', 'MRR']:
+        print(f'{name}: {rest["results"][name]}')
     avg_t = round(np.mean(avg_times), 4)
     sum_t = round(sum(avg_times), 4)
     print(f'[!] sum time cost: {sum_t} ms; avg time cost: {avg_t} ms; error ratio: {round(error_counter/len(data), 4)}')

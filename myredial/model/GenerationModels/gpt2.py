@@ -17,6 +17,7 @@ class GPT2Model(nn.Module):
         self.temp = args['temp']
         self.max_len = args['max_len']
         self.min_len = args['min_len']
+        self.repetition_penalty = args['repetition_penalty']
 
     @torch.no_grad()
     def calculate_ppl(self, ids, ids_mask):
@@ -48,6 +49,7 @@ class GPT2Model(nn.Module):
             do_sampling=True,
             max_length=self.max_len,
             min_length=self.min_len,
+            repetition_penalty=self.repetition_penalty,
         )
         return logits
 

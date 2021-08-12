@@ -19,7 +19,7 @@ class BERTMaskAugmentationModel(nn.Module):
             attention_mask=attn_mask,
         )[0]    # [B, S, V]
         rest = self.generate_text(F.softmax(logits, dim=-1))
-        return logits.squeeze(dim=-1)
+        return rest
 
     def generate_text(self, ids, logits):
         rest = []

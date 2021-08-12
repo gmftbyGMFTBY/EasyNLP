@@ -73,6 +73,9 @@ class ESSearcher:
         self.index = index_name
         self.q_q = q_q
 
+    def get_size(self):
+        return self.es.count(index=self.index)["count"]
+
     def msearch(self, queries, topk=10, limit=128):
         # limit the queries length
         queries = [query[-limit:] for query in queries]

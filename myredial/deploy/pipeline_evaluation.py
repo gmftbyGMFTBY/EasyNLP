@@ -34,7 +34,7 @@ class PipelineEvaluationAgent:
     def work(self, batch, topk=None):
         assert len(batch) == 1
         # recall
-        candidates, _ = self.recallagent.work(batch, topk=topk)
+        candidates, _ = self.recallagent.work(batch, topk=self.recallagent.whole_size)
         
         # re-packup
         r = [i['text'] for i in candidates[0]]
@@ -57,7 +57,8 @@ class PipelineEvaluationAgent:
             for g in ground_truths:
                 if g in candidate[:idx]:
                     counter += 1
-            self.collection[f'R@{idx}'].append(counter / len(ground_truths))
+            m = 0 if len(ground_truths) == 0 else counter/len(ground_truths)
+            self.collection[f'R@{idx}'].append(m)
         # mrr 
         count_1 = 0
         sum_p = 0

@@ -12,7 +12,7 @@ train:
     min_mask_num: 1
     max_mask_num: 20
     masked_lm_prob: 0.15
-    epoch: 10
+    epoch: 25
     warmup_ratio: 0.01
     checkpoint: 
         path: bert-fp/best_bert-base-chinese.pt

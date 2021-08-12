@@ -58,10 +58,6 @@ def create_app():
                 data['segment_list'], topk=3200,
             )
             succ = True
-            # show the evaluation results
-            for name in ['R@1000', 'R@500', 'R@100', 'R@50', 'MRR']:
-                value = round(np.mean(pipelineevaluationagent.collection[name]), 4)
-                print(f'{name}: {value}')
         except Exception as error:
             core_time = 0
             print('ERROR:', error)
@@ -79,6 +75,11 @@ def create_app():
             contexts = [i['str'] for i in data['segment_list']]
             rest = [{'context': c, 'response': r} for c, r in zip(contexts, responses)]
             result['item_list'] = rest
+            result['results'] = {}
+            # show the evaluation results
+            for name in ['R@1000', 'R@500', 'R@100', 'R@50', 'MRR']:
+                value = round(np.mean(pipelineevaluationagent.collection[name]), 4)
+                result['results'][name] = value
         else:
             result['item_list'] = None
         return jsonify(result)

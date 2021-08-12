@@ -12,10 +12,12 @@ def init_recall(args):
         # Elasticsearch
         searcher = ESSearcher(f'{args["dataset"]}_q-q', q_q=True)
         agent = None
+        size = searcher.get_size()
     elif args['model'] == 'full':
         searcher = [a for _, a in load_qa_pair(f'{args["root_dir"]}/data/{args["dataset"]}/train.txt')]
         agent = None
         print(f'[!] load {len(searcher)} samples for full-rerank mode')
+        size = len(searcher)
     else:
         searcher = Searcher(args['index_type'], dimension=args['dimension'], with_source=args['with_source'], nprobe=args['index_nprobe'])
         model_name = args['model']
@@ -39,13 +41,14 @@ def init_recall(args):
             save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}.pt'
         agent.load_model(save_path)
         print(f'[!] load model over')
-    return searcher, agent
+        size = searcher.searcher.ntotal
+    return searcher, agent, size
 
 
 class RecallAgent:
 
     def __init__(self, args):
-        self.searcher, self.agent = init_recall(args)
+        self.searcher, self.agent, self.whole_size = init_recall(args)
         self.args = args
 
     @timethis

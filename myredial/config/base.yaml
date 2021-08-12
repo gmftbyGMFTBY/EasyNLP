@@ -271,7 +271,7 @@ test_interval: 0.1
 # ========== deploy parameters ========== #
 deploy:
     host: '0.0.0.0'
-    port: 22336
+    port: 22335
     dataset: restoration-200k
     max_len: 256
     res_max_len: 64

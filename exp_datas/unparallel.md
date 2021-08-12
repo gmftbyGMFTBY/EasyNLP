@@ -103,6 +103,12 @@ ISN means the inner session negative (hard negative)
 The restoration-200k dataset is used for this full-rank comparison protocol.
 The corpus is the responses in the train set.
 
+| Methods | R@1000 | R@500 | R@100 | R@50 | MRR |
+| ------- | ------ | ----- | ----- | ---- | --- |
+| dual-bert | 0.3268       | 0.2729      | 0.1759     | 0.1471     | 0.0513   |
+| dual-bert-all | 0.5038       |  0.4298     | 0.2624     | 0.2076     | 0.0684   |
+
+
 <!-- 
 test set is not used in the faiss index; 
 put the context utterances in the index(faiss and ES q-q matching index);
