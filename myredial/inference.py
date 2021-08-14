@@ -43,6 +43,8 @@ def inference(**args):
     if work_mode in ['response']:
         agent.inference(data_iter, size=args['cut_size'])
         pass
+    elif work_mode in ['bert-aug']:
+        agent.inference(data_iter, size=args['cut_size'])
     elif work_mode in ['simcse-ctx']:
         agent.inference_simcse_ctx(data_iter, size=args['cut_size'])
     elif work_mode in ['response-with-src']:
@@ -83,6 +85,8 @@ if __name__ == "__main__":
     # only the main process will run the following inference strategies
     if args['work_mode'] in ['writer-inference']:
         writer_with_source_strategy(args)
+    elif args['work_mode'] in ['bert-aug']:
+        da_strategy(args)
     elif args['work_mode'] in ['response']:
         response_strategy(args)
     elif args['work_mode'] in ['response-with-src']:

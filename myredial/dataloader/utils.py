@@ -613,3 +613,15 @@ def read_text_data_line_by_line(path):
     print(f'[!] read {len(dataset)} lines')
     return dataset
 
+def read_torch_data_bert_mask(path):
+    contexts, responses, candidates = torch.load(path)
+    pool = list(set(responses))
+    hard_negative_num = len(candidates[0])
+    dataset = []
+    for c, r, cand in tqdm(list(zip(contexts, responses, candidates))):
+        cand = [i.strip() for i in cand if i.strip()]
+        cand += random.sample(pool, hard_negative_num-len(cand))
+        dataset.append((c, r, cand))
+    print(f'[!] collect {len(dataset)} training samples from bert mask inference results')
+    return dataset
+

@@ -90,17 +90,19 @@ models:
     dual-bert-hn: 
         type: Representation
         model_name: BERTDualHNEncoder
-        dataset_name: BERTDualHNDataset
-        inference_dataset_name: BERTDualInferenceDataset
+        # dataset_name: BERTDualHNDataset
+        dataset_name: BERTDualBertMaskHardNegativeDataset
+        # inference_dataset_name: BERTDualInferenceDataset
+        inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
     dual-bert: 
         type: Representation
         model_name: BERTDualEncoder
         # dataset_name: BERTDualFullExtraNegDataset
-        dataset_name: BERTDualFullExtraNegFromOutDatasetDataset
+        # dataset_name: BERTDualFullExtraNegFromOutDatasetDataset
         # dataset_name: BERTDualFullFakeCtxDataset
         # dataset_name: BERTDualDataset
         # dataset_name: BERTDualFullWithHardNegDataset
-        # dataset_name: BERTDualFullDataset
+        dataset_name: BERTDualFullDataset
         # dataset_name: BERTDualReplaceBadResponseDataset
         # dataset_name: BERTDualFullDACTXDataset
         # dataset_name: BERTDualExtFullDataset
@@ -108,7 +110,9 @@ models:
         # dataset_name: BERTDualFullWithSelfPlayDataset
         # dataset_name: BERTDualFullPseudoDataset
         # inference_dataset_name: BERTDualInferenceDataset
-        inference_dataset_name: BERTDualInferenceWithTestDataset
+        # inference_dataset_name: BERTDualInferenceWithTestDataset
+        # inference_dataset_name: BERTDualInferenceFullWithTestDataset
+        inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
         # inference_dataset_name: BERTDualInferenceWithSourceDataset
         # inference_dataset_name: BERTDualInferenceFullDataset
         # inference_dataset_name: BERTDualInferenceFullEXTDataset
@@ -277,7 +281,7 @@ deploy:
     res_max_len: 64
     recall:
         activate: false
-        model: dual-bert
+        model: dual-bert-hn
         # default topk
         topk: 100
         # only the arxiv, writer dataset need the with_source

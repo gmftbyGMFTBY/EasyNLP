@@ -55,7 +55,7 @@ def create_app():
         try:
             data = request.json
             responses, core_time = pipelineevaluationagent.work(
-                data['segment_list'], topk=3200,
+                data['segment_list'], topk=2000,
             )
             succ = True
         except Exception as error:

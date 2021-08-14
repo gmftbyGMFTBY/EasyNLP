@@ -7,8 +7,7 @@ class BERTDualHNEncoder(nn.Module):
     def __init__(self, **args):
         super(BERTDualHNEncoder, self).__init__()
         model = args['pretrained_model']
-        self.topk = args['gray_cand_num']
-        self.alpha = args['gray_alpha']
+        self.topk = args['gray_cand_num'] + 1
         self.ctx_encoder = BertEmbedding(model=model, add_tokens=1)
         self.can_encoder = BertEmbedding(model=model, add_tokens=1)
         self.args = args
@@ -47,7 +46,7 @@ class BERTDualHNEncoder(nn.Module):
         rid_mask = batch['rids_mask']
 
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
-        dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, B*M]
+        dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, B]
         batch_size = len(cid_rep)
 
         # constrastive loss
@@ -56,32 +55,9 @@ class BERTDualHNEncoder(nn.Module):
         loss_ = F.log_softmax(dot_product, dim=-1) * mask
         loss = (-loss_.sum(dim=1)).mean()
 
-        # loss between the hard negative and easy negative
-        mask = torch.zeros_like(dot_product)
-        for i in range(self.topk):
-            mask[range(batch_size), range(i, len(rid), self.topk)] = 1.
-
-        loss2 = 0. 
-        for i in range(1, self.topk):
-            index = []
-            for i_bsz in range(batch_size):
-                index_ = list(range(len(rid)))
-                for k in range(self.topk):
-                    if k != i:
-                        index_.remove(i_bsz*self.topk+k)
-                index.append(index_)
-            index = torch.tensor(index).cuda()
-            dp = dot_product.gather(1, index)
-            mask_ = mask.gather(1, index)
-            loss_ = F.log_softmax(dp, dim=-1) * mask_
-            loss2 += (-loss_.sum(dim=1)).mean()
-        loss2 /= (self.topk-1)
-
         # acc
         acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(0, len(rid), self.topk)).cuda()).sum().item()
         acc = acc_num / batch_size
-
-        loss += self.alpha * loss2
 
         return loss, acc
 

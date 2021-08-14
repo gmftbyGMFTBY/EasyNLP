@@ -198,3 +198,24 @@ def replacement(ids, replace_ratio=0.15, min_replace_num=2, vocab_size=0, specia
             replace_label.append(i)
     pert_label = [-1 if i == -1 else 2 for i in replace_label]
     return new_ids, replace_label, pert_label
+
+
+def mask_sentence_only_mask(
+        ids, min_mask_num, max_mask_num, masked_lm_prob, 
+        special_tokens=[], mask=-1, vocab_size=21128,
+    ):
+    '''change the ids, and return the mask_label'''
+    num_valid = len([i for i in ids if i not in special_tokens])
+    num_mask = max(
+        min_mask_num,
+        min(
+            int(masked_lm_prob * num_valid),
+            max_mask_num,
+        )
+    )
+
+    mask_pos = [idx for idx, i in enumerate(ids) if i not in special_tokens]
+    mask_idx = random.sample(mask_pos, num_mask)
+    for idx, i in enumerate(ids):
+        if idx in mask_idx:
+            ids[idx] = mask

@@ -29,7 +29,8 @@ train:
         R10@1: 35.
     checkpoint: 
         # path: bert-post/best_nspmlm.pt
-        path: bert-fp/best_bert-base-chinese.pt
+        # path: bert-fp/best_bert-base-chinese.pt
+        path: bert-fp-mono/best_bert-base-chinese.pt
         # path: simcse/best_bert-base-chinese.pt
         is_load: true
 

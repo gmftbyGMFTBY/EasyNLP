@@ -34,7 +34,7 @@ class PipelineEvaluationAgent:
     def work(self, batch, topk=None):
         assert len(batch) == 1
         # recall
-        candidates, _ = self.recallagent.work(batch, topk=self.recallagent.whole_size)
+        candidates, _ = self.recallagent.work(batch, topk=topk)
         
         # re-packup
         r = [i['text'] for i in candidates[0]]

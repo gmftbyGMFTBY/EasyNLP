@@ -344,3 +344,120 @@ class BERTDualInferenceWithTestDataset(Dataset):
             'mask': rid_mask, 
             'text': rid_text
         }
+
+class BERTDualInferenceFullWithTestDataset(Dataset):
+
+    '''all the in-dataset response'''
+    
+    def __init__(self, vocab, path, **args):
+        self.args = args
+        self.vocab = vocab
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        suffix = args['tokenizer'].replace('/', '_')
+        self.pp_path = f'{os.path.split(path)[0]}/inference_full_with_test_{suffix}.pt'
+        if os.path.exists(self.pp_path):
+            self.data = torch.load(self.pp_path)
+            print(f'[!] load preprocessed file from {self.pp_path}')
+            return None
+        responses = read_response_data_full(path, lang=self.args['lang'], turn_length=5)
+        # add the test dataset
+        test_path = f'{os.path.split(path)[0]}/test.txt'
+        test_responses = read_response_data_test(test_path, lang=self.args['lang'])
+        test_responses = list(set(test_responses))
+        responses += test_responses
+        responses = list(set(responses))
+        print(f'[!] load {len(responses)} responses for inference finally')
+
+        self.data = []
+        for res in tqdm(responses):
+            rids = length_limit_res(self.vocab.encode(res), self.args['max_len'], sep=self.sep)
+            self.data.append({
+                'ids': rids, 
+                'text': res
+            })
+                
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, i):
+        bundle = self.data[i]
+        rid = torch.LongTensor(bundle['ids'])
+        rid_text = bundle['text']
+        return rid, rid_text
+
+    def save(self):
+        data = torch.save(self.data, self.pp_path)
+        print(f'[!] save preprocessed dataset into {self.pp_path}')
+        
+    def collate(self, batch):
+        rid = [i[0] for i in batch]
+        rid_text = [i[1] for i in batch]
+        rid = pad_sequence(rid, batch_first=True, padding_value=self.pad)
+        rid_mask = generate_mask(rid)
+        rid, rid_mask = to_cuda(rid, rid_mask)
+        return {
+            'ids': rid, 
+            'mask': rid_mask, 
+            'text': rid_text
+        }
+
+        
+class BERTDualInferenceFullEXTWithTestDataset(Dataset):
+
+    '''all the in-dataset response and out-dataset response'''
+    
+    def __init__(self, vocab, path, **args):
+        self.args = args
+        self.vocab = vocab
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        suffix = args['tokenizer'].replace('/', '_')
+        self.pp_path = f'{os.path.split(path)[0]}/inference_full_ext_with_test_{suffix}.pt'
+        if os.path.exists(self.pp_path):
+            self.data = torch.load(self.pp_path)
+            print(f'[!] load preprocessed file from {self.pp_path}')
+            return None
+        responses = read_response_data_full(path, lang=self.args['lang'], turn_length=5)
+        ext_responses = read_extended_douban_corpus(f'{args["root_dir"]}/data/ext_douban/train.txt')
+        responses += ext_responses
+        # add the test dataset
+        test_path = f'{os.path.split(path)[0]}/test.txt'
+        test_responses = read_response_data_test(test_path, lang=self.args['lang'])
+        test_responses = list(set(test_responses))
+        responses += test_responses
+        responses = list(set(responses))
+        print(f'[!] load {len(responses)} responses for inference')
+
+        self.data = []
+        for res in tqdm(responses):
+            rids = length_limit_res(self.vocab.encode(res), self.args['max_len'], sep=self.sep)
+            self.data.append({
+                'ids': rids, 
+                'text': res
+            })
+                
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, i):
+        bundle = self.data[i]
+        rid = torch.LongTensor(bundle['ids'])
+        rid_text = bundle['text']
+        return rid, rid_text
+
+    def save(self):
+        data = torch.save(self.data, self.pp_path)
+        print(f'[!] save preprocessed dataset into {self.pp_path}')
+        
+    def collate(self, batch):
+        rid = [i[0] for i in batch]
+        rid_text = [i[1] for i in batch]
+        rid = pad_sequence(rid, batch_first=True, padding_value=self.pad)
+        rid_mask = generate_mask(rid)
+        rid, rid_mask = to_cuda(rid, rid_mask)
+        return {
+            'ids': rid, 
+            'mask': rid_mask, 
+            'text': rid_text
+        }

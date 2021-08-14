@@ -24,14 +24,12 @@ class AugmentationAgent(RetrievalBaseAgent):
     @torch.no_grad()
     def inference(self, inf_iter, size=500000):
         self.model.eval()
-        results = []
+        contexts, responses, results = [], [], []
         for batch in tqdm(inf_iter):
-            ids = batch['ids']
-            ids_mask = batch['mask']
-            responses = batch['response']
-            contexts = batch['context']
-            indexes = batch['index']
-            res = self.model(ids, ids_mask)
-            for c, r, i, re in zip(contexts, responses, indexes, res):
-                results.append([c, r, i, re])
-        torch.save(results, f'{args["root_dir"]}/data/{args["dataset"]}/train_bert_mask_da.pt')
+            response = batch['response']
+            context = batch['context']
+            rest = self.model(batch)
+            contexts.extend(context)
+            responses.extend(response)
+            results.extend(rest)
+        torch.save((contexts, responses, results), f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_bert_mask_da_{self.args["local_rank"]}.pt')

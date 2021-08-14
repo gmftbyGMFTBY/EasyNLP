@@ -31,7 +31,7 @@ def init_recall(args):
             f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt',
             path_source_corpus=path_source_corpus
         )
-        # searcher.move_to_gpu(device=0)
+        searcher.move_to_gpu(device=0)
         print(f'[!] load faiss over')
         agent = load_model(args) 
         pretrained_model_name = args['pretrained_model'].replace('/', '_')
