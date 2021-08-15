@@ -41,11 +41,14 @@ class GPT2LMIRModel(nn.Module):
 
 class BertFullEmbedding(nn.Module):
     
-    def __init__(self, model='bert-base-chinese'):
+    def __init__(self, model='bert-base-chinese', add_tokens=1):
         super(BertFullEmbedding, self).__init__()
         self.model = BertModel.from_pretrained(model)
         # bert-fp checkpoint has the special token: [EOS]
-        self.model.resize_token_embeddings(self.model.config.vocab_size + 1)
+        self.resize(add_tokens)
+
+    def resize(self, num):
+        self.model.resize_token_embeddings(self.model.config.vocab_size + num)
 
     def forward(self, ids, attn_mask, speaker_type_ids=None):
         # return: [B, S, E]

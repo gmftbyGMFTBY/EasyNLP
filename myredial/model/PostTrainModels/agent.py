@@ -30,9 +30,6 @@ class PostTrainAgent(RetrievalBaseAgent):
     def train_model(self, train_iter, test_iter, recoder=None, idx_=0):
         self.model.train()
 
-        if idx_ == 0 and self.args['model'] in ['dual-bert-pt']:
-            train_iter.dataset._set_mlm_prob_delta(self.args['total_step'])
-
         total_loss, batch_num = 0, 0
         total_mlm_loss, total_cls_loss = 0, 0
         total_cls_acc, total_mlm_acc = 0, 0
@@ -68,9 +65,6 @@ class PostTrainAgent(RetrievalBaseAgent):
             recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_cls_acc/batch_num, idx)
             recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', cls_acc, idx)
             pbar.set_description(f'[!] loss: {round(total_cls_loss/batch_num, 2)}|{round(total_mlm_loss/batch_num, 2)}; acc: {round(100*total_cls_acc/batch_num, 2)}|{round(100*total_mlm_acc/batch_num, 2)}')
-            # update the mlm prob
-            if self.args['model'] in ['dual-bert-pt']:
-                train_iter.dataset._update_mlm_prob_delta()
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/CLSLoss', total_cls_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/MLMLoss', total_mlm_loss/batch_num, idx_)

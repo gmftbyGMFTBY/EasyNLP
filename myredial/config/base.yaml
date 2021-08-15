@@ -94,6 +94,12 @@ models:
         dataset_name: BERTDualBertMaskHardNegativeDataset
         # inference_dataset_name: BERTDualInferenceDataset
         inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
+    dual-bert-proj: 
+        type: Representation
+        model_name: BERTDualHNProjEncoder
+        dataset_name: BERTDualBertMaskHardNegativeDataset
+        # inference_dataset_name: BERTDualInferenceDataset
+        inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
     dual-bert: 
         type: Representation
         model_name: BERTDualEncoder
@@ -281,7 +287,7 @@ deploy:
     res_max_len: 64
     recall:
         activate: false
-        model: dual-bert-hn
+        model: dual-bert-proj
         # default topk
         topk: 100
         # only the arxiv, writer dataset need the with_source
@@ -291,7 +297,7 @@ deploy:
         index_type: Flat
         index_nprobe: 1
         # index_type: Flat
-        dimension: 768
+        dimension: 1024
     rerank:
         activate: false
         model: null

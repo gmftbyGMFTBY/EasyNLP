@@ -216,6 +216,11 @@ def mask_sentence_only_mask(
 
     mask_pos = [idx for idx, i in enumerate(ids) if i not in special_tokens]
     mask_idx = random.sample(mask_pos, num_mask)
+    mask_label = []
     for idx, i in enumerate(ids):
         if idx in mask_idx:
             ids[idx] = mask
+            mask_label.append(i)
+        else:
+            mask_label.append(-1)
+    return mask_label
