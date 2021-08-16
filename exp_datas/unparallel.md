@@ -107,12 +107,13 @@ The corpus is the responses in the train set.
 
 | Methods | R@1000 | R@500 | R@100 | R@50 | MRR |
 | ------- | ------ | ----- | ----- | ---- | --- |
-| dual-bert | 0.3268       | 0.2729      | 0.1759     | 0.1471     | 0.0513   |
+| dual-bert | 0.4908       | 0.4098      | 0.2614     | 0.2157     | 0.0692   |
 | dual-bert-all-mono | 0.4929       | 0.4056      | 0.2572     | 0.2031     | 0.075   |
 | dual-bert-all | 0.5038       |  0.4298     | 0.2624     | 0.2076     | 0.0684   |
 | dual-bert-all-extout | 0.521       |  0.443     | 0.2778     | 0.2144     | 0.0705   |
 | dual-bert-all-mono-out-dataset(35) | 0.1332       |  0.0998     | 0.0535     | 0.042     | 0.0118   |
 | dual-bert-all-out-dataset | 0.2209       |  0.1623     | 0.0899     | 0.0675     | 0.0172   |
+| dual-bert-all-bm25-neg-out-dataset | 0.2058       |  0.1543     | 0.0768     | 0.055     | 0.0129   |
 | dual-bert-out-dataset | 0.1645       |  0.1151     | 0.0578     | 0.0395     | 0.0118   |
 | dual-bert-bert-mask-aug-out-dataset | 0.2531       |  0.1932     | 0.0937     | 0.0714     | 0.0201   |
 | dual-bert-proj-bert-mask-aug-out-dataset | 0.0798      |  0.0552     | 0.0193     | 0.015     | 0.002   |

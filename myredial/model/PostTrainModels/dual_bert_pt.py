@@ -16,8 +16,8 @@ class BERTDualPTEncoder(nn.Module):
         self.vocab = BertTokenizer.from_pretrained(model)
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
-        cid_reps = self.ctx_encoder(cid_mask_ids, cid_mask)    # [B, S, E]
-        rid_reps = self.can_encoder(rid_mask_ids, rid_mask)    # [B, S, E]
+        cid_reps = self.ctx_encoder(cid, cid_mask)    # [B, S, E]
+        rid_reps = self.can_encoder(rid, rid_mask)    # [B, S, E]
         cid_rep, rid_rep = cid_reps[:, 0, :], rid_reps[:, 0, :]
         return cid_rep, rid_rep, cid_reps, rid_reps
 

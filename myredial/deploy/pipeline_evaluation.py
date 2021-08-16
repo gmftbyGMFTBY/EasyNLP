@@ -69,6 +69,6 @@ class PipelineEvaluationAgent:
         mrr = sum_p / count_1 if count_1 > 0 else 0
         self.collection['MRR'].append(mrr)
 
-        return [candidate[0]]
+        return [candidate[0]], [mrr]
 
 

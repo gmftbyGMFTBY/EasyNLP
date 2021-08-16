@@ -182,8 +182,9 @@ def load_sentences(path, lang='zh'):
                 continue
             if lang == 'zh':
                 utterances = [''.join(i.split()) for i in utterances]
-            a = utterances[-1]
-            dataset.append(a)
+            # dataset.append(utterances[-1])
+            dataset.extend(utterances)
+
     return dataset
 
 

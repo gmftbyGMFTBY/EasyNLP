@@ -3,6 +3,7 @@ rank: null
 gray_cand_num: 5
 proj_dim: 1024
 dropout: 0.1
+multi_layer: 2
 
 # train configuration
 train:

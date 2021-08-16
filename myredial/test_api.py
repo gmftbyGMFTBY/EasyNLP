@@ -33,6 +33,7 @@ def load_pipeline_data(path, size=1000):
         for label, utterances in session:
             if label == 1:
                 cache.append(utterances[-1])
+        # NOTE:
         dataset.append({
             'ctx': utterances[:-1],
             'res': cache
@@ -311,7 +312,8 @@ if __name__ == '__main__':
                 for item in data:
                     string = '\t'.join(item['context'])
                     f.write(f'[Context ] {string}\n')
-                    f.write(f'[Response] {item["response"]}\n\n')
+                    f.write(f'[Response] {item["response"]}\n')
+                    f.write(f'[MRR Metric] {item["mrr"]}\n\n')
             elif args['mode'] == 'recall':
                 for item in data:
                     f.write(f'[Context] {item["context"]}\n')

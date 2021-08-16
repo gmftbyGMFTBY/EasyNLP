@@ -19,11 +19,13 @@ datasets:
 tokenizer:
     # zh: hfl/chinese-roberta-wwm-ext
     zh: bert-base-chinese
+    # zh: hfl/chinese-bert-wwm-ext
     en: bert-base-uncased
 
 pretrained_model:
     # zh: hfl/chinese-roberta-wwm-ext
     zh: bert-base-chinese
+    # zh: hfl/chinese-bert-wwm-ext
     en: bert-base-uncased
 
 # the number of the gray negative samples (writer dataset)
@@ -91,13 +93,14 @@ models:
         type: Representation
         model_name: BERTDualHNEncoder
         # dataset_name: BERTDualHNDataset
-        dataset_name: BERTDualBertMaskHardNegativeDataset
+        # dataset_name: BERTDualBertMaskHardNegativeDataset
+        dataset_name: BERTDualFullWithHardNegDataset
         # inference_dataset_name: BERTDualInferenceDataset
         inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
     dual-bert-proj: 
         type: Representation
         model_name: BERTDualHNProjEncoder
-        dataset_name: BERTDualBertMaskHardNegativeDataset
+        # dataset_name: BERTDualBertMaskHardNegativeDataset
         # inference_dataset_name: BERTDualInferenceDataset
         inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
     dual-bert: 
@@ -116,9 +119,9 @@ models:
         # dataset_name: BERTDualFullWithSelfPlayDataset
         # dataset_name: BERTDualFullPseudoDataset
         # inference_dataset_name: BERTDualInferenceDataset
-        # inference_dataset_name: BERTDualInferenceWithTestDataset
+        inference_dataset_name: BERTDualInferenceWithTestDataset
         # inference_dataset_name: BERTDualInferenceFullWithTestDataset
-        inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
+        # inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
         # inference_dataset_name: BERTDualInferenceWithSourceDataset
         # inference_dataset_name: BERTDualInferenceFullDataset
         # inference_dataset_name: BERTDualInferenceFullEXTDataset
@@ -287,7 +290,7 @@ deploy:
     res_max_len: 64
     recall:
         activate: false
-        model: dual-bert-proj
+        model: dual-bert
         # default topk
         topk: 100
         # only the arxiv, writer dataset need the with_source
@@ -297,7 +300,7 @@ deploy:
         index_type: Flat
         index_nprobe: 1
         # index_type: Flat
-        dimension: 1024
+        dimension: 768
     rerank:
         activate: false
         model: null

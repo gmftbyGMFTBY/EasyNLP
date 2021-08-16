@@ -109,6 +109,18 @@ def read_text_data_utterances_compare_test(path, lang='zh', size=10):
     return dataset
 
 
+def read_json_data_from_gray_file(path):
+    with open(path) as f:
+        dataset = []
+        for line in tqdm(f.readlines()):
+            item = json.loads(line.strip())
+            context, response = item['q'], item['r']
+            hn = item['nr']
+            dataset.append((context, response, hn))
+        print(f'[!] collect {len(dataset)} samples')
+    return dataset
+
+
 def read_text_data_utterances_compare(path, lang='zh'):
     '''read from the train_gray dataset''' 
     with open(path) as f:

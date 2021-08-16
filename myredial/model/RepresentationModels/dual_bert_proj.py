@@ -8,35 +8,24 @@ class BERTDualHNProjEncoder(nn.Module):
         super(BERTDualHNProjEncoder, self).__init__()
         model = args['pretrained_model']
         self.topk = args['gray_cand_num'] + 1
-        self.ctx_encoder = BertEmbedding(model=model, add_tokens=1)
-        self.can_encoder = BertEmbedding(model=model, add_tokens=1)
-        proj_dim = args['proj_dim']
-        self.ctx_head = nn.Sequential(
-            nn.Dropout(p=args['dropout']) ,
-            nn.Linear(768, proj_dim)
-        )
-        self.res_head = nn.Sequential(
-            nn.Dropout(p=args['dropout']) ,
-            nn.Linear(768, proj_dim)
-        )
+        ml = args['multi_layer']
+        self.ctx_encoder = BertMLEmbedding(model=model, add_tokens=1, topk_layer_num=ml)
+        self.can_encoder = BertMLEmbedding(model=model, add_tokens=1, topk_layer_num=ml)
         self.args = args
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
         rid_rep = self.can_encoder(rid, rid_mask)
-        cid_rep, rid_rep = self.ctx_head(cid_rep), self.res_head(rid_rep)
         return cid_rep, rid_rep
 
     @torch.no_grad()
     def get_cand(self, ids, attn_mask):
         rid_rep = self.can_encoder(ids, attn_mask)
-        rid_rep = self.res_head(rid_rep)
         return rid_rep
 
     @torch.no_grad()
     def get_ctx(self, ids, attn_mask):
         cid_rep = self.ctx_encoder(ids, attn_mask)
-        cid_rep = self.ctx_head(cid_rep)
         return cid_rep
 
     @torch.no_grad()
