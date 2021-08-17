@@ -81,6 +81,7 @@ ISN means the inner session negative (hard negative)
 | ------------------ | ----- | ----- | ----- | ----- | ----- | ------ | --------- |
 | BERT-FP            | 49.32 | 69.89 | 91.86 | 70.81 | 54.55 | 69.8   | 21150.52  |
 | dual-bert+full     | 56.76 | 73.92 | 93.98 | 76.06 | 62.83 | 74.87  | 24070.67  |
+| dual-bert-pos+full     | 55.72 | 75.33 | 94.54 | 75.67 | 61.52 | 74.5  | 24070.67  |
 | dual-bert+full(fp-mono)     | 57.34 | 74.85 | 93.97 | 76.46 | 63.43 | 75.25  | 24070.67  |
 | dual-bert+full(fp-mono-35)     | 57.11 | 75.15 | 93.9 | 76.29 | 63.13 | 75.15  | 24070.67  |
 | dual-bert+compfull     | 57.1 | 74.57 | 94.35 | 76.37 | 63.23 | 75.14  | 24070.67  |
@@ -113,6 +114,7 @@ The corpus is the responses in the train set.
 | dual-bert-all-extout | 0.521       |  0.443     | 0.2778     | 0.2144     | 0.0705   |
 | dual-bert-all-mono-out-dataset(35) | 0.1332       |  0.0998     | 0.0535     | 0.042     | 0.0118   |
 | dual-bert-all-out-dataset | 0.2209       |  0.1623     | 0.0899     | 0.0675     | 0.0172   |
+| dual-bert-pos-all-out-dataset | 0.2264       |  0.1704     | 0.0895     | 0.0712     | 0.0214   |
 | dual-bert-all-bm25-neg-out-dataset | 0.2058       |  0.1543     | 0.0768     | 0.055     | 0.0129   |
 | dual-bert-out-dataset | 0.1645       |  0.1151     | 0.0578     | 0.0395     | 0.0118   |
 | dual-bert-bert-mask-aug-out-dataset | 0.2531       |  0.1932     | 0.0937     | 0.0714     | 0.0201   |

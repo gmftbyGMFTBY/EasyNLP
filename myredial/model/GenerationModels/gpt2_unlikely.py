@@ -2,12 +2,13 @@ from model.utils import *
 from .utils import *
 
 
-class GPT2Model(nn.Module):
+class GPT2UnlikelyModel(nn.Module):
 
     def __init__(self, **args):
-        super(GPT2Model, self).__init__()
+        super(GPT2UnlikelyModel, self).__init__()
         model = args['pretrained_model']
-        self.model = GPT2LMHeadModel.from_pretrained(model)
+        self.model = GPT2Model.from_pretrained(model)
+        self.decoder = BertGenerationDecoder.from_pretrained(model)
         # pad token is 0
         self.gen_loss_fct = nn.CrossEntropyLoss(ignore_index=0)
         self.vocab = BertTokenizerFast.from_pretrained(model)
@@ -58,8 +59,12 @@ class GPT2Model(nn.Module):
         ids_mask = batch['mask']
 
         batch_size = ids.shape[0]
-        # [B, S, V]
-        gen_logits = self.model(input_ids=ids, attention_mask=ids_mask)
+        # [B, S, E]
+        gen_embeds = self.model(input_ids=ids, attention_mask=ids_mask)
+        gen_logits = self.decoder(    
+            attention_mask=ids_mask,
+            inputs_embeds=gen_embeds,
+        )
         gen_logits = gen_logits.logits
 
         # generative loss
@@ -77,4 +82,18 @@ class GPT2Model(nn.Module):
         valid_mask = (shift_labels != 0).view(-1)
         valid_tokens = gen_acc & valid_mask
         gen_acc = valid_tokens.sum().item() / valid_mask.sum().item()
+
+        # negative: unlikelyhood
+        gen_logits = self.model(input_ids=nids, attention_mask=nids_mask)
+        gen_logits = gen_logits.logits
+
+        # generative loss
+        # gen_logits: [B, S, V]; label: [B, S]
+        shift_logits = gen_logits[..., :-1, :].contiguous()
+        shift_labels = ids[..., 1:].contiguous()
+        loss_penalty = self.gen_loss_fct(
+            shift_logits.view(-1, shift_logits.size(-1)), 
+            shift_labels.view(-1)
+        )
+        loss -= loss_penalty
         return loss, gen_acc

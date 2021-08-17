@@ -13,15 +13,19 @@ def create_app():
     if rerank_args['activate']:
         rerankagent = RerankAgent(rerank_args)
         print(f'[!] Rerank agent activate')
+        rerank_logger = init_logging(rerank_args)
     if recall_args['activate']:
         recallagent = RecallAgent(recall_args)
         print(f'[!] Recall agent activate')
+        recall_loggeer = init_logging(recall_args)
     if pipeline_args['activate']:
         pipelineagent = PipelineAgent(pipeline_args)
         print(f'[!] Pipeline agent activate')
+        pipeline_logger = init_logging(pipeline_args, pipeline=True)
     if pipeline_evaluation_args['activate']:
-        pipelineevaluationagent = PipelineEvaluationAgent(pipeline_args)
+        pipelineevaluationagent = PipelineEvaluationAgent(pipeline_evaluation_args)
         print(f'[!] Pipeline evaluation agent activate')
+        pipeline_evaluation_logger = init_logging(pipeline_evaluation_args, pipeline=True)
     
     @app.route('/pipeline_evaluation', methods=['POST'])
     def pipeline_evaluation_api():
@@ -82,6 +86,10 @@ def create_app():
                 result['results'][name] = value
         else:
             result['item_list'] = None
+
+        # log
+        push_to_log(result, pipeline_evaluation_logger)
+
         return jsonify(result)
     
     @app.route('/pipeline', methods=['POST'])
@@ -136,6 +144,8 @@ def create_app():
             result['item_list'] = rest
         else:
             result['item_list'] = None
+        # log
+        push_to_log(result, pipeline_logger)
         return jsonify(result)
 
     @app.route('/rerank', methods=['POST'])
@@ -208,6 +218,8 @@ def create_app():
             result['item_list'] = rest_
         else:
             result['item_list'] = None
+        # log
+        push_to_log(result, rerank_logger)
         return jsonify(result)
 
     @app.route('/recall', methods=['POST'])
@@ -274,6 +286,8 @@ def create_app():
             result['item_list'] = rest
         else:
             result['item_list'] = None
+        # log
+        push_to_log(result, recall_logger)
         return jsonify(result)
 
     return app

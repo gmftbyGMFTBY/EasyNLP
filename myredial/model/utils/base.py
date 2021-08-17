@@ -185,29 +185,57 @@ class RetrievalBaseAgent:
     def rerank(self, contexts, candidates):
         raise NotImplementedError
 
-    def totensor(self, texts, ctx=True):
+    def totensor(self, texts, ctx=True, position=False):
         if ctx:
             if type(texts[0]) == list:
-                ids = []
-                for text in texts:
-                    item = self.vocab.batch_encode_plus(text, add_special_tokens=False)['input_ids']
-                    context = []
-                    for u in item:
-                        context.extend(u+[self.eos])
-                    context.pop()
-                    context = context[-(self.args['max_len']-2):]
-                    context = [self.cls] + context + [self.sep]
-                    ids.append(torch.LongTensor(context))
+                if position is False:
+                    ids = []
+                    for text in texts:
+                        item = self.vocab.batch_encode_plus(text, add_special_tokens=False)['input_ids']
+                        context = []
+                        for u in item:
+                            context.extend(u+[self.eos])
+                        context.pop()
+                        context = context[-(self.args['max_len']-2):]
+                        context = [self.cls] + context + [self.sep]
+                        ids.append(torch.LongTensor(context))
+                else:
+                    ids = []
+                    pos_w = []
+                    for text in texts:
+                        item = self.vocab.batch_encode_plus(text, add_special_tokens=False)['input_ids']
+                        context = []
+                        pos = []
+                        w = self.args['min_w']
+                        for u in item:
+                            context.extend(u+[self.eos])
+                            pos.extend([w]*(len(u)+1))
+                            w += self.args['w_delta']
+                        context.pop()
+                        pos.pop()
+                        context = context[-(self.args['max_len']-2):]
+                        pos = pos[-(self.args['max_len']-2):]
+                        context = [self.cls] + context + [self.sep]
+                        pos = [self.args['min_w']] + pos + [w - self.args['w_delta']]
+                        ids.append(torch.LongTensor(context))
+                        pos_w.append(torch.tensor(pos))
             else:
                 items = self.vocab.batch_encode_plus(texts)['input_ids']
                 ids = [torch.LongTensor(length_limit(i, self.args['max_len'])) for i in items]
         else:
             items = self.vocab.batch_encode_plus(texts)['input_ids']
             ids = [torch.LongTensor(length_limit_res(i, self.args['res_max_len'], sep=self.sep)) for i in items]
-        ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
-        mask = generate_mask(ids)
-        ids, mask = to_cuda(ids, mask)
-        return ids, mask
+        if position is False:
+            ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+            mask = generate_mask(ids)
+            ids, mask = to_cuda(ids, mask)
+            return ids, mask
+        else:
+            ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+            mask = generate_mask(ids)
+            pos_w = pad_sequence(pos_w, batch_first=True, padding_value=0.)
+            ids, mask, pos_w = to_cuda(ids, mask, pos_w)
+            return ids, mask, pos_w
 
     def totensor_interaction(self, ctx_, responses_):
         '''for Interaction Models'''

@@ -479,8 +479,12 @@ class RepresentationAgent(RetrievalBaseAgent):
     @torch.no_grad()
     def encode_queries(self, texts):
         self.model.eval()
-        ids, ids_mask = self.totensor(texts, ctx=True)
-        vectors = self.model.get_ctx(ids, ids_mask)    # [B, E]
+        if self.args['model'] in ['dual-bert-pos']:
+            ids, ids_mask, pos_w = self.totensor(texts, ctx=True, position=True)
+            vectors = self.model.get_ctx(ids, ids_mask, pos_w)    # [B, E]
+        else:
+            ids, ids_mask = self.totensor(texts, ctx=True)
+            vectors = self.model.get_ctx(ids, ids_mask)    # [B, E]
         return vectors.cpu().numpy()
 
     @torch.no_grad()

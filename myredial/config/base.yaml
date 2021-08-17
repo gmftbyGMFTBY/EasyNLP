@@ -93,16 +93,23 @@ models:
         type: Representation
         model_name: BERTDualHNEncoder
         # dataset_name: BERTDualHNDataset
-        # dataset_name: BERTDualBertMaskHardNegativeDataset
-        dataset_name: BERTDualFullWithHardNegDataset
+        dataset_name: BERTDualBertMaskHardNegativeDataset
+        # dataset_name: BERTDualFullWithHardNegDataset
         # inference_dataset_name: BERTDualInferenceDataset
-        inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
+        # inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
+        inference_dataset_name: BERTDualInferenceWithTestDataset
     dual-bert-proj: 
         type: Representation
         model_name: BERTDualHNProjEncoder
         # dataset_name: BERTDualBertMaskHardNegativeDataset
         # inference_dataset_name: BERTDualInferenceDataset
         inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
+    dual-bert-pos:
+        type: Representation
+        model_name: BERTDualPositionWeightEncoder
+        dataset_name: BERTDualFullWithPositionWeightDataset
+        inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
+        # inference_dataset_name: BERTDualInferenceWithTestDataset
     dual-bert: 
         type: Representation
         model_name: BERTDualEncoder
