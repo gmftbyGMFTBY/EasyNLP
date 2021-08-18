@@ -313,6 +313,41 @@ def main_recall(**args):
                 f.write('\n')
 
 
+def main_rerank_fg(**args):
+    '''whether to use the rerank model'''
+    args['mode'] = 'test'
+    new_args = deepcopy(args)
+    config = load_config(args)
+    args.update(config)
+
+    if args['model'] in args['no_test_models']:
+        print(f'[!] model {args["model"]} doesn"t support test')
+        return
+    
+    random.seed(args['seed'])
+    torch.manual_seed(args['seed'])
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args['seed'])
+
+    test_data, test_iter, _ = load_dataset(args)
+    agent = load_model(args)
+    
+    pretrained_model_name = args['pretrained_model'].replace('/', '_')
+    save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}.pt'
+    agent.load_model(save_path)
+    collections = agent.test_model_fg(test_iter, print_output=True)
+    for name in collections:
+        sbm_scores, weighttau_scores = [], []
+        for label, score in collections[name]:
+            r1 = [(i, j) for i, j in zip(range(len(label)), label)]
+            r1 = [i for i, j in sorted(r1, key=lambda x: x[1], reverse=True)]
+            r2 = [(i, j) for i, j in zip(range(len(score)), score)]
+            r2 = [i for i, j in sorted(r2, key=lambda x: x[1], reverse=True)]
+            sbm_scores.append(SBM(r1, r2))
+            weighttau_scores.append(kendalltau_score(r1, r2))
+        print(f'[!] Set Based Metric of Annotator {name}: {round(np.mean(sbm_scores), 4)}')
+        print(f'[!] Weighted Kendall Tau of Annotator {name}: {round(np.mean(weighttau_scores), 4)}')
+
 if __name__ == "__main__":
     args = vars(parser_args())
     if args['mode'] == 'recall':
@@ -322,6 +357,8 @@ if __name__ == "__main__":
         main_es_recall(**args)
     elif args['mode'] == 'rerank':
         main_rerank(**args)
+    elif args['mode'] == 'fg_rerank':
+        main_rerank_fg(**args)
     elif args['mode'] == 'compare':
         main_compare(**args)
     else:

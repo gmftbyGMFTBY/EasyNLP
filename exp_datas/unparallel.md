@@ -190,6 +190,15 @@ ATC means the average time cost
 | BM25(top=100)+BERT-FP | 168504.7786 |
 | dual-bert+all(full-rank) | 211419.1337 |
 
+### 5.3 Fine-grained test results
+
+|   Methods   | SBM lt | Weight Kendall Tau lt | SBM brandenwang | Weight Kendall Tau brandenwang |
+| ----------- | --------- | ------------------ | ------- | ------ |
+| dual-bert   | 0.6892    | 0.25               | 0.6727  | 0.1931 |
+| dual-bert-full | 0.6811 | 0.1786             | 0.6788  | 0.2243 |
+| dual-bert-pos | 0.6739  | 0.1553             | 0.6681  | 0.196  |
+| dual-bert-hn-pos  | 0.6983 | 0.2329          | 0.6914  | 0.2152 |
+
 
 ## 6. How to reproduce our results
 

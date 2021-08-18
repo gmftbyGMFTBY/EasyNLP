@@ -29,6 +29,7 @@ class AugmentationAgent(RetrievalBaseAgent):
             response = batch['response']
             context = batch['context']
             rest = self.model(batch)
+            assert len(rest) == len(context) == len(response)
             contexts.extend(context)
             responses.extend(response)
             results.extend(rest)

@@ -21,11 +21,19 @@ class BERTMaskAugmentationModel(nn.Module):
         self.mask = self.vocab.convert_tokens_to_ids(['[MASK]'])[0]
         self.pad = self.vocab.convert_tokens_to_ids(['[PAD]'])[0]
         self.da_num = args['augmentation_t']
-
+    
     @torch.no_grad()
     def forward(self, batch):
         inpt = batch['ids']
         rest = []
+
+        if batch['full'] is False:
+            response = batch['response']
+        else:
+            response = []
+            for res, l in zip(batch['response'], batch['length']):
+                response.extend([res] * l)
+
         for _ in range(self.da_num):
             ids = []
             for i in deepcopy(inpt):
@@ -40,12 +48,20 @@ class BERTMaskAugmentationModel(nn.Module):
                 input_ids=ids,
                 attention_mask=mask,
             )[0]    # [B, S, V]
-            sent = self.generate_text(ids, F.softmax(logits, dim=-1), batch['response'])    # [B] list
+            sent = self.generate_text(ids, F.softmax(logits, dim=-1), response)    # [B] list
             rest.append(sent)
-        # rest: K*[B]
-        rest_ = []
-        for i in range(len(batch['response'])):
-            rest_.append([item[i] for item in rest])
+        # rest: K*[B] -> B*[K]
+        if batch['full'] is False:
+            rest_ = []
+            for i in range(len(batch['response'])):
+                rest_.append([item[i] for item in rest])
+        else:
+            idx, length = 0, batch['length']
+            rest_ = []
+            for i in range(len(batch['context'])):
+                l = length[i]
+                rest_.append(list(chain(*[item[idx:idx+l] for item in rest])))
+                idx += l
         return rest_
 
     def generate_text(self, ids, logits, responses):

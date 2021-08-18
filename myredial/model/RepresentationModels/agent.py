@@ -479,7 +479,7 @@ class RepresentationAgent(RetrievalBaseAgent):
     @torch.no_grad()
     def encode_queries(self, texts):
         self.model.eval()
-        if self.args['model'] in ['dual-bert-pos']:
+        if self.args['model'] in ['dual-bert-pos', 'dual-bert-hn-pos']:
             ids, ids_mask, pos_w = self.totensor(texts, ctx=True, position=True)
             vectors = self.model.get_ctx(ids, ids_mask, pos_w)    # [B, E]
         else:
@@ -574,3 +574,31 @@ class RepresentationAgent(RetrievalBaseAgent):
             new_state_dict = self.checkpointadapeter.convert(state_dict)
             self.model.load_state_dict(new_state_dict)
         print(f'[!] load model from {path}')
+    
+    @torch.no_grad()
+    def test_model_fg(self, test_iter, print_output=False, rerank_agent=None):
+        self.model.eval()
+        pbar = tqdm(test_iter)
+        collection = {}
+        for idx, batch in enumerate(pbar):                
+            owner = batch['owner']
+            label = batch['label']
+            cid = batch['ids'].unsqueeze(0)
+            cid_mask = torch.ones_like(cid)
+            batch['ids'] = cid
+            batch['ids_mask'] = cid_mask
+            scores = self.model.predict(batch).cpu().tolist()    # [7]
+            # print output
+            if print_output:
+                ctext = self.convert_to_text(batch['ids'].squeeze(0))
+                self.log_save_file.write(f'[CTX] {ctext}\n')
+                for rid, score in zip(batch['rids'], scores):
+                    rtext = self.convert_to_text(rid)
+                    score = round(score, 4)
+                    self.log_save_file.write(f'[Score {score}] {rtext}\n')
+                self.log_save_file.write('\n')
+            if owner in collection:
+                collection[owner].append((label, scores))
+            else:
+                collection[owner] = [(label, scores)]
+        return collection

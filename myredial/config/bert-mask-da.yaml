@@ -5,7 +5,7 @@ pretrained_model:
 # inference configuration
 inference:
     seed: 0
-    batch_size: 128 
+    batch_size: 256
     res_max_len: 64
     min_len: 2
     min_mask_num: 1

@@ -46,7 +46,8 @@ models:
     bert-mask-da:
         type: Augmentation
         model_name: BERTMaskAugmentationModel
-        inference_dataset_name: BERTMaskAugmentationDataset
+        # inference_dataset_name: BERTMaskAugmentationDataset
+        inference_dataset_name: BERTMaskAugmentationFullDataset
     dual-bert-ml: 
         type: Representation
         model_name: BERTDualMLEncoder
@@ -89,15 +90,24 @@ models:
         model_name: BERTDualHNHierEncoder
         dataset_name: BERTDualHNDataset
         inference_dataset_name: BERTDualInferenceDataset
+    dual-bert-hn-pos:
+        type: Representation
+        model_name: BERTDualHNPosEncoder
+        # dataset_name: BERTDualBertMaskHardNegativeWithPositionWeightDataset
+        dataset_name: FineGrainedTestPositionWeightDataset
+        # inference_dataset_name: BERTDualInferenceDataset
+        inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
+        # inference_dataset_name: BERTDualInferenceWithTestDataset
     dual-bert-hn: 
         type: Representation
         model_name: BERTDualHNEncoder
         # dataset_name: BERTDualHNDataset
         dataset_name: BERTDualBertMaskHardNegativeDataset
+        # dataset_name: FineGrainedTestDataset
         # dataset_name: BERTDualFullWithHardNegDataset
         # inference_dataset_name: BERTDualInferenceDataset
-        # inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
-        inference_dataset_name: BERTDualInferenceWithTestDataset
+        inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
+        # inference_dataset_name: BERTDualInferenceWithTestDataset
     dual-bert-proj: 
         type: Representation
         model_name: BERTDualHNProjEncoder
@@ -107,7 +117,8 @@ models:
     dual-bert-pos:
         type: Representation
         model_name: BERTDualPositionWeightEncoder
-        dataset_name: BERTDualFullWithPositionWeightDataset
+        # dataset_name: BERTDualFullWithPositionWeightDataset
+        dataset_name: FineGrainedTestPositionWeightDataset
         inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
         # inference_dataset_name: BERTDualInferenceWithTestDataset
     dual-bert: 
@@ -118,7 +129,8 @@ models:
         # dataset_name: BERTDualFullFakeCtxDataset
         # dataset_name: BERTDualDataset
         # dataset_name: BERTDualFullWithHardNegDataset
-        dataset_name: BERTDualFullDataset
+        # dataset_name: BERTDualFullDataset
+        dataset_name: FineGrainedTestDataset
         # dataset_name: BERTDualReplaceBadResponseDataset
         # dataset_name: BERTDualFullDACTXDataset
         # dataset_name: BERTDualExtFullDataset
@@ -297,7 +309,7 @@ deploy:
     res_max_len: 64
     recall:
         activate: false
-        model: dual-bert
+        model: dual-bert-hn-pos
         # default topk
         topk: 100
         # only the arxiv, writer dataset need the with_source
