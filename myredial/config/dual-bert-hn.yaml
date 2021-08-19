@@ -12,7 +12,7 @@ train:
     res_max_len: 64
     epoch: 10
     # no wamrup, set 0.0 (BERT-FP and UMS_BERT)
-    warmup_ratio: 0.
+    warmup_ratio: 0.05
     stop_train: false
     stop_train_trigger:
         R10@1: 40.

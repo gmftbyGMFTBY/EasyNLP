@@ -30,9 +30,7 @@ class BERTMaskAugmentationModel(nn.Module):
         if batch['full'] is False:
             response = batch['response']
         else:
-            response = []
-            for res, l in zip(batch['response'], batch['length']):
-                response.extend([res] * l)
+            response = batch['sents']
 
         for _ in range(self.da_num):
             ids = []

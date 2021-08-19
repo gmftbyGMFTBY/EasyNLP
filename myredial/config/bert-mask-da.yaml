@@ -2,7 +2,7 @@ tokenizer:
     zh: bert-base-chinese
 pretrained_model:
     zh: bert-base-chinese
-# inference configuration
+
 inference:
     seed: 0
     batch_size: 256

@@ -211,18 +211,18 @@ class BERTDualHNPosEncoder(nn.Module):
         rid_mask = batch['rids_mask']
         cid_pos = batch['pos_w']
 
-        cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask, cid_pos)
-        dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, B]
+        cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask, cid_pos) 
+        dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B*K, B*2*K]
         batch_size = len(cid_rep)
 
         # constrastive loss
         mask = torch.zeros_like(dot_product)
-        mask[range(batch_size), range(0, len(rid), self.topk)] = 1. 
+        mask[range(batch_size), range(0, len(rid_rep), self.topk)] = 1. 
         loss_ = F.log_softmax(dot_product, dim=-1) * mask
         loss = (-loss_.sum(dim=1)).mean()
 
         # acc
-        acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(0, len(rid), self.topk)).cuda()).sum().item()
+        acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(0, len(rid_rep), self.topk)).cuda()).sum().item()
         acc = acc_num / batch_size
 
         return loss, acc

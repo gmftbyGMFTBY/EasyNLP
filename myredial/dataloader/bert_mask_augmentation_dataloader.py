@@ -86,18 +86,21 @@ class BERTMaskAugmentationFullDataset(Dataset):
                 continue
             item = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']
             rids = []
-            for i in item: 
+            sentences = []
+            for i, s in zip(item, utterances): 
                 i = i[:self.args['res_max_len']-2]
                 num_valid = len([ii for ii in i if ii not in self.special_tokens])
                 if num_valid < self.args['min_len']:
                     continue
                 ids = [self.cls] + i[:self.args['res_max_len']-2] + [self.sep]
                 rids.append(ids)
+                sentences.append(s)
             if rids:
                 self.data.append({
                     'ids': rids,
                     'response': utterances[-1],
                     'context': utterances[:-1],
+                    'sentences': sentences,
                 })
 
     def __len__(self):
@@ -105,7 +108,7 @@ class BERTMaskAugmentationFullDataset(Dataset):
 
     def __getitem__(self, i):
         bundle = self.data[i]
-        return bundle['ids'], bundle['context'], bundle['response']
+        return bundle['ids'], bundle['context'], bundle['response'], bundle['sentences']
 
     def save(self):
         data = torch.save(self.data, self.pp_path)
@@ -113,9 +116,11 @@ class BERTMaskAugmentationFullDataset(Dataset):
         
     def collate(self, batch):
         ids, length = [], []
+        sents = []
         for i in batch:
             ids.extend(i[0])
             length.append(len(i[0]))
+            sents.extend(i[-1])
         context = [i[1] for i in batch]
         response = [i[2] for i in batch]
         return {
@@ -124,4 +129,5 @@ class BERTMaskAugmentationFullDataset(Dataset):
             'response': response,
             'length': length,
             'full': True,
+            'sents': sents,
         }

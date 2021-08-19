@@ -314,7 +314,6 @@ def main_recall(**args):
 
 
 def main_rerank_fg(**args):
-    '''whether to use the rerank model'''
     args['mode'] = 'test'
     new_args = deepcopy(args)
     config = load_config(args)
@@ -331,7 +330,6 @@ def main_rerank_fg(**args):
 
     test_data, test_iter, _ = load_dataset(args)
     agent = load_model(args)
-    
     pretrained_model_name = args['pretrained_model'].replace('/', '_')
     save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}.pt'
     agent.load_model(save_path)

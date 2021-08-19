@@ -18,7 +18,7 @@ train:
     res_max_len: 64
     epoch: 5
     # no wamrup, set 0.0 (BERT-FP and UMS_BERT)
-    warmup_ratio: 0.
+    warmup_ratio: 0.05
     checkpoint: 
         # path: bert-post/best_nspmlm.pt
         path: bert-fp/best_bert-base-chinese.pt
