@@ -23,8 +23,7 @@ def spearman_footrule(r1, r2):
     return sum(scores)
 
 def kendalltau_score(r1, r2):
-    # score, _ = kendalltau(np.array(r1), np.array(r2))
-    score, _ = weightedtau(np.array(r1), np.array(r2))
+    score, _ = weightedtau(np.array(r1), np.array(r2), weigher=lambda x: x)
     return score
 
 

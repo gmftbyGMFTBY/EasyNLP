@@ -109,8 +109,8 @@ models:
         type: Representation
         model_name: BERTDualHNEncoder
         # dataset_name: BERTDualHNDataset
-        dataset_name: BERTDualBertMaskHardNegativeDataset
-        # dataset_name: FineGrainedTestDataset
+        # dataset_name: BERTDualBertMaskHardNegativeDataset
+        dataset_name: FineGrainedTestDataset
         # dataset_name: BERTDualFullWithHardNegDataset
         inference_dataset_name: BERTDualInferenceDataset
         # inference_dataset_name: BERTDualInferenceFullEXTDataset
@@ -257,14 +257,14 @@ models:
         type: Representation
         model_name: BERTDualCompareHNEncoder
         # dataset_name: BERTDualFullDataset
-        # dataset_name: FineGrainedTestDataset
-        dataset_name: BERTDualBertMaskHardNegativeDataset
+        dataset_name: FineGrainedTestDataset
+        # dataset_name: BERTDualBertMaskHardNegativeDataset
         inference_dataset_name: BERTDualInferenceFullEXTDataset
     dual-bert-comp: 
         type: Representation
         model_name: BERTDualCompareEncoder
-        dataset_name: BERTDualFullDataset
-        # dataset_name: FineGrainedTestDataset
+        # dataset_name: BERTDualFullDataset
+        dataset_name: FineGrainedTestDataset
         inference_dataset_name: BERTDualInferenceFullEXTDataset
     dual-bert-compare: 
         type: CompareInteraction

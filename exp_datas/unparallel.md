@@ -107,6 +107,7 @@ ISN means the inner session negative (hard negative)
 | dual-bert-hn-pos(warmup=0.05, epoch=5, gray_cand_num=2, bert-fp-mono, new-pos, original-bert-mask) | 56.93 | 76.2 | 93.57 | 76.38 | 62.93 | 75.29  | 19678.29  |
 | dual-bert-hn-pos(warmup=0.05, epoch=5, gray_cand_num=2, bert-fp-mono, new-pos, original-bert-mask, w_delta=2.0) | 57.15 | 75.2 | 93.75 | 76.41 | 63.13 | 75.3  | 19678.29  |
 | dual-bert-hn-pos(warmup=0.05, epoch=5, gray_cand_num=2, bert-fp-mono, new-pos, original-bert-mask, w_delta=3.0) | 56.84 | 75.24 | 94.31 | 76.24 | 62.73 | 75.1  | 19678.29  |
+| dual-bert-hn-pos(warmup=0.05, epoch=5, gray_cand_num=2, bert-fp-mono, new-pos, original-bert-mask, w_delta=4.0) | 57.38 | 75.51 | 93.8 | 76.49 | 63.33 | 75.44 | 19678.29  |
 | dual-bert-hn(warmup=0.05, epoch=5, gray_cand_num=2) | 57.48 | 74.92 | 93.41 | 76.47 | 63.43 | 75.39  | 19678.29  |
 
 ## 2. Full-rank Comparison Protocol
@@ -203,21 +204,22 @@ ATC means the average time cost
 
 |   Methods   | SBM lt | Weight Kendall Tau lt | SBM brandenwang | Weight Kendall Tau brandenwang | SBM lt2 | WKT lt |
 | ----------- | --------- | ------------------ | ------- | ------ | ---- | ----- |
-| dual-bert   | 0.6892    | 0.25               | 0.6727  | 0.1931 | 0.435  | -0.1882  |
-| dual-bert-full | 0.6811 | 0.1786             | 0.6788  | 0.2243 | 0.4526  | -0.111  |
+| dual-bert   | 0.6892    | 0.2262               | 0.6727  | 0.1761 | 0.435  | -0.1418  |
+| dual-bert-full | 0.6811 | 0.1965             | 0.6788  | 0.2231 | 0.4526  | -0.0878  |
 | dual-bert-full+bert-fp-mono(35) | 0.6916 | 0.2362      | 0.6802  | 0.1645 |  |   |
-| dual-bert-pos-mono | 0.6949  | 0.2182             | 0.6665  | 0.1718  | 0.4519  |  -0.176 |
+| dual-bert-pos-mono | 0.6949  |             | 0.6665  |  | 0.4519  |  |
 | dual-bert-hn | 0.695  | 0.2293             | 0.6807  | 0.1943  |   |   |
-| dual-bert-hn-warmup(bert-mask-da: 0.5 mask ratio, 5 aug_t, 20 maxium mask num) | 0.6865  | 0.2215             | 0.6666  | 0.1833  | 0.4591 | -0.1468 |
-| dual-bert-hn-pos(0.5)  | 0.6983 | 0.2329          | 0.6914  | 0.2152 | 0.4744 | -0.111 |
-| dual-bert-hn-pos(0.5,修改了部分bert-mask的代码)  | 0.6939 | 0.2236          | 0.6669  | 0.1852 |
-| dual-bert-hn-pos  | 0.6883 | 0.219          | 0.6911  | 0.2213 | 0.4618 | -0.1527 |
-| dual-bert-hn-pos(warmup=0.05, epoch=5, new-pos, original-bert-mask, gray_cand_num=2, bert-fp-mono)  | 0.6912 | 0.2233          | 0.6861  | 0.2232 | 0.4702 | -0.1001 |
-| dual-bert-hn-pos(warmup=0.05, epoch=5, new-pos, original-bert-mask, gray_cand_num=2, bert-fp-mono, w_delta=2.0)  | 0.6926 | 0.2425          | 0.6899  | 0.2457 | 0.4749 | -0.0986 |
-| dual-bert-hn-pos(warmup=0.05, epoch=5, new-pos, original-bert-mask, gray_cand_num=2, bert-fp-mono, w_delta=3.0)  | 0.7037 | 0.227          | 0.7096  | 0.2377 | 0.4749 | -0.1375 |
-| dual-bert-comp  | 0.6869 | 0.1877          | 0.665  | 0.1343 |
-| dual-bert-comp-hn  | 0.6891 | 0.2074          | 0.6802  | 0.2074 |
-| dual-bert-proj  | 0.6923 | 0.194          | 0.6807  | 0.2212 | 4509 | -0.0742 |
+| dual-bert-hn-warmup(bert-mask-da: 0.5 mask ratio, 5 aug_t, 20 maxium mask num) | 0.6865  | 0.1825   | 0.6666  | 0.2144  | 0.4591 | -0.1259 |
+| dual-bert-hn-pos(0.5)  | 0.6983 |    | 0.6914  | | 0.4744 |  |
+| dual-bert-hn-pos(0.5,修改了部分bert-mask的代码)  | 0.6939 |  | 0.6669  | | | |
+| dual-bert-hn-pos  | 0.6883 |   | 0.6911  | | 0.4618 | |
+| dual-bert-hn-pos(warmup=0.05, epoch=5, new-pos, original-bert-mask, gray_cand_num=2, bert-fp-mono, w_delta=1.0)  | 0.6912 | 0.2279          | 0.6861  | 0.2092 | 0.4702 | -0.0949 |
+| dual-bert-hn-pos(warmup=0.05, epoch=5, new-pos, original-bert-mask, gray_cand_num=2, bert-fp-mono, w_delta=2.0)  | 0.6926 | 0.2369          | 0.6899  | 0.2359 | 0.4749 | -0.1034 |
+| dual-bert-hn-pos(warmup=0.05, epoch=5, new-pos, original-bert-mask, gray_cand_num=2, bert-fp-mono, w_delta=3.0)  | 0.7037 | 0.2299          | 0.7096  | 0.2099 | 0.4749 | -0.1365 |
+| dual-bert-hn-pos(warmup=0.05, epoch=5, new-pos, original-bert-mask, gray_cand_num=2, bert-fp-mono, w_delta=4.0)  | 0.689 | 0.2193          | 0.6901  | 0.2366 | 0.4752 | -0.0868 |
+| dual-bert-comp  | 0.6869 |  | 0.665  | | | |
+| dual-bert-comp-hn  | 0.6891 |   | 0.6802  | | | |
+| dual-bert-proj  | 0.6923 | 0.2044          | 0.6807  | 0.1918 | 4509 | -0.0561 |
 
 
 
