@@ -4,10 +4,10 @@ rank: null
 temp: 1.0
 full_turn_length: 5
 dropout: 0.1
-alpha: 5.0
-comp_train_size: 10
-hard_comp_train_size: 2
-threshold: 0.4
+alpha: 1.0
+comp_train_size: 5 
+hard_comp_train_size: 1
+threshold: 0.1
 gray_cand_num: 2
 
 # train configuration

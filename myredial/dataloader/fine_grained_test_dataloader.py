@@ -23,7 +23,7 @@ class FineGrainedTestDataset(Dataset):
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
         self.data = []
-        for fix in ['brandenwang', 'lt']:
+        for fix in ['brandenwang', 'lt', 'lt2']:
             path = f'{args["root_dir"]}/data/{args["dataset"]}/fg-{fix}-test.txt'
             data = read_text_data_utterances(path, lang=self.args['lang'])
             for i in tqdm(range(0, len(data), 7)):
@@ -90,6 +90,8 @@ class FineGrainedTestPositionWeightDataset(Dataset):
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
         self.eos = self.vocab.convert_tokens_to_ids('[EOS]')
         self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
+        self.unk = self.vocab.convert_tokens_to_ids('[UNK]')
+        self.special_tokens = set([self.unk, self.cls, self.sep])
 
         suffix = args['tokenizer'].replace('/', '_')
         self.pp_path = f'{os.path.splitext(path)[0]}_fg_test_pw_{suffix}.pt'
@@ -98,7 +100,7 @@ class FineGrainedTestPositionWeightDataset(Dataset):
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
         self.data = []
-        for fix in ['brandenwang', 'lt']:
+        for fix in ['brandenwang', 'lt', 'lt2']:
             path = f'{args["root_dir"]}/data/{args["dataset"]}/fg-{fix}-test.txt'
             data = read_text_data_utterances(path, lang=self.args['lang'])
             for i in tqdm(range(0, len(data), 7)):
@@ -111,7 +113,11 @@ class FineGrainedTestPositionWeightDataset(Dataset):
                     position_w, w = [], self.args['min_w']
                     for u in cids:
                         ids.extend(u + [self.sep])
-                        position_w.extend([w] * (len(u) + 1))
+                        for token in u + [self.sep]:
+                            if token not in self.special_tokens:
+                                position_w.append(w)
+                            else:
+                                position_w.append(self.args['w_sp_token'])
                         w += self.args['w_delta']
                     ids.pop()
                     position_w.pop()
@@ -119,7 +125,7 @@ class FineGrainedTestPositionWeightDataset(Dataset):
                     position_w = position_w[-(self.args['max_len']-2):]
                     rids_ = rids_[:(self.args['res_max_len']-2)]
                     ids = [self.cls] + ids + [self.sep]
-                    position_w = [self.args['min_w']] + position_w + [w-self.args['w_delta']]
+                    position_w = [w-self.args['w_delta']] + position_w + [self.args['w_sp_token']]
                     rids_ = [self.cls] + rids_ + [self.sep]
                     rids.append(rids_)
                 self.data.append({

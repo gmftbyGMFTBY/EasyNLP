@@ -33,4 +33,6 @@ echo "IFNERENCE $model_name on $dataset_name"
 # context work mode
 # ./scripts/inference_context.sh $dataset_name $model_name $str
 # extend work mode
-./scripts/inference_ext_dialog.sh $dataset_name $model_name $str
+# ./scripts/inference_ext_dialog.sh $dataset_name $model_name $str
+# bert mask data augmentation
+./scripts/inference_da.sh $dataset_name $model_name $str

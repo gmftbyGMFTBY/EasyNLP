@@ -173,9 +173,8 @@ class BERTDualHNPosEncoder(nn.Module):
     def _encode(self, cid, rid, cid_mask, rid_mask, cid_pos):
         cid_reps = self.ctx_encoder(cid, cid_mask)
         rid_rep = self.can_encoder(rid, rid_mask)
-        cid_rep = cid_reps[:, 0, :]
-        cid_rep_ = (cid_pos.unsqueeze(-1) * cid_reps).mean(dim=1)
-        cid_rep = cid_rep + cid_rep_
+        cid_rep = (cid_pos.unsqueeze(-1) * cid_reps).sum(dim=1)
+        cid_rep /= cid_pos.sum(dim=-1).unsqueeze(-1)
         return cid_rep, rid_rep
 
     @torch.no_grad()
@@ -186,9 +185,8 @@ class BERTDualHNPosEncoder(nn.Module):
     @torch.no_grad()
     def get_ctx(self, ids, attn_mask, cid_pos):
         cid_reps = self.ctx_encoder(ids, attn_mask)
-        cid_rep = cid_reps[:, 0, :]
-        cid_rep_ = (cid_pos.unsqueeze(-1) * cid_reps).mean(dim=1)
-        cid_rep = cid_rep + cid_rep_
+        cid_rep = (cid_pos.unsqueeze(-1) * cid_reps).sum(dim=1)
+        cid_rep /= cid_pos.sum(dim=-1).unsqueeze(-1)
         return cid_rep
 
     @torch.no_grad()

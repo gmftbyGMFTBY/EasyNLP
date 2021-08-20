@@ -33,6 +33,11 @@ class BERTDualCompareEncoder(nn.Module):
         )
         self.criterion = nn.BCEWithLogitsLoss()
 
+    def projection(self, cid_rep, rid_rep):
+        cid_rep += self.ctx_head(cid_rep)
+        rid_rep += self.res_head(rid_rep)
+        return cid_rep, rid_rep
+
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
         rid_rep = self.can_encoder(rid, rid_mask)
@@ -59,7 +64,7 @@ class BERTDualCompareEncoder(nn.Module):
         batch_size = rid.shape[0]
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
         dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
-        cid_rep, rid_rep = self.ctx_head(cid_rep), self.res_head(rid_rep)
+        cid_rep, rid_rep = self.projection(cid_rep, rid_rep)
 
         # compare 
         tickets = []
@@ -106,7 +111,7 @@ class BERTDualCompareEncoder(nn.Module):
 
     def comp_cls(self, cid_rep, rid_rep):
         # projection
-        cid_rep, rid_rep = self.ctx_head(cid_rep), self.res_head(rid_rep)
+        cid_rep, rid_rep = self.projection(cid_rep, rid_rep)
 
         bsz, label = len(cid_rep), []
         # good vs. bad
@@ -217,6 +222,11 @@ class BERTDualCompareHNEncoder(nn.Module):
         cid_rep = self.ctx_encoder(ids, attn_mask)
         return cid_rep
 
+    def projection(self, cid_rep, rid_rep):
+        cid_rep += self.ctx_head(cid_rep)
+        rid_rep += self.res_head(rid_rep)
+        return cid_rep, rid_rep
+
     @torch.no_grad()
     def predict(self, batch):
         cid = batch['ids']
@@ -228,7 +238,7 @@ class BERTDualCompareHNEncoder(nn.Module):
         batch_size = rid.shape[0]
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
         dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
-        cid_rep, rid_rep = self.ctx_head(cid_rep), self.res_head(rid_rep)
+        cid_rep, rid_rep = self.projection(cid_rep, rid_rep)
 
         # compare 
         tickets = []
@@ -265,7 +275,6 @@ class BERTDualCompareHNEncoder(nn.Module):
             neg_i = random.choice([ii for ii in range(self.topk*i+1, self.topk*i+self.topk)])
             if random.random() > 0.5:
                 # good left and bad right, label: 2
-
                 rep.append(torch.cat([cid_rep[i], rid_rep[pos_i], rid_rep[neg_i]]))
                 label.append(1)
             else:
@@ -337,7 +346,7 @@ class BERTDualCompareHNEncoder(nn.Module):
         loss = (-loss_.sum(dim=1)).mean()
 
         # compare loss
-        cid_rep, rid_rep = self.ctx_head(cid_rep), self.res_head(rid_rep)
+        cid_rep, rid_rep = self.projection(cid_rep, rid_rep)
         loss2, acc = self.comp_cls(cid_rep, rid_rep)
         loss += loss2
         return loss, acc

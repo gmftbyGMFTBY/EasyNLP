@@ -96,17 +96,19 @@ models:
         # dataset_name: BERTDualBertMaskHardNegativeWithPositionWeightDataset
         dataset_name: FineGrainedTestPositionWeightDataset
         # inference_dataset_name: BERTDualInferenceDataset
-        inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
+        inference_dataset_name: BERTDualInferenceFullEXTDataset
+        # inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
         # inference_dataset_name: BERTDualInferenceWithTestDataset
     dual-bert-hn: 
         type: Representation
         model_name: BERTDualHNEncoder
         # dataset_name: BERTDualHNDataset
-        # dataset_name: BERTDualBertMaskHardNegativeDataset
-        dataset_name: FineGrainedTestDataset
+        dataset_name: BERTDualBertMaskHardNegativeDataset
+        # dataset_name: FineGrainedTestDataset
         # dataset_name: BERTDualFullWithHardNegDataset
-        # inference_dataset_name: BERTDualInferenceDataset
-        inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
+        inference_dataset_name: BERTDualInferenceDataset
+        # inference_dataset_name: BERTDualInferenceFullEXTDataset
+        # inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
         # inference_dataset_name: BERTDualInferenceWithTestDataset
     dual-bert-proj: 
         type: Representation
@@ -129,8 +131,8 @@ models:
         # dataset_name: BERTDualFullFakeCtxDataset
         # dataset_name: BERTDualDataset
         # dataset_name: BERTDualFullWithHardNegDataset
-        dataset_name: BERTDualFullDataset
-        # dataset_name: FineGrainedTestDataset
+        # dataset_name: BERTDualFullDataset
+        dataset_name: FineGrainedTestDataset
         # dataset_name: BERTDualReplaceBadResponseDataset
         # dataset_name: BERTDualFullDACTXDataset
         # dataset_name: BERTDualExtFullDataset
@@ -248,8 +250,8 @@ models:
         type: Representation
         model_name: BERTDualCompareHNEncoder
         # dataset_name: BERTDualFullDataset
-        dataset_name: FineGrainedTestDataset
-        # dataset_name: BERTDualBertMaskHardNegativeDataset
+        # dataset_name: FineGrainedTestDataset
+        dataset_name: BERTDualBertMaskHardNegativeDataset
         inference_dataset_name: BERTDualInferenceFullEXTDataset
     dual-bert-comp: 
         type: Representation

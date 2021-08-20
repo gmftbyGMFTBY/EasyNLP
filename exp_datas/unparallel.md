@@ -82,7 +82,7 @@ ISN means the inner session negative (hard negative)
 | BERT-FP            | 49.32 | 69.89 | 91.86 | 70.81 | 54.55 | 69.8   | 21150.52  |
 | dual-bert+full     | 56.76 | 73.92 | 93.98 | 76.06 | 62.83 | 74.87  | 24070.67  |
 | dual-bert+full-warmup(0.05)     | 56.54 | 75.12 | 94.18 | 76.04 | 62.53 | 74.78  | 24070.67  |
-| dual-bert-pos+full     | 55.72 | 75.33 | 94.54 | 75.67 | 61.52 | 74.5  | 24070.67  |
+| dual-bert-pos+full     | 57.23 | 74.87 | 94.54 | 76.44 | 63.33 | 75.16  | 24070.67  |
 | dual-bert+full(fp-mono)     | 57.34 | 74.85 | 93.97 | 76.46 | 63.43 | 75.25  | 24070.67  |
 | dual-bert+full(fp-mono-35)     | 57.11 | 75.15 | 93.9 | 76.29 | 63.13 | 75.15  | 24070.67  |
 | dual-bert+compfull     | 57.1 | 74.57 | 94.35 | 76.37 | 63.23 | 75.14  | 24070.67  |
@@ -103,6 +103,8 @@ ISN means the inner session negative (hard negative)
 | dual-bert+full+ISN | 55.56 | 74.36 | 93.91 | 75.28 | 61.11 | 74.24  | 19678.29  |
 | dual-bert-comp-hn(warmup=0.05) | 56.65 | 75.12 | 92.52 | 75.81 | 62.63 | 74.83  | 19678.29  |
 | dual-bert-hn-pos(warmup=0.05) | 56.16 | 74.57 | 93.43 | 75.59 | 62.02 | 74.61  | 19678.29  |
+| dual-bert-hn-pos(warmup=0.05, epoch=5, gray_cand_num=2, bert-fp-mono) | 57.31 | 76.79 | 94.43 | 76.83 | 63.03 | 75.81  | 19678.29  |
+| dual-bert-hn(warmup=0.05, epoch=5, gray_cand_num=2) | 57.48 | 74.92 | 93.41 | 76.47 | 63.43 | 75.39  | 19678.29  |
 
 ## 2. Full-rank Comparison Protocol
 
@@ -112,6 +114,7 @@ The corpus is the responses in the train set.
 | Methods | R@1000 | R@500 | R@100 | R@50 | MRR |
 | ------- | ------ | ----- | ----- | ---- | --- |
 | dual-bert | 0.4908       | 0.4098      | 0.2614     | 0.2157     | 0.0692   |
+| dual-bert-hn-pos-mono | 0.4935       | 0.414      | 0.2629     | 0.2087     | 0.0701   |
 | dual-bert-all-mono | 0.4929       | 0.4056      | 0.2572     | 0.2031     | 0.075   |
 | dual-bert-all | 0.5038       |  0.4298     | 0.2624     | 0.2076     | 0.0684   |
 | dual-bert-all-extout | 0.521       |  0.443     | 0.2778     | 0.2144     | 0.0705   |
@@ -195,16 +198,17 @@ ATC means the average time cost
 
 ### 5.3 Fine-grained test results
 
-|   Methods   | SBM lt | Weight Kendall Tau lt | SBM brandenwang | Weight Kendall Tau brandenwang |
-| ----------- | --------- | ------------------ | ------- | ------ |
-| dual-bert   | 0.6892    | 0.25               | 0.6727  | 0.1931 |
-| dual-bert-full | 0.6811 | 0.1786             | 0.6788  | 0.2243 |
-| dual-bert-full+bert-fp-mono(35) | 0.6916 | 0.2362      | 0.6802  | 0.1645 |
-| dual-bert-pos | 0.6739  | 0.1553             | 0.6681  | 0.196  |
-| dual-bert-hn | 0.695  | 0.2293             | 0.6807  | 0.1943  |
-| dual-bert-hn-pos(0.5)  | 0.6983 | 0.2329          | 0.6914  | 0.2152 |
+|   Methods   | SBM lt | Weight Kendall Tau lt | SBM brandenwang | Weight Kendall Tau brandenwang | SBM lt2 | WKT lt |
+| ----------- | --------- | ------------------ | ------- | ------ | ---- | ----- |
+| dual-bert   | 0.6892    | 0.25               | 0.6727  | 0.1931 | 0.435  | -0.1882  |
+| dual-bert-full | 0.6811 | 0.1786             | 0.6788  | 0.2243 | 0.4526  | -0.111  |
+| dual-bert-full+bert-fp-mono(35) | 0.6916 | 0.2362      | 0.6802  | 0.1645 |  |   |
+| dual-bert-pos-mono | 0.6949  | 0.2182             | 0.6665  | 0.1718  | 0.4519  |  -0.176 |
+| dual-bert-hn | 0.695  | 0.2293             | 0.6807  | 0.1943  |   |   |
+| dual-bert-hn-warmup(bert-mask-da: 0.5 mask ratio, 5 aug_t, 20 maxium mask num) | 0.6865  | 0.2215             | 0.6666  | 0.1833  | 0.4591 | -0.1468 |
+| dual-bert-hn-pos(0.5)  | 0.6983 | 0.2329          | 0.6914  | 0.2152 | 0.4744 | -0.111 |
 | dual-bert-hn-pos(0.5,修改了部分bert-mask的代码)  | 0.6939 | 0.2236          | 0.6669  | 0.1852 |
-| dual-bert-hn-pos(0.3)  | 0.6898 | 0.1886          | 0.6807  | 0.1705 |
+| dual-bert-hn-pos(0.3)  | 0.6883 | 0.219          | 0.6911  | 0.2213 | 0.4618 | -0.1527 |
 | dual-bert-comp  | 0.6869 | 0.1877          | 0.665  | 0.1343 |
 | dual-bert-comp-hn  | 0.6891 | 0.2074          | 0.6802  | 0.2074 |
 

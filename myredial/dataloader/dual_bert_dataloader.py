@@ -2150,6 +2150,8 @@ class BERTDualFullWithPositionWeightDataset(Dataset):
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
         self.eos = self.vocab.convert_tokens_to_ids('[EOS]')
         self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
+        self.unk = self.vocab.convert_tokens_to_ids('[UNK]')
+        self.special_tokens = set([self.sep, self.cls, self.eos, self.unk])
 
         suffix = args['tokenizer'].replace('/', '_')
         self.pp_path = f'{os.path.splitext(path)[0]}_dual_full_pos_{suffix}.pt'
@@ -2170,7 +2172,11 @@ class BERTDualFullWithPositionWeightDataset(Dataset):
                 position_w, w = [], self.args['min_w']
                 for u in cids:
                     ids.extend(u + [self.sep])
-                    position_w.extend([w] * (len(u) + 1))
+                    for token in u + [self.sep]:
+                        if token not in self.special_tokens:
+                            position_w.append(w)
+                        else:
+                            position_w.append(self.args['w_sp_token'])
                     w += self.args['w_delta']
                 ids.pop()
                 position_w.pop()
@@ -2178,7 +2184,7 @@ class BERTDualFullWithPositionWeightDataset(Dataset):
                 position_w = position_w[-(self.args['max_len']-2):]
                 rids = rids[:(self.args['res_max_len']-2)]
                 ids = [self.cls] + ids + [self.sep]
-                position_w = [self.args['min_w']] + position_w + [w-self.args['w_delta']]
+                position_w = [w-self.args['w_delta']] + position_w + [self.args['w_sp_token']]
                 rids = [self.cls] + rids + [self.sep]
                 self.data.append({
                     'ids': ids,
@@ -2200,7 +2206,11 @@ class BERTDualFullWithPositionWeightDataset(Dataset):
                     position_w, w = [], self.args['min_w']
                     for u in cids:
                         ids.extend(u + [self.sep])
-                        position_w.extend([w] * (len(u) + 1))
+                        for token in u + [self.sep]:
+                            if token not in self.special_tokens:
+                                position_w.append(w)
+                            else:
+                                position_w.append(self.args['w_sp_token'])
                         w += self.args['w_delta']
                     ids.pop()
                     position_w.pop()
@@ -2208,7 +2218,7 @@ class BERTDualFullWithPositionWeightDataset(Dataset):
                     position_w = position_w[-(self.args['max_len']-2):]
                     rids_ = rids_[:(self.args['res_max_len']-2)]
                     ids = [self.cls] + ids + [self.sep]
-                    position_w = [self.args['min_w']] + position_w + [w-self.args['w_delta']]
+                    position_w = [w-self.args['w_delta']] + position_w + [self.args['w_sp_token']]
                     rids_ = [self.cls] + rids_ + [self.sep]
                     rids.append(rids_)
                     if label == 1:
@@ -2291,6 +2301,8 @@ class BERTDualBertMaskHardNegativeWithPositionWeightDataset(Dataset):
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
         self.eos = self.vocab.convert_tokens_to_ids('[EOS]')
         self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
+        self.unk = self.vocab.convert_tokens_to_ids('[UNK]')
+        self.special_tokens = set([self.sep, self.cls, self.unk])
 
         suffix = args['tokenizer'].replace('/', '_')
         self.pp_path = f'{os.path.splitext(path)[0]}_dual_bert_mask_hn_pos_{suffix}.pt'
@@ -2312,7 +2324,11 @@ class BERTDualBertMaskHardNegativeWithPositionWeightDataset(Dataset):
                 position_w, w = [], self.args['min_w']
                 for u in cids:
                     ids.extend(u + [self.sep])
-                    position_w.extend([w] * (len(u) + 1))
+                    for token in u + [self.sep]:
+                        if token not in self.special_tokens:
+                            position_w.append(w)
+                        else:
+                            position_w.append(self.args['w_sp_token'])
                     w += self.args['w_delta']
                 ids.pop()
                 position_w.pop()
@@ -2320,7 +2336,7 @@ class BERTDualBertMaskHardNegativeWithPositionWeightDataset(Dataset):
                 position_w = position_w[-(self.args['max_len']-2):]
                 rids = rids[:(self.args['res_max_len']-2)]
                 ids = [self.cls] + ids + [self.sep]
-                position_w = [self.args['min_w']] + position_w + [w-self.args['w_delta']]
+                position_w = [w-self.args['w_delta']] + position_w + [self.args['w_sp_token']]
                 rids = [self.cls] + rids + [self.sep]
                 if len(cand) < self.args['gray_cand_num']:
                     cand += random.sample(pool, self.args['gray_cand_num']-len(cand))
@@ -2345,7 +2361,11 @@ class BERTDualBertMaskHardNegativeWithPositionWeightDataset(Dataset):
                     position_w, w = [], self.args['min_w']
                     for u in cids:
                         ids.extend(u + [self.sep])
-                        position_w.extend([w] * (len(u) + 1))
+                        for token in u + [self.sep]:
+                            if token not in self.special_tokens:
+                                position_w.append(w)
+                            else:
+                                position_w.append(self.args['w_sp_token'])
                         w += self.args['w_delta']
                     ids.pop()
                     position_w.pop()
@@ -2353,7 +2373,7 @@ class BERTDualBertMaskHardNegativeWithPositionWeightDataset(Dataset):
                     position_w = position_w[-(self.args['max_len']-2):]
                     rids_ = rids_[:(self.args['res_max_len']-2)]
                     ids = [self.cls] + ids + [self.sep]
-                    position_w = [self.args['min_w']] + position_w + [w-self.args['w_delta']]
+                    position_w = [w-self.args['w_delta']] + position_w + [self.args['w_sp_token']]
                     rids_ = [self.cls] + rids_ + [self.sep]
                     rids.append(rids_)
                     if label == 1:

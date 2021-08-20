@@ -14,9 +14,8 @@ class BERTDualPositionWeightEncoder(nn.Module):
         # cid_pos: [B, S]
         cid_reps = self.ctx_encoder(cid, cid_mask)    # [B, S, E]
         rid_rep = self.can_encoder(rid, rid_mask)
-        cid_rep = cid_reps[:, 0, :]    # [B, E]
-        cid_rep_ = (cid_pos.unsqueeze(-1) * cid_reps).mean(dim=1)    # [B, E]
-        cid_rep = cid_rep + cid_rep_
+        cid_rep = (cid_pos.unsqueeze(-1) * cid_reps).sum(dim=1)    # [B, E]
+        cid_rep /= cid_pos.sum(dim=-1).unsqueeze(-1)
         return cid_rep, rid_rep
 
     @torch.no_grad()
@@ -27,9 +26,8 @@ class BERTDualPositionWeightEncoder(nn.Module):
     @torch.no_grad()
     def get_ctx(self, ids, attn_mask, cid_pos):
         cid_reps = self.ctx_encoder(ids, attn_mask)
-        cid_rep = cid_reps[:, 0, :]    # [B, E]
-        cid_rep_ = (cid_pos.unsqueeze(-1) * cid_reps).mean(dim=1)    # [B, E]
-        cid_rep = cid_rep + cid_rep_
+        cid_rep = (cid_pos.unsqueeze(-1) * cid_reps).sum(dim=1)    # [B, E]
+        cid_rep /= cid_pos.sum(dim=-1).unsqueeze(-1)
         return cid_rep
 
     @torch.no_grad()
