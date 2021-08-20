@@ -93,8 +93,8 @@ models:
     dual-bert-hn-pos:
         type: Representation
         model_name: BERTDualHNPosEncoder
-        dataset_name: BERTDualBertMaskHardNegativeWithPositionWeightDataset
-        # dataset_name: FineGrainedTestPositionWeightDataset
+        # dataset_name: BERTDualBertMaskHardNegativeWithPositionWeightDataset
+        dataset_name: FineGrainedTestPositionWeightDataset
         # inference_dataset_name: BERTDualInferenceDataset
         inference_dataset_name: BERTDualInferenceFullEXTDataset
         # inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
