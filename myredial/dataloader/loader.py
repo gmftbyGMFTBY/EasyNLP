@@ -5,6 +5,7 @@ from .gpt2_dataloader import *
 from .simcse_dataloader import *
 from .post_train_dataloader import *
 from .dual_bert_dataloader import *
+from .dual_bert_unsup_dataloader import *
 from .dual_bert_phrase_dataloader import *
 from .dual_bert_pt_dataloader import *
 from .dual_bert_full_dataloader import *

@@ -106,6 +106,7 @@ ISN means the inner session negative (hard negative)
 | dual-bert-hn-pos(warmup=0.05, epoch=5, gray_cand_num=2, bert-fp-mono) | 57.31 | 76.79 | 94.43 | 76.83 | 63.03 | 75.81  | 19678.29  |
 | dual-bert-hn-pos(warmup=0.05, epoch=5, gray_cand_num=2, bert-fp-mono, new-pos, original-bert-mask) | 56.93 | 76.2 | 93.57 | 76.38 | 62.93 | 75.29  | 19678.29  |
 | dual-bert-hn-pos(warmup=0.05, epoch=5, gray_cand_num=2, bert-fp-mono, new-pos, original-bert-mask, w_delta=2.0) | 57.15 | 75.2 | 93.75 | 76.41 | 63.13 | 75.3  | 19678.29  |
+| dual-bert-hn-pos(warmup=0.05, epoch=5, gray_cand_num=2, bert-fp-mono, new-pos, original-bert-mask, w_delta=3.0) | 56.84 | 75.24 | 94.31 | 76.24 | 62.73 | 75.1  | 19678.29  |
 | dual-bert-hn(warmup=0.05, epoch=5, gray_cand_num=2) | 57.48 | 74.92 | 93.41 | 76.47 | 63.43 | 75.39  | 19678.29  |
 
 ## 2. Full-rank Comparison Protocol
@@ -212,7 +213,8 @@ ATC means the average time cost
 | dual-bert-hn-pos(0.5,修改了部分bert-mask的代码)  | 0.6939 | 0.2236          | 0.6669  | 0.1852 |
 | dual-bert-hn-pos  | 0.6883 | 0.219          | 0.6911  | 0.2213 | 0.4618 | -0.1527 |
 | dual-bert-hn-pos(warmup=0.05, epoch=5, new-pos, original-bert-mask, gray_cand_num=2, bert-fp-mono)  | 0.6912 | 0.2233          | 0.6861  | 0.2232 | 0.4702 | -0.1001 |
-| dual-bert-hn-pos(warmup=0.05, epoch=5, new-pos, original-bert-mask, gray_cand_num=2, bert-fp-mono, w_delta=2.0)  | 0.6926 | 0.2425          | 0.6899  | 0.2457 | 0.4749 | -0.0.986 |
+| dual-bert-hn-pos(warmup=0.05, epoch=5, new-pos, original-bert-mask, gray_cand_num=2, bert-fp-mono, w_delta=2.0)  | 0.6926 | 0.2425          | 0.6899  | 0.2457 | 0.4749 | -0.0986 |
+| dual-bert-hn-pos(warmup=0.05, epoch=5, new-pos, original-bert-mask, gray_cand_num=2, bert-fp-mono, w_delta=3.0)  | 0.7037 | 0.227          | 0.7096  | 0.2377 | 0.4749 | -0.1375 |
 | dual-bert-comp  | 0.6869 | 0.1877          | 0.665  | 0.1343 |
 | dual-bert-comp-hn  | 0.6891 | 0.2074          | 0.6802  | 0.2074 |
 | dual-bert-proj  | 0.6923 | 0.194          | 0.6807  | 0.2212 | 4509 | -0.0742 |

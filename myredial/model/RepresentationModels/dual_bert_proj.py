@@ -19,17 +19,15 @@ class BERTDualHNProjEncoder(nn.Module):
             nn.Tanh(),
             nn.Dropout(p=p),
             nn.Linear(768*m, proj_size),
+            nn.LayerNorm(proj_size, eps=ln_eps),
         )
         self.res_proj = nn.Sequential(
             nn.Linear(768*m, 768*m),
             nn.Tanh(),
             nn.Dropout(p=p),
             nn.Linear(768*m, proj_size),
+            nn.LayerNorm(proj_size, eps=ln_eps),
         )
-        # BertOutput use the LayerNorm as the final output function
-        # https://huggingface.co/transformers/_modules/transformers/models/bert/modeling_bert.html#BertModel
-        self.ctx_layer_norm = nn.LayerNorm(proj_size, eps=ln_eps)
-        self.res_layer_norm = nn.LayerNorm(proj_size, eps=ln_eps)
         self.args = args
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
@@ -41,7 +39,6 @@ class BERTDualHNProjEncoder(nn.Module):
         rid_rep = rid_rep.permute(1, 0, 2)
         rid_rep = rid_rep.reshape(len(rid_rep), -1)
         cid_rep, rid_rep = self.ctx_proj(cid_rep), self.res_proj(rid_rep)
-        cid_rep, rid_rep = self.ctx_layer_norm(cid_rep), self.res_layer_norm(rid_rep)
         return cid_rep, rid_rep
 
     @torch.no_grad()
@@ -50,7 +47,6 @@ class BERTDualHNProjEncoder(nn.Module):
         rid_rep = rid_rep.permute(1, 0, 2)
         rid_rep = rid_rep.reshape(len(rid_rep), -1)
         rid_rep = self.res_proj(rid_rep)
-        rid_rep = self.res_layer_norm(rid_rep)
         return rid_rep
 
     @torch.no_grad()
@@ -59,7 +55,6 @@ class BERTDualHNProjEncoder(nn.Module):
         cid_rep = cid_rep.permute(1, 0, 2)
         cid_rep = cid_rep.reshape(len(cid_rep), -1)
         cid_rep = self.ctx_proj(cid_rep)
-        cid_rep = self.ctx_layer_norm(cid_rep)
         return cid_rep
 
     @torch.no_grad()

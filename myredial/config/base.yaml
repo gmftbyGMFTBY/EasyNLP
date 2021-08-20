@@ -37,6 +37,7 @@ no_test_models:
     - bert-fp-mono
     - simcse
     - bert-mask-da
+    - dual-bert-unsup
 
 no_train_models:
     - bert-fp-original
@@ -53,6 +54,11 @@ models:
         model_name: BERTDualMLEncoder
         dataset_name: BERTDualFullDataset
         inference_dataset_name: BERTDualInferenceDataset
+    dual-bert-unsup: 
+        type: PostTrain
+        model_name: BERTDualUnsupervisedEncoder
+        dataset_name: BERTDualUnsupervisedDataset
+        inference_dataset_name: null
     simcse: 
         type: PostTrain
         model_name: SimCSE
