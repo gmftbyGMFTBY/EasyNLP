@@ -8,24 +8,58 @@ class BERTDualHNProjEncoder(nn.Module):
         super(BERTDualHNProjEncoder, self).__init__()
         model = args['pretrained_model']
         self.topk = args['gray_cand_num'] + 1
-        ml = args['multi_layer']
-        self.ctx_encoder = BertMLEmbedding(model=model, add_tokens=1, topk_layer_num=ml)
-        self.can_encoder = BertMLEmbedding(model=model, add_tokens=1, topk_layer_num=ml)
+        p = args['dropout']
+        m = args['poly_m']
+        self.ctx_encoder = TopKBertEmbedding(model=model, m=m, dropout=p)
+        self.can_encoder = TopKBertEmbedding(model=model, m=m, dropout=p)
+        proj_size = args['proj_size']
+        ln_eps = float(args['layer_norm_eps'])
+        self.ctx_proj = nn.Sequential(
+            nn.Linear(768*m, 768*m),
+            nn.Tanh(),
+            nn.Dropout(p=p),
+            nn.Linear(768*m, proj_size),
+        )
+        self.res_proj = nn.Sequential(
+            nn.Linear(768*m, 768*m),
+            nn.Tanh(),
+            nn.Dropout(p=p),
+            nn.Linear(768*m, proj_size),
+        )
+        # BertOutput use the LayerNorm as the final output function
+        # https://huggingface.co/transformers/_modules/transformers/models/bert/modeling_bert.html#BertModel
+        self.ctx_layer_norm = nn.LayerNorm(proj_size, eps=ln_eps)
+        self.res_layer_norm = nn.LayerNorm(proj_size, eps=ln_eps)
         self.args = args
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
         rid_rep = self.can_encoder(rid, rid_mask)
+        # [M, B, E] -> [B, M*E]
+        cid_rep = cid_rep.permute(1, 0, 2)
+        cid_rep = cid_rep.reshape(len(cid_rep), -1)
+        rid_rep = rid_rep.permute(1, 0, 2)
+        rid_rep = rid_rep.reshape(len(rid_rep), -1)
+        cid_rep, rid_rep = self.ctx_proj(cid_rep), self.res_proj(rid_rep)
+        cid_rep, rid_rep = self.ctx_layer_norm(cid_rep), self.res_layer_norm(rid_rep)
         return cid_rep, rid_rep
 
     @torch.no_grad()
     def get_cand(self, ids, attn_mask):
         rid_rep = self.can_encoder(ids, attn_mask)
+        rid_rep = rid_rep.permute(1, 0, 2)
+        rid_rep = rid_rep.reshape(len(rid_rep), -1)
+        rid_rep = self.res_proj(rid_rep)
+        rid_rep = self.res_layer_norm(rid_rep)
         return rid_rep
 
     @torch.no_grad()
     def get_ctx(self, ids, attn_mask):
         cid_rep = self.ctx_encoder(ids, attn_mask)
+        cid_rep = cid_rep.permute(1, 0, 2)
+        cid_rep = cid_rep.reshape(len(cid_rep), -1)
+        cid_rep = self.ctx_proj(cid_rep)
+        cid_rep = self.ctx_layer_norm(cid_rep)
         return cid_rep
 
     @torch.no_grad()

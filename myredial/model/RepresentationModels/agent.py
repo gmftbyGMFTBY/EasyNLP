@@ -558,6 +558,13 @@ class RepresentationAgent(RetrievalBaseAgent):
                         )
                         new_state_dict = self.checkpointadapeter.convert(state_dict)
                         self.model.can_encoders[i].load_state_dict(new_state_dict)
+                elif self.args['model'] in ['dual-bert-proj']:
+                    self.checkpointadapeter.init(
+                        state_dict.keys(),
+                        self.model.can_encoder.model.state_dict().keys(),
+                    )
+                    new_state_dict = self.checkpointadapeter.convert(state_dict)
+                    self.model.can_encoder.model.load_state_dict(new_state_dict)
                 else:
                     self.checkpointadapeter.init(
                         state_dict.keys(),
