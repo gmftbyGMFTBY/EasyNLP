@@ -64,7 +64,7 @@ class BERTMaskAugmentationDMRModel(nn.Module):
             for i in range(len(batch['context'])):
                 l = length[i]
                 k = list(chain(*[item[idx:idx+l] for item in rest]))
-                rest_.append(list(set(k)))
+                rest_.append(k)
                 idx += l
         return rest_
 
