@@ -37,17 +37,29 @@ no_test_models:
     - bert-fp-mono
     - simcse
     - bert-mask-da
+    - bert-mask-da-dmr
+    - bert-mask-da-sep
     - dual-bert-unsup
 
 no_train_models:
     - bert-fp-original
     - bert-mask-da
+    - bert-mask-da-dmr
+    - bert-mask-da-sep
 
 models:
+    bert-mask-da-sep:
+        type: Augmentation
+        model_name: BERTMaskAugmentationSepModel
+        inference_dataset_name: BERTMaskAugmentationFullSepDataset
     bert-mask-da:
         type: Augmentation
         model_name: BERTMaskAugmentationModel
         # inference_dataset_name: BERTMaskAugmentationDataset
+        inference_dataset_name: BERTMaskAugmentationFullDataset
+    bert-mask-da-dmr:
+        type: Augmentation
+        model_name: BERTMaskAugmentationDMRModel
         inference_dataset_name: BERTMaskAugmentationFullDataset
     dual-bert-ml: 
         type: Representation

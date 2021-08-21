@@ -10,6 +10,7 @@ inference:
     min_len: 2
     min_mask_num: 1
     max_mask_num: 20 
-    masked_lm_prob: 0.5
+    min_masked_lm_prob: 0.4
+    max_masked_lm_prob: 0.6
     augmentation_t: 10
     dropout: 0.1

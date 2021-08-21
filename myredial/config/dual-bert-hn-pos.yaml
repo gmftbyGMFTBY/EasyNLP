@@ -2,7 +2,7 @@
 rank: null
 gray_cand_num: 2
 min_w: 0.5
-w_delta: 4.
+w_delta: 3.
 w_sp_token: 0.1
 
 # train configuration

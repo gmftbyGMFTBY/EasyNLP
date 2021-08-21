@@ -107,7 +107,10 @@ ISN means the inner session negative (hard negative)
 | dual-bert-hn-pos(warmup=0.05, epoch=5, gray_cand_num=2, bert-fp-mono, new-pos, original-bert-mask) | 56.93 | 76.2 | 93.57 | 76.38 | 62.93 | 75.29  | 19678.29  |
 | dual-bert-hn-pos(warmup=0.05, epoch=5, gray_cand_num=2, bert-fp-mono, new-pos, original-bert-mask, w_delta=2.0) | 57.15 | 75.2 | 93.75 | 76.41 | 63.13 | 75.3  | 19678.29  |
 | dual-bert-hn-pos(warmup=0.05, epoch=5, gray_cand_num=2, bert-fp-mono, new-pos, original-bert-mask, w_delta=3.0) | 56.84 | 75.24 | 94.31 | 76.24 | 62.73 | 75.1  | 19678.29  |
+| dual-bert-hn-pos(warmup=0.05, epoch=5, gray_cand_num=2, bert-fp-mono, new-pos, bert-mask[bert-fp-mono], w_delta=3.0) | 57.89 | 75.71 | 94.55 | 76.92 | 63.94 | 75.79  | 19678.29  |
+| dual-bert-hn-pos(warmup=0.05, epoch=5, gray_cand_num=2, bert-fp-mono, new-pos, bert-mask-dmr[bert-fp-mono], w_delta=3.0) | 56.54 | 75.9 | 93.48 | 76.21 | 62.42 | 75.05  | 19678.29  |
 | dual-bert-hn-pos(warmup=0.05, epoch=5, gray_cand_num=2, bert-fp-mono, new-pos, original-bert-mask, w_delta=4.0) | 57.38 | 75.51 | 93.8 | 76.49 | 63.33 | 75.44 | 19678.29  |
+| dual-bert-hn-pos(warmup=0.05, epoch=5, gray_cand_num=2, bert-fp-mono, new-pos, original-bert-mask, w_delta=5.0) | 57.89 | 75.41 | 93.75 | 76.84 | 63.94 | 75.68 | 19678.29  |
 | dual-bert-hn(warmup=0.05, epoch=5, gray_cand_num=2) | 57.48 | 74.92 | 93.41 | 76.47 | 63.43 | 75.39  | 19678.29  |
 
 ## 2. Full-rank Comparison Protocol
@@ -216,7 +219,10 @@ ATC means the average time cost
 | dual-bert-hn-pos(warmup=0.05, epoch=5, new-pos, original-bert-mask, gray_cand_num=2, bert-fp-mono, w_delta=1.0)  | 0.6912 | 0.2279          | 0.6861  | 0.2092 | 0.4702 | -0.0949 |
 | dual-bert-hn-pos(warmup=0.05, epoch=5, new-pos, original-bert-mask, gray_cand_num=2, bert-fp-mono, w_delta=2.0)  | 0.6926 | 0.2369          | 0.6899  | 0.2359 | 0.4749 | -0.1034 |
 | dual-bert-hn-pos(warmup=0.05, epoch=5, new-pos, original-bert-mask, gray_cand_num=2, bert-fp-mono, w_delta=3.0)  | 0.7037 | 0.2299          | 0.7096  | 0.2099 | 0.4749 | -0.1365 |
+| dual-bert-hn-pos(warmup=0.05, epoch=5, new-pos, bert-mask[bert-fp-mono], gray_cand_num=2, bert-fp-mono, w_delta=3.0)  | 0.6689 | 0.1643          | 0.6682  | 0.2585 | 0.5107 | -0.1242 |
+| dual-bert-hn-pos(warmup=0.05, epoch=5, new-pos, bert-mask-dmr[bert-fp-mono], gray_cand_num=2, bert-fp-mono, w_delta=3.0)  | 0.6945 | 0.2081          | 0.6733  | 0.1905 | 0.4722 | -0.1506 |
 | dual-bert-hn-pos(warmup=0.05, epoch=5, new-pos, original-bert-mask, gray_cand_num=2, bert-fp-mono, w_delta=4.0)  | 0.689 | 0.2193          | 0.6901  | 0.2366 | 0.4752 | -0.0868 |
+| dual-bert-hn-pos(warmup=0.05, epoch=5, new-pos, original-bert-mask, gray_cand_num=2, bert-fp-mono, w_delta=5.0)  | 0.6885 | 0.2139          | 0.6844  | 0.2139 | 0.4745 | -0.0727 |
 | dual-bert-comp  | 0.6869 |  | 0.665  | | | |
 | dual-bert-comp-hn  | 0.6891 |   | 0.6802  | | | |
 | dual-bert-proj  | 0.6923 | 0.2044          | 0.6807  | 0.1918 | 4509 | -0.0561 |
