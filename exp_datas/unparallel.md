@@ -112,6 +112,8 @@ ISN means the inner session negative (hard negative)
 | dual-bert-hn-pos(warmup=0.05, epoch=5, gray_cand_num=2, bert-fp-mono, new-pos, original-bert-mask, w_delta=4.0) | 57.38 | 75.51 | 93.8 | 76.49 | 63.33 | 75.44 | 19678.29  |
 | dual-bert-hn-pos(warmup=0.05, epoch=5, gray_cand_num=2, bert-fp-mono, new-pos, original-bert-mask, w_delta=5.0) | 57.89 | 75.41 | 93.75 | 76.84 | 63.94 | 75.68 | 19678.29  |
 | dual-bert-hn(warmup=0.05, epoch=5, gray_cand_num=2) | 57.48 | 74.92 | 93.41 | 76.47 | 63.43 | 75.39  | 19678.29  |
+| dual-bert-hn(warmup=0.05, epoch=5, bert-mask-da[bert-fp], gray_cand_num=2) | 56.86 | 76.36 | 93.63 | 76.5 | 63.03 | 75.24  | 19678.29  |
+| dual-bert-hn(warmup=0.05, epoch=5, bert-mask-da-dmr[bert-fp], gray_cand_num=2) | 57.35 | 76.87 | 93.85 | 76.91 | 63.43 | 75.62  | 19678.29  |
 
 ## 2. Full-rank Comparison Protocol
 
@@ -226,6 +228,8 @@ ATC means the average time cost
 | dual-bert-comp  | 0.6869 |  | 0.665  | | | |
 | dual-bert-comp-hn  | 0.6891 |   | 0.6802  | | | |
 | dual-bert-proj  | 0.6923 | 0.2044          | 0.6807  | 0.1918 | 4509 | -0.0561 |
+| dual-bert-hn  | 0.7061 | 0.2132          | 0.6832  | 0.2042 | 0.4812 | -0.1266 |
+| dual-bert-hn(bert-mask-da-dmr[bert-fp])  | 0.6959 | 0.238          | 0.6845  | 0.2264 | 0.4671 | -0.1044 |
 
 
 

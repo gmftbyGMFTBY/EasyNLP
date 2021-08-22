@@ -16,8 +16,7 @@ def parser_args():
     parser.add_argument('--gray_topk', type=int, default=5)
     parser.add_argument('--gray_start', type=int, default=372)
     parser.add_argument('--cut_size', type=int, default=500000)
-    # inference context parameters
-    parser.add_argument('--work_mode', type=str, default='response')    # response or context
+    parser.add_argument('--work_mode', type=str, default='response')
     parser.add_argument('--pool_size', type=int, default=200)
     return parser.parse_args()
 
