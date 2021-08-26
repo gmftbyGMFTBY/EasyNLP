@@ -31,7 +31,7 @@
 | SA-BERT+HCL    | 86.7  | 94.0  | 99.2  | 97.7   |
 | BERT-FP        | **91.1**  | **96.2**  | **99.4**  | **97.7**   |
 | dual-bert      | 88.57 | 95.06 | 99.09 | - |
-| dual-bert-full | 90.36 | 95.79 | 99.18 | - |
+| dual-bert-full | 90.36 | 95.82 | 99.18 | - |
 | bert-ft        | 90.16 | 95.82 | 99.25 | - |
 
 ### 1.4 Restoration-200k Dataset
@@ -209,6 +209,7 @@ ATC means the average time cost
 
 |   Methods   | SBM lt | Weight Kendall Tau lt | SBM brandenwang | Weight Kendall Tau brandenwang | SBM lt2 | WKT lt |
 | ----------- | --------- | ------------------ | ------- | ------ | ---- | ----- |
+| bert-ft   | 0.6437    | 0.1447               | 0.6032  | 0.0713 | 0.534  | -0.0215  |
 | dual-bert   | 0.6892    | 0.2262               | 0.6727  | 0.1761 | 0.435  | -0.1418  |
 | dual-bert-full | 0.6811 | 0.1965             | 0.6788  | 0.2231 | 0.4526  | -0.0878  |
 | dual-bert-full+bert-fp-mono(35) | 0.6916 | 0.2362      | 0.6802  | 0.1645 |  |   |

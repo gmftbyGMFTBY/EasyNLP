@@ -7,10 +7,7 @@ class AugmentationAgent(RetrievalBaseAgent):
         super(AugmentationAgent, self).__init__()
         self.args = args
         self.vocab, self.model = vocab, model
-        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
-        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
-        self.eos = self.vocab.convert_tokens_to_ids('[EOS]')
-        self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
+        self.pad, self.sep, self.eos, self.cls = self.vocab.convert_tokens_to_ids(['[PAD]', '[SEP]', '[EOS]', '[CLS]'])
 
         # open the test save scores file handler
         pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
@@ -34,3 +31,7 @@ class AugmentationAgent(RetrievalBaseAgent):
             responses.extend(response)
             results.extend(rest)
         torch.save((contexts, responses, results), f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_bert_mask_da_{self.args["local_rank"]}.pt')
+
+    def load_model(self, path):
+        # only use the bert-base-chinese
+        return

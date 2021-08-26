@@ -2,13 +2,14 @@
 # then the gradient accumulation is used
 inner_bsz: 64
 # the number of the negative samples will be considered in each batch
-k: 3
+gray_cand_num: 3
 rank: null
 compare_turn_num: 2
-positive_margin: 0.0
+positive_margin: 0.
 positive_margin_delta: 0.0
 # num_labels: 1 or 3
 num_labels: 1
+test_interval: 0.001
 
 # train configuration
 train:
@@ -18,7 +19,7 @@ train:
     batch_size: 32
     max_len: 288    # 256 + 32
     epoch: 5
-    warmup_ratio: 0.
+    warmup_ratio: 0.05
     checkpoint: 
         # path: bert-post/best_nspmlm.pt
         path: bert-fp/best_bert-base-chinese.pt

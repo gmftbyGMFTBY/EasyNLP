@@ -3,6 +3,7 @@ dropout: 0.1
 gray_cand_num: 10
 # rank: bert-ft-compare-plus
 rank: null
+test_interval: 0.001
 
 # train configuration
 train:
@@ -21,5 +22,6 @@ train:
 # test configuration
 test:
     seed: 0
-    batch_size: 32
+    # batch_size: 32
+    batch_size: 1
     max_len: 256

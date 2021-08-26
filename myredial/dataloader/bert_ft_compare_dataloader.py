@@ -13,42 +13,40 @@ class BERTFTCompDataset(Dataset):
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
         self.eos = self.vocab.convert_tokens_to_ids('[EOS]')
         self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
-        self.k = args['k']
+        self.topk = args['gray_cand_num']
         self.num_labels = args['num_labels']
 
         suffix = args['tokenizer'].replace('/', '_')
         self.pp_path = f'{os.path.splitext(path)[0]}_ft_comp_plus_{suffix}.pt'
         if os.path.exists(self.pp_path):
-            self.data, self.responses = torch.load(self.pp_path)
+            if self.args['mode'] == 'train':
+                self.data, self.responses = torch.load(self.pp_path)
+            else:
+                self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
         
         self.data = []
         if self.args['mode'] == 'train':
-            path = f'{os.path.splitext(path)[0]}_gray.txt'
-            data = read_text_data_utterances_compare(path, lang=self.args['lang'])
+            path = f'{args["root_dir"]}/data/{args["dataset"]}/train_bert_mask_da_results.pt'
+            data = read_torch_data_bert_mask(path)
             responses = []
             response_overlap = set()
-            for items in tqdm(data):
-                ids = self.vocab.batch_encode_plus(items[0] + [items[1]], add_special_tokens=False)['input_ids']
+            for context, response, candidates in tqdm(data):
+                ids = self.vocab.batch_encode_plus(context + [response], add_special_tokens=False)['input_ids']
                 cids = []
                 for u in ids[:-1]:
                     cids.extend(u + [self.eos])
                 cids.pop()
                 rids = ids[-1]
-                ids = self.vocab.batch_encode_plus(items[2] + items[3], add_special_tokens=False)['input_ids']
-                hrids = ids[:len(items[2])]
-                shrids = ids[len(items[2]):]
                 responses.append(rids)
-                if items[1] not in response_overlap:
+                if response not in response_overlap:
                     responses.append(rids)
-                    response_overlap.add(items[1])
-
+                    response_overlap.add(response)
                 self.data.append({
                     'context': cids,
                     'response': rids,
-                    'hard_negative_samples': hrids,
-                    'super_hard_negative_samples': shrids,
+                    'candidates': candidates,
                 })
             self.responses = responses
         else:
@@ -80,13 +78,21 @@ class BERTFTCompDataset(Dataset):
         bundle = self.data[i]
         if self.args['mode'] == 'train':
             cids, rids = bundle['context'], bundle['response']
-            sh_rids = random.sample(bundle['super_hard_negative_samples'], self.k)
-            h_rids = random.sample(bundle['hard_negative_samples'], self.k)
-            e_rids = random.sample(self.responses, self.k)
-
+            # if self.topk > len(bundle['candidates']):
+            #     # if have not enough candidates, just use the easy negative samples for supplyment
+            #     candidates = bundle['candidates']
+            #     if candidates:
+            #         hrids = self.vocab.batch_encode_plus(candidates, add_special_tokens=False)['input_ids']
+            #     else:
+            #         hrids = []
+            #     hrids += random.sample(self.responses, self.topk - len(candidates))
+            # else:
+            #     candidates = random.sample(bundle['candidates'], self.topk)
+            #     hrids = self.vocab.batch_encode_plus(candidates, add_special_tokens=False)['input_ids']
+            erids = random.sample(self.responses, 2*self.topk)
             ids, tids, label = [], [], []
             # label 0/2: positive vs. easy negative
-            for e in e_rids:
+            for e in erids:
                 if random.random() > 0.5:
                     ids_, tids_ = self._packup(cids, rids, e)
                     l = 1 if self.num_labels == 1 else 2
@@ -97,46 +103,17 @@ class BERTFTCompDataset(Dataset):
                 tids.append(tids_)
                 label.append(l)
             # label 0/2: positive vs. hard negatives
-            for h in h_rids:
-                if random.random() > 0.5:
-                    ids_, tids_ = self._packup(cids, rids, h)
-                    l = 1 if self.num_labels == 1 else 2
-                else:
-                    ids_, tids_ = self._packup(cids, h, rids)
-                    l = 0
-                ids.append(ids_)
-                tids.append(tids_)
-                label.append(l)
-            # label 0/2: super hard vs. hard
-            for _ in range(self.k):
-                sh = random.choice(sh_rids)
-                h = random.choice(h_rids)
-                if random.random() > 0.5:
-                    ids_, tids_ = self._packup(cids, sh, h)
-                    l = 1 if self.num_labels == 1 else 2
-                else:
-                    ids_, tids_ = self._packup(cids, h, sh)
-                    l = 0
-                ids.append(ids_)
-                tids.append(tids_)
-                label.append(l)
-            # label 1: self comparison
-            if self.num_labels == 3:
-                for _ in range(self.k):
-                    ratio = random.random()
-                    if 0.9 < ratio <= 1:
-                        r1, r2 = rids, rids
-                    elif 0.6 < ratio <= 0.9:
-                        r1, r2 = random.sample(h_rids, 2)
-                    elif 0.3 < ratio <= 0.6:
-                        r1, r2 = random.sample(e_rids, 2)
-                    else:
-                        r1, r2 = random.sample(sh_rids, 2)
-                    ids_, tids_ = self._packup(cids, r1, r2)
-                    ids.append(ids_)
-                    tids.append(tids_)
-                    label.append(1)
-            # 4*k samples
+            # for h in hrids:
+            #     if random.random() > 0.5:
+            #         ids_, tids_ = self._packup(cids, rids, h)
+            #         l = 1 if self.num_labels == 1 else 2
+            #     else:
+            #         ids_, tids_ = self._packup(cids, h, rids)
+            #         l = 0
+            #     ids.append(ids_)
+            #     tids.append(tids_)
+            #     label.append(l)
+            # whole samples
             ids = [torch.LongTensor(i) for i in ids]
             tids = [torch.LongTensor(i) for i in tids]
             return ids, tids, label
@@ -145,7 +122,10 @@ class BERTFTCompDataset(Dataset):
             return bundle['context'], bundle['responses'], bundle['label']
 
     def save(self):
-        data = torch.save((self.data, self.responses), self.pp_path)
+        if self.args['mode'] == 'train':
+            data = torch.save((self.data, self.responses), self.pp_path)
+        else:
+            data = torch.save(self.data, self.pp_path)
         print(f'[!] save preprocessed dataset into {self.pp_path}')
         
     def collate(self, batch):

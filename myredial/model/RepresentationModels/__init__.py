@@ -2,7 +2,6 @@ from .agent import *
 from .dual_bert import *
 from .dual_bert_pos import *
 from .dual_bert_proj import *
-from .dual_bert_comp import *
 from .dual_bert_hn import *
 from .dual_bert_cosine import *
 from .dual_bert_ishn import *

@@ -620,10 +620,20 @@ def read_text_data_line_by_line(path):
     dataset = []
     with open(path) as f:
         for line in tqdm(f.readlines()):
-            line = line.strip()
+            line = ''.join(line.strip().split())
             dataset.append(line)
     print(f'[!] read {len(dataset)} lines')
     return dataset
+
+def read_text_data_unlikelyhood(path):
+    dataset = []
+    with open(path) as f:
+        for line in tqdm(f.readlines()):
+            line = ''.join(line.strip().split())
+            lines = [u.strip() for u in re.split('，|。|；|！|？', line) if u.strip()]
+            dataset.extend(lines)
+    return dataset
+
 
 def read_torch_data_bert_mask(path, hard_negative_num=5):
     contexts, responses, candidates = torch.load(path)

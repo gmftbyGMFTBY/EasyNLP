@@ -75,8 +75,10 @@ models:
         type: PostTrain
         model_name: SimCSE
         dataset_name: SimCSEDataset
+        # dataset_name: SimCSEUnlikelyhoodDataset
         # inference_dataset_name: BERTSimCSEInferenceDataset
-        inference_dataset_name: BERTSimCSEInferenceContextDataset
+        # inference_dataset_name: BERTSimCSEUnlikelyhoodInferenceDataset
+        # inference_dataset_name: BERTSimCSEInferenceContextDataset
     dual-bert-mixup: 
         type: Representation
         model_name: BERTDualMixUpEncoder
@@ -130,11 +132,12 @@ models:
         type: Representation
         model_name: BERTDualHNEncoder
         # dataset_name: BERTDualHNDataset
-        # dataset_name: BERTDualBertMaskHardNegativeDataset
-        dataset_name: FineGrainedTestDataset
+        dataset_name: BERTDualBertMaskHardNegativeDataset
+        # dataset_name: FineGrainedTestDataset
         # dataset_name: BERTDualFullWithHardNegDataset
-        inference_dataset_name: BERTDualInferenceDataset
-        # inference_dataset_name: BERTDualInferenceFullEXTDataset
+        # inference_dataset_name: BERTDualInferenceDataset
+        # inference_dataset_name: BERTDualInferenceFullDataset
+        inference_dataset_name: BERTDualInferenceFullEXTDataset
         # inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
         # inference_dataset_name: BERTDualInferenceWithTestDataset
     dual-bert-proj: 
@@ -159,16 +162,16 @@ models:
         # dataset_name: BERTDualFullFakeCtxDataset
         # dataset_name: BERTDualDataset
         # dataset_name: BERTDualFullWithHardNegDataset
-        # dataset_name: BERTDualFullDataset
-        dataset_name: FineGrainedTestDataset
+        dataset_name: BERTDualFullDataset
+        # dataset_name: FineGrainedTestDataset
         # dataset_name: BERTDualReplaceBadResponseDataset
         # dataset_name: BERTDualFullDACTXDataset
         # dataset_name: BERTDualExtFullDataset
         # dataset_name: BERTDualFullNegSessionDataset
         # dataset_name: BERTDualFullWithSelfPlayDataset
         # dataset_name: BERTDualFullPseudoDataset
-        # inference_dataset_name: BERTDualInferenceDataset
-        inference_dataset_name: BERTDualInferenceWithTestDataset
+        inference_dataset_name: BERTDualInferenceDataset
+        # inference_dataset_name: BERTDualInferenceWithTestDataset
         # inference_dataset_name: BERTDualInferenceFullWithTestDataset
         # inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
         # inference_dataset_name: BERTDualInferenceWithSourceDataset
@@ -255,6 +258,7 @@ models:
     bert-ft: 
         type: Interaction
         model_name: BERTRetrieval
+        # dataset_name: FineGrainedTestInteractionDataset
         dataset_name: BERTFTDataset
         inference_dataset_name: null 
     bert-ft-essay: 
@@ -271,18 +275,15 @@ models:
         type: CompareInteraction
         model_name: BERTCompareRetrieval
         dataset_name: BERTFTCompDataset
-        # BERTFTCompEvaluationDataset used for test.sh[compare mode]
-        # dataset_name: BERTFTCompEvaluationDataset
         inference_dataset_name: null
     dual-bert-comp-hn: 
-        type: Representation
+        type: CompareInteraction
         model_name: BERTDualCompareHNEncoder
-        # dataset_name: BERTDualFullDataset
-        dataset_name: FineGrainedTestDataset
-        # dataset_name: BERTDualBertMaskHardNegativeDataset
+        # dataset_name: FineGrainedTestDataset
+        dataset_name: BERTDualBertMaskHardNegativeDataset
         inference_dataset_name: BERTDualInferenceFullEXTDataset
     dual-bert-comp: 
-        type: Representation
+        type: CompareInteraction
         model_name: BERTDualCompareEncoder
         # dataset_name: BERTDualFullDataset
         dataset_name: FineGrainedTestDataset
@@ -290,7 +291,9 @@ models:
     dual-bert-compare: 
         type: CompareInteraction
         model_name: BERTDualCompEncoder
-        dataset_name: BERTDualWithNegDataset
+        # dataset_name: BERTDualWithNegDataset
+        dataset_name: BERTDualBertMaskHardNegativeDataset
+        # dataset_name: FineGrainedTestDataset
         inference_dataset_name: null
     sa-bert: 
         type: Interaction
@@ -341,13 +344,13 @@ test_interval: 0.1
 # ========== deploy parameters ========== #
 deploy:
     host: '0.0.0.0'
-    port: 22335
-    dataset: restoration-200k
+    port: 8096
+    dataset: writer
     max_len: 256
     res_max_len: 64
     recall:
         activate: false
-        model: dual-bert-hn-pos
+        model: dual-bert-gray-writer
         # default topk
         topk: 100
         # only the arxiv, writer dataset need the with_source
@@ -359,9 +362,9 @@ deploy:
         # index_type: Flat
         dimension: 768
     rerank:
-        activate: false
-        model: null
+        activate: true
+        model: gpt2lm
     pipeline:
         activate: false
     pipeline_evaluation:
-        activate: true
+        activate: false

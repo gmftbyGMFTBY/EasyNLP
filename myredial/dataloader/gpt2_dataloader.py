@@ -25,40 +25,48 @@ class GPT2Dataset(Dataset):
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
 
+        self.data = []
         if self.args['mode'] == 'train':
             data = read_text_data_line_by_line(path)
-
             self.data = []
             for text in tqdm(data):
                 item = self.vocab.encode(text, add_special_tokens=False)
-                ids = [self.cls] + item[:self.args['max_len']-2] + [self.sep]
-                self.data.append({
-                    'ids': ids,
-                    'text': text,
-                })
+                for idx in range(0, len(item), self.args['max_len']-2):
+                    ids = item[idx:idx+self.args['max_len']-2]
+                    if len(ids) < self.args['min_len']:
+                        continue
+                    ids = [self.cls] + ids + [self.sep]
+                    self.data.append({'ids': ids})
         else:
-            data = torch.load(f'{os.path.splitext(path)[0]}.pt')
             self.data = []
-            for prefix, pos, neg in tqdm(data):
+            for text in tqdm(data):
+                item = [i.strip() for i in re.split('(。|；|！|？)', text) if i.strip()]
+                utterances = []
+                for i in item:
+                    if i in ['。', '；', '！', '？']:
+                        utterances[-1] += i
+                    else:
+                        utterances.append(i)
+                context, pos = utternaces[:-1], utterances[-1]
+                neg = random.choice(context)
+                context = ''.join(context)
                 # prefix
-                item = self.vocab.encode(prefix, add_special_tokens=False)
+                item = self.vocab.encode(context, add_special_tokens=False)
                 ids = [self.cls] + item[(-self.args['max_len']-1):]
                 
-                item = self.vocab.encode(prefix+pos, add_special_tokens=False)
+                item = self.vocab.encode(context+pos, add_special_tokens=False)
                 pos_ids = [self.cls] + item[:self.args['max_len']-2] + [self.sep]
                 
-                item = self.vocab.encode(prefix+neg, add_special_tokens=False)
+                item = self.vocab.encode(context+neg, add_special_tokens=False)
                 neg_ids = [self.cls] + item[:self.args['max_len']-2] + [self.sep]
 
                 self.data.append({
                     'ids': ids,
-                    'text': prefix,
                     'pos_ids': pos_ids,
-                    'pos_text': prefix+pos,
+                    'pos_text': context+pos,
                     'neg_ids': neg_ids,
-                    'neg_text': prefix+neg,
+                    'neg_text': context+neg,
                 })
-
 
     def __len__(self):
         return len(self.data)

@@ -119,9 +119,10 @@ class ESSearcher:
             p = []
             try:
                 for utterance in each['hits']['hits']:
-                    # p.append(utterance['fields']['response'][0])
-                    p.append(utterance['fields']['keyword'][0])
-            except:
+                    p.append(utterance['fields']['response'][0])
+                    # p.append(utterance['fields']['keyword'][0])
+            except Exception as error:
+                print(error)
                 ipdb.set_trace()
             results.append(p)
         return results

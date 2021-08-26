@@ -11,6 +11,7 @@ topk: 50
 topp: 1.0
 temp: 1.0
 repetition_penalty: 3.0
+test_interval: 0.001
 
 # train configuration
 train:

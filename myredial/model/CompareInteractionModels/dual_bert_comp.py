@@ -174,28 +174,14 @@ class BERTDualCompareHNEncoder(nn.Module):
     def __init__(self, **args):
         super(BERTDualCompareHNEncoder, self).__init__()
         model = args['pretrained_model']
-        self.temp = args['temp']
         self.comp_train_size = args['comp_train_size']
         self.hard_comp_train_size = args['hard_comp_train_size']
         self.args = args
-        self.alpha = args['alpha']
         p = args['dropout']
         self.topk = args['gray_cand_num'] + 1
 
         self.ctx_encoder = BertEmbedding(model=model, add_tokens=1)
         self.can_encoder = BertEmbedding(model=model, add_tokens=1)
-        self.ctx_head = nn.Sequential(
-            nn.Linear(768, 768),
-            nn.Tanh(),
-            nn.Dropout(p=p),
-            nn.Linear(768, 768),
-        )
-        self.res_head = nn.Sequential(
-            nn.Linear(768, 768),
-            nn.Tanh(),
-            nn.Dropout(p=p),
-            nn.Linear(768, 768),
-        )
         self.fusion_head = nn.Sequential(
             nn.Linear(768*3, 768*2),
             nn.Tanh(),
@@ -213,21 +199,6 @@ class BERTDualCompareHNEncoder(nn.Module):
         return cid_rep, rid_rep
 
     @torch.no_grad()
-    def get_cand(self, ids, attn_mask):
-        rid_rep = self.can_encoder(ids, attn_mask)
-        return rid_rep
-
-    @torch.no_grad()
-    def get_ctx(self, ids, attn_mask):
-        cid_rep = self.ctx_encoder(ids, attn_mask)
-        return cid_rep
-
-    def projection(self, cid_rep, rid_rep):
-        cid_rep += self.ctx_head(cid_rep)
-        rid_rep += self.res_head(rid_rep)
-        return cid_rep, rid_rep
-
-    @torch.no_grad()
     def predict(self, batch):
         cid = batch['ids']
         cid_mask = torch.ones_like(cid)
@@ -237,8 +208,6 @@ class BERTDualCompareHNEncoder(nn.Module):
 
         batch_size = rid.shape[0]
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
-        dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
-        cid_rep, rid_rep = self.projection(cid_rep, rid_rep)
 
         # compare 
         tickets = []
@@ -259,11 +228,8 @@ class BERTDualCompareHNEncoder(nn.Module):
             elif l.item() < 0.5 - self.args['threshold']:
                 chain[j].append(i)
             else:
-                # cannot decide, use the the dot product scores
-                if dot_product[i] >= dot_product[j]:
-                    chain[i].append(j)
-                else:
-                    chain[j].append(i)
+                # cannot decide
+                pass
         scores = self.generate_scores(chain)
         return torch.tensor(scores)
     
@@ -325,30 +291,17 @@ class BERTDualCompareHNEncoder(nn.Module):
         # acc
         acc = ((rep > 0.5).to(torch.float) == label).sum().item()
         acc /= len(label)
-        return loss*self.alpha, acc
+        return loss, acc
     
     def forward(self, batch):
         cid = batch['ids']     # [B, S]
         rid = batch['rids']    # [B*K, S]
         cid_mask = batch['ids_mask']
         rid_mask = batch['rids_mask']
-
-        # cid_rep: [B, E]; rid_rep: [B*K, E]
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
-        dot_product = torch.matmul(cid_rep, rid_rep.t())
-        dot_product /= self.temp
-        batch_size = len(cid_rep)
-
-        # constrastive loss
-        mask = torch.zeros_like(dot_product)
-        mask[range(batch_size), range(0, len(rid), self.topk)] = 1. 
-        loss_ = F.log_softmax(dot_product, dim=-1) * mask
-        loss = (-loss_.sum(dim=1)).mean()
 
         # compare loss
-        cid_rep, rid_rep = self.projection(cid_rep, rid_rep)
-        loss2, acc = self.comp_cls(cid_rep, rid_rep)
-        loss += loss2
+        loss, acc = self.comp_cls(cid_rep, rid_rep)
         return loss, acc
     
     def generate_scores(self, edges):

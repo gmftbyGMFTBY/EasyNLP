@@ -188,7 +188,8 @@ def create_app():
         }
         '''
         try:
-            data = request.json
+            # data = request.json
+            data = json.loads(request.data)
             rest, core_time = rerankagent.work(data['segment_list'])
             succ = True
         except Exception as error:

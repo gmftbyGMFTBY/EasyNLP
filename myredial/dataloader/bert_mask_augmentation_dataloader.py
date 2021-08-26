@@ -22,7 +22,7 @@ class BERTMaskAugmentationDataset(Dataset):
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
 
-        data = read_text_data_utterances_full(path, lang=self.args['lang'])
+        data = read_text_data_utterances_full(path, lang=self.args['lang'], turn_length=self.args['full_turn_length'])
         self.data = []
         for label, utterances in tqdm(data):
             item = self.vocab.encode(utterances[-1], add_special_tokens=False)
@@ -79,7 +79,7 @@ class BERTMaskAugmentationFullDataset(Dataset):
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
 
-        data = read_text_data_utterances_full(path, lang=self.args['lang'])
+        data = read_text_data_utterances(path, lang=self.args['lang'])
         self.data = []
         for label, utterances in tqdm(data):
             if label == 0:

@@ -214,6 +214,7 @@ class RepresentationAgent(RetrievalBaseAgent):
                 elif 'ids' in batch:
                     context = self.convert_to_text(batch['ids'].squeeze(0), lang=self.args['lang'])
                     responses = [self.convert_to_text(res, lang=self.args['lang']) for res in batch['rids']]
+                    context = [i.strip() for i in context.split('[SEP]')]
                 packup = {
                     'context': context,
                     'responses': responses,

@@ -132,3 +132,25 @@ For bert-ft-compare model, the dataset name in this mode is `BERTCompEvaluationD
 # file_tags: 22335,22336
 ./scripts/test_comparison.sh <dataset_name> <model_name> <file_tags> 0
 ```
+
+10. simcse generate the gray responses
+
+```bash
+# train the simcse model
+./script/train.sh <dataset_name> simcse <cuda_ids>
+```
+
+```bash
+# generate the faiss index, dataset name: BERTSimCSEInferenceDataset
+./script/inference_response.sh <dataset_name> simcse <cuda_ids>
+```
+
+```bash
+# generate the context index
+./script/inference_simcse_response.sh <dataset_name> simcse <cuda_ids>
+```
+
+```bash
+# generate the gray response
+./script/inference_gray_simcse.sh <dataset_name> simcse <cuda_ids>
+```

@@ -12,16 +12,10 @@ class BERTMaskAugmentationDMRModel(nn.Module):
         model = args['pretrained_model']
         self.model = BertForMaskedLM.from_pretrained(model)
         self.model.resize_token_embeddings(self.model.config.vocab_size+1)
-        p = args['dropout']
-        self.model.cls.seq_relationship = nn.Sequential(
-            nn.Dropout(p=p),
-            nn.Linear(768, 3)
-        )
 
         self.vocab = BertTokenizer.from_pretrained(model)
         self.special_tokens = self.vocab.convert_tokens_to_ids(['[PAD]', '[SEP]', '[CLS]'])
-        self.mask = self.vocab.convert_tokens_to_ids(['[MASK]'])[0]
-        self.pad = self.vocab.convert_tokens_to_ids(['[PAD]'])[0]
+        self.mask, self.pad = self.vocab.convert_tokens_to_ids(['[MASK]', '[PAD]'])
         self.da_num = args['augmentation_t']
         self.ratio_list = np.arange(self.args['min_masked_lm_prob'], self.args['max_masked_lm_prob'], (self.args['max_masked_lm_prob']-self.args['min_masked_lm_prob'])/self.da_num)
         assert len(self.ratio_list) == self.da_num

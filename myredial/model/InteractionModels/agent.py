@@ -188,3 +188,18 @@ class InteractionAgent(RetrievalBaseAgent):
             new_state_dict = self.checkpointadapeter.convert(state_dict)
             self.model.load_state_dict(new_state_dict)
         print(f'[!] load model from {path}')
+
+    @torch.no_grad()
+    def test_model_fg(self, test_iter, print_output=False, rerank_agent=None):
+        self.model.eval()
+        pbar = tqdm(test_iter)
+        collection = {}
+        for idx, batch in enumerate(pbar):                
+            owner = batch['owner']
+            label = batch['label']
+            scores = self.model(batch).cpu().tolist()    # [7]
+            if owner in collection:
+                collection[owner].append((label, scores))
+            else:
+                collection[owner] = [(label, scores)]
+        return collection

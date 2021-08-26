@@ -1,16 +1,19 @@
 tokenizer:
     zh: bert-base-chinese
+    en: bert-base-uncased
 pretrained_model:
     zh: bert-base-chinese
+    en: bert-base-uncased
+full_turn_length: 5
 
 inference:
     seed: 0
-    batch_size: 256
+    batch_size: 64
     res_max_len: 64
     min_len: 2
     min_mask_num: 1
     max_mask_num: 20 
     min_masked_lm_prob: 0.4
     max_masked_lm_prob: 0.6
-    augmentation_t: 10
+    augmentation_t: 5
     dropout: 0.1
