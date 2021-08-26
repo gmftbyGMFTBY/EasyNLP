@@ -55,8 +55,17 @@ class GPT2UnlikelyModel(nn.Module):
         return logits
 
     def forward(self, batch):
+        # ===== input ===== #
+        # 1. ids and ids_mask, for generation and positive non-dialog inference trainig
         ids = batch['ids']
         ids_mask = batch['mask']
+        tids = batch['tids']
+        # 2. non-dialog inference data
+        # positive sample is (ids, ids_mask, tids); negative samples is (neg_ids, neg_ids_mask, neg_tids)
+        neg_ids = batch['neg_ids']
+        neg_ids_mask = batch['neg_ids_mask']
+        neg_tids = batch['neg_tids']
+        # ===== input ===== # 
 
         batch_size = ids.shape[0]
         # [B, S, E]

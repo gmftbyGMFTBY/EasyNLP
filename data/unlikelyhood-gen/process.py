@@ -1,4 +1,5 @@
 from tqdm import tqdm
+import re
 import ipdb
 import random
 import os
@@ -9,6 +10,7 @@ def parser_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--train_size', type=int, default=1000000)
     parser.add_argument('--test_size', type=int, default=1000)
+    parser.add_argument('--min_length', type=int, default=16)
     parser.add_argument('--seed', type=float, default=0.0)
     return parser.parse_args()
 
@@ -17,8 +19,19 @@ def load(path):
     dataset = []
     with open(path, encoding='utf-8', errors='ignore') as f:
         while len(dataset) < args['train_size'] + args['test_size']:
-            line = f.readline()
-            dataset.append(line.strip())
+            line = f.readline().strip()
+            if len(line) < args["min_length"]:
+                continue
+            item = [i.strip() for i in re.split('(。|，|！|？|，)', line) if i.strip()]
+            utterances = []
+            for i in item:
+                if i in ['。', '，', '；', '！', '？'] and len(utterances) > 0:
+                    utterances[-1] += i
+                else:
+                    utterances.append(i)
+            if len(utterances) <= 1:
+                continue
+            dataset.append(line)
             if len(dataset) % 10000 == 0:
                 print(f'[!] lines: {len(dataset)}', end='\r')
     return dataset
@@ -45,7 +58,7 @@ def write(data, path):
 if __name__ == "__main__":
     args = vars(parser_args())
     random.seed(args['seed'])
-    dataset = load('train.txt07')
+    dataset = load('/home/johntianlan/generation_data/train.txt07')
     length = len(dataset)
     print(f'[!] find {length} samples in the file')
     train_idx = random.sample(range(length), args['train_size'])
@@ -56,6 +69,3 @@ if __name__ == "__main__":
 
     write(train_dataset, 'train.txt')
     write(test_dataset, 'test.txt')
-    
-
-    
