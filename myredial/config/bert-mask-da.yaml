@@ -4,6 +4,7 @@ tokenizer:
 pretrained_model:
     zh: bert-base-chinese
     en: bert-base-uncased
+full_turn_length: 5
 
 inference:
     seed: 0

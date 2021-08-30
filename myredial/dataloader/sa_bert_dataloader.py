@@ -116,14 +116,9 @@ class SABERTWithNegDataset(Dataset):
         tids.append(tcache)
         sids.append(scache)
         ids = self.vocab.encode(ids, add_special_tokens=False)
-        ids, tids, sids = self._length_limit(ids), self._length_limit(tids), self._length_limit(sids)
+        ids, tids, sids = length_limit(ids, self.args['max_len']), length_limit(tids, self.args['max_len']), length_limit(sids, self.args['max_len'])
         assert len(ids) == len(ids) and len(ids) == len(tids)
         return ids, tids, sids
-
-    def _length_limit(self, ids):
-        if len(ids) > self.args['max_len']:
-            ids = [ids[0]] + ids[-(self.args['max_len']-1):]
-        return ids
 
     def __len__(self):
         return len(self.data)
@@ -176,9 +171,12 @@ class SABERTWithNegDataset(Dataset):
 # ========== SABERT FT Dataset ========== #
 class SABERTFTDataset(Dataset):
 
+    '''TODO: truncate the response and context by the max_len; for restoration-200k corpus, it is safe.'''
+
     def __init__(self, vocab, path, **args):
         self.args = args
         self.vocab = vocab
+        self.cls, self.sep = self.vocab.convert_tokens_to_ids(['[CLS]', '[SEP]'])
 
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         suffix = args['tokenizer'].replace('/', '_')
@@ -212,32 +210,28 @@ class SABERTFTDataset(Dataset):
 
     def annotate(self, utterances):
         tokens = [self.vocab.tokenize(utt) for utt in utterances]
-        ids, tids, sids, tcache, scache, l = ['[CLS]'], [0], [0], 0, 0, len(tokens)
-        for idx, tok in enumerate(tokens):
-            if idx < l - 1:
-                ids.extend(tok)
-                ids.append('[SEP]')
-                tids.extend([tcache] * (len(tok) + 1))
-                sids.extend([scache] * (len(tok) + 1))
-                scache = 0 if scache == 1 else 1
-                tcache = 0
-            else:
-                tcache = 1
-                ids.extend(tok)
-                tids.extend([tcache] * len(tok))
-                sids.extend([scache] * len(tok))
-        ids.append('[SEP]')
-        tids.append(tcache)
-        sids.append(scache)
-        ids = self.vocab.encode(ids, add_special_tokens=False)
-        ids, tids, sids = self._length_limit(ids), self._length_limit(tids), self._length_limit(sids)
-        assert len(ids) == len(ids) and len(ids) == len(tids)
+        ids, tids, sids, tcache, scache = [], [], [], 0, 0
+        for idx, tok in enumerate(tokens[:-1]):
+            ids.extend(tok)
+            ids.append('[SEP]')
+            tids.extend([tcache] * (len(tok) + 1))
+            sids.extend([scache] * (len(tok) + 1))
+            scache = 0 if scache == 1 else 1
+            tcache = 0
+        tcache = 1
+        ids.pop()
+        sids.pop()
+        tids.pop()
+        ids = self.vocab.convert_tokens_to_ids(ids)
+        rids = self.vocab.convert_tokens_to_ids(tokens[-1])
+        trids = [tcache] * len(rids)
+        srids = [scache] * len(rids)
+        truncate_pair_with_other_ids(ids, rids, tids, trids, sids, srids, self.args['max_len'])
+        ids = [self.cls] + ids + [self.sep] + rids + [self.sep]
+        tids = [0] + tids + [0] + trids + [1]
+        sids = [0] + sids + [sids[-1]] + srids + [srids[-1]]
+        assert len(ids) == len(tids) == len(sids)
         return ids, tids, sids
-
-    def _length_limit(self, ids):
-        if len(ids) > self.args['max_len']:
-            ids = [ids[0]] + ids[-(self.args['max_len']-1):]
-        return ids
 
     def __len__(self):
         return len(self.data)

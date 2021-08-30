@@ -11,7 +11,6 @@ class BERTDualHNEncoder(nn.Module):
         self.ctx_encoder = BertEmbedding(model=model, add_tokens=1)
         self.can_encoder = BertEmbedding(model=model, add_tokens=1)
         self.args = args
-        self.temp = args['temp']
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
@@ -38,8 +37,6 @@ class BERTDualHNEncoder(nn.Module):
         batch_size = rid.shape[0]
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
         dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
-        # dot_product /= np.sqrt(768)
-        dot_product /= self.temp
         return dot_product
     
     def forward(self, batch):
@@ -50,23 +47,7 @@ class BERTDualHNEncoder(nn.Module):
 
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
         dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, B]
-        # dot_product /= np.sqrt(768)
-        dot_product /= self.temp
         batch_size = len(cid_rep)
-
-        # ignore some samples
-        for i in range(batch_size):
-            index = []
-            for j in range(len(rid)):
-                if j in range(i*self.topk, i*self.topk+self.topk):
-                    # index.append(j)
-                    pass
-                elif j % self.topk == 0:
-                    # index.append(j)
-                    pass
-                else:
-                    index.append(j)
-            dot_product[i, index] = -1e3
 
         # constrastive loss
         mask = torch.zeros_like(dot_product)
@@ -331,15 +312,14 @@ class BERTDualSAHNEncoder(nn.Module):
         self.speaker_embedding = nn.Embedding(2, 768)
         self.args = args
 
-    def _encode(self, cid, rid, cid_mask, rid_mask, sids):
-        # scids: [B, S];
-        scid_rep = self.speaker_embedding(sids)    # [B, S, E]
-        cid_rep = self.ctx_encoder(cid, cid_mask)   # [B, S, E] 
-        rid_rep = self.can_encoder(rid, rid_mask)   # [B, E] 
+    def _encode(self, cid, rid, cid_mask, rid_mask, scids):
+        # scids: [B, S]
+        scid_rep = self.speaker_embedding(scids)    # [B, S, E]
+
+
+        cid_rep = self.ctx_encoder(cid, cid_mask)    # [B, S, E] 
+        rid_rep = self.can_encoder(rid, rid_mask)
         cid_rep += scid_rep
-        # filter out the padding tokens
-        cid_rep = cid_mask.unsqueeze(-1) * cid_rep    # [B, S, E]
-        cid_rep = cid_rep.mean(dim=1)
         return cid_rep, rid_rep
 
     @torch.no_grad()
@@ -348,12 +328,10 @@ class BERTDualSAHNEncoder(nn.Module):
         return rid_rep
 
     @torch.no_grad()
-    def get_ctx(self, ids, attn_mask, sids):
+    def get_ctx(self, ids, attn_mask, scids):
         cid_rep = self.ctx_encoder(ids, attn_mask)
-        scid_rep = self.speaker_embedding(sids)
+        scid_rep = self.speaker_embedding(scids)
         cid_rep += scid_rep
-        # filter out the padding tokens
-        cid_rep = (cid_mask.unsqueeze(-1) * cid_rep).mean(dim=1)    # [B, E]
         return cid_rep
 
     @torch.no_grad()
@@ -362,10 +340,9 @@ class BERTDualSAHNEncoder(nn.Module):
         cid_mask = torch.ones_like(cid)
         rid = batch['rids']
         rid_mask = batch['rids_mask']
-        sid = batch['sids']
 
         batch_size = rid.shape[0]
-        cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask, sid)
+        cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
         dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
         return dot_product
     
@@ -374,9 +351,8 @@ class BERTDualSAHNEncoder(nn.Module):
         rid = batch['rids']    # [B*M, S]
         cid_mask = batch['ids_mask']
         rid_mask = batch['rids_mask']
-        sids = batch['sids']
 
-        cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask, sids)
+        cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
         dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, B]
         batch_size = len(cid_rep)
 

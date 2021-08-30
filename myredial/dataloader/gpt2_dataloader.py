@@ -79,8 +79,7 @@ class GPT2Dataset(Dataset):
         bundle = self.data[i]
         if self.args['mode'] == 'train':
             ids = torch.LongTensor(bundle['ids'])
-            text = bundle['text']
-            return ids, text
+            return ids
         else:
             ids = torch.LongTensor(bundle['ids'])
             pos_ids = torch.LongTensor(bundle['pos_ids'])
@@ -93,9 +92,7 @@ class GPT2Dataset(Dataset):
         
     def collate(self, batch):
         if self.args['mode'] == 'train':
-            ids = [i[0] for i in batch]
-            text = [i[1] for i in batch]
-            ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+            ids = pad_sequence(batch, batch_first=True, padding_value=self.pad)
             mask = generate_mask(ids)
             ids, mask = to_cuda(ids, mask)
             return {

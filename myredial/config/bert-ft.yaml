@@ -3,7 +3,6 @@ dropout: 0.1
 gray_cand_num: 10
 # rank: bert-ft-compare-plus
 rank: null
-test_interval: 0.001
 
 # train configuration
 train:
@@ -16,8 +15,8 @@ train:
     warmup_ratio: 0.0
     checkpoint: 
         # path: bert-post/best_nspmlm.pt
-        path: bert-fp/best_bert-base-chinese.pt
-        is_load: true
+        # path: bert-fp/best_bert-base-chinese.pt
+        is_load: false
 
 # test configuration
 test:

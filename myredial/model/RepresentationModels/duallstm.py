@@ -1,9 +1,9 @@
 from model.utils import *
 
-class BERTDualEncoder(nn.Module):
+class DualLSTM(nn.Module):
 
     def __init__(self, **args):
-        super(BERTDualEncoder, self).__init__()
+        super(DualLSTM, self).__init__()
         model = args['pretrained_model']
         self.temp = args['temp']
         self.ctx_encoder = BertEmbedding(model=model, add_tokens=1)
@@ -35,8 +35,6 @@ class BERTDualEncoder(nn.Module):
         batch_size = rid.shape[0]
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
         dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
-        dot_product /= np.sqrt(768)
-        dot_product /= self.temp
         return dot_product
     
     def forward(self, batch):
@@ -48,7 +46,6 @@ class BERTDualEncoder(nn.Module):
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
 
         dot_product = torch.matmul(cid_rep, rid_rep.t()) 
-        dot_product /= np.sqrt(768)
         dot_product /= self.temp
         batch_size = len(cid_rep)
 

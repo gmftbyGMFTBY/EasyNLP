@@ -1,4 +1,5 @@
 from .agent import *
+from .duallstm import *
 from .dual_bert import *
 from .dual_bert_pos import *
 from .dual_bert_proj import *

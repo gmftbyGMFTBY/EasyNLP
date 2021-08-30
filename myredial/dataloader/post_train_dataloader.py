@@ -147,8 +147,14 @@ class PostTrainMonoDataset(Dataset):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
-
-        data = read_extended_douban_corpus(path)
+        # for restoration-200k
+        if self.args['dataset'] in ['restoration-200k']:
+            data = read_extended_douban_corpus(path)
+        else:
+            # for douban, ecommerce, ubuntu
+            data = read_text_data_utterances(path)
+            data = list(chain(*[utterances for l, utterances in data if l == 1]))
+            data = list(set(data))
         self.data = []
         for utterance in tqdm(data):
             item = self.vocab.encode(utterance, add_special_tokens=False)

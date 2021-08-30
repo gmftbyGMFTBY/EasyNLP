@@ -128,6 +128,11 @@ models:
         # inference_dataset_name: BERTDualInferenceFullEXTDataset
         # inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
         # inference_dataset_name: BERTDualInferenceWithTestDataset
+    dual-bert-hn-sa: 
+        type: Representation
+        model_name: BERTDualSAHNEncoder
+        dataset_name: BERTDualSABertMaskHardNegativeDataset
+        inference_dataset_name: BERTDualInferenceDataset
     dual-bert-hn: 
         type: Representation
         model_name: BERTDualHNEncoder
@@ -338,7 +343,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 
 # test interval: higher than 1 means that we donot test during training procedure, which is necessary for the corpus which has the big test set
 # test_interval: 1.1
-test_interval: 0.1
+test_interval: 0.05
 
 
 # ========== deploy parameters ========== #

@@ -15,5 +15,6 @@ train:
     epoch: 35
     warmup_ratio: 0.01
     checkpoint: 
-        path: bert-fp/best_bert-base-chinese.pt
+        # path: bert-fp/best_bert-base-chinese.pt
+        path: bert-post/best_nspmlm.pt
         is_load: true

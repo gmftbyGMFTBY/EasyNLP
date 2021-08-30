@@ -40,6 +40,24 @@ def modify_sentence(ids, min_change=2, prob=0.1, k=2):
         rest.append(rids)
     return rest
 
+
+def truncate_pair_with_other_ids(cids, rids, tcids, trids, scids, srids, max_length):
+    # change the cids and rids in place
+    max_length -= 3    # [CLS], [SEP], [SEP]
+    while True:
+        l = len(cids) + len(rids)
+        if l <= max_length:
+            break
+        if len(cids) > 2 * len(rids):
+            cids.pop(0)
+            tcids.pop(0)
+            scids.pop(0)
+        else:
+            rids.pop()
+            trids.pop()
+            srids.pop()
+
+
 def truncate_pair(cids, rids, max_length):
     # change the cids and rids in place
     max_length -= 3    # [CLS], [SEP], [SEP]

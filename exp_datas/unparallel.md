@@ -9,7 +9,9 @@
 | SA-BERT+HCL        | 72.1  | 89.6  | 99.3  | -     |
 | BERT-FP            | 87.0  | 95.6  | 99.3  | 92.52 |
 | dual-bert          | 92.5  | 97.0  | 99.4  | 95.49 |
-| dual-bert-full     | **95.1**  | **98.0**  | **99.6**  | **97.08** |
+| dual-bert-full(5, linear scheduler)  | 94.2  | 98.1  | 99.6  | 97.59 |
+| dual-bert-hn(full=5, epoch=10, linear scheduler)  | 95.6  | 98.2  | 99.7  | 97.38 |
+| dual-bert-hn(5, cosine scheduler)  | 93.8  | 97.7  | 99.6  | 96.53 |
 
 ### 1.2 Douban Dataset
 
@@ -20,8 +22,14 @@
 | BERT-FP            | 32.4  | 54.2  | **87.0**  | 68.0  | 51.2  | 64.4   |  64775.34        |
 | dual-bert          | 33.13 | 53.99 | 86.0  | 68.41 | 51.27 | 64.28  |           |
 | dual-bert-full     | **34.17** | 53.95 | 85.89  | **69.06** | **53.37** | **64.77**  |      |
+| dual-bert-full(5)     | 33.38 | 52.43 | 87.73  | 68.44 | 52.32 | 64.33  |      |
+| dual-bert-full(5,warmup=0.05)     | 32.68 | 52.93 | 86.96  | 68.03 | 51.27 | 64.1  |      |
 | dual-bert-hn(bert-mask-da-dmr, full=5)     | 33.42 | 52.83 | 86.93  | 68.31 | 51.72 | 64.44  |      |
+| dual-bert-hn(bert-mask-da-dmr, full=5, warmup=0.)     | 33.89 | 52.9 | 84.83  | 68.88 | 53.07 | 64.52  |      |
+| dual-bert-hn(bert-mask-da-dmr, full=5, warmup=0., gray=5)     | 32.21 | 53.26 | 85.44  | 67.41 | 49.78 | 63.69  |      |
 | dual-bert-hn-pos(bert-mask-da-dmr, full=5)     | 32.73 | 52.71 | 86.21  | 67.85 | 50.97 | 63.97  |      |
+| dual-bert-hn-pos(bert-mask-da-dmr, full=5, warmup=0)     | 32.99 | 51.67 | 86.27  | 67.69 | 51.12 | 63.75  |      |
+| dual-bert-hn-pos(bert-mask-da-dmr, full=5, warmup=0, gray=5)     | 32.13 | 52.68 | 85.13  | 67.15 | 49.92 | 63.22  |      |
 | dual-bert-full(6)  | **32.93** | 53.95 | 84.93  | **67.73** | **51.27** | **64.49**  |      |
 | bert-ft            | 31.1  | **54.52** | 86.36 | 67.72 | 49.93 | 63.76  |           |
 
@@ -81,8 +89,10 @@ ISN means the inner session negative (hard negative)
 
 | Models             | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   | Time Cost(ms) |
 | ------------------ | ----- | ----- | ----- | ----- | ----- | ------ | --------- |
+| BERT               | 41.35 | 61.84 | 88.21 | 64.35 | 45.96 | 63.18   | 14800.94  |
+| SA-BERT            | 41.35 | 61.84 | 88.21 | 64.35 | 45.96 | 63.18   | 14800.94  |
 | BERT-FP            | 49.32 | 69.89 | 91.86 | 70.81 | 54.55 | 69.8   | 21150.52  |
-| dual-bert+full     | 56.76 | 73.92 | 93.98 | 76.06 | 62.83 | 74.87  | 24070.67  |
+| dual-bert+full(cosine scheduler)     | 56.54 | 75.12 | 94.18 | 76.04 | 62.53 | 74.78  | 24070.67  |
 | dual-bert+full-warmup(0.05)     | 56.54 | 75.12 | 94.18 | 76.04 | 62.53 | 74.78  | 24070.67  |
 | dual-bert-pos+full     | 57.23 | 74.87 | 94.54 | 76.44 | 63.33 | 75.16  | 24070.67  |
 | dual-bert+full(fp-mono)     | 57.34 | 74.85 | 93.97 | 76.46 | 63.43 | 75.25  | 24070.67  |
@@ -116,6 +126,7 @@ ISN means the inner session negative (hard negative)
 | dual-bert-hn(warmup=0.05, epoch=5, gray_cand_num=2) | 57.48 | 74.92 | 93.41 | 76.47 | 63.43 | 75.39  | 19678.29  |
 | dual-bert-hn(warmup=0.05, epoch=5, bert-mask-da[bert-fp], gray_cand_num=2) | 56.86 | 76.36 | 93.63 | 76.5 | 63.03 | 75.24  | 19678.29  |
 | dual-bert-hn(warmup=0.05, epoch=5, bert-mask-da-dmr[bert-fp], gray_cand_num=2) | 57.35 | 76.87 | 93.85 | 76.91 | 63.43 | 75.62  | 19678.29  |
+| dual-bert-hn(warmup=0., epoch=2, bert-mask-da-dmr[bert-fp], gray_cand_num=2, no-hard-negative-of-other-samples) | 58.33 | 76.73 | 93.79 | 77.2 | 64.34 | 76.06  | 19678.29  |
 
 ## 2. Full-rank Comparison Protocol
 
