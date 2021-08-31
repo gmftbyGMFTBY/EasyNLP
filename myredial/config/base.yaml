@@ -74,11 +74,11 @@ models:
     simcse: 
         type: PostTrain
         model_name: SimCSE
-        dataset_name: SimCSEDataset
+        # dataset_name: SimCSEDataset
         # dataset_name: SimCSEUnlikelyhoodDataset
         # inference_dataset_name: BERTSimCSEInferenceDataset
         # inference_dataset_name: BERTSimCSEUnlikelyhoodInferenceDataset
-        # inference_dataset_name: BERTSimCSEInferenceContextDataset
+        inference_dataset_name: BERTSimCSEUnlikelyhoodInferenceContextDataset
     dual-bert-mixup: 
         type: Representation
         model_name: BERTDualMixUpEncoder
@@ -349,13 +349,13 @@ test_interval: 0.05
 # ========== deploy parameters ========== #
 deploy:
     host: '0.0.0.0'
-    port: 8096
-    dataset: writer
+    port: 22335
+    dataset: restoration-200k
     max_len: 256
     res_max_len: 64
     recall:
         activate: false
-        model: dual-bert-gray-writer
+        model: dual-bert
         # default topk
         topk: 100
         # only the arxiv, writer dataset need the with_source
@@ -367,9 +367,9 @@ deploy:
         # index_type: Flat
         dimension: 768
     rerank:
-        activate: true
-        model: gpt2lm
+        activate: false
+        model: bert-ft
     pipeline:
         activate: false
     pipeline_evaluation:
-        activate: false
+        activate: true

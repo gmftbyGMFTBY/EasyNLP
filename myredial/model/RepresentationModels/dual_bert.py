@@ -35,7 +35,6 @@ class BERTDualEncoder(nn.Module):
         batch_size = rid.shape[0]
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
         dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
-        dot_product /= np.sqrt(768)
         dot_product /= self.temp
         return dot_product
     
@@ -48,7 +47,6 @@ class BERTDualEncoder(nn.Module):
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
 
         dot_product = torch.matmul(cid_rep, rid_rep.t()) 
-        dot_product /= np.sqrt(768)
         dot_product /= self.temp
         batch_size = len(cid_rep)
 

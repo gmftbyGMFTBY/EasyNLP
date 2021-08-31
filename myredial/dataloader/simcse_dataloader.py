@@ -179,7 +179,7 @@ class SimCSEUnlikelyhoodDataset(Dataset):
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
 
-        data = read_text_data_unlikelyhood(path)
+        data = read_text_data_unlikelyhood(path, length=16)
         print(f'[!] collect {len(data)} samples for simcse training')
         self.data = []
         for idx in tqdm(range(0, len(data), 256)):
@@ -211,7 +211,7 @@ class SimCSEUnlikelyhoodDataset(Dataset):
         
 class BERTSimCSEUnlikelyhoodInferenceContextDataset(Dataset):
 
-    '''Only for test dataset'''
+    '''Only for test dataset, generate the negative sample for calculating the ppl'''
 
     def __init__(self, vocab, path, **args):
         self.args = args
@@ -229,6 +229,7 @@ class BERTSimCSEUnlikelyhoodInferenceContextDataset(Dataset):
         self.data = []
         counter = 0
         for utterance in tqdm(dataset):
+            ipdb.set_trace()
             item = self.vocab.encode(utterance, add_special_tokens=False)
             ids = [self.cls] + item[:self.args['max_len']] + [self.sep]
             self.data.append({

@@ -54,20 +54,6 @@ class BERTDualHNEncoder(nn.Module):
         dot_product /= self.temp
         batch_size = len(cid_rep)
 
-        # ignore some samples
-        for i in range(batch_size):
-            index = []
-            for j in range(len(rid)):
-                if j in range(i*self.topk, i*self.topk+self.topk):
-                    # index.append(j)
-                    pass
-                elif j % self.topk == 0:
-                    # index.append(j)
-                    pass
-                else:
-                    index.append(j)
-            dot_product[i, index] = -1e3
-
         # constrastive loss
         mask = torch.zeros_like(dot_product)
         mask[range(batch_size), range(0, len(rid), self.topk)] = 1. 
