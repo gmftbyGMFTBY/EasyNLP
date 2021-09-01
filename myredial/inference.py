@@ -46,6 +46,8 @@ def inference(**args):
         agent.inference(data_iter, size=args['cut_size'])
     elif work_mode in ['simcse-ctx']:
         agent.inference_simcse_ctx(data_iter, size=args['cut_size'])
+    elif work_mode in ['simcse-ctx-unlikelyhood']:
+        agent.inference_simcse_unlikelyhood_ctx(data_iter, size=args['cut_size'])
     elif work_mode in ['response-with-src']:
         agent.inference_with_source(data_iter, size=args['cut_size'])
     elif work_mode in ['full-ctx-res']:
@@ -76,7 +78,7 @@ if __name__ == "__main__":
     torch.distributed.barrier()
 
     if args['local_rank'] != 0:
-        if args['work_mode'] in ['self-play', 'gray-simcse']:
+        if args['work_mode'] in ['self-play', 'gray-simcse', 'gray-simcse-unlikelyhood']:
             pass
         else:
             exit()
@@ -97,9 +99,12 @@ if __name__ == "__main__":
     elif args['work_mode'] in ['gray-one2many']:
         gray_one2many_strategy(args)
     elif args['work_mode'] in ['gray-simcse']:
-        # gray_simcse_strategy(args)
+        gray_simcse_strategy(args)
         # combination
         combine_all_generate_samples_pt(args)
+    elif args['work_mode'] in ['gray-simcse-unlikelyhood']:
+        # only one process to run
+        gray_simcse_unlikelyhood_strategy(args)
     elif args['work_mode'] in ['gray-one2many-with-src']:
         gray_one2many_with_source_strategy(args)
     elif args['work_mode'] in ['gray-hard']:

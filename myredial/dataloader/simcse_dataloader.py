@@ -225,46 +225,67 @@ class BERTSimCSEUnlikelyhoodInferenceContextDataset(Dataset):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
-        dataset = read_text_data_unlikelyhood(path)
+        path = f'{os.path.split(path)[0]}/test.txt'
+        dataset = read_text_data_unlikelyhood_test(path)
         self.data = []
         counter = 0
         for utterance in tqdm(dataset):
-            ipdb.set_trace()
-            item = self.vocab.encode(utterance, add_special_tokens=False)
-            ids = [self.cls] + item[:self.args['max_len']] + [self.sep]
-            self.data.append({
-                'ids': ids, 
-                'text': utterance,
-                'index': counter
-            })
+            utterance = ''.join(utterance.strip().split())
+            sentences_ = [i.strip() for i in re.split('(。|，|！|？|，)', utterance) if i.strip()]
+            sentences = []
+            for i in sentences_:
+                if i in ['。', '，', '！', '？'] and len(sentences) > 0:
+                    sentences[-1] += i
+                else:
+                    sentences.append(i)
+            item = self.vocab.batch_encode_plus(sentences, add_special_tokens=False)['input_ids']
+            item = [[self.cls] + i[:self.args['max_len']] + [self.sep] for i in item]
+
+            for idx in range(1, len(item)):
+                ids = item[idx]
+                utterance = ''.join(sentences[:idx])
+                response = sentences[idx]
+                for fix in ['。', '，', '！', '？']:
+                    response = response.strip(fix)
+                if len(response) < args['min_test_len'] or len(utterance) < args['min_test_context_len']:
+                    continue
+                self.data.append({
+                    'ids': ids, 
+                    # text is the context
+                    'context': utterance,
+                    'pos_res': response,
+                    'index': counter
+                })
             counter += 1
+        print(f'[!] collect {len(self.data)} test samples')
                 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, i):
         bundle = self.data[i]
-        ids = [torch.LongTensor(i) for i in bundle['ids']]
-        utterances = bundle['text']
-        return ids, utterances, bundle['index']
+        ids = torch.LongTensor(bundle['ids'])
+        return ids, bundle['context'], bundle['pos_res'], bundle['index']
 
     def save(self):
         data = torch.save(self.data, self.pp_path)
         print(f'[!] save preprocessed dataset into {self.pp_path}')
         
     def collate(self, batch):
-        ids, text, index = [], [], []
-        for i, j, k in batch:
-            ids.extend(i)
-            text.extend(j)
-            index.extend([k] * len(i))
+        ids, context, response, index = [], [], [], []
+        for i, j, k, y in batch:
+            ids.append(i)
+            context.append(j)
+            response.append(k)
+            index.append(y)
         ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
         ids_mask = generate_mask(ids)
         ids, ids_mask = to_cuda(ids, ids_mask)
         return {
             'ids': ids, 
             'mask': ids_mask, 
-            'text': text,
+            'context': context,
+            'response': response,
             'index': index,
         }
 

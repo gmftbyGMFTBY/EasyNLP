@@ -55,14 +55,12 @@ class LatentInteractionAgent(RetrievalBaseAgent):
             recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
 
             pbar.set_description(f'[!] loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
-            if batch_num == 100:
-                break
         recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
         recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
         return round(total_loss / batch_num, 4)
         
     @torch.no_grad()
-    def test_model(self, test_iter, print_output=False):
+    def test_model(self, test_iter, print_output=False, rerank_agent=None):
         self.model.eval()
         pbar = tqdm(test_iter)
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
@@ -78,14 +76,13 @@ class LatentInteractionAgent(RetrievalBaseAgent):
                 scores = self.model.predict(batch).cpu().tolist()    # [B]
             # print output
             if print_output:
-                ctext = self.convert_to_text(batch['ids'])
+                ctext = self.convert_to_text(batch['ids'].squeeze(0))
                 self.log_save_file.write(f'[CTX] {ctext}\n')
                 for rid, score in zip(batch['rids'], scores):
                     rtext = self.convert_to_text(rid)
                     score = round(score, 4)
                     self.log_save_file.write(f'[Score {score}] {rtext}\n')
                 self.log_save_file.write('\n')
-
             
             rank_by_pred, pos_index, stack_scores = \
           calculate_candidates_ranking(
@@ -93,7 +90,7 @@ class LatentInteractionAgent(RetrievalBaseAgent):
                 np.array(label.cpu().tolist()),
                 10)
             num_correct = logits_recall_at_k(pos_index, k_list)
-            if self.args['dataset'] in ["douban"]:
+            if self.args['dataset'] in ["douban", "restoration-200k"]:
                 total_prec_at_one += precision_at_one(rank_by_pred)
                 total_map += mean_average_precision(pos_index)
                 for pred in rank_by_pred:

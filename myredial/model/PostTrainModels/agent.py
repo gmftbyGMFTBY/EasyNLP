@@ -202,6 +202,31 @@ class PostTrainAgent(RetrievalBaseAgent):
         }
     
     @torch.no_grad()
+    def inference_simcse_unlikelyhood_ctx(self, inf_iter, size=500000):
+        self.model.eval()
+        pbar = tqdm(inf_iter)
+        embds, texts, indexes, responses = [], [], [], []
+        for batch in pbar:
+            ids = batch['ids']
+            ids_mask = batch['mask']
+            res = self.model.module.get_embedding(ids, ids_mask).cpu()
+            embds.append(res)
+            texts.extend(batch['context'])
+            responses.extend(batch['response'])
+            indexes.extend(batch['index'])
+        embds = torch.cat(embds, dim=0).numpy()
+
+        for idx, i in enumerate(range(0, len(embds), size)):
+            embd = embds[i:i+size]
+            text = texts[i:i+size]
+            res = responses[i:i+size]
+            index = indexes[i:i+size]
+            torch.save(
+                (embd, text, res, index), 
+                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_simcse_ctx_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
+            )
+    
+    @torch.no_grad()
     def inference_simcse_ctx(self, inf_iter, size=500000):
         self.model.eval()
         pbar = tqdm(inf_iter)

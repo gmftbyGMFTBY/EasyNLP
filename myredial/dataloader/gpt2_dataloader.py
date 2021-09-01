@@ -38,39 +38,26 @@ class GPT2Dataset(Dataset):
                     ids = [self.cls] + ids + [self.sep]
                     self.data.append({'ids': ids})
         else:
-            data = read_text_data_line_by_line(path)
+            path = f'{args["root_dir"]}/data/{args["dataset"]}/test_gray_simcse.pt'
+            data = torch.load(path)
             self.data = []
-            for text in tqdm(data):
-                item = [i.strip() for i in re.split('(。|；|！|？|，)', text) if i.strip()]
-                utterances = []
-                for i in item:
-                    if i in ['。', '；', '！', '？', '，'] and len(utterances) > 0:
-                        utterances[-1] += i
-                    else:
-                        utterances.append(i)
-                try:
-                    context, pos = utterances[:-1], utterances[-1]
-                    neg = random.choice(context)
-                except:
-                    ipdb.set_trace()
-                context = ''.join(context)
-                # prefix
-                item = self.vocab.encode(context, add_special_tokens=False)
-                ids = [self.cls] + item[(-self.args['max_len']-1):]
-                
-                item = self.vocab.encode(context+pos, add_special_tokens=False)
-                pos_ids = [self.cls] + item[:self.args['max_len']-2] + [self.sep]
-                
-                item = self.vocab.encode(context+neg, add_special_tokens=False)
-                neg_ids = [self.cls] + item[:self.args['max_len']-2] + [self.sep]
-
-                self.data.append({
-                    'ids': ids,
-                    'pos_ids': pos_ids,
-                    'pos_text': context+pos,
-                    'neg_ids': neg_ids,
-                    'neg_text': context+neg,
-                })
+            for item in tqdm(data):
+                context, pos, neg_responses = item['context'], item['pos_response'], item['neg_responses']
+                for neg in neg_responses:
+                    # prefix
+                    item = self.vocab.encode(context, add_special_tokens=False)
+                    ids = [self.cls] + item[-(self.args['max_len']-1):]
+                    item = self.vocab.encode(context+pos, add_special_tokens=False)
+                    pos_ids = [self.cls] + item[:self.args['max_len']-2] + [self.sep]
+                    item = self.vocab.encode(context+neg, add_special_tokens=False)
+                    neg_ids = [self.cls] + item[:self.args['max_len']-2] + [self.sep]
+                    self.data.append({
+                        'ids': ids,
+                        'pos_ids': pos_ids,
+                        'pos_text': context+pos,
+                        'neg_ids': neg_ids,
+                        'neg_text': context+neg,
+                    })
 
     def __len__(self):
         return len(self.data)
@@ -98,7 +85,6 @@ class GPT2Dataset(Dataset):
             return {
                 'ids': ids, 
                 'mask': mask, 
-                'text': text
             }
         else:
             ids = [i[0] for i in batch]

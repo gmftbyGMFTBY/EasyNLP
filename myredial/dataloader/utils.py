@@ -634,6 +634,13 @@ def read_text_data_unlikelyhood(path, length=16):
             dataset.extend(lines)
     return dataset
 
+def read_text_data_unlikelyhood_test(path):
+    dataset = []
+    with open(path) as f:
+        for line in tqdm(f.readlines()):
+            dataset.append(line.strip())
+    return dataset
+
 
 def read_torch_data_bert_mask(path, hard_negative_num=5):
     contexts, responses, candidates = torch.load(path)

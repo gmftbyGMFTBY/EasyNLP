@@ -200,6 +200,7 @@ def combine_all_generate_samples_pt(args):
             dataset.update(data)
         print(f'[!] obtain the simcse augmentation dataset: {len(dataset)}')
         torch.save(dataset, path)
+        print(f'[!] save data into {path}')
 
 def remove_duplicate_and_hold_the_order(utterances):
     counter = set()
