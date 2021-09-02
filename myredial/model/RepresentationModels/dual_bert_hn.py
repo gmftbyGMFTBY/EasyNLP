@@ -377,3 +377,98 @@ class BERTDualSAHNEncoder(nn.Module):
         acc = acc_num / batch_size
 
         return loss, acc
+
+
+class BERTDualGradingEncoder(nn.Module):
+
+    '''Dual bert with multi response encoder for hard negative samples'''
+
+    def __init__(self, **args):
+        super(BERTDualGradingEncoder, self).__init__()
+        model = args['pretrained_model']
+        self.topk = args['gray_cand_num'] + 1
+        self.ctx_encoder = BertEmbedding(model=model, add_tokens=1)
+        self.can_encoder = BertEmbedding(model=model, add_tokens=1)
+        self.hard_can_encoder = BertEmbedding(model=model, add_tokens=1)
+        self.args = args
+        self.temp = args['temp']
+        self.lamb = args['lambda']
+
+    def _encode(self, cid, rid, hrid, cid_mask, rid_mask, hrid_mask):
+        # cid/rid: [B, S]; hrid: [B, K, S], where K is the number of the hard negative samples
+        cid_rep = self.ctx_encoder(cid, cid_mask)
+        rid_rep = self.can_encoder(rid, rid_mask)
+
+        hrid, hrid_mask = hrid.reshape(-1, hrid.size(-1)), hrid_mask.reshape(-1, hrid_mask.size(-1))
+        hrid_rep = self.hard_can_encoder(hrid, hrid_mask)    # [B*K, E]
+        hrid_rep = torch.stack(torch.split(hrid_rep, self.topk-1))    # [B, K, E]
+        return cid_rep, rid_rep, hrid_rep
+
+    @torch.no_grad()
+    def get_cand(self, ids, attn_mask):
+        rid_rep = self.can_encoder(ids, attn_mask)
+        hrid_rep = self.hard_can_encoder(ids, attn_mask)
+        rid_rep = torch.cat([rid_rep, hrid_rep], dim=-1)    # [B, E*2]
+        return rid_rep
+
+    @torch.no_grad()
+    def get_ctx(self, ids, attn_mask):
+        cid_rep = self.ctx_encoder(ids, attn_mask)
+        cid_rep = torch.cat([cid_rep, cid_rep], dim=-1)    # [B, 2*E]
+        return cid_rep
+
+    @torch.no_grad()
+    def predict(self, batch):
+        cid = batch['ids']
+        cid_mask = torch.ones_like(cid)
+        rid = batch['rids']
+        rid_mask = batch['rids_mask']
+
+        batch_size = rid.shape[0]
+        cid_rep = self.ctx_encoder(cid, cid_mask)
+        rid_rep = self.can_encoder(rid, rid_mask)
+        hrid_rep = self.hard_can_encoder(rid, rid_mask)
+        dp1 = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
+        dp2 = torch.matmul(cid_rep, hrid_rep.t()).squeeze(0)
+        dp = self.lamb * dp1 + (1-self.lamb) * dp2
+        return dp
+    
+    def forward(self, batch):
+        cid = batch['ids']
+        rid = batch['rids']    # [B*M, S]
+        cid_mask = batch['ids_mask']
+        rid_mask = batch['rids_mask']    # [B, S]
+
+        # ====== ===== #
+        rids = torch.stack(torch.split(rid, self.topk))    # [B, M, S]
+        rids_mask = torch.stack(torch.split(rid_mask, self.topk))    # [B, M, S]
+        rid, rid_mask = rids[:, 0, :], rids_mask[:, 0, :]
+        hrid, hrid_mask = rids[:, 1:, :], rids_mask[:, 1:, :]
+        # ====== ===== #
+
+        batch_size = len(cid)
+
+        cid_rep, rid_rep, hrid_rep = self._encode(cid, rid, hrid, cid_mask, rid_mask, hrid_mask)
+
+        # 1. 
+        dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, B]
+        dot_product /= self.temp
+        mask = torch.zeros_like(dot_product)
+        mask[range(batch_size), range(batch_size)] = 1. 
+        loss_ = F.log_softmax(dot_product, dim=-1) * mask
+        loss = (-loss_.sum(dim=1)).mean()
+
+        # 2. hrid_rep: [B, K, E] 
+        # cid_rep: [B, 1, E] x [B, E, K+1]
+        hrid_rep = torch.cat([rid_rep.unsqueeze(1), hrid_rep], dim=1).permute(0, 2, 1)    # [B, K+1, E] -> [B, E, K+1]
+        dot_product_2 = torch.bmm(cid_rep.unsqueeze(1), hrid_rep).squeeze(1)    # [B, K+1]
+        mask = torch.zeros_like(dot_product_2)
+        mask[range(batch_size), 0] = 1.
+        loss_ = F.log_softmax(dot_product_2, dim=-1) * mask
+        loss += (-loss_.sum(dim=1)).mean()
+
+        # acc
+        acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
+        acc = acc_num / batch_size
+
+        return loss, acc

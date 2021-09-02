@@ -94,7 +94,7 @@ models:
     dual-bert-grading: 
         type: Representation
         model_name: BERTDualGradingEncoder
-        dataset_name: BERTDualFullNegSessionDataset
+        dataset_name: BERTDualSimCSEHardNegativeDataset
         inference_dataset_name: BERTDualInferenceDataset
     dual-bert-ishn: 
         type: Representation
@@ -138,7 +138,8 @@ models:
         type: Representation
         model_name: BERTDualHNEncoder
         # dataset_name: BERTDualHNDataset
-        dataset_name: BERTDualBertMaskHardNegativeDataset
+        # dataset_name: BERTDualBertMaskHardNegativeDataset
+        dataset_name: BERTDualSimCSEHardNegativeDataset
         # dataset_name: FineGrainedTestDataset
         # dataset_name: BERTDualFullWithHardNegDataset
         # inference_dataset_name: BERTDualInferenceDataset

@@ -8,6 +8,8 @@
 | ------------------ | ----- | ----- | ----- | ----- |
 | SA-BERT+HCL        | 72.1  | 89.6  | 99.3  | -     |
 | BERT-FP            | 87.0  | 95.6  | 99.3  | 92.52 |
+| poly-encoder       |  | 92.4  |  96.3 | 99.2 | 95.32 |
+| poly-encoder-full(5)| 93.8 | 98.5  | 99.5  | 96.49 |
 | dual-bert          | 92.5  | 97.0  | 99.4  | 95.49 |
 | dual-bert-full(5, lr=3e-5) | 93.1  | 97.6  | 99.7  | 95.96 |
 | dual-bert-full(5, lr=5e-5) | 94.4  | 98.3  | 99.5  | 96.76 |
@@ -21,11 +23,14 @@
 | ------------------ | ----- | ----- | ----- | ----- | ----- | ------ | --------- |
 | SA-BERT+HCL        | 33.0  | 53.1  | 85.8  | 68.1  | 51.4  | 63.9   |           |
 | BERT-FP            | 32.4  | 54.2  | **87.0**  | 68.0  | 51.2  | 64.4   |  64775.34        |
+| poly-encoder | 29.99 | 49.35 | 92.19 | 64.97 | 47.53 | 60.84 | 30525.56  |
+| poly-encoder-full(5) | 30.26 | 50.27 |  84.87 | 65.95 | 48.43 | 61.73 |  29469.71  |
 | dual-bert(bertp-fp-mono)          | 33.72 | 53.67 | 86.56  | 68.57 | 52.32 | 64.56  |           |
 | dual-bert-full     | **34.17** | 53.95 | 85.89  | **69.06** | **53.37** | **64.77**  |      |
 | dual-bert-full(5)     | 33.38 | 52.43 | 87.73  | 68.44 | 52.32 | 64.33  |      |
 | dual-bert-full(5, lr=8e-5, bert-fp)     | 33.93 | 52.57 | 86.59  | 68.47 | 52.47 | 64.66  |      |
-| dual-bert-full(5, lr=1e-4, bert-fp, test_interval=0.001)     | 34.41 | 53.6 | 86.18  | 69.19 | 53.52 | 65.0  |      |
+| dual-bert-full(5, lr=1e-4, epoch=5, bert-fp, test_interval=0.001)     | 34.41 | 53.6 | 86.18  | 69.19 | 53.52 | 65.0  |      |
+| dual-bert-full(5, lr=1e-4, epoch=10, bert-fp, test_interval=0.01)     | 33.84 | 54.13 | 86.14  | 68.79 | 52.32 | 64.73  |      |
 | dual-bert-full(5,warmup=0.05)     | 32.68 | 52.93 | 86.96  | 68.03 | 51.27 | 64.1  |      |
 | dual-bert-hn(bert-mask-da-dmr, full=5)     | 33.42 | 52.83 | 86.93  | 68.31 | 51.72 | 64.44  |      |
 | dual-bert-hn(bert-mask-da-dmr, full=5, warmup=0.)     | 33.89 | 52.9 | 84.83  | 68.88 | 53.07 | 64.52  |      |
@@ -43,6 +48,8 @@
 | -------------- | ----- | ----- | ----- | ------ |
 | SA-BERT+HCL    | 86.7  | 94.0  | 99.2  | 97.7   |
 | BERT-FP        | **91.1**  | **96.2**  | **99.4**  | **97.7**   |
+| poly-encoder | 88.15 | 94.86 | 99.04 | - |
+| poly-encoder-full(5) | 90.12 | 95.76 | 99.21 | - |
 | dual-bert      | 88.57 | 95.06 | 99.09 | - |
 | dual-bert-full | 90.36 | 95.82 | 99.18 | - |
 | dual-bert-full(bert-fp-mono) | 90.1 | 95.55 | 99.03 | - |
@@ -96,8 +103,8 @@ ISN means the inner session negative (hard negative)
 | BERT               | 41.35 | 61.84 | 88.21 | 64.35 | 45.96 | 63.18  | 14800.94  |
 | SA-BERT            | 41.35 | 61.84 | 88.21 | 64.35 | 45.96 | 63.18  | 14800.94  |
 | BERT-FP            | 49.32 | 69.89 | 91.86 | 70.81 | 54.55 | 69.8   | 21150.52  |
-| poly-encoder(m=128)| 55.42 | 74.2  | 92.9  | 75.02 | 62.02 | 74.51  | 26724.77  |
-| poly-encoder-full(m=128)| | | |  |  |    |   |
+| poly-encoder(m=128)| 53.64 | 70.17 | 92.24 |  72.86 | 58.89 |  71.81  |  30397.72 |
+| poly-encoder-full(m=128)| 55.42 | 74.2  | 92.9  | 75.02 | 62.02 | 74.51  | 26724.77  |
 | dual-bert+full(cosine scheduler)     | 56.54 | 75.12 | 94.18 | 76.04 | 62.53 | 74.78  | 24070.67  |
 | dual-bert+full-warmup(0.05)     | 56.54 | 75.12 | 94.18 | 76.04 | 62.53 | 74.78  | 24070.67  |
 | dual-bert-pos+full     | 57.23 | 74.87 | 94.54 | 76.44 | 63.33 | 75.16  | 24070.67  |
@@ -133,6 +140,8 @@ ISN means the inner session negative (hard negative)
 | dual-bert-hn(warmup=0.05, epoch=5, bert-mask-da[bert-fp], gray_cand_num=2) | 56.86 | 76.36 | 93.63 | 76.5 | 63.03 | 75.24  | 19678.29  |
 | dual-bert-hn(warmup=0.05, epoch=5, bert-mask-da-dmr[bert-fp], gray_cand_num=2) | 57.35 | 76.87 | 93.85 | 76.91 | 63.43 | 75.62  | 19678.29  |
 | dual-bert-hn(warmup=0., epoch=2, bert-mask-da-dmr[bert-fp], gray_cand_num=2, no-hard-negative-of-other-samples) | 58.33 | 76.73 | 93.79 | 77.2 | 64.34 | 76.06  | 19678.29  |
+| dual-bert-hn(simcse hard negative) | 55.94 | 74.38 | 93.75 | 75.58 | 62.02 | 74.43  | 23525.63  |
+| dual-bert-hn(simcse hard negative,no last utterance candidates) | 56.78 | 74.13 | 94.61 | 76.12 | 62.93 | 75.0  | 23551.79  |
 
 ## 2. Full-rank Comparison Protocol
 

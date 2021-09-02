@@ -117,7 +117,6 @@ class BERTSimCSEInferenceContextDataset(Dataset):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
-        ext_path = f'{args["root_dir"]}/data/ext_douban/train.txt'
         dataset = read_text_data_utterances_full(path, lang=self.args['lang'], turn_length=5)
         self.data = []
         counter = 0
