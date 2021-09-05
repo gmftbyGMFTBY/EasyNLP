@@ -12,7 +12,7 @@ inference:
     res_max_len: 64
     min_len: 2
     min_mask_num: 1
-    max_mask_num: 20 
+    max_mask_num: 32
     masked_lm_prob: 0.5
-    augmentation_t: 5
+    augmentation_t: 10
     dropout: 0.1

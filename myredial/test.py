@@ -26,6 +26,7 @@ def parser_args():
     parser.add_argument('--file_tags', type=str, default='22335,22336')
     parser.add_argument('--log', action='store_true', dest='log')
     parser.add_argument('--no-log', action='store_false', dest='log')
+    parser.add_argument('--candidate_size', type=int, default=100)
     return parser.parse_args()
 
 
@@ -152,9 +153,10 @@ def main_rerank(**args):
         rerank_agent = None
 
     bt = time.time()
-    outputs = agent.test_model(test_iter, print_output=True, rerank_agent=rerank_agent)
+    outputs = agent.test_model(test_iter, print_output=False, rerank_agent=rerank_agent)
     cost_time = time.time() - bt
     cost_time *= 1000    # ms
+    cost_time /= len(test_iter)
 
     with open(f'{args["root_dir"]}/rest/{args["dataset"]}/{args["model"]}/test_result_rerank_{pretrained_model_name}.txt', 'w') as f:
         for key, value in outputs.items():
@@ -346,6 +348,42 @@ def main_rerank_fg(**args):
         print(f'[!] Set Based Metric of Annotator {name}: {round(np.mean(sbm_scores), 4)}')
         print(f'[!] Weighted Kendall Tau of Annotator {name}: {round(np.mean(weighttau_scores), 4)}')
 
+
+def main_rerank_time(**args):
+    args['mode'] = 'test'
+    new_args = deepcopy(args)
+    config = load_config(args)
+    args.update(config)
+
+    if args['model'] in args['no_test_models']:
+        print(f'[!] model {args["model"]} doesn"t support test')
+        return
+    
+    random.seed(args['seed'])
+    torch.manual_seed(args['seed'])
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args['seed'])
+
+    test_data, test_iter, _ = load_dataset(args)
+    agent = load_model(args)
+    
+    pretrained_model_name = args['pretrained_model'].replace('/', '_')
+    save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}.pt'
+    agent.load_model(save_path)
+
+    bt = time.time()
+    outputs = agent.test_model(test_iter, print_output=False, rerank_agent=None, core_time=True)
+    cost_time = outputs['core_time']*1000
+    cost_time /= len(test_iter)
+
+    with open(f'{args["root_dir"]}/rest/{args["dataset"]}/{args["model"]}/test_result_rerank_{pretrained_model_name}.txt', 'w') as f:
+        for key, value in outputs.items():
+            print(f'{key}: {value}', file=f)
+        print(f'Cost-Time: {round(cost_time, 2)} ms', file=f)
+    for key, value in outputs.items():
+        print(f'{key}: {value}')
+
+
 if __name__ == "__main__":
     args = vars(parser_args())
     if args['mode'] == 'recall':
@@ -359,5 +397,7 @@ if __name__ == "__main__":
         main_rerank_fg(**args)
     elif args['mode'] == 'compare':
         main_compare(**args)
+    elif args['mode'] == 'rerank_time':
+        main_rerank_time(**args)
     else:
         raise Exception(f'[!] Unknown mode: {args["mode"]}')

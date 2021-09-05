@@ -15,10 +15,10 @@ test_interval: 0.001
 
 # train configuration
 train:
-    lr: 0.00001
-    grad_clip: 1.0
+    lr: 0.00005
+    grad_clip: 5.0
     seed: 0
-    batch_size: 64
+    batch_size: 48
     max_len: 256
     epoch: 15
     warmup_ratio: 0.05

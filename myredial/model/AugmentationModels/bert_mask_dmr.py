@@ -25,12 +25,6 @@ class BERTMaskAugmentationDMRModel(nn.Module):
         inpt = batch['ids']
         rest = []
 
-        if batch['full'] is False:
-            response = batch['response']
-        else:
-            response = []
-            for l, res in zip(batch['length'], batch['response']):
-                response.extend([res]*l)
         for i in range(self.da_num):
             ids = []
             for ii in deepcopy(inpt):
@@ -45,7 +39,7 @@ class BERTMaskAugmentationDMRModel(nn.Module):
                 input_ids=ids,
                 attention_mask=mask,
             )[0]    # [B, S, V]
-            sent = self.generate_text(ids, F.softmax(logits, dim=-1), response)    # [B] list
+            sent = self.generate_text(ids, F.softmax(logits, dim=-1))
             rest.append(sent)
         # rest: K*[B] -> B*[K]
         if batch['full'] is False:
@@ -57,22 +51,22 @@ class BERTMaskAugmentationDMRModel(nn.Module):
             rest_ = []
             for i in range(len(batch['context'])):
                 l = length[i]
-                k = list(chain(*[item[idx:idx+l] for item in rest]))
-                rest_.append(k)
+                pause = [item[idx:idx+l] for item in rest]
+                pause_2 = []
+                for jdx in range(len(pause[0])):
+                    pause_2.append([item[jdx] for item in pause])
+                rest_.append(pause_2)
                 idx += l
         return rest_
 
-    def generate_text(self, ids, logits, responses):
+    def generate_text(self, ids, logits):
         sentences = []
-        for item, inpt, res in zip(logits, ids, responses):
+        for item, inpt in zip(logits, ids):
             inpt = inpt.tolist()
             tokens_ = torch.multinomial(item, num_samples=1).tolist()    # [S, K]
             tokens_ = [token[0] for token in tokens_]
             ts = [t if ot == self.mask else ot for t, ot in zip(tokens_, inpt) if ot not in self.special_tokens and t not in self.special_tokens]
             string = [self.vocab.convert_ids_to_tokens(t) for t in ts]
             string = ''.join(string)
-            if string != res:
-                sentences.append(string)
-            else:
-                sentences.append('')
+            sentences.append(string)
         return sentences

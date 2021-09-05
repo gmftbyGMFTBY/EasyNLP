@@ -40,7 +40,8 @@ def gray_simcse_strategy(args):
         for t, idx, rest in zip(text, index, result):
             if t in rest:
                 rest.remove(t)
-            rest = rest[-args['gray_topk']:]
+            # rest = rest[-args['gray_topk']:]
+            rest = random.sample(rest, args['gray_topk'])
             if idx in collection:
                 collection[idx].append({
                     'text': t,

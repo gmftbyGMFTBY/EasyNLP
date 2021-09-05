@@ -12,7 +12,7 @@ train:
     checkpoint: 
         # path: bert-post/best_nspmlm.pt
         path: bert-fp/best_bert-base-chinese.pt
-        is_load: false
+        is_load: true
 
 # test configuration
 test:

@@ -7,8 +7,8 @@ def load_data_train(path):
         dataset = []
         for line in f.readlines():
             utterances = line.split('\t')
-            context = utterances[:5]
-            response = utterances[5]
+            context = utterances[:4]
+            response = utterances[4]
             responses.extend(utterances[:6])
             dataset.append((context, response))
     responses = list(set(responses))

@@ -82,15 +82,21 @@ class InteractionAgent(RetrievalBaseAgent):
         return round(total_loss / batch_num, 4)
     
     @torch.no_grad()
-    def test_model(self, test_iter, print_output=False, rerank_agent=None):
+    def test_model(self, test_iter, print_output=False, rerank_agent=None, core_time=False):
         self.model.eval()
         pbar = tqdm(test_iter)
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
         total_examples, total_correct = 0, 0
         k_list = [1, 2, 5, 10]
+        core_time_rest = 0
         for idx, batch in enumerate(pbar):
             label = batch['label']
+            if core_time:
+                bt = time.time()
             scores = torch.sigmoid(self.model(batch)).cpu().tolist()
+            if core_time:
+                et = time.time()
+                core_time_rest += et - bt
 
             if rerank_agent:
                 scores_ = []
@@ -137,14 +143,25 @@ class InteractionAgent(RetrievalBaseAgent):
         avg_mrr = float(total_mrr / total_examples)
         avg_prec_at_one = float(total_prec_at_one / total_examples)
         avg_map = float(total_map / total_examples)
-        return {
-            f'R10@{k_list[0]}': round(((total_correct[0]/total_examples)*100), 2),        
-            f'R10@{k_list[1]}': round(((total_correct[1]/total_examples)*100), 2),        
-            f'R10@{k_list[2]}': round(((total_correct[2]/total_examples)*100), 2),        
-            'MRR': round(100*avg_mrr, 2),
-            'P@1': round(100*avg_prec_at_one, 2),
-            'MAP': round(100*avg_map, 2),
-        }
+        if core_time:
+            return {
+                f'R10@{k_list[0]}': round(((total_correct[0]/total_examples)*100), 2),        
+                f'R10@{k_list[1]}': round(((total_correct[1]/total_examples)*100), 2),        
+                f'R10@{k_list[2]}': round(((total_correct[2]/total_examples)*100), 2),        
+                'MRR': round(100*avg_mrr, 2),
+                'P@1': round(100*avg_prec_at_one, 2),
+                'MAP': round(100*avg_map, 2),
+                'core_time': core_time_rest,
+            }
+        else:
+            return {
+                f'R10@{k_list[0]}': round(((total_correct[0]/total_examples)*100), 2),        
+                f'R10@{k_list[1]}': round(((total_correct[1]/total_examples)*100), 2),        
+                f'R10@{k_list[2]}': round(((total_correct[2]/total_examples)*100), 2),        
+                'MRR': round(100*avg_mrr, 2),
+                'P@1': round(100*avg_prec_at_one, 2),
+                'MAP': round(100*avg_map, 2),
+            }
 
     @torch.no_grad()
     def rerank(self, batches, inner_bsz=512):

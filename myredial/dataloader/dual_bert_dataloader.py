@@ -357,9 +357,7 @@ class BERTDualFullDataset(Dataset):
         else:
             # batch size is batch_size * 10
             assert len(batch) == 1
-            batch = batch[0]
-            ids, rids, label = batch[0], batch[1], batch[2]
-            text = batch[3]
+            ids, rids, label, text = batch[0]
             rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
             rids_mask = generate_mask(rids)
             label = torch.LongTensor(label)
@@ -1292,9 +1290,13 @@ class BERTDualHNDataset(Dataset):
         bundle = self.data[i]
         if self.args['mode'] == 'train':
             ids, rids = bundle['ids'], bundle['rids']
-            candidates = bundle['cands']
+            random_idx = random.sample(len(bundle['cands']), self.gray_cand_num)
+            candidates = [bundle['cands'][i] for i in random_idx]
+            # delete to make sure more hard negative samples can be used
+            for i in candidates:
+                self.data[i]['cands'].remove(i)
             # neg inner nession
-            hrids = self.vocab.batch_encode_plus(random.sample(candidates, self.gray_cand_num), add_special_tokens=False)['input_ids']
+            hrids = self.vocab.batch_encode_plus(candidates, add_special_tokens=False)['input_ids']
             hrids = [[self.cls] + i[:(self.args['res_max_len']-2)] + [self.sep] for i in hrids]
             ids = torch.LongTensor(ids)
             rids = torch.LongTensor(rids)
@@ -2799,6 +2801,7 @@ class BERTDualSimCSEHardNegativeDataset(Dataset):
             for key, sample in tqdm(data.items()):
                 utterances = [i['text'] for i in sample]
                 candidates = list(set(chain(*[i['cands'] for i in sample[:-1]])))    # ignore the candidates of the responses
+                # candidates = list(set(chain(*[i['cands'] for i in sample])))
                 if len(candidates) < self.args['gray_cand_num']:
                     candidates += random.sample(pool, self.args['gray_cand_num']-len(candidates))
                 item = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']
@@ -2853,7 +2856,11 @@ class BERTDualSimCSEHardNegativeDataset(Dataset):
         if self.args['mode'] == 'train':
             ids = torch.LongTensor(bundle['ids'])
             rids = torch.LongTensor(bundle['rids'])
-            cands = random.sample(bundle['cands'], self.args['gray_cand_num'])
+            random_idx = random.sample(range(len(bundle['cands'])), self.args['gray_cand_num'])
+            cands = [bundle['cands'][i] for i in random_idx]
+            # delete 
+            for text in cands:
+                self.data[i]['cands'].remove(text)
             cands = self.vocab.batch_encode_plus(cands, add_special_tokens=False)['input_ids']
             hrids = [torch.LongTensor([self.cls] + i[:(self.args['res_max_len']-2)] + [self.sep]) for i in cands]
             rids = [rids] + hrids

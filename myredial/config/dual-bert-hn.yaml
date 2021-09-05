@@ -1,6 +1,7 @@
 rank: null
 gray_cand_num: 2
-temp: 1.0
+# temp: 1.0
+temp: 0.07
 
 # train configuration
 train:
@@ -34,9 +35,6 @@ inference:
     max_len: 64
     ctx_max_len: 256
     topk: 20
-    # index_type: IVF3722,Flat
-    # index_type: IVF6509,Flat
-    # index_type: IVF4309,Flat
     index_type: Flat
     index_nprobe: 1
     dimension: 768

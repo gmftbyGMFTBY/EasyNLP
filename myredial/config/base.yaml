@@ -109,7 +109,7 @@ models:
     dual-bert-hn-hier: 
         type: Representation
         model_name: BERTDualHNHierEncoder
-        dataset_name: BERTDualHNDataset
+        dataset_name: BERTDualBertMaskHardNegativeDataset
         inference_dataset_name: BERTDualInferenceDataset
     dual-bert-hn-pos:
         type: Representation
@@ -134,12 +134,17 @@ models:
         model_name: BERTDualSAHNEncoder
         dataset_name: BERTDualSABertMaskHardNegativeDataset
         inference_dataset_name: BERTDualInferenceDataset
+    dual-bert-hn-bce:
+        type: Representation
+        model_name: BERTDualHNEncoderBCE
+        dataset_name: BERTDualBertMaskHardNegativeDataset
+        inference_dataset_name: null
     dual-bert-hn: 
         type: Representation
         model_name: BERTDualHNEncoder
         # dataset_name: BERTDualHNDataset
-        # dataset_name: BERTDualBertMaskHardNegativeDataset
-        dataset_name: BERTDualSimCSEHardNegativeDataset
+        dataset_name: BERTDualBertMaskHardNegativeDataset
+        # dataset_name: BERTDualSimCSEHardNegativeDataset
         # dataset_name: FineGrainedTestDataset
         # dataset_name: BERTDualFullWithHardNegDataset
         # inference_dataset_name: BERTDualInferenceDataset
@@ -170,6 +175,7 @@ models:
         # dataset_name: BERTDualDataset
         # dataset_name: BERTDualFullWithHardNegDataset
         dataset_name: BERTDualFullDataset
+        # dataset_name: BERTDualTimeDataset
         # dataset_name: FineGrainedTestDataset
         # dataset_name: BERTDualReplaceBadResponseDataset
         # dataset_name: BERTDualFullDACTXDataset
@@ -266,7 +272,8 @@ models:
         type: Interaction
         model_name: BERTRetrieval
         # dataset_name: FineGrainedTestInteractionDataset
-        dataset_name: BERTFTDataset
+        # dataset_name: BERTFTDataset
+        dataset_name: BERTFTTimeDataset
         inference_dataset_name: null 
     bert-ft-essay: 
         type: Evaluation
@@ -307,11 +314,18 @@ models:
         model_name: SABERTRetrieval 
         dataset_name: SABERTFTDataset
         inference_dataset_name: null 
+    poly-encoder-hn: 
+        type: LatentInteraction
+        model_name: PolyEncoderHN
+        dataset_name: BERTDualBertMaskHardNegativeDataset
+        # dataset_name: BERTDualTimeDataset
+        inference_dataset_name: null
     poly-encoder: 
         type: LatentInteraction
         model_name: PolyEncoder
-        # dataset_name: BERTDualFullDataset
-        dataset_name: BERTDualDataset
+        dataset_name: BERTDualFullDataset
+        # dataset_name: BERTDualDataset
+        # dataset_name: BERTDualTimeDataset
         inference_dataset_name: null
     bert-fp: 
         type: PostTrain
@@ -346,7 +360,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 
 # test interval: higher than 1 means that we donot test during training procedure, which is necessary for the corpus which has the big test set
 # test_interval: 1.1
-test_interval: 0.1
+test_interval: 0.01
 
 
 # ========== deploy parameters ========== #
