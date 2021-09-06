@@ -15,8 +15,8 @@ class GPT2Model(nn.Module):
         self.topk = args['topk']
         self.topp = args['topp']
         self.temp = args['temp']
-        self.max_len = args['max_len']
-        self.min_len = args['min_len']
+        self.test_max_len = args['gen_max_len']
+        self.test_min_len = args['gen_min_len']
         self.repetition_penalty = args['repetition_penalty']
 
     @torch.no_grad()
@@ -47,8 +47,8 @@ class GPT2Model(nn.Module):
             temperature=self.temp,
             forced_eos_token_id=True,
             do_sampling=True,
-            max_length=self.max_len,
-            min_length=self.min_len,
+            max_length=self.test_max_len,
+            min_length=self.test_min_len,
             repetition_penalty=self.repetition_penalty,
         )
         return logits

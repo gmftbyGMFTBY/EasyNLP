@@ -13,6 +13,7 @@ class BERTDualEncoder(nn.Module):
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
         rid_rep = self.can_encoder(rid, rid_mask)
+        cid_rep, rid_rep = F.normalize(cid_rep), F.normalize(rid_rep)
         return cid_rep, rid_rep
 
     @torch.no_grad()
@@ -34,10 +35,8 @@ class BERTDualEncoder(nn.Module):
 
         batch_size = rid.shape[0]
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
-        # cid_rep = self.ctx_encoder(cid, cid_mask)
         dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
         dot_product /= self.temp
-        # dot_product = torch.arange(len(rid))
         return dot_product
     
     def forward(self, batch):

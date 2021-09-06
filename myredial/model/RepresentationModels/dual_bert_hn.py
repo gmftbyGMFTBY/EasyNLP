@@ -502,6 +502,7 @@ class BERTDualHNEncoderBCE(nn.Module):
             nn.Linear(768*2, 768),
             nn.Linear(768, 1)
         )
+        self.neg_num = args['neg_num']
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
@@ -536,7 +537,25 @@ class BERTDualHNEncoderBCE(nn.Module):
         # BCE loss
         mask = torch.zeros_like(dot_product)
         mask[range(batch_size), range(0, len(rid), self.topk)] = 1. 
-        loss = self.criterion(dot_product.view(-1), mask.view(-1))
+        dot_product, mask = dot_product.view(-1), mask.view(-1)
+        a, b = [], []
+        for i in range(batch_size):
+            index = list(range(self.topk*i, self.topk*i+self.topk))
+            neg_index = random.sample(list(set(range(len(rid))) - set(index)), self.neg_num)
+            index.extend(neg_index)
+            for idx in index:
+                a.append(dot_product[idx])
+                b.append(mask[idx])
+        a, b = torch.stack(a), torch.stack(b)
+        a = dot_product.view(-1)
+        b = mask.view(-1)
+
+        # random shuffle
+        random_idx = list(range(len(a)))
+        random.shuffle(random_idx)
+        a = torch.stack([a[i] for i in random_idx])
+        b = torch.stack([b[i] for i in random_idx])
+        loss = self.criterion(a, b)
 
         # acc
         acc = ((torch.sigmoid(dot_product).view(-1) > 0.5).float() == mask.view(-1)).float().mean().item()

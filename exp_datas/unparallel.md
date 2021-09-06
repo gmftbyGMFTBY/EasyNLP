@@ -15,6 +15,8 @@
 | dual-bert-full(5, lr=5e-5) | 94.4  | 98.3  | 99.5  | 96.76 |
 | dual-bert-full(5, lr=8e-5) | 94.7  | 98.2  | 99.7  | 96.89 |
 | dual-bert-hn(full=5, epoch=10, linear scheduler)  | 95.6  | 98.2  | 99.7  | 97.38 |
+| dual-bert-hn(epoch=5,gray=2,cosine[temp=0.07],bert-mask-da-dmr[aug_t=10,0.4-0.6])  | 95.4  | 98.1  | 99.4  | 97.2 |
+| dual-bert-hn(no-fg,epoch=5,gray=2,cosine[temp=0.07],bert-mask-da-dmr[aug_t=10,0.4-0.6])  | 91.3  | 96.2  | 99.1  | 94.62 |
 
 ### 1.2 Douban Dataset
 
@@ -107,6 +109,8 @@ ISN means the inner session negative (hard negative)
 | poly-encoder-full(m=128)| 55.42 | 74.2  | 92.9  | 75.02 | 62.02 | 74.51  | 26724.77  |
 | poly-encoder-full+hn(m=128)| 56.13 | 75.25  | 94.23  | 75.94 | 62.12 | 74.77  | 28.44  |
 | dual-bert-hn(bert-mask-da-dmr[0.4-0.6,aug_t=10],epoch=5,no-other-hn,cosine) | 58.47 | 73.59  | 94.23  | 76.72 | 64.44 | 75.44  | 22.8  |
+| dual-bert-hn(bert-mask-da-dmr[0.4-0.6,aug_t=10],epoch=5,no-other-hn,cosine,no-full) | 54.92 | 71.85  | 93.38  | 74.28 | 60.71 | 73.18  | 22.8  |
+| dual-bert-hn-bce | 14.43 | 26.14  | 58.7  | 36.46 | 16.26 | 35.78  | 23.22  |
 | dual-bert+full(cosine scheduler)     | 56.54 | 75.12 | 94.18 | 76.04 | 62.53 | 74.78  | 24070.67  |
 | dual-bert+full-warmup(0.05)     | 56.54 | 75.12 | 94.18 | 76.04 | 62.53 | 74.78  | 24070.67  |
 | dual-bert+full(bsz=128,max_len=128,32)     | 58.1 | 74.49 | 94.98 | 76.89 | 64.04 | 75.81  | 24010.91  |

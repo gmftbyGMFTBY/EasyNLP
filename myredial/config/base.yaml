@@ -272,8 +272,8 @@ models:
         type: Interaction
         model_name: BERTRetrieval
         # dataset_name: FineGrainedTestInteractionDataset
-        # dataset_name: BERTFTDataset
-        dataset_name: BERTFTTimeDataset
+        dataset_name: BERTFTDataset
+        # dataset_name: BERTFTTimeDataset
         inference_dataset_name: null 
     bert-ft-essay: 
         type: Evaluation
@@ -372,7 +372,7 @@ deploy:
     res_max_len: 64
     recall:
         activate: false
-        model: dual-bert
+        model: full
         # default topk
         topk: 100
         # only the arxiv, writer dataset need the with_source

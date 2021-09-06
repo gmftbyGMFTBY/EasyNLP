@@ -10,7 +10,8 @@ def da_strategy(args):
     contexts, responses, results = [], [], []
     for i in tqdm(range(args['nums'])):
         c, r, re = torch.load(
-            f'{args["root_dir"]}/data/{args["dataset"]}/inference_bert_mask_da_{i}.pt'
+            f'{args["root_dir"]}/data/{args["dataset"]}/inference_bert_mask_da_{i}.pt',
+            map_location=torch.device('cpu')
         )
         print(f'[!] load {args["root_dir"]}/data/{args["dataset"]}/inference_bert_mask_da_{i}.pt')
         contexts.extend(c)

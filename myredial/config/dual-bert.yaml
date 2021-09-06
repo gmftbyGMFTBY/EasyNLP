@@ -1,6 +1,6 @@
 smoothing: 0.1
 rank: null
-temp: 1.0
+temp: 0.07
 full_turn_length: 5
 ext_turn_size: 4
 gray_cand_num: 5
@@ -18,14 +18,14 @@ train:
     batch_size: 64
     max_len: 256
     res_max_len: 64
-    epoch: 2
+    epoch: 5
     warmup_ratio: 0.
     stop_train: false
     stop_train_trigger:
         R10@1: 35.
     checkpoint: 
-        # path: bert-post/best_nspmlm.pt
-        path: bert-fp/best_bert-base-chinese.pt
+        path: bert-post/best_nspmlm.pt
+        # path: bert-fp/best_bert-base-chinese.pt
         # path: bert-fp-mono/best_bert-base-chinese.pt
         # path: bert-fp-mono/best_bert-base-uncased.pt
         # path: simcse/best_bert-base-chinese.pt

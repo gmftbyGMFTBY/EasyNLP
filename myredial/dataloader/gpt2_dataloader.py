@@ -40,6 +40,8 @@ class GPT2Dataset(Dataset):
         else:
             path = f'{args["root_dir"]}/data/{args["dataset"]}/test_gray_simcse.pt'
             data = torch.load(path)
+            # random sample 1000 samples
+            data = random.sample(data, 1000)
             self.data = []
             for item in tqdm(data):
                 context, pos, neg_responses = item['context'], item['pos_response'], item['neg_responses']
@@ -57,6 +59,7 @@ class GPT2Dataset(Dataset):
                         'pos_text': context+pos,
                         'neg_ids': neg_ids,
                         'neg_text': context+neg,
+                        'text': context,
                     })
 
     def __len__(self):
@@ -71,7 +74,7 @@ class GPT2Dataset(Dataset):
             ids = torch.LongTensor(bundle['ids'])
             pos_ids = torch.LongTensor(bundle['pos_ids'])
             neg_ids = torch.LongTensor(bundle['neg_ids'])
-            return ids, pos_ids, neg_ids, bundle['text'], bundle['pos_text'], bundle['neg_text']
+            return ids, pos_ids, neg_ids, bundle['pos_text'], bundle['neg_text'], bundle['text']
 
     def save(self):
         data = torch.save(self.data, self.pp_path)
@@ -90,9 +93,9 @@ class GPT2Dataset(Dataset):
             ids = [i[0] for i in batch]
             pos_ids = [i[1] for i in batch]
             neg_ids = [i[2] for i in batch]
-            text = [i[3] for i in batch]
-            pos_text = [i[4] for i in batch]
-            neg_text = [i[5] for i in batch]
+            pos_text = [i[3] for i in batch]
+            neg_text = [i[4] for i in batch]
+            text = [i[5] for i in batch]
 
             # pad from the left side, batch first
             max_length = max([len(i) for i in ids])
@@ -115,8 +118,8 @@ class GPT2Dataset(Dataset):
                 'pos_ids_mask': pos_ids_mask, 
                 'neg_ids': neg_ids, 
                 'neg_ids_mask': neg_ids_mask, 
-                'text': text,
                 'pos_text': pos_text,
+                'text': text,
                 'neg_text': neg_text,
             }
 

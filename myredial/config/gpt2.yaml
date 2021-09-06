@@ -11,7 +11,9 @@ topk: 50
 topp: 1.0
 temp: 1.0
 repetition_penalty: 3.0
-test_interval: 0.001
+test_interval: 0.1
+gen_max_len: 512
+gen_min_len: 16
 
 # train configuration
 train:
@@ -31,3 +33,5 @@ train:
 test:
     seed: 0
     batch_size: 32
+    max_len: 256
+    min_len: 16 

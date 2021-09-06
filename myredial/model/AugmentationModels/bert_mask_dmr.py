@@ -31,6 +31,8 @@ class BERTMaskAugmentationDMRModel(nn.Module):
                 mask_sentence_only_mask(ii, self.args['min_mask_num'], self.args['max_mask_num'], self.ratio_list[i], mask=self.mask, vocab_size=len(self.vocab), special_tokens=self.special_tokens)
                 ii = torch.LongTensor(ii)
                 ids.append(ii)
+            # NOTE: debug
+            continue
             ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
             mask = generate_mask(ids)
             ids, mask = to_cuda(ids, mask)
