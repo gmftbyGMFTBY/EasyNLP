@@ -125,6 +125,27 @@ class BertMLEmbedding(nn.Module):
         return embds
 
 
+class BertEmbeddingWithWordEmbd(nn.Module):
+    
+    def __init__(self, model='bert-base-chinese', add_tokens=1):
+        super(BertEmbeddingWithWordEmbd, self).__init__()
+        self.model = BertModel.from_pretrained(model)
+        self.resize(add_tokens)
+
+    def resize(self, num):
+        self.model.resize_token_embeddings(self.model.config.vocab_size + num)
+
+    def forward(self, ids, attn_mask, word_embeddings=None):
+        if word_embeddings is None:
+            word_embeddings = self.model.embeddings(ids)    # [B, S, 768]
+        embds = self.model(
+            # input_ids=ids, 
+            attention_mask=attn_mask,
+            inputs_embeds=word_embeddings,    
+        )[0]
+        return embds[:, 0, :], word_embeddings
+
+
 class BertEmbedding(nn.Module):
     
     def __init__(self, model='bert-base-chinese', add_tokens=1):
@@ -140,6 +161,31 @@ class BertEmbedding(nn.Module):
         # embds = self.model(ids, attention_mask=attn_mask)[1]
         embds = self.model(ids, attention_mask=attn_mask)[0]
         return embds[:, 0, :]
+
+
+# label smoothing loss
+class HNLabelSmoothLoss(nn.Module):
+
+    '''hard negative label smoothing'''
+    
+    def __init__(self, smoothing=0.0, hn_smoothing=0.0, topk=2):
+        super(HNLabelSmoothLoss, self).__init__()
+        self.smoothing = smoothing
+        self.hn_smoothing = hn_smoothing
+        self.topk = topk
+    
+    def forward(self, input, target):
+        index = [list(range(i*self.topk+1, i*self.topk+self.topk)) for i in range(len(input))]
+        index = torch.LongTensor(index).to(input.device)
+
+        log_prob = F.log_softmax(input, dim=-1)
+        weight = input.new_ones(input.size()) * \
+            self.smoothing / (input.size(-1) - self.topk)
+        # weight for hard negative
+        weight.scatter_(-1, index, self.hn_smoothing)
+        weight.scatter_(-1, target.unsqueeze(-1), (1. - self.hn_smoothing - self.smoothing))
+        loss = (-weight * log_prob).sum(dim=-1).mean()
+        return loss
 
 # label smoothing loss
 class LabelSmoothLoss(nn.Module):
@@ -467,3 +513,27 @@ def distributed_collect(cid_rep, rid_rep):
     cid_reps = torch.cat(cid_reps, dim=0)
     rid_reps = torch.cat(rid_reps, dim=0)
     return cid_reps, rid_reps
+
+# FGM
+class FGM:
+
+    def __init__(self, model):
+        self.model = model
+        self.backup = {}
+
+    def attack(self, epsilon=1., emb_name='embeddings.'):
+        for name, param in self.model.named_parameters():
+            if param.requires_grad and emb_name in name:
+                # ipdb.set_trace()
+                self.backup[name] = param.data.clone()
+                norm = torch.norm(param.grad)
+                if norm != 0 and not torch.isnan(norm):
+                    r_at = epsilon * param.grad / norm
+                    param.data.add_(r_at)
+
+    def restore(self, emb_name='embeddings.'):
+        for name, param in self.model.named_parameters():
+            if param.requires_grad and emb_name in name: 
+                assert name in self.backup
+                param.data = self.backup[name]
+        self.backup = {}

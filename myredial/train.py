@@ -37,7 +37,8 @@ def main(**args):
     if args['model'] not in args['no_test_models']:
         config = load_config(test_args)
         test_args.update(config)
-        # print('test', test_args)
+        # valid set for training
+        # test_args['mode'] = 'valid'
         test_data, test_iter, _ = load_dataset(test_args)
     else:
         test_iter = None

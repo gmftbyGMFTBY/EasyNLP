@@ -103,6 +103,7 @@ if __name__ == "__main__":
         gray_one2many_strategy(args)
     elif args['work_mode'] in ['gray-simcse']:
         gray_simcse_strategy(args)
+        torch.distributed.barrier()
         # combination
         combine_all_generate_samples_pt(args)
     elif args['work_mode'] in ['gray-simcse-unlikelyhood']:
@@ -123,6 +124,7 @@ if __name__ == "__main__":
     # elif args['work_mode'] in ['self-play', 'gray-extend']:
     elif args['work_mode'] in ['self-play', 'gray-extend']:
         gray_extend_strategy(args)
+        # self_play_strategy(args)
         torch.distributed.barrier()
         combine_all_generate_samples(args)
     else:

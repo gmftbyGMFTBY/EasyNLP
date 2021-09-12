@@ -13,6 +13,7 @@ Make sure the deploy config is set in the config/base.yaml
 def self_play_strategy(args):
     # set the seed
     random.seed(args['seed'])
+    ipdb.set_trace()
 
     # load the context embeddings of the extra data samples
     path = f'{args["root_dir"]}/data/{args["dataset"]}/train.txt'
@@ -23,7 +24,7 @@ def self_play_strategy(args):
 
     # read faiss index
     model_name = args['model']
-    pretrained_model_name = args['pretrained_model'].replace('/', '_')
+    pretrained_model_name = args['pretrained_model']['lang'].replace('/', '_')
     searcher = Searcher(args['index_type'], dimension=args['dimension'])
     searcher.load(
         f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_faiss.ckpt',

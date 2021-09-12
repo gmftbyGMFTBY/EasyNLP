@@ -27,7 +27,7 @@ model_name=${names[1]}
 # inference
 echo "IFNERENCE $model_name on $dataset_name"
 # self-play work mode
-# ./scripts/inference_self_play.sh $dataset_name $model_name $str
+./scripts/inference_self_play.sh $dataset_name $model_name $str
 # response work mode
 # ./scripts/inference_response.sh $dataset_name $model_name $str
 # context work mode
@@ -35,6 +35,6 @@ echo "IFNERENCE $model_name on $dataset_name"
 # extend work mode
 # ./scripts/inference_ext_dialog.sh $dataset_name $model_name $str
 # bert mask data augmentation
-./scripts/inference_da.sh $dataset_name $model_name $str
+# ./scripts/inference_da.sh $dataset_name $model_name $str
 # simcse gray augmentation
 # ./scripts/inference_gray_simcse.sh $dataset_name $model_name $str

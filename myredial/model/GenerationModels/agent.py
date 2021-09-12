@@ -65,7 +65,7 @@ class GenerationAgent(GenerationBaseAgent):
         recoder.add_scalar(f'train-whole/TokenAcc', total_token_acc/batch_num, idx_)
     
     @torch.no_grad()
-    def test_model(self, test_iter, print_output=True, rerank_agent=None):
+    def test_model(self, test_iter, print_output=True):
         self.model.eval()
         pbar = tqdm(test_iter)
         ppl_pos, ppl_neg, p, r, f, bleu_1, bleu_2, bleu_3, bleu_4, rouge_l, meteor = [], [], [], [], [], [], [], [], [], [], []
@@ -88,7 +88,6 @@ class GenerationAgent(GenerationBaseAgent):
             for logit in logits:
                 tokens = [i for i in self.vocab.convert_ids_to_tokens(logit) if i not in ['[PAD]', '[CLS]', '[SEP]']]
                 gen_texts.append(''.join(tokens))
-            ipdb.set_trace()
             if print_output:
                 for prefix_t, pos_t, neg_t, gen_t in zip(batch['text'], batch['pos_text'], batch['neg_text'], gen_texts):
                     self.log_save_file.write(f'[Prefix     ] {prefix_t}\n')

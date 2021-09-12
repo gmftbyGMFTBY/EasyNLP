@@ -11,5 +11,5 @@ CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=$
     --nums ${#gpu_ids[@]} \
     --work_mode gray-simcse \
     --cut_size 500000 \
-    --gray_topk 50 \
-    --pool_size 1024
+    --gray_topk 10 \
+    --pool_size 512

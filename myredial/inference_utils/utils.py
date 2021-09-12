@@ -113,7 +113,7 @@ class Searcher:
 
 
 def init_recall(args):
-    searcher = Searcher(args['index_type'], dimension=args['dimension'], with_source=args['with_source'])
+    searcher = Searcher(args['index_type'], dimension=args['dimension'], with_source=args['with_source'], nprobe=args['index_nprobe'])
     model_name = args['model']
     pretrained_model_name = args['pretrained_model']
     searcher.load(
@@ -176,7 +176,10 @@ def load_agent(args):
     recall_args = load_deploy_config('recall')
     recall_args['dataset'] = args['dataset']
     recall_args['model'] = args['model']
-    recallagent = RecallAgent(recall_args)
+    args.update(recall_args)
+    args['tokenizer'] = args['tokenizer'][args['lang']]
+    args['pretrained_model'] = args['pretrained_model'][args['lang']]
+    recallagent = RecallAgent(args)
     print(f'[!] load the recall agents over')
     return recallagent
 

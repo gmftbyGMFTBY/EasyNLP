@@ -28,6 +28,7 @@ class GPT2Dataset(Dataset):
         self.data = []
         if self.args['mode'] == 'train':
             data = read_text_data_line_by_line(path)
+            data = random.sample(data, 10000)
             self.data = []
             for text in tqdm(data):
                 item = self.vocab.encode(text, add_special_tokens=False)
@@ -40,8 +41,8 @@ class GPT2Dataset(Dataset):
         else:
             path = f'{args["root_dir"]}/data/{args["dataset"]}/test_gray_simcse.pt'
             data = torch.load(path)
-            # random sample 1000 samples
-            data = random.sample(data, 1000)
+            # random sample 100 samples
+            data = random.sample(data, 100)
             self.data = []
             for item in tqdm(data):
                 context, pos, neg_responses = item['context'], item['pos_response'], item['neg_responses']

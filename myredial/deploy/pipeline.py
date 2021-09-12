@@ -20,7 +20,7 @@ class PipelineAgent:
     def work(self, batch, topk=None):
         # recall
         topk = topk if topk else self.args['recall']['topk']
-        candidates, _ = self.recallagent.work(batch, topk=topk)
+        candidates, recall_t = self.recallagent.work(batch, topk=topk)
         
         # re-packup
         contexts = [i['str'] for i in batch]
@@ -30,11 +30,11 @@ class PipelineAgent:
             rerank_batch.append({'context': c, 'candidates': r})
 
         # rerank
-        scores, _ = self.rerankagent.work(rerank_batch)
+        scores, rerank_t = self.rerankagent.work(rerank_batch)
 
         # packup
         responses = []
         for score, candidate in zip(scores, candidates):
             idx = np.argmax(score)
             responses.append(candidate[idx]['text'])
-        return responses
+        return responses, recall_t, rerank_t

@@ -1,39 +1,19 @@
-# dual-bert with post train (dual-bert-pt)
-smoothing: 0.1
-# rank: bert-ft-compare
-rank: null
-min_mask_num: 1
-max_mask_num: 20
-masked_lm_prob: 0.1
-min_len: 5
-full_turn_length: 5
-
 # train configuration
 train:
-    lr: 0.00005
-    grad_clip: 1.0
-    seed: 50
+    lr: 0.00003
+    grad_clip: 5.0
+    seed: 0
     batch_size: 64
+    min_mask_num: 1
+    max_mask_num: 20
+    masked_lm_prob: 0.15
+    min_ctx_len: 16
+    min_res_len: 8
+    full_turn_length: 5
     max_len: 256
     res_max_len: 64
-    epoch: 5
-    warmup_ratio: 0.
+    epoch: 35
+    warmup_ratio: 0.01
     checkpoint: 
         path: bert-fp/best_bert-base-chinese.pt
         is_load: true
-
-# test configuration
-test:
-    seed: 50
-    batch_size: 1
-    max_len: 256
-    res_max_len: 64
-
-# inference configuration
-inference:
-    seed: 50
-    batch_size: 128
-    max_len: 64
-    topk: 20
-    index_type: LSH
-    dimension: 768

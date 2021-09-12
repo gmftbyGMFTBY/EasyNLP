@@ -383,6 +383,38 @@ def main_rerank_time(**args):
     for key, value in outputs.items():
         print(f'{key}: {value}')
 
+def main_generation(**args):
+    args['mode'] = 'test'
+    new_args = deepcopy(args)
+    config = load_config(args)
+    args.update(config)
+
+    random.seed(args['seed'])
+    torch.manual_seed(args['seed'])
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args['seed'])
+
+    test_data, test_iter, _ = load_dataset(args)
+    agent = load_model(args)
+    
+    pretrained_model_name = args['pretrained_model'].replace('/', '_')
+    save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}.pt'
+    agent.load_model(save_path)
+
+    bt = time.time()
+    outputs = agent.test_model(test_iter, print_output=False)
+    cost_time = time.time() - bt
+    cost_time *= 1000    # ms
+    cost_time /= len(test_iter)
+
+    with open(f'{args["root_dir"]}/rest/{args["dataset"]}/{args["model"]}/test_result_rerank_{pretrained_model_name}.txt', 'w') as f:
+        for key, value in outputs.items():
+            print(f'{key}: {value}', file=f)
+        print(f'Cost-Time: {round(cost_time, 2)} ms', file=f)
+    for key, value in outputs.items():
+        print(f'{key}: {value}')
+    print(f'Cost-Time: {round(cost_time, 2)} ms')
+
 
 if __name__ == "__main__":
     args = vars(parser_args())
@@ -393,6 +425,8 @@ if __name__ == "__main__":
         main_es_recall(**args)
     elif args['mode'] == 'rerank':
         main_rerank(**args)
+    elif args['mode'] == 'generation':
+        main_generation(**args)
     elif args['mode'] == 'fg_rerank':
         main_rerank_fg(**args)
     elif args['mode'] == 'compare':

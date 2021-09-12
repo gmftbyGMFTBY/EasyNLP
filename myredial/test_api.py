@@ -262,6 +262,8 @@ def test_pipeline(args):
     )
     # pipeline test begin
     avg_times = []
+    avg_recall_times = []
+    avg_rerank_times = []
     collections = []
     error_counter = 0
     pbar = tqdm(list(enumerate(data)))
@@ -275,13 +277,16 @@ def test_pipeline(args):
         else:
             collections.append(rest)
             avg_times.append(rest['header']['core_time_cost_ms'])
+            avg_recall_times.append(rest['header']['recall_core_time_cost_ms'])
+            avg_rerank_times.append(rest['header']['rerank_core_time_cost_ms'])
         pbar.set_description(f'[!] time: {round(np.mean(avg_times), 2)} ms; error: {error_counter}')
     # show the result
     for name in ['R@1000', 'R@500', 'R@100', 'R@50', 'MRR']:
         print(f'{name}: {rest["results"][name]}')
     avg_t = round(np.mean(avg_times), 4)
-    sum_t = round(sum(avg_times), 4)
-    print(f'[!] sum time cost: {sum_t} ms; avg time cost: {avg_t} ms; error ratio: {round(error_counter/len(data), 4)}')
+    avg_recall_t = round(np.mean(avg_recall_times), 4)
+    avg_rerank_t = round(np.mean(avg_rerank_times), 4)
+    print(f'[!] avg time cost: {avg_t} ms; avg recall time cost: {avg_recall_t} ms; avg rerank time cost {avg_rerank_t} ms; error ratio: {round(error_counter/len(data), 4)}')
     return collections
 
 

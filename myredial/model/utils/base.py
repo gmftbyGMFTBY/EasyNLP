@@ -135,6 +135,12 @@ class RetrievalBaseAgent:
                 lr=self.args['lr'],
             )
             self.scaler = GradScaler()
+            # self.scheduler = transformers.get_cosine_with_hard_restarts_schedule_with_warmup(
+            #     self.optimizer, 
+            #     num_warmup_steps=self.args['warmup_step'], 
+            #     num_training_steps=self.args['total_step'],
+            #     num_cycles=self.args['num_cycles'],
+            # )
             self.scheduler = transformers.get_linear_schedule_with_warmup(
                 self.optimizer, 
                 num_warmup_steps=self.args['warmup_step'], 

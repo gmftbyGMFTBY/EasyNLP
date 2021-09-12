@@ -7,13 +7,21 @@ class BERTDualMixUpEncoder(nn.Module):
     def __init__(self, **args):
         super(BERTDualMixUpEncoder, self).__init__()
         model = args['pretrained_model']
-        self.ctx_encoder = BertEmbedding(model=model, add_tokens=1)
-        self.can_encoder = BertEmbedding(model=model, add_tokens=1)
+        self.ctx_encoder = BertEmbeddingWithWordEmbd(model=model, add_tokens=1)
+        self.can_encoder = BertEmbeddingWithWordEmbd(model=model, add_tokens=1)
+        self.alpha = args['alpha']
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
-        cid_rep = self.ctx_encoder(cid, cid_mask)
-        rid_rep = self.can_encoder(rid, rid_mask)
-        return cid_rep, rid_rep
+        cid_rep, cid_we = self.ctx_encoder(cid, cid_mask)
+        rid_rep, rid_we = self.can_encoder(rid, rid_mask)    # [B, E]; [B, S, E]
+        lam = np.random.beta(self.alpha, self.alpha)    # [B, E]
+        index = torch.randperm(len(cid))
+        # x, y: [B, E]
+        mixed_x = lam * cid_we + (1 - lam) * cid_we[index, :, :]
+        mixed_y = lam * rid_we + (1 - lam) * rid_we[index, :, :]
+        cid_mix_rep, _ = self.ctx_encoder(cid, cid_mask, word_embeddings=mixed_x)
+        rid_mix_rep, _ = self.can_encoder(rid, rid_mask, word_embeddings=mixed_y)
+        return cid_rep, rid_rep, cid_mix_rep, rid_mix_rep
 
     @torch.no_grad()
     def get_cand(self, ids, attn_mask):
@@ -33,23 +41,10 @@ class BERTDualMixUpEncoder(nn.Module):
         rid_mask = batch['rids_mask']
 
         batch_size = rid.shape[0]
-        cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
+        cid_rep, rid_rep, _, _ = self._encode(cid, rid, cid_mask, rid_mask)
         dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
         return dot_product
 
-    def mixup(self, x, y, alpha=1.0):
-        '''https://github.com/facebookresearch/mixup-cifar10/blob/master/train.py'''
-        bsz = x.size()[0]
-        lam = torch.zeros_like(x)    # [B, E]
-        for i in range(bsz):
-            for j in range(x.size()[1]):
-                lam[i, j] = np.random.beta(alpha, alpha)
-        index = torch.randperm(bsz)
-        # x, y: [B, E]
-        mixed_x = lam * x + (1 - lam) * x[index, :]
-        mixed_y = lam * y + (1 - lam) * y[index, :]
-        return mixed_x, mixed_y
-    
     def forward(self, batch):
         cid = batch['ids']
         rid = batch['rids']
@@ -57,10 +52,9 @@ class BERTDualMixUpEncoder(nn.Module):
         rid_mask = batch['rids_mask']
 
         batch_size = cid.shape[0] * 2
-        cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
-        mixed_cid_rep, mixed_rid_rep = self.mixup(cid_rep, rid_rep)
-        cid_rep = torch.cat([cid_rep, mixed_cid_rep], dim=0)
-        rid_rep = torch.cat([rid_rep, mixed_rid_rep], dim=0)
+        cid_rep, rid_rep, cid_mix_rep, rid_mix_rep = self._encode(cid, rid, cid_mask, rid_mask)
+        cid_rep = torch.cat([cid_rep, cid_mix_rep], dim=0)
+        rid_rep = torch.cat([rid_rep, rid_mix_rep], dim=0)
         dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, B]
         # constrastive loss
         mask = torch.zeros_like(dot_product)

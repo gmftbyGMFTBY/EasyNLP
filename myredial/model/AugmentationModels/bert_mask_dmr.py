@@ -15,7 +15,7 @@ class BERTMaskAugmentationDMRModel(nn.Module):
 
         self.vocab = BertTokenizer.from_pretrained(model)
         self.special_tokens = self.vocab.convert_tokens_to_ids(['[PAD]', '[SEP]', '[CLS]'])
-        self.mask, self.pad = self.vocab.convert_tokens_to_ids(['[MASK]', '[PAD]'])
+        self.unk, self.mask, self.pad = self.vocab.convert_tokens_to_ids(['[UNK]', '[MASK]', '[PAD]'])
         self.da_num = args['augmentation_t']
         self.ratio_list = np.arange(self.args['min_masked_lm_prob'], self.args['max_masked_lm_prob'], (self.args['max_masked_lm_prob']-self.args['min_masked_lm_prob'])/self.da_num)
         assert len(self.ratio_list) == self.da_num
@@ -28,11 +28,11 @@ class BERTMaskAugmentationDMRModel(nn.Module):
         for i in range(self.da_num):
             ids = []
             for ii in deepcopy(inpt):
+                if len(ii) == 2:
+                    ii = [ii[0]] + [self.unk] * 2 + [ii[1]]
                 mask_sentence_only_mask(ii, self.args['min_mask_num'], self.args['max_mask_num'], self.ratio_list[i], mask=self.mask, vocab_size=len(self.vocab), special_tokens=self.special_tokens)
                 ii = torch.LongTensor(ii)
                 ids.append(ii)
-            # NOTE: debug
-            continue
             ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
             mask = generate_mask(ids)
             ids, mask = to_cuda(ids, mask)
@@ -68,7 +68,10 @@ class BERTMaskAugmentationDMRModel(nn.Module):
             tokens_ = torch.multinomial(item, num_samples=1).tolist()    # [S, K]
             tokens_ = [token[0] for token in tokens_]
             ts = [t if ot == self.mask else ot for t, ot in zip(tokens_, inpt) if ot not in self.special_tokens and t not in self.special_tokens]
-            string = [self.vocab.convert_ids_to_tokens(t) for t in ts]
-            string = ''.join(string)
+            if self.args['lang'] == 'en':
+                string = self.vocab.decode(ts)
+            else:
+                string = [self.vocab.convert_ids_to_tokens(t) for t in ts]
+                string = ''.join(string)
             sentences.append(string)
         return sentences

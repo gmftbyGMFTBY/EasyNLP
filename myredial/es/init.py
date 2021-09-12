@@ -21,8 +21,8 @@ def q_r_dataset(args):
     train_path = f'{args["root_dir"]}/data/{args["dataset"]}/train.txt'
     extend_path = f'{args["root_dir"]}/data/ext_douban/train.txt'
     train_data = load_sentences(train_path, lang=args['lang'])
-    # extend_data = load_extended_sentences(extend_path)
-    data = train_data
+    extend_data = load_extended_sentences(extend_path)
+    data = train_data + extend_data
     data = list(set(data))
     print(f'[!] collect {len(data)} sentence for BM25 retrieval')
     return data

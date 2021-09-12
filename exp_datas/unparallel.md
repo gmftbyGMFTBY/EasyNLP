@@ -29,6 +29,7 @@
 | poly-encoder-full(5) | 30.26 | 50.27 |  84.87 | 65.95 | 48.43 | 61.73 |  29469.71  |
 | dual-bert(bertp-fp-mono)          | 33.72 | 53.67 | 86.56  | 68.57 | 52.32 | 64.56  |           |
 | dual-bert-full     | **34.17** | 53.95 | 85.89  | **69.06** | **53.37** | **64.77**  |      |
+| dual-bert-hn       | 3305 | 53.05 | 86.59  | 68.14 | 51.12 | 64.23  |      |
 | dual-bert-full(5)     | 33.38 | 52.43 | 87.73  | 68.44 | 52.32 | 64.33  |      |
 | dual-bert-full(5, lr=8e-5, bert-fp)     | 33.93 | 52.57 | 86.59  | 68.47 | 52.47 | 64.66  |      |
 | dual-bert-full(5, lr=1e-4, epoch=5, bert-fp, test_interval=0.001)     | 34.41 | 53.6 | 86.18  | 69.19 | 53.52 | 65.0  |      |
@@ -108,10 +109,12 @@ ISN means the inner session negative (hard negative)
 | poly-encoder(m=128)| 53.64 | 70.17 | 92.24 |  72.86 | 58.89 |  71.81  |  30397.72 |
 | poly-encoder-full(m=128)| 55.42 | 74.2  | 92.9  | 75.02 | 62.02 | 74.51  | 26724.77  |
 | poly-encoder-full+hn(m=128)| 56.13 | 75.25  | 94.23  | 75.94 | 62.12 | 74.77  | 28.44  |
+| dual-bert-hn(simcse[256,10],epoch=1,lr=1e-5,grad=1,no-other-hn) | 59.76 | 74.89  | 93.81  | 77.71 | 65.86 | 76.52  | 25.91  |
 | dual-bert-hn(bert-mask-da-dmr[0.4-0.6,aug_t=10],epoch=5,no-other-hn,cosine) | 58.47 | 73.59  | 94.23  | 76.72 | 64.44 | 75.44  | 22.8  |
 | dual-bert-hn(bert-mask-da-dmr[0.4-0.6,aug_t=10],epoch=5,no-other-hn,cosine,no-full) | 54.92 | 71.85  | 93.38  | 74.28 | 60.71 | 73.18  | 22.8  |
 | dual-bert-hn-bce | 14.43 | 26.14  | 58.7  | 36.46 | 16.26 | 35.78  | 23.22  |
 | dual-bert+full(cosine scheduler)     | 56.54 | 75.12 | 94.18 | 76.04 | 62.53 | 74.78  | 24070.67  |
+| dual-bert-ctx-cut+full    | 57.65 | 74.32 | 94.02 | 76.37 | 63.64 | 75.19  | 24070.67  |
 | dual-bert+full-warmup(0.05)     | 56.54 | 75.12 | 94.18 | 76.04 | 62.53 | 74.78  | 24070.67  |
 | dual-bert+full(bsz=128,max_len=128,32)     | 58.1 | 74.49 | 94.98 | 76.89 | 64.04 | 75.81  | 24010.91  |
 | dual-bert-pos+full     | 57.23 | 74.87 | 94.54 | 76.44 | 63.33 | 75.16  | 24070.67  |

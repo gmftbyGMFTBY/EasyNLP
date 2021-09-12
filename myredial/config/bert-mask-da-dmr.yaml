@@ -5,11 +5,11 @@ pretrained_model:
     zh: bert-base-chinese
     en: bert-base-uncased
 # full_turn_length=1, means the full dataset mode is not activated
-full_turn_length: 1
+full_turn_length: 5
 
 inference:
     seed: 0
-    batch_size: 64
+    batch_size: 32
     res_max_len: 64
     min_len: 2
     min_mask_num: 1

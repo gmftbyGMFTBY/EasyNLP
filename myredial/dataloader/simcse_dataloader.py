@@ -67,8 +67,17 @@ class BERTSimCSEInferenceDataset(Dataset):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
-        ext_path = f'{args["root_dir"]}/data/ext_douban/train.txt'
-        dataset = read_extended_douban_corpus(ext_path)
+        if self.args['dataset'] in ['restoration-200k', 'douban']:
+            ext_path = f'{args["root_dir"]}/data/ext_douban/train.txt'
+            dataset = read_extended_douban_corpus(ext_path)
+        elif self.args['dataset'] in ['ecommerce', 'ubuntu']:
+            path = f'{args["root_dir"]}/data/{self.args["dataset"]}/train.txt'
+            ndataset = read_text_data_utterances(path)
+            dataset = []
+            for _, utterances in ndataset:
+                dataset.extend(utterances)
+            dataset = list(set(dataset))
+        print(f'[!] load {len(dataset)} sentences for inference')
         self.data = []
         for utterance in tqdm(dataset):
             rids = length_limit_res(self.vocab.encode(utterance), self.args['max_len'], sep=self.sep)
@@ -117,10 +126,13 @@ class BERTSimCSEInferenceContextDataset(Dataset):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
-        dataset = read_text_data_utterances_full(path, lang=self.args['lang'], turn_length=5)
+        # dataset = read_text_data_utterances_full(path, lang=self.args['lang'], turn_length=5)
+        dataset = read_text_data_utterances(path, lang=self.args['lang'])
         self.data = []
         counter = 0
         for label, utterances in tqdm(dataset):
+            if label == 0:
+                continue
             item = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']
             ids = [[self.cls] + i[:self.args['max_len']] + [self.sep] for i in item]
             self.data.append({

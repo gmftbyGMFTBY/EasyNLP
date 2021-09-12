@@ -58,8 +58,9 @@ def create_app():
         '''
         try:
             data = request.json
-            (responses, mrrs), core_time = pipelineevaluationagent.work(
-                data['segment_list'], topk=2000,
+            (responses, mrrs, recall_t, rerank_t), core_time = pipelineevaluationagent.work(
+                data['segment_list'],
+                topk=pipeline_evaluation_args['recall']['topk'],
             )
             succ = True
         except Exception as error:
@@ -72,6 +73,8 @@ def create_app():
             'header': {
                 'core_time_cost_ms': 1000 * core_time,
                 'core_time_cost': core_time,
+                'recall_core_time_cost_ms': 1000 * recall_t,
+                'rerank_core_time_cost_ms': 1000 * rerank_t,
                 'ret_code': 'succ' if succ else 'fail',
             }, 
         }
@@ -123,7 +126,7 @@ def create_app():
         '''
         try:
             data = request.json
-            responses, core_time = pipelineagent.work(data['segment_list'])
+            (responses, recall_t, rerank_t), core_time = pipelineagent.work(data['segment_list'])
             succ = True
         except Exception as error:
             core_time = 0
@@ -135,6 +138,8 @@ def create_app():
             'header': {
                 'core_time_cost_ms': 1000 * core_time,
                 'core_time_cost': core_time,
+                'recall_core_time': recall_t,
+                'rerank_core_time': rerank_t,
                 'ret_code': 'succ' if succ else 'fail',
             }, 
         }

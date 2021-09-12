@@ -489,6 +489,7 @@ def read_text_data_utterances_full_da_ctx(path, lang='zh', turn_length=5, da_ctx
     print(f'[!] collect {len(data)} samples for training; augmentation size: {aug_counter}')
     return data
 
+
 def read_text_data_utterances_full(path, lang='zh', turn_length=5):
     '''the full conversation context will be used'''
     dataset = read_text_data_utterances(path, lang=lang)
@@ -651,3 +652,13 @@ def read_torch_data_bert_mask(path, hard_negative_num=5):
     print(f'[!] collect {len(dataset)} training samples from bert mask inference results')
     return dataset
 
+def read_torch_data_simcse(path, lang='zh'):
+    dataset = torch.load(path)
+    data, data_cands = [], []
+    for _, value in dataset.items():
+        utterances = [i['text'] for i in value]
+        candidates = [i['cands'] for i in value]
+        data.append(utterances)
+        data_cands.append(candidates)
+    print(f'[!] collect {len(data)} samples for training')
+    return data, data_cands

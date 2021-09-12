@@ -16,6 +16,10 @@
 - [x] ISN (Inner session negative) seems useless all the datasets
 - [x] ATTENTION!!! Dual-bert must use [SEP] not [EOS], AND MAKE SURE THE TRAIN AND THE TEST ARE THE SAME!!!
 - [x] extra neg seems useful (at least for restoration-200k dataset)
+- [ ] the experience for the fine-tuning hard negative for dual-bert model
+    * very small learning ratio, hold the stability of the semantic space
+    * small hard negative size?
+    * no warmup
 
 ## How to Use
 

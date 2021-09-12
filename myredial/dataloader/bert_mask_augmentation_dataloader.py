@@ -87,8 +87,6 @@ class BERTMaskAugmentationFullDataset(Dataset):
             item = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']
             rids = []
             for i, s in zip(item, utterances): 
-                if not s:
-                    i = [self.unk]
                 i = i[:self.args['res_max_len']-2]
                 ids = [self.cls] + i[:self.args['res_max_len']-2] + [self.sep]
                 rids.append(ids)

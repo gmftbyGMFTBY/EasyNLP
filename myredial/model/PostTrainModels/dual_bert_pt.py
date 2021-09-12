@@ -13,35 +13,12 @@ class BERTDualPTEncoder(nn.Module):
         self.can_encoder = BertFullEmbedding(model=model, add_tokens=1)
         self.criterion = nn.CrossEntropyLoss(ignore_index=-1)
         self.vocab_size = self.ctx_encoder.model.config.vocab_size
-        self.vocab = BertTokenizer.from_pretrained(model)
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_reps = self.ctx_encoder(cid, cid_mask)    # [B, S, E]
         rid_reps = self.can_encoder(rid, rid_mask)    # [B, S, E]
         cid_rep, rid_rep = cid_reps[:, 0, :], rid_reps[:, 0, :]
         return cid_rep, rid_rep, cid_reps, rid_reps
-
-    @torch.no_grad()
-    def get_cand(self, ids, attn_mask):
-        rid_rep = self.can_encoder(ids, attn_mask)
-        return rid_rep
-
-    @torch.no_grad()
-    def get_ctx(self, ids, attn_mask):
-        cid_rep = self.ctx_encoder(ids, attn_mask)
-        return cid_rep
-
-    @torch.no_grad()
-    def predict(self, batch):
-        cid = batch['ids']
-        cid_mask = torch.ones_like(cid)
-        rid = batch['rids']
-        rid_mask = batch['rids_mask']
-
-        batch_size = rid.shape[0]
-        cid_rep, rid_rep, _, _ = self._encode(cid, rid, cid_mask, rid_mask)
-        dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
-        return dot_product
 
     def calculate_token_acc(self, mask_label, logits):
         not_ignore = mask_label.ne(-1)
@@ -58,10 +35,10 @@ class BERTDualPTEncoder(nn.Module):
         cid_mask_label = batch['mask_labels_ids']    # [B, S]
         rid_mask_label = batch['mask_labels_rids']
         batch_size = len(cid)
-        ipdb.set_trace()
         cid_rep, rid_rep, cid_reps, rid_reps = self._encode(cid, rid, cid_mask, rid_mask)
 
         # mlm loss
+        ipdb.set_trace()
         cids_mlm_loss = self.criterion(
             cid_reps.view(-1, self.vocab_size),
             cid_mask_label.view(-1)

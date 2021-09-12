@@ -19,8 +19,12 @@ def gray_extend_strategy(args):
 
     # load the context embeddings of the extra data samples
     path = f'{args["root_dir"]}/data/{args["dataset"]}/train.txt'
-    dataset = read_text_data_utterances(path, lang=args['lang'])
-    dataset = [item[1] for item in dataset if item[0] == 1]
+    dataset_ = read_text_data_utterances(path, lang=args['lang'])
+    dataset = []
+    for label, utterances in dataset_:
+        if label == 1:
+            for utterance in utterances:
+                dataset.append([utterance])
 
     # distributed
     overall_size = len(dataset)
@@ -43,44 +47,29 @@ def gray_extend_strategy(args):
     # load agent
     recallagent = load_agent(args)
 
-    # read faiss index
-    model_name = args['model']
-    pretrained_model_name = args['pretrained_model'].replace('/', '_')
-    searcher = Searcher(args['index_type'], dimension=args['dimension'])
-    searcher.load(
-        f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_faiss.ckpt',
-        f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt',
-    )
-    # speed up with gpu
-    searcher.move_to_gpu(device=args['local_rank'])
-    print(f'[!] read the faiss index over, begin to search from the index')
-
     # self-play to extend the multi turn dialog 
     batch_size = args['batch_size']
     topk = args['gen_dataset_topk']
+
     for _ in tqdm(range(ext_turn_size)):
-        new_dataset, idx, invalid_num = [], 0, 0
+        idx, invalid_num = 0, 0
         with tqdm(total=len(dataset)) as pbar:
             while idx < len(dataset):
                 samples = dataset[idx:idx+batch_size]
                 recall_inpt = [{'str': session} for session in samples]
                 candidates = recallagent.work(recall_inpt, topk=topk)
-
-                for candidate, session in zip(candidates, samples):
+                for index in range(idx, idx+batch_size):
+                    candidate = candidates[index-idx]
+                    session = samples[index-idx]
                     candidate = [remove_duplicate_punctuation(i['text']) for i in candidate]
-                    # remove the duplicate utterances that appears in the conversation history
                     candidate = [u for u in candidate if u not in session]
                     if len(candidate) == 0:
-                        # cannot found the appropriate response
                         invalid_num += 1
-                        new_dataset.append(session)
                     else:
-                        new_session = session + [candidate[0]]
-                        new_dataset.append(new_session)
+                        dataset[index].append(candidate[0])
                 idx += batch_size
                 pbar.update(batch_size)
                 pbar.set_description(f'[!] {invalid_num} samples cannot find the appropriate response')
-        dataset = new_dataset
 
     # write into new file
     path = f'{args["root_dir"]}/data/{args["dataset"]}/train_gen_ext_{args["local_rank"]}.txt'

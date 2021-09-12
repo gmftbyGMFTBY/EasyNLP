@@ -2,6 +2,7 @@ rank: null
 gray_cand_num: 2
 neg_num: 10
 test_interval: 0.1
+fgm: false
 
 # train configuration
 train:

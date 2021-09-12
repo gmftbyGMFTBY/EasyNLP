@@ -21,7 +21,7 @@ from .inference_full_dataloader import *
 from .inference_ctx_dataloader import *
 
 def load_dataset(args):
-    if args['mode'] in ['train', 'test']:
+    if args['mode'] in ['train', 'test', 'valid']:
         dataset_name = args['models'][args['model']]['dataset_name']
         dataset_t = globals()[dataset_name]
     elif args['mode'] in ['inference']:

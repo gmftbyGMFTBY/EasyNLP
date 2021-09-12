@@ -1,14 +1,7 @@
-temp: 0.07
+rank: null
+temp: 1.
 full_turn_length: 5
-ext_turn_size: 4
-gray_cand_num: 5
-# extra_neg for dataset: BERTDualFullExtraNegDataset
-extra_neg: 256
-da_ctx_num: 2
-replace_ratio: 0.5
 mask_aug_t: 1
-max_mask_sent: 2
-dropout: 0.05
 fgm: false
 
 # train configuration
@@ -48,8 +41,8 @@ inference:
     topk: 20
     # index_type: IVF3722,Flat
     # index_type: IVF6509,Flat
-    index_type: IVF931,Flat
+    # index_type: IVF1760,Flat
     # index_type: Flat
-    # index_type: LSH
-    index_nprobe: 5
+    index_type: LSH
+    index_nprobe: 1
     dimension: 768

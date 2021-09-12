@@ -34,14 +34,14 @@ class PipelineEvaluationAgent:
     def work(self, batch, topk=None):
         assert len(batch) == 1
         # recall
-        candidates, _ = self.recallagent.work(batch, topk=topk)
+        candidates, recall_t = self.recallagent.work(batch, topk=topk)
         
         # re-packup
         r = [i['text'] for i in candidates[0]]
         rerank_batch = [{'context': batch[0]['str'], 'candidates': r}]
 
         # rerank
-        scores, _ = self.rerankagent.work(rerank_batch)
+        scores, rerank_t = self.rerankagent.work(rerank_batch)
 
         # packup
         score, candidate = scores[0], candidates[0]
@@ -69,6 +69,6 @@ class PipelineEvaluationAgent:
         mrr = sum_p / count_1 if count_1 > 0 else 0
         self.collection['MRR'].append(mrr)
 
-        return [candidate[0]], [mrr]
+        return [candidate[0]], [mrr], recall_t, rerank_t
 
 

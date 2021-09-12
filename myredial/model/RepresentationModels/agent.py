@@ -46,6 +46,9 @@ class RepresentationAgent(RetrievalBaseAgent):
         # Metrics object
         self.metrics = Metrics()
 
+        if self.args['fgm']:
+            self.fgm = FGM(self.model)
+
     def train_model_hash(self, train_iter, test_iter, recoder=None, idx_=0):
         self.model.train()
         total_loss, batch_num = 0, 0
@@ -153,14 +156,25 @@ class RepresentationAgent(RetrievalBaseAgent):
                 batch['cid'], batch['cid_mask'] = cid, cid_mask
                 batch['rid'], batch['rid_mask'] = rid, rid_mask
 
-            with autocast():
-                loss, acc = self.model(batch)
-            self.scaler.scale(loss).backward()
+            if self.args['fgm']:
+                with autocast():
+                    loss, acc = self.model(batch)
+                self.scaler.scale(loss).backward()
+                self.fgm.attack()
+                loss_adv, _ = self.model(batch)
+                loss_adv.backward()
+                self.fgm.restore()
+            else:
+                with autocast():
+                    loss, acc = self.model(batch)
+                self.scaler.scale(loss).backward()
+
             self.scaler.unscale_(self.optimizer)
             clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
             self.scaler.step(self.optimizer)
             self.scaler.update()
-            
+
+            # comment for the constant learning ratio
             self.scheduler.step()
 
             total_loss += loss.item()
@@ -502,7 +516,8 @@ class RepresentationAgent(RetrievalBaseAgent):
             vectors = self.model.get_ctx(ids, ids_mask, pos_w)    # [B, E]
         else:
             ids, ids_mask = self.totensor(texts, ctx=True)
-            vectors = self.model.get_ctx(ids, ids_mask)    # [B, E]
+            # vectors = self.model.get_ctx(ids, ids_mask)    # [B, E]
+            vectors = self.model.module.get_ctx(ids, ids_mask)    # [B, E]
         return vectors.cpu().numpy()
 
     @torch.no_grad()
@@ -558,6 +573,20 @@ class RepresentationAgent(RetrievalBaseAgent):
                 self.model.ctx_encoder.load_state_dict(new_ctx_state_dict)
                 self.model.can_encoders[0].load_state_dict(new_res_state_dict)
                 self.model.can_encoders[1].load_state_dict(new_res_state_dict)
+            elif self.args['model'] in ['dual-bert-hn']:
+                new_ctx_state_dict = OrderedDict()
+                new_res_state_dict = OrderedDict()
+                for k, v in state_dict.items():
+                    if 'ctx_encoder' in k:
+                        new_k = k.replace('ctx_encoder.', '')
+                        new_ctx_state_dict[new_k] = v
+                    elif 'can_encoder' in k:
+                        new_k = k.replace('can_encoder.', '')
+                        new_res_state_dict[new_k] = v
+                    else:
+                        raise Exception()
+                self.model.ctx_encoder.load_state_dict(new_ctx_state_dict)
+                self.model.can_encoder.load_state_dict(new_res_state_dict)
             else:
                 # context encoder checkpoint
                 self.checkpointadapeter.init(
