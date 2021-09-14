@@ -20,6 +20,7 @@
     * very small learning ratio, hold the stability of the semantic space
     * small hard negative size?
     * no warmup
+- [ ] bert-fp-no-cls for context encoder, bert-fp-no-cls or bert-fp-mono for response encoder
 
 ## How to Use
 

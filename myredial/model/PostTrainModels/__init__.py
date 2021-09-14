@@ -4,3 +4,4 @@ from .bert_fp_monolingual import *
 from .simcse import *
 from .dual_bert_pt import *
 from .dual_bert_unsup import *
+from .bert_fp_no_cls import *

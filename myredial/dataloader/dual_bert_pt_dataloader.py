@@ -93,7 +93,7 @@ class BERTDualPTDataset(Dataset):
         rids_mask = generate_mask(rids)
         mask_labels_ids = pad_sequence(mask_labels_ids, batch_first=True, padding_value=self.pad)
         mask_labels_rids = pad_sequence(mask_labels_rids, batch_first=True, padding_value=self.pad)
-        ids, ids_mask, mask_labels_ids, rids, rids_mask, mask_labels_rids = to_cuda(ids, ids_mask, mask_labels_ids, rids, rids_mask, mask_labels_ids)
+        ids, ids_mask, mask_labels_ids, rids, rids_mask, mask_labels_rids = to_cuda(ids, ids_mask, mask_labels_ids, rids, rids_mask, mask_labels_rids)
         return {
             'ids': ids,
             'ids_mask': ids_mask,

@@ -8,17 +8,31 @@ class BERTDualPTEncoder(nn.Module):
     def __init__(self, **args):
         super(BERTDualPTEncoder, self).__init__()
         model = args['pretrained_model']
-        # return [B, S, E]
-        self.ctx_encoder = BertFullEmbedding(model=model, add_tokens=1)
-        self.can_encoder = BertFullEmbedding(model=model, add_tokens=1)
+        self.ctx_encoder = BertForMaskedLM.from_pretrained(model)
+        self.ctx_encoder.resize_token_embeddings(self.ctx_encoder.config.vocab_size+1)
+        self.can_encoder = BertForMaskedLM.from_pretrained(model)
+        self.can_encoder.resize_token_embeddings(self.can_encoder.config.vocab_size+1)
         self.criterion = nn.CrossEntropyLoss(ignore_index=-1)
-        self.vocab_size = self.ctx_encoder.model.config.vocab_size
+        self.vocab_size = self.ctx_encoder.config.vocab_size
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
-        cid_reps = self.ctx_encoder(cid, cid_mask)    # [B, S, E]
-        rid_reps = self.can_encoder(rid, rid_mask)    # [B, S, E]
-        cid_rep, rid_rep = cid_reps[:, 0, :], rid_reps[:, 0, :]
-        return cid_rep, rid_rep, cid_reps, rid_reps
+        output = self.ctx_encoder(
+            input_ids=cid,
+            attention_mask=cid_mask,
+            output_hidden_states=True,
+        )
+        cid_pred = output.logits
+        cid_rep = output.hidden_states[-1][:, 0, :]
+        output = self.can_encoder(
+            input_ids=rid,
+            attention_mask=rid_mask,
+            output_hidden_states=True,
+        )
+        rid_pred = output.logits
+        rid_rep = output.hidden_states[-1][:, 0, :]
+        # *id_prediction_scores: [B, S, V]
+        # *id_rep: [B, E]
+        return cid_pred, rid_pred, cid_rep, rid_rep
 
     def calculate_token_acc(self, mask_label, logits):
         not_ignore = mask_label.ne(-1)
@@ -35,24 +49,25 @@ class BERTDualPTEncoder(nn.Module):
         cid_mask_label = batch['mask_labels_ids']    # [B, S]
         rid_mask_label = batch['mask_labels_rids']
         batch_size = len(cid)
-        cid_rep, rid_rep, cid_reps, rid_reps = self._encode(cid, rid, cid_mask, rid_mask)
+        cid_pred, rid_pred, cid_rep, rid_rep = self._encode(
+            cid, rid, cid_mask, rid_mask
+        )
 
         # mlm loss
-        ipdb.set_trace()
         cids_mlm_loss = self.criterion(
-            cid_reps.view(-1, self.vocab_size),
+            cid_pred.view(-1, self.vocab_size),
             cid_mask_label.view(-1)
         )
         rids_mlm_loss = self.criterion(
-            rid_reps.view(-1, self.vocab_size),
+            rid_pred.view(-1, self.vocab_size),
             rid_mask_label.view(-1)
         )
         mlm_loss = cids_mlm_loss + rids_mlm_loss
 
         # mlm acc
         token_acc_num, total_num = 0, 0
-        a, b = self.calculate_token_acc(cid_mask_label, cid_lm)
-        c, d = self.calculate_token_acc(rid_mask_label, rid_lm)
+        a, b = self.calculate_token_acc(cid_mask_label, cid_pred)
+        c, d = self.calculate_token_acc(rid_mask_label, rid_pred)
         token_acc = (a+c)/(b+d)
 
         # constrastive loss

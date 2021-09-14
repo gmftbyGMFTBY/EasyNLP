@@ -587,6 +587,22 @@ class RepresentationAgent(RetrievalBaseAgent):
                         raise Exception()
                 self.model.ctx_encoder.load_state_dict(new_ctx_state_dict)
                 self.model.can_encoder.load_state_dict(new_res_state_dict)
+            elif self.args['model'] in ['dual-bert']:
+                # load checkpoint from dual-bert-pt
+                new_ctx_state_dict = OrderedDict()
+                new_res_state_dict = OrderedDict()
+                for k, v in state_dict.items():
+                    if 'ctx_encoder.bert' in k:
+                        new_k = k.replace('ctx_encoder.bert', 'model')
+                        new_ctx_state_dict[new_k] = v
+                    elif 'can_encoder.bert' in k:
+                        new_k = k.replace('can_encoder.bert', 'model')
+                        new_res_state_dict[new_k] = v
+                    else:
+                        # cls weights ignored
+                        pass
+                self.model.ctx_encoder.load_state_dict(new_ctx_state_dict)
+                self.model.can_encoder.load_state_dict(new_res_state_dict)
             else:
                 # context encoder checkpoint
                 self.checkpointadapeter.init(

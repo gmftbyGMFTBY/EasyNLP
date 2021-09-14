@@ -34,6 +34,7 @@ rank: null
 
 no_test_models:
     - bert-fp
+    - bert-fp-no-cls
     - bert-fp-mono
     - simcse
     - bert-mask-da
@@ -328,6 +329,11 @@ models:
         # dataset_name: BERTDualDataset
         # dataset_name: BERTDualTimeDataset
         inference_dataset_name: null
+    bert-fp-no-cls: 
+        type: PostTrain
+        model_name: BERTFPNoCLSPostTrain
+        dataset_name: PostTrainNoCLSDataset
+        inference_dataset_name: null 
     bert-fp: 
         type: PostTrain
         model_name: BERTFPPostTrain

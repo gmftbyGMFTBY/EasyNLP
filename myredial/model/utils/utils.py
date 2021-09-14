@@ -150,7 +150,7 @@ class BertEmbedding(nn.Module):
     
     def __init__(self, model='bert-base-chinese', add_tokens=1):
         super(BertEmbedding, self).__init__()
-        self.model = BertModel.from_pretrained(model)
+        self.model = BertModel.from_pretrained(model, add_pooling_layer=False)
         # bert-fp checkpoint has the special token: [EOS]
         self.resize(add_tokens)
 

@@ -14,11 +14,11 @@ class BERTDualPhraseEncoder(nn.Module):
         self.can_encoder = BertFullEmbedding(model=model)
         self.criterion = nn.CrossEntropyLoss(ignore_index=self.pad)
 
-        # p = args['dropout']
-        # self.proj_query = nn.Sequential(
-        #     nn.Dropout(p=p),
-        #     nn.Linear(768, 768),
-        # )
+        p = args['dropout']
+        self.proj_query = nn.Sequential(
+            nn.Dropout(p=p),
+            nn.Linear(768, 768),
+        )
 
     def _encode(self, cid, cid_mask):
         cid_logits, cid_rep = self.ctx_encoder(cid, cid_mask)
@@ -78,9 +78,9 @@ class BERTDualPhraseEncoder(nn.Module):
         token_acc = correct / num_targets
 
         # phrase-level extraction loss
-        rid_rep = rid_rep[:, 1:, :]
+        rid_rep = rid_rep[:, 1:, :]   # [B, S-1, E]
         cid_mask = cid_mask[:, 1:]    # [B, S-1]
-        cid_rep = cid_rep[:, :-1, :]
+        cid_rep = cid_rep[:, :-1, :]  # [B, S-1, E]
         # cid_rep: [B, S-1, E]; rid_rep: [B, S-1, E]
         dot_product = torch.bmm(cid_rep, rid_rep.permute(0, 2, 1))    # [B, S-1, S-1]
         mask = torch.zeros_like(dot_product)    # [B, S-1, S-1]

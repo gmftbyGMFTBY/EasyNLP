@@ -26,6 +26,9 @@ class PostTrainAgent(RetrievalBaseAgent):
         if args['model'] in ['simcse']:
             self.train_model = self.train_model_simcse
         self.show_parameters(self.args)
+
+        # best metric (acc)
+        self.best_acc = -1
         
     def train_model(self, train_iter, test_iter, recoder=None, idx_=0):
         self.model.train()
@@ -71,10 +74,15 @@ class PostTrainAgent(RetrievalBaseAgent):
         recoder.add_scalar(f'train-whole/TokenAcc', total_mlm_acc/batch_num, idx_)
         recoder.add_scalar(f'train-whole/Acc', total_cls_acc/batch_num, idx_)
 
-        # save the model
-        pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
-        save_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_{pretrained_model_name}.pt'
-        self.save_model(save_path)
+        # current acc
+        current_acc = total_mlm_acc/batch_num + total_cls_acc/batch_num
+        if current_acc > self.best_acc:
+            self.best_acc = current_acc
+            # save the model
+            if self.args['local_rank'] == 0:
+                pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
+                save_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_{pretrained_model_name}.pt'
+                self.save_model(save_path)
     
     def train_model_simcse(self, train_iter, test_iter, recoder=None, idx_=0):
         self.model.train()
@@ -316,7 +324,21 @@ class PostTrainAgent(RetrievalBaseAgent):
                 )
                 new_state_dict = self.checkpointadapeter.convert(state_dict)
                 self.model.can_encoder.load_state_dict(new_state_dict)
-
+            elif self.args['model'] in ['dual-bert-pt']:
+                state_dict = torch.load(path, map_location=torch.device('cpu'))
+                new_ctx_state_dict = OrderedDict()
+                new_can_state_dict = OrderedDict()
+                for k, v in state_dict.items():
+                    if 'cls.seq_relationship' in k:
+                        pass
+                    elif 'bert.pooler' in k:
+                        pass
+                    else:
+                        k = k.lstrip('model.')
+                        new_ctx_state_dict[k] = v
+                        new_can_state_dict[k] = v
+                self.model.ctx_encoder.load_state_dict(new_ctx_state_dict)
+                self.model.can_encoder.load_state_dict(new_can_state_dict)
         else:
             # test or inference
             state_dict = torch.load(path, map_location=torch.device('cpu'))
