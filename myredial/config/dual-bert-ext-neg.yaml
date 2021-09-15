@@ -1,26 +1,26 @@
 temp: 1. 
 full_turn_length: 5
+ext_neg_size: 256
 fgm: false
-test_interval: 0.1
+test_interval: 0.01
 
 # train configuration
 train:
     lr: 0.00005
     grad_clip: 5.0
     seed: 0
-    batch_size: 128
-    max_len: 128
-    res_max_len: 32
+    batch_size: 64
+    max_len: 256
+    res_max_len: 64
     epoch: 5
     warmup_ratio: 0.
     stop_train: false
     stop_train_trigger:
         R10@1: 35.
     checkpoint: 
-        # path: bert-post/best_nspmlm.pt
-        path: bert-fp/best_bert-base-chinese.pt
+        path: bert-post/best_nspmlm.pt
+        # path: bert-fp/best_bert-base-chinese.pt
         # path: dual-bert-pt/best_bert-base-chinese.pt
-        # path: bert-fp-no-cls/best_bert-base-chinese.pt
         # path: bert-fp-mono/best_bert-base-chinese.pt
         # path: bert-fp-mono/best_bert-base-uncased.pt
         # path: simcse/best_bert-base-chinese.pt

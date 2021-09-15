@@ -1,6 +1,7 @@
 from .agent import *
 from .duallstm import *
 from .dual_bert import *
+from .dual_bert_ext_neg import *
 from .dual_bert_bce import *
 from .dual_bert_ctx_cut import *
 from .dual_bert_pos import *

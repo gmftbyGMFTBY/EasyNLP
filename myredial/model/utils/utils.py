@@ -152,13 +152,13 @@ class BertEmbedding(nn.Module):
         super(BertEmbedding, self).__init__()
         self.model = BertModel.from_pretrained(model, add_pooling_layer=False)
         # bert-fp checkpoint has the special token: [EOS]
-        self.resize(add_tokens)
+        if add_tokens > 0:
+            self.resize(add_tokens)
 
     def resize(self, num):
         self.model.resize_token_embeddings(self.model.config.vocab_size + num)
 
     def forward(self, ids, attn_mask, speaker_type_ids=None):
-        # embds = self.model(ids, attention_mask=attn_mask)[1]
         embds = self.model(ids, attention_mask=attn_mask)[0]
         return embds[:, 0, :]
 

@@ -168,11 +168,14 @@ models:
         dataset_name: FineGrainedTestPositionWeightDataset
         inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
         # inference_dataset_name: BERTDualInferenceWithTestDataset
+    dual-bert-ext-neg:
+        type: Representation
+        model_name: BERTDualExtNegEncoder
+        dataset_name: BERTDualFullExtraNegDataset
+        # dataset_name: BERTDualFullExtraNegFromOutDatasetDataset
     dual-bert: 
         type: Representation
         model_name: BERTDualEncoder
-        # dataset_name: BERTDualFullExtraNegDataset
-        # dataset_name: BERTDualFullExtraNegFromOutDatasetDataset
         # dataset_name: BERTDualFullFakeCtxDataset
         # dataset_name: BERTDualDataset
         # dataset_name: BERTDualFullWithHardNegDataset

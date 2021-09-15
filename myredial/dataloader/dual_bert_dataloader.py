@@ -672,7 +672,7 @@ class BERTDualFullExtraNegDataset(Dataset):
         self.args = args
         self.vocab = vocab
         self.vocab.add_tokens(['[EOS]'])
-        self.extra_neg = args['extra_neg']
+        self.extra_neg = args['ext_neg_size']
 
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
