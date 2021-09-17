@@ -41,7 +41,6 @@ no_test_models:
     - bert-mask-da-dmr
     - bert-mask-da-sep
     - dual-bert-unsup
-    - dual-bert-pt
 
 no_train_models:
     - bert-fp-original
@@ -180,6 +179,7 @@ models:
         # dataset_name: BERTDualDataset
         # dataset_name: BERTDualFullWithHardNegDataset
         dataset_name: BERTDualFullDataset
+        # dataset_name: BERTDualMultiCTXFullDataset
         # dataset_name: BERTDualTimeDataset
         # dataset_name: FineGrainedTestDataset
         # dataset_name: BERTDualReplaceBadResponseDataset
@@ -348,7 +348,7 @@ models:
         dataset_name: PostTrainMonoDataset
         inference_dataset_name: null 
     dual-bert-pt: 
-        type: PostTrain 
+        type: Representation
         model_name: BERTDualPTEncoder
         dataset_name: BERTDualPTDataset
         inference_dataset_name: null
@@ -363,14 +363,15 @@ models:
         dataset_name: null
         inference_dataset_name: null
 
+# Global configuration
 # huge file are saved in the root dir
 root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # root_dir: /home/johntianlan/sources/MyReDial
-
 # test interval: higher than 1 means that we donot test during training procedure, which is necessary for the corpus which has the big test set
 # test_interval: 1.1
-test_interval: 0.01
+test_interval: 0.1
 fgm: false
+version: 0 
 
 
 # ========== deploy parameters ========== #

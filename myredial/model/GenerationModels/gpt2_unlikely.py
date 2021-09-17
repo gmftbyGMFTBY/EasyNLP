@@ -4,6 +4,11 @@ from .utils import *
 
 class GPT2UnlikelyModel(nn.Module):
 
+    '''Steps:
+        1. gpt2 generation;
+        2. 
+    '''
+
     def __init__(self, **args):
         super(GPT2UnlikelyModel, self).__init__()
         model = args['pretrained_model']

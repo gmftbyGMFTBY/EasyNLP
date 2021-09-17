@@ -25,9 +25,6 @@ def inference(**args):
     work_mode = args['work_mode']
     data, data_iter, _ = load_dataset(args)
 
-    # NOTE: debug
-    # return 
-    
     random.seed(args['seed'])
     torch.manual_seed(args['seed'])
     if torch.cuda.is_available():

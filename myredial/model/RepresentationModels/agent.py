@@ -24,6 +24,8 @@ class RepresentationAgent(RetrievalBaseAgent):
                 self.train_model = self.train_model_ssl
                 # set hyperparameters
                 self.model.ssl_interval_step = int(self.args['total_step'] * self.args['ssl_interval'])
+            elif self.args['model'] in ['dual-bert-pt']:
+                self.train_model = self.train_model_pt
 
             self.set_test_interval()
             self.load_checkpoint()
@@ -141,6 +143,58 @@ class RepresentationAgent(RetrievalBaseAgent):
         recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
         return round(total_loss / batch_num, 4)
     
+    def train_model_pt(self, train_iter, test_iter, recoder=None, idx_=0):
+        '''for dual-bert-pt model'''
+        self.model.train()
+        total_loss, batch_num = 0, 0
+        total_mlm_loss, total_cls_loss = 0, 0
+        total_cls_acc, total_mlm_acc = 0, 0
+        pbar = tqdm(train_iter)
+        correct, s = 0, 0
+        for idx, batch in enumerate(pbar):
+            self.optimizer.zero_grad()
+            with autocast():
+                mlm_loss, cls_loss, token_acc, cls_acc = self.model(batch)
+                loss = mlm_loss + cls_loss
+            self.scaler.scale(loss).backward()
+            self.scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            self.scheduler.step()
+
+            total_loss += loss.item()
+            total_cls_loss += cls_loss.item()
+            total_mlm_loss += mlm_loss.item()
+            total_cls_acc += cls_acc
+            total_mlm_acc += token_acc
+            batch_num += 1
+
+            if batch_num in self.args['test_step']:
+                self.test_now(test_iter, recoder)
+
+            if recoder:
+                recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/CLSLoss', total_cls_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunCLSLoss', cls_loss.item(), idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/MLMLoss', total_mlm_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunMLMLoss', mlm_loss.item(), idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/TokenAcc', total_mlm_acc/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunTokenAcc', token_acc, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_cls_acc/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', cls_acc, idx)
+             
+            pbar.set_description(f'[!] loss: {round(cls_loss.item(), 4)}|{round(total_cls_loss/batch_num, 4)}; acc: {round(cls_acc, 4)}|{round(total_cls_acc/batch_num, 4)}')
+
+        if recoder:
+            recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/CLSLoss', total_cls_loss/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/MLMLoss', total_mlm_loss/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/TokenAcc', total_mlm_acc/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/Acc', total_cls_acc/batch_num, idx_)
+        return round(total_loss / batch_num, 4)
+    
     def train_model(self, train_iter, test_iter, recoder=None, idx_=0):
         self.model.train()
         total_loss, total_acc, batch_num = 0, 0, 0
@@ -183,16 +237,18 @@ class RepresentationAgent(RetrievalBaseAgent):
 
             if batch_num in self.args['test_step']:
                 self.test_now(test_iter, recoder)
-            
-            recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
+
+            if recoder:
+                recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
              
             pbar.set_description(f'[!] loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
 
-        recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
-        recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
+        if recoder:
+            recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
         return round(total_loss / batch_num, 4)
    
     @torch.no_grad()
@@ -587,22 +643,21 @@ class RepresentationAgent(RetrievalBaseAgent):
                         raise Exception()
                 self.model.ctx_encoder.load_state_dict(new_ctx_state_dict)
                 self.model.can_encoder.load_state_dict(new_res_state_dict)
-            # elif self.args['model'] in ['dual-bert']:
-            #     # load checkpoint from dual-bert-pt
-            #     new_ctx_state_dict = OrderedDict()
-            #     new_res_state_dict = OrderedDict()
-            #     for k, v in state_dict.items():
-            #         if 'ctx_encoder.bert' in k:
-            #             new_k = k.replace('ctx_encoder.bert', 'model')
-            #             new_ctx_state_dict[new_k] = v
-            #         elif 'can_encoder.bert' in k:
-            #             new_k = k.replace('can_encoder.bert', 'model')
-            #             new_res_state_dict[new_k] = v
-            #         else:
-            #             # cls weights ignored
-            #             pass
-            #     self.model.ctx_encoder.load_state_dict(new_ctx_state_dict)
-            #     self.model.can_encoder.load_state_dict(new_res_state_dict)
+            elif self.args['model'] in ['dual-bert-pt']:
+                state_dict = torch.load(path, map_location=torch.device('cpu'))
+                new_ctx_state_dict = OrderedDict()
+                new_can_state_dict = OrderedDict()
+                for k, v in state_dict.items():
+                    if 'cls.seq_relationship' in k:
+                        pass
+                    elif 'bert.pooler' in k:
+                        pass
+                    else:
+                        k = k.lstrip('model.')
+                        new_ctx_state_dict[k] = v
+                        new_can_state_dict[k] = v
+                self.model.ctx_encoder.load_state_dict(new_ctx_state_dict)
+                self.model.can_encoder.load_state_dict(new_can_state_dict)
             else:
                 # context encoder checkpoint
                 self.checkpointadapeter.init(

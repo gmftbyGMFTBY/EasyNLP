@@ -626,13 +626,13 @@ def read_text_data_line_by_line(path):
     print(f'[!] read {len(dataset)} lines')
     return dataset
 
-def read_text_data_unlikelyhood(path, length=16):
+def read_text_data_unlikelyhood(path):
     dataset = []
     with open(path) as f:
         for line in tqdm(f.readlines()):
             line = ''.join(line.strip().split())
-            lines = [u.strip() for u in re.split('，|。|；|！|？', line) if u.strip() and len(u) > length]
-            dataset.extend(lines)
+            lines = [u.strip() for u in re.split('，|。|；|！|？', line) if u.strip()]
+            dataset.append(lines)
     return dataset
 
 def read_text_data_unlikelyhood_test(path):

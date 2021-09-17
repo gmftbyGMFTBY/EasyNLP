@@ -38,7 +38,7 @@ def main(**args):
         config = load_config(test_args)
         test_args.update(config)
         # valid set for training
-        # test_args['mode'] = 'valid'
+        test_args['mode'] = 'valid'
         test_data, test_iter, _ = load_dataset(test_args)
     else:
         test_iter = None
@@ -53,10 +53,13 @@ def main(**args):
     agent = load_model(args)
     
     pretrained_model_name = args['pretrained_model'].replace('/', '_')
-    sum_writer = SummaryWriter(
-        log_dir=f'{args["root_dir"]}/rest/{args["dataset"]}/{args["model"]}',
-        comment=pretrained_model_name,
-    )
+    if args['local_rank'] == 0:
+        sum_writer = SummaryWriter(
+            log_dir=f'{args["root_dir"]}/rest/{args["dataset"]}/{args["model"]}/{args["version"]}',
+            comment=pretrained_model_name,
+        )
+    else:
+        sum_writer = None
     for epoch_i in range(args['epoch']):
         sampler.set_epoch(epoch_i)    # shuffle for DDP
         agent.train_model(
@@ -65,7 +68,8 @@ def main(**args):
             recoder=sum_writer,
             idx_=epoch_i,
         )
-    sum_writer.close()
+    if sum_writer:
+        sum_writer.close()
 
 if __name__ == "__main__":
     args = parser_args()

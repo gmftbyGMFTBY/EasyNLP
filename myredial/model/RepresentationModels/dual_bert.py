@@ -45,9 +45,11 @@ class BERTDualEncoder(nn.Module):
         rid_mask = batch['rids_mask']
 
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
+        # gather all the embeddings in other processes
+        # cid_rep, rid_rep = distributed_collect(cid_rep, rid_rep)
 
         dot_product = torch.matmul(cid_rep, rid_rep.t()) 
-        dot_product /= np.sqrt(768)
+        # dot_product /= np.sqrt(768)
         dot_product /= self.temp
         batch_size = len(cid_rep)
 

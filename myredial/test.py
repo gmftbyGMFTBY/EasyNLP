@@ -46,7 +46,7 @@ def prepare_inference(**args):
         torch.cuda.manual_seed_all(args['seed'])
     
     pretrained_model_name = args['pretrained_model'].replace('/', '_')
-    save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}.pt'
+    save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}_{args["version"]}.pt'
     agent.load_model(save_path)
 
     test_data, test_iter, _ = load_dataset(args)
@@ -140,7 +140,7 @@ def main_rerank(**args):
     agent = load_model(args)
     
     pretrained_model_name = args['pretrained_model'].replace('/', '_')
-    save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}.pt'
+    save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}_{args["version"]}.pt'
     agent.load_model(save_path)
 
     # rerank model
@@ -158,7 +158,7 @@ def main_rerank(**args):
     cost_time *= 1000    # ms
     cost_time /= len(test_iter)
 
-    with open(f'{args["root_dir"]}/rest/{args["dataset"]}/{args["model"]}/test_result_rerank_{pretrained_model_name}.txt', 'w') as f:
+    with open(f'{args["root_dir"]}/rest/{args["dataset"]}/{args["model"]}/test_result_rerank_{pretrained_model_name}_{args["version"]}.txt', 'w') as f:
         for key, value in outputs.items():
             print(f'{key}: {value}', file=f)
         print(f'Cost-Time: {round(cost_time, 2)} ms', file=f)

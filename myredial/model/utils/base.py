@@ -73,7 +73,9 @@ class RetrievalBaseAgent:
         if self.args['model'] in self.args['no_test_models']:
             if self.args['local_rank'] == 0:
                 pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
-                save_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_{pretrained_model_name}.pt'
+                # save_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_{pretrained_model_name}.pt'
+                # PAUSE: add the version
+                save_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_{pretrained_model_name}_{self.args["version"]}.pt'
                 self.save_model(save_path)
             return
 
@@ -89,12 +91,13 @@ class RetrievalBaseAgent:
         avg_p1 = test_rest['P@1']
         avg_map = test_rest['MAP']
 
-        recoder.add_scalar(f'train-test/R10@1', r10_1, index)
-        recoder.add_scalar(f'train-test/R10@2', r10_2, index)
-        recoder.add_scalar(f'train-test/R10@5', r10_5, index)
-        recoder.add_scalar(f'train-test/MRR', avg_mrr, index)
-        recoder.add_scalar(f'train-test/P@1', avg_p1, index)
-        recoder.add_scalar(f'train-test/MAP', avg_map, index)
+        if recoder:
+            recoder.add_scalar(f'train-test/R10@1', r10_1, index)
+            recoder.add_scalar(f'train-test/R10@2', r10_2, index)
+            recoder.add_scalar(f'train-test/R10@5', r10_5, index)
+            recoder.add_scalar(f'train-test/MRR', avg_mrr, index)
+            recoder.add_scalar(f'train-test/P@1', avg_p1, index)
+            recoder.add_scalar(f'train-test/MAP', avg_map, index)
         self.test_step_counter += 1
         
         # find the new best model, save
@@ -102,7 +105,8 @@ class RetrievalBaseAgent:
             # check the performance
             if self.compare_performance(test_rest):
                 pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
-                save_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_{pretrained_model_name}.pt'
+                # save_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_{pretrained_model_name}.pt'
+                save_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_{pretrained_model_name}_{self.args["version"]}.pt'
                 self.save_model(save_path)
                 print(f'[!] find new best model at test step: {index}')
 
@@ -380,17 +384,18 @@ class GenerationBaseAgent:
         r = test_rest['BERTScore-R']
         f = test_rest['BERTScore-F']
 
-        recoder.add_scalar(f'train-test/PPL-pos', ppl_pos, index)
-        recoder.add_scalar(f'train-test/PPL-neg', ppl_neg, index)
-        recoder.add_scalar(f'train-test/BLEU-1', b_1, index)
-        recoder.add_scalar(f'train-test/BLEU-2', b_2, index)
-        recoder.add_scalar(f'train-test/BLEU-3', b_3, index)
-        recoder.add_scalar(f'train-test/BLEU-4', b_4, index)
-        recoder.add_scalar(f'train-test/ROUGE-L', rouge_l, index)
-        recoder.add_scalar(f'train-test/METEOR', meteor, index)
-        recoder.add_scalar(f'train-test/BERTScore-P', p, index)
-        recoder.add_scalar(f'train-test/BERTScore-R', r, index)
-        recoder.add_scalar(f'train-test/BERTScore-F', f, index)
+        if recoder:
+            recoder.add_scalar(f'train-test/PPL-pos', ppl_pos, index)
+            recoder.add_scalar(f'train-test/PPL-neg', ppl_neg, index)
+            recoder.add_scalar(f'train-test/BLEU-1', b_1, index)
+            recoder.add_scalar(f'train-test/BLEU-2', b_2, index)
+            recoder.add_scalar(f'train-test/BLEU-3', b_3, index)
+            recoder.add_scalar(f'train-test/BLEU-4', b_4, index)
+            recoder.add_scalar(f'train-test/ROUGE-L', rouge_l, index)
+            recoder.add_scalar(f'train-test/METEOR', meteor, index)
+            recoder.add_scalar(f'train-test/BERTScore-P', p, index)
+            recoder.add_scalar(f'train-test/BERTScore-R', r, index)
+            recoder.add_scalar(f'train-test/BERTScore-F', f, index)
         self.test_step_counter += 1
         
         # find the new best model, save

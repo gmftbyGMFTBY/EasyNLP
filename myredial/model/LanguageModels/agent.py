@@ -28,3 +28,17 @@ class LanguageModelsAgent(RetrievalBaseAgent):
 
     def load_model(self, path):
         pass
+
+    @torch.no_grad()
+    def inference(self, inf_iter, size=500000):
+        self.model.eval()
+        pbar = tqdm(inf_iter)
+        ppls, texts = [], []
+        for batch in pbar:
+            ppl = self.model.module.predict(batch)
+            ppls.extend(ppl)
+            texts.extend(batch['candidates'])
+        torch.save(
+            (ppls, texts), 
+            f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_ppl_{self.args["local_rank"]}.pt'
+        )
