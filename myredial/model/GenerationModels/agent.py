@@ -74,13 +74,13 @@ class GenerationAgent(GenerationBaseAgent):
             if self.args['mode'] == 'train':
                 logits = self.model.module.predict(batch)     # [B, S, V]
                 # calculate ppl
-                ppl_pos_ = self.model.module.calculate_ppl(batch['pos_ids'], batch['pos_ids_mask'])
-                ppl_neg_ = self.model.module.calculate_ppl(batch['neg_ids'], batch['neg_ids_mask'])
+                ppl_pos_ = self.model.module.calculate_ppl(batch['pos_ids'], batch['pos_ids_mask'], batch['pos_label'])
+                ppl_neg_ = self.model.module.calculate_ppl(batch['neg_ids'], batch['neg_ids_mask'], batch['neg_label'])
             else:
                 logits = self.model.predict(batch)     # [B, S, V]
                 # calculate ppl
-                ppl_pos_ = self.model.calculate_ppl(batch['pos_ids'], batch['pos_ids_mask'])
-                ppl_neg_ = self.model.calculate_ppl(batch['neg_ids'], batch['neg_ids_mask'])
+                ppl_pos_ = self.model.calculate_ppl(batch['pos_ids'], batch['pos_ids_mask'], batch['pos_label'])
+                ppl_neg_ = self.model.calculate_ppl(batch['neg_ids'], batch['neg_ids_mask'], batch['neg_label'])
             ppl_pos.append(ppl_pos_)
             ppl_neg.append(ppl_neg_)
 
@@ -149,6 +149,13 @@ class GenerationAgent(GenerationBaseAgent):
             )
             new_state_dict = self.checkpointadapeter.convert(state_dict)
             self.model.model.load_state_dict(new_state_dict)
+        elif self.args['model'] in ['gpt2-unlikely']:
+            self.checkpointadapeter.init(
+                state_dict.keys(),
+                self.model.gpt2_model.state_dict().keys(),
+            )
+            new_state_dict = self.checkpointadapeter.convert(state_dict)
+            self.model.gpt2_model.load_state_dict(new_state_dict)
         else:
             if self.args['mode'] == 'train':
                 # the context encoder model has been loaded (GPT-2)

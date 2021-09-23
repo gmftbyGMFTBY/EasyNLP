@@ -34,6 +34,7 @@ rank: null
 
 no_test_models:
     - bert-fp
+    - bert-fp-multi
     - bert-fp-no-cls
     - bert-fp-mono
     - simcse
@@ -172,13 +173,26 @@ models:
         model_name: BERTDualExtNegEncoder
         dataset_name: BERTDualFullExtraNegDataset
         # dataset_name: BERTDualFullExtraNegFromOutDatasetDataset
+    dual-bert-oa: 
+        type: Representation
+        model_name: BERTDualOAEncoder
+        dataset_name: BERTDualFullDataset
+        # dataset_name: BERTDualRandomFullDataset
+        inference_dataset_name: BERTDualInferenceFullDataset
+    dual-bert-sa: 
+        type: Representation
+        model_name: BERTDualSAEncoder
+        dataset_name: BERTDualSAFullDataset
+        inference_dataset_name: null
     dual-bert: 
         type: Representation
         model_name: BERTDualEncoder
         # dataset_name: BERTDualFullFakeCtxDataset
         # dataset_name: BERTDualDataset
         # dataset_name: BERTDualFullWithHardNegDataset
-        dataset_name: BERTDualFullDataset
+        # dataset_name: BERTDualFullDataset
+        dataset_name: HORSETestDataset
+        # dataset_name: BERTDualRandomFullDataset
         # dataset_name: BERTDualMultiCTXFullDataset
         # dataset_name: BERTDualTimeDataset
         # dataset_name: FineGrainedTestDataset
@@ -241,6 +255,11 @@ models:
         # dataset_name: BERTDualDataset
         inference_dataset_name: BERTDualFullInferenceDataset
         # inference_dataset_name: BERTDualInferenceDataset
+    gpt2-unlikely: 
+        type: Generation
+        model_name: GPT2UnlikelyModel
+        dataset_name: GPT2UnlikelyhoodDataset
+        inference_dataset_name: null
     gpt2: 
         type: Generation
         model_name: GPT2Model
@@ -277,7 +296,8 @@ models:
         type: Interaction
         model_name: BERTRetrieval
         # dataset_name: FineGrainedTestInteractionDataset
-        dataset_name: BERTFTDataset
+        # dataset_name: BERTFTDataset
+        dataset_name: HORSETestInteractionDataset
         # dataset_name: BERTFTTimeDataset
         inference_dataset_name: null 
     bert-ft-essay: 
@@ -337,6 +357,11 @@ models:
         model_name: BERTFPNoCLSPostTrain
         dataset_name: PostTrainNoCLSDataset
         inference_dataset_name: null 
+    bert-fp-multi: 
+        type: PostTrain
+        model_name: BERTFPMultiPostTrain
+        dataset_name: PostTrainMultiStrategiesDataset
+        inference_dataset_name: null 
     bert-fp: 
         type: PostTrain
         model_name: BERTFPPostTrain
@@ -371,7 +396,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval: 1.1
 test_interval: 0.1
 fgm: false
-version: 0 
+version: 0
 
 
 # ========== deploy parameters ========== #

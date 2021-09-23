@@ -58,6 +58,22 @@ def truncate_pair_with_other_ids(cids, rids, tcids, trids, scids, srids, max_len
             srids.pop()
 
 
+def truncate_pair_with_labels(cids, cids_labels, rids, max_length, rids_labels=None):
+    # change the cids and rids in place
+    max_length -= 3    # [CLS], [SEP], [SEP]
+    while True:
+        l = len(cids) + len(rids)
+        if l <= max_length:
+            break
+        if len(cids) > 2 * len(rids):
+            cids.pop(0)
+            cids_labels.pop(0)
+        else:
+            rids.pop()
+            if rids_labels:
+                rids_labels.pop()
+
+
 def truncate_pair(cids, rids, max_length):
     # change the cids and rids in place
     max_length -= 3    # [CLS], [SEP], [SEP]

@@ -26,6 +26,23 @@ def kendalltau_score(r1, r2):
     score, _ = weightedtau(np.array(r1), np.array(r2), weigher=lambda x: x)
     return score
 
+# NDCG
+def DCG(label_list):
+    dcgsum = 0
+    for i in range(len(label_list)):
+        dcg = (2**label_list[i] - 1)/math.log(i+2, 2)
+        dcgsum += dcg
+    return dcgsum
+
+def NDCG(label_list, topk):
+    '''NDCG@k'''
+    dcg = DCG(label_list[:topk])
+    ideal_list = sorted(label_list, reverse=True)
+    ideal_dcg = DCG(ideal_list[:topk])
+    if ideal_dcg == 0:
+        return 0
+    return dcg/ideal_dcg
+
 
 if __name__ == "__main__":
     list1 = [0, 1, 2, 3, 4, 5]

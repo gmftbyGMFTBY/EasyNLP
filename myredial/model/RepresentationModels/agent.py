@@ -215,18 +215,25 @@ class RepresentationAgent(RetrievalBaseAgent):
                     loss, acc = self.model(batch)
                 self.scaler.scale(loss).backward()
                 self.fgm.attack()
-                loss_adv, _ = self.model(batch)
-                loss_adv.backward()
+                with autocast():
+                    loss_adv, _ = self.model(batch)
+                self.scaler.scale(loss_adv).backward()
+                self.scaler.unscale_(self.optimizer)
+                clip_grad_norm_(
+                    self.model.parameters(), 
+                    self.args['grad_clip']
+                )
                 self.fgm.restore()
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
             else:
                 with autocast():
                     loss, acc = self.model(batch)
                 self.scaler.scale(loss).backward()
-
-            self.scaler.unscale_(self.optimizer)
-            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
+                self.scaler.unscale_(self.optimizer)
+                clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
 
             # comment for the constant learning ratio
             self.scheduler.step()
@@ -666,7 +673,7 @@ class RepresentationAgent(RetrievalBaseAgent):
                     self.model.ctx_encoder.model.state_dict().keys(),
                 )
                 new_state_dict = self.checkpointadapeter.convert(state_dict)
-                self.model.ctx_encoder.model.load_state_dict(new_state_dict)
+                self.model.ctx_encoder.model.load_state_dict(new_state_dict, strict=False)
                 # response encoders checkpoint
                 if self.args['model'] in ['dual-bert-one2many-original']:
                     for i in range(self.args['gray_cand_num']+1):
@@ -734,4 +741,32 @@ class RepresentationAgent(RetrievalBaseAgent):
                 collection[owner].append((label, scores))
             else:
                 collection[owner] = [(label, scores)]
+        return collection
+    
+    
+    @torch.no_grad()
+    def test_model_horse_human(self, test_iter, print_output=False, rerank_agent=None):
+        self.model.eval()
+        pbar = tqdm(test_iter)
+        collection = []
+        for batch in pbar:                
+            ctext = '\t'.join(batch['ctext'])
+            rtext = batch['rtext']
+            label = batch['label']
+            cid = batch['ids'].unsqueeze(0)
+            cid_mask = torch.ones_like(cid)
+            batch['ids'] = cid
+            batch['ids_mask'] = cid_mask
+            scores = self.model.predict(batch).cpu().tolist()
+
+            # print output
+            if print_output:
+                self.log_save_file.write(f'[CTX] {ctext}\n')
+                assert len(rtext) == len(scores)
+                for r, score, l in zip(rtext, scores, label):
+                    score = round(score, 4)
+                    self.log_save_file.write(f'[Score {score}, Label {l}] {r}\n')
+                self.log_save_file.write('\n')
+
+            collection.append((label, scores))
         return collection

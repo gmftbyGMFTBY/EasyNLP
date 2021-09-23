@@ -490,6 +490,23 @@ def read_text_data_utterances_full_da_ctx(path, lang='zh', turn_length=5, da_ctx
     return data
 
 
+def read_text_data_utterances_full_large(path, lang='zh', turn_length=5, min_length=3):
+    '''the full conversation context will be used, min_length means the min turn length of the conversation (include the response)'''
+    dataset = read_text_data_utterances(path, lang=lang)
+    data = []
+    for label, utterances in dataset:
+        if label == 0:
+            continue
+        start_num = max(1, len(utterances) - turn_length)
+        for idx in range(start_num, len(utterances)):
+            data.append((1, utterances[:idx+1]))
+            for j in range(1, idx):
+                if len(utterances[j:idx+1]) >= min_length:
+                    data.append((1, utterances[j:idx+1]))
+    print(f'[!] collect {len(data)} samples for training')
+    return data
+
+
 def read_text_data_utterances_full(path, lang='zh', turn_length=5):
     '''the full conversation context will be used'''
     dataset = read_text_data_utterances(path, lang=lang)
@@ -631,8 +648,17 @@ def read_text_data_unlikelyhood(path):
     with open(path) as f:
         for line in tqdm(f.readlines()):
             line = ''.join(line.strip().split())
-            lines = [u.strip() for u in re.split('，|。|；|！|？', line) if u.strip()]
-            dataset.append(lines)
+            lines = [u.strip() for u in re.split('(，|。|；|！|？)', line) if u.strip()]
+            items = []
+            for item in lines:
+                if item in ['，', '。', '；', '！', '？']:
+                    if len(items) > 0:
+                        items[-1] += item
+                    else:
+                        items.append(item)
+                else:
+                    items.append(item)
+            dataset.append(items)
     return dataset
 
 def read_text_data_unlikelyhood_test(path):

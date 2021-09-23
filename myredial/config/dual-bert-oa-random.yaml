@@ -1,15 +1,11 @@
 temp: 1. 
 # five for restoration-200k is enough
 full_turn_length: 100
-test_interval: 0.01
-multi_ctx: 1
-min_conv_length: 3
-hidden_dropout_ratio: 0.3
+fgm: false
+test_interval: 0.001
 
 # train configuration
 train:
-    load_param: true
-    # load_param: false
     lr: 0.00005
     grad_clip: 5.0
     seed: 0
@@ -24,7 +20,6 @@ train:
     checkpoint: 
         # path: bert-post/best_nspmlm.pt
         path: bert-fp/best_bert-base-chinese.pt
-        # path: bert-fp-multi/best_bert-base-chinese.pt
         # path: dual-bert-pt/best_bert-base-chinese.pt
         # path: bert-fp-no-cls/best_bert-base-chinese.pt
         # path: bert-fp-mono/best_bert-base-chinese.pt

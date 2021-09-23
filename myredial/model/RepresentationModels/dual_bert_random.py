@@ -1,13 +1,12 @@
 from model.utils import *
 
-class BERTDualEncoder(nn.Module):
+class BERTDualRandomEncoder(nn.Module):
 
     def __init__(self, **args):
-        super(BERTDualEncoder, self).__init__()
+        super(BERTDualRandomEncoder, self).__init__()
         model = args['pretrained_model']
         self.temp = args['temp']
-        self.ctx_encoder = BertEmbedding(model=model, add_tokens=1, hidden_dropout_ratio=args['hidden_dropout_ratio'])
-        # response bert encoder set the origin dropout ratio
+        self.ctx_encoder = BertEmbedding(model=model, add_tokens=1)
         self.can_encoder = BertEmbedding(model=model, add_tokens=1)
         self.args = args
 
@@ -42,17 +41,20 @@ class BERTDualEncoder(nn.Module):
     def forward(self, batch):
         cid = batch['ids']
         rid = batch['rids']
+        scid = batch['sids']
+        scid_mask = batch['sids_mask']
         cid_mask = batch['ids_mask']
         rid_mask = batch['rids_mask']
 
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
-        cid_rep_ = self.ctx_encoder(cid, cid_mask)
+        scid_rep = self.ctx_encoder(scid, scid_mask)
         # gather all the embeddings in other processes
         # cid_rep, rid_rep = distributed_collect(cid_rep, rid_rep)
 
-        dot_product = torch.matmul(cid_rep, rid_rep.t()) 
+        cid_rep = torch.cat([cid_rep, scid_rep], dim=0)
+        dot_product = torch.matmul(rid_rep, cid_rep.t()) 
         dot_product /= self.temp
-        batch_size = len(cid_rep)
+        batch_size = len(rid_rep)
 
         # constrastive loss
         mask = torch.zeros_like(dot_product)
@@ -63,17 +65,5 @@ class BERTDualEncoder(nn.Module):
         # acc
         acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
         acc = acc_num / batch_size
-
-        # context contrastive loss
-        dot_product = torch.matmul(cid_rep, cid_rep_.t()) 
-        dot_product /= np.sqrt(768)
-        dot_product /= self.temp
-        batch_size = len(cid_rep)
-
-        # constrastive loss
-        mask = torch.zeros_like(dot_product)
-        mask[range(batch_size), range(batch_size)] = 1. 
-        loss_ = F.log_softmax(dot_product, dim=-1) * mask
-        loss += (-loss_.sum(dim=1)).mean()
 
         return loss, acc

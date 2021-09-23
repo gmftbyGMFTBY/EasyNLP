@@ -7,9 +7,9 @@ class SABERTRetrieval(nn.Module):
     def __init__(self, **args):
         super(SABERTRetrieval, self).__init__()
         model = args['pretrained_model']
-        self.model = BertForSequenceClassification.from_pretrained(model, num_labels=1)
+        self.model = BertSAModel.from_pretrained(model)
         self.model.resize_token_embeddings(self.model.config.vocab_size+1)
-        self.speaker_embedding = nn.Embedding(2, 768)
+        self.cls = nn.Linear(768, 1)
 
     def forward(self, batch):
         inpt = batch['ids']
@@ -17,13 +17,11 @@ class SABERTRetrieval(nn.Module):
         speaker_type_ids = batch['sids']
         attn_mask = batch['mask']
 
-        word_embeddings = self.model.bert.embeddings(inpt)    # [B, S, 768]
-        speaker_embedding = self.speaker_embedding(speaker_type_ids)   # [B, S, 768]
-        word_embeddings += speaker_embedding
         logits = self.model(
-            input_ids=None,
+            input_ids=inpt,
             attention_mask=attn_mask,
             token_type_ids=token_type_ids,
-            inputs_embeds=word_embeddings,
-        )[0]    # [B, 1]
-        return logits.squeeze(dim=-1)
+            speaker_ids=speaker_type_ids,
+        )[0]    # [B, S, E]
+        logits = self.cls(logits[:, 0, :]).squeeze(dim=-1)    # [B]
+        return logits

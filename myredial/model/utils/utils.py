@@ -146,11 +146,86 @@ class BertEmbeddingWithWordEmbd(nn.Module):
         return embds[:, 0, :], word_embeddings
 
 
-class BertEmbedding(nn.Module):
+class BertOAEmbedding(nn.Module):
+    
+    def __init__(self, model='bert-base-chinese', add_tokens=1, layer=2, dropout=0.1):
+        super(BertOAEmbedding, self).__init__()
+        self.model = BertModel.from_pretrained(model, add_pooling_layer=False)
+        self.gru = nn.GRU(
+            768, 
+            768, 
+            num_layers=layer, 
+            dropout=(0 if layer == 1 else dropout)
+        )
+        self.fusion_head = nn.Sequential(
+            nn.Linear(768*2, 768),
+            nn.Tanh(),
+            nn.Dropout(p=dropout),
+            nn.Linear(768, 768)
+        )
+        # bert-fp checkpoint has the special token: [EOS]
+        if add_tokens > 0:
+            self.resize(add_tokens)
+
+    def resize(self, num):
+        self.model.resize_token_embeddings(self.model.config.vocab_size + num)
+
+    def forward(self, ids, attn_mask, speaker_type_ids=None):
+        embds = self.model(ids, attention_mask=attn_mask)[0]    # [B, S, E]
+        # lengths
+        lengths = []
+        for mask in attn_mask:
+            lengths.append(len(mask.nonzero()))
+        embedded = nn.utils.rnn.pack_padded_sequence(
+            embds.permute(1, 0, 2), 
+            lengths,
+            enforce_sorted=False
+        )
+        _, hidden = self.gru(embedded)    # [2, B, E]
+        hidden = hidden.sum(axis=0)    # [B, E]
+        embd = self.fusion_head(
+            torch.cat([hidden, embds[:, 0, :]], dim=-1)        
+        )
+        embd = hidden + embds[:, 0, :]
+        return embd
+
+
+class SABertEmbedding(nn.Module):
     
     def __init__(self, model='bert-base-chinese', add_tokens=1):
+        super(SABertEmbedding, self).__init__()
+        self.model = BertSAModel.from_pretrained(model, add_pooling_layer=False)
+        # bert-fp checkpoint has the special token: [EOS]
+        if add_tokens > 0:
+            self.resize(add_tokens)
+
+    def resize(self, num):
+        self.model.resize_token_embeddings(self.model.config.vocab_size + num)
+
+    def forward(self, ids, sids, tlids, attn_mask):
+        embds = self.model(
+            input_ids=ids,
+            attention_mask=attn_mask,
+            speaker_ids=sids,
+            turn_level_ids=tlids,
+        )[0]
+        return embds[:, 0, :]
+
+
+class BertEmbedding(nn.Module):
+    
+    def __init__(self, model='bert-base-chinese', add_tokens=1, load_param=True, hidden_dropout_ratio=0.1):
         super(BertEmbedding, self).__init__()
-        self.model = BertModel.from_pretrained(model, add_pooling_layer=False)
+        if load_param:
+            self.model = BertModel.from_pretrained(
+                pretrained_model_name_or_path=model, 
+                add_pooling_layer=False,
+                hidden_dropout_prob=hidden_dropout_ratio,
+                attention_probs_dropout_prob=hidden_dropout_ratio,
+            )
+        else:
+            config = BertConfig.from_pretrained(model)
+            self.model = BertModel(config, add_pooling_layer=False)
         # bert-fp checkpoint has the special token: [EOS]
         if add_tokens > 0:
             self.resize(add_tokens)
@@ -410,6 +485,8 @@ class CheckpointAdapter:
         self.prefix_list = ['bert_model', 'model']
         self.maybe_missing_list = [
             'embeddings.position_ids', 
+            'embeddings.speaker_embeddings.weight', 
+            'embeddings.turn_level_embeddings.weight', 
             'model.embeddings.position_ids', 
             'model.bert.embeddings.position_ids', 
             # the followings are the BERTDualO2MTopKEmbedding extra parameters
@@ -495,6 +572,8 @@ class CheckpointAdapter:
             # missing parameters are the position ids
             if i in ['model.bert.embeddings.position_ids', 'embeddings.position_ids', 'model.embeddings.position_ids']:
                 new_state_dict[i] = torch.arange(512).expand((1, -1))
+            # elif i in ['embeddings.speaker_embedding.weight']:
+            #     new_state_dict[i] = nn.Embedding(2, 768)
             elif i in ['queries']:
                 new_state_dict[i] = torch.randn(512, 768)
         return new_state_dict
@@ -537,3 +616,210 @@ class FGM:
                 assert name in self.backup
                 param.data = self.backup[name]
         self.backup = {}
+
+# ========== Speaker-aware BERT Model ========== #
+class BertSAEmbeddings(nn.Module):
+
+    '''speaker-aware and turn-level embeddings are added'''
+
+    def __init__(self, config):
+        super().__init__()
+        self.word_embeddings = nn.Embedding(config.vocab_size, config.hidden_size, padding_idx=config.pad_token_id)
+        self.position_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size)
+        self.token_type_embeddings = nn.Embedding(config.type_vocab_size, config.hidden_size)
+        self.speaker_embeddings = nn.Embedding(2, 768)
+        self.turn_level_embeddings = nn.Embedding(512, 768)
+
+        # self.LayerNorm is not snake-cased to stick with TensorFlow model variable name and be able to load
+        # any TensorFlow checkpoint file
+        self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        # position_ids (1, len position emb) is contiguous in memory and exported when serialized
+        self.position_embedding_type = getattr(config, "position_embedding_type", "absolute")
+        self.register_buffer("position_ids", torch.arange(config.max_position_embeddings).expand((1, -1)))
+        # make sure the torch version > 1.6.0
+        self.register_buffer(
+            "token_type_ids",
+            torch.zeros(self.position_ids.size(), dtype=torch.long, device=self.position_ids.device),
+            persistent=False,
+        )
+
+    def forward(
+        self, input_ids=None, token_type_ids=None, position_ids=None, inputs_embeds=None, past_key_values_length=0, speaker_ids=None, turn_level_ids=None,
+    ):
+        if input_ids is not None:
+            input_shape = input_ids.size()
+        else:
+            input_shape = inputs_embeds.size()[:-1]
+
+        seq_length = input_shape[1]
+
+        if position_ids is None:
+            position_ids = self.position_ids[:, past_key_values_length : seq_length + past_key_values_length]
+
+        # Setting the token_type_ids to the registered buffer in constructor where it is all zeros, which usually occurs
+        # when its auto-generated, registered buffer helps users when tracing the model without passing token_type_ids, solves
+        # issue #5664
+        if token_type_ids is None:
+            if hasattr(self, "token_type_ids"):
+                buffered_token_type_ids = self.token_type_ids[:, :seq_length]
+                buffered_token_type_ids_expanded = buffered_token_type_ids.expand(input_shape[0], seq_length)
+                token_type_ids = buffered_token_type_ids_expanded
+            else:
+                token_type_ids = torch.zeros(input_shape, dtype=torch.long, device=self.position_ids.device)
+
+        if inputs_embeds is None:
+            inputs_embeds = self.word_embeddings(input_ids)
+        token_type_embeddings = self.token_type_embeddings(token_type_ids)
+        embeddings = inputs_embeds
+        if speaker_ids is not None:
+            speaker_embeddings = self.speaker_embeddings(speaker_ids)
+            embeddings += speaker_embeddings
+        if turn_level_ids is not None:
+            turn_level_embeddings = self.turn_level_embeddings(turn_level_ids)
+            embeddings += turn_level_embeddings
+        embeddings += token_type_embeddings
+        if self.position_embedding_type == "absolute":
+            position_embeddings = self.position_embeddings(position_ids)
+            embeddings += position_embeddings
+        embeddings = self.LayerNorm(embeddings)
+        embeddings = self.dropout(embeddings)
+        return embeddings
+
+
+class BertSAModel(BertPreTrainedModel):
+
+    def __init__(self, config, add_pooling_layer=True):
+        super().__init__(config)
+        self.config = config
+
+        self.embeddings = BertSAEmbeddings(config)
+        self.encoder = BertEncoder(config)
+
+        self.pooler = BertPooler(config) if add_pooling_layer else None
+
+        self.init_weights()
+
+    def get_input_embeddings(self):
+        return self.embeddings.word_embeddings
+
+    def set_input_embeddings(self, value):
+        self.embeddings.word_embeddings = value
+
+    def _prune_heads(self, heads_to_prune):
+        for layer, heads in heads_to_prune.items():
+            self.encoder.layer[layer].attention.prune_heads(heads)
+
+    def forward(
+        self,
+        input_ids=None,
+        attention_mask=None,
+        token_type_ids=None,
+        position_ids=None,
+        speaker_ids=None,
+        head_mask=None,
+        inputs_embeds=None,
+        encoder_hidden_states=None,
+        encoder_attention_mask=None,
+        past_key_values=None,
+        use_cache=None,
+        output_attentions=None,
+        output_hidden_states=None,
+        return_dict=None,
+        turn_level_ids=None,
+    ):
+        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
+        output_hidden_states = (
+            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
+        )
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        if self.config.is_decoder:
+            use_cache = use_cache if use_cache is not None else self.config.use_cache
+        else:
+            use_cache = False
+
+        if input_ids is not None and inputs_embeds is not None:
+            raise ValueError("You cannot specify both input_ids and inputs_embeds at the same time")
+        elif input_ids is not None:
+            input_shape = input_ids.size()
+        elif inputs_embeds is not None:
+            input_shape = inputs_embeds.size()[:-1]
+        else:
+            raise ValueError("You have to specify either input_ids or inputs_embeds")
+
+        batch_size, seq_length = input_shape
+        device = input_ids.device if input_ids is not None else inputs_embeds.device
+
+        # past_key_values_length
+        past_key_values_length = past_key_values[0][0].shape[2] if past_key_values is not None else 0
+
+        if attention_mask is None:
+            attention_mask = torch.ones(((batch_size, seq_length + past_key_values_length)), device=device)
+
+        if token_type_ids is None:
+            if hasattr(self.embeddings, "token_type_ids"):
+                buffered_token_type_ids = self.embeddings.token_type_ids[:, :seq_length]
+                buffered_token_type_ids_expanded = buffered_token_type_ids.expand(batch_size, seq_length)
+                token_type_ids = buffered_token_type_ids_expanded
+            else:
+                token_type_ids = torch.zeros(input_shape, dtype=torch.long, device=device)
+
+        # We can provide a self-attention mask of dimensions [batch_size, from_seq_length, to_seq_length]
+        # ourselves in which case we just need to make it broadcastable to all heads.
+        extended_attention_mask: torch.Tensor = self.get_extended_attention_mask(attention_mask, input_shape, device)
+
+        # If a 2D or 3D attention mask is provided for the cross-attention
+        # we need to make broadcastable to [batch_size, num_heads, seq_length, seq_length]
+        if self.config.is_decoder and encoder_hidden_states is not None:
+            encoder_batch_size, encoder_sequence_length, _ = encoder_hidden_states.size()
+            encoder_hidden_shape = (encoder_batch_size, encoder_sequence_length)
+            if encoder_attention_mask is None:
+                encoder_attention_mask = torch.ones(encoder_hidden_shape, device=device)
+            encoder_extended_attention_mask = self.invert_attention_mask(encoder_attention_mask)
+        else:
+            encoder_extended_attention_mask = None
+
+        # Prepare head mask if needed
+        # 1.0 in head_mask indicate we keep the head
+        # attention_probs has shape bsz x n_heads x N x N
+        # input head_mask has shape [num_heads] or [num_hidden_layers x num_heads]
+        # and head_mask is converted to shape [num_hidden_layers x batch x num_heads x seq_length x seq_length]
+        head_mask = self.get_head_mask(head_mask, self.config.num_hidden_layers)
+
+        embedding_output = self.embeddings(
+            input_ids=input_ids,
+            position_ids=position_ids,
+            token_type_ids=token_type_ids,
+            inputs_embeds=inputs_embeds,
+            past_key_values_length=past_key_values_length,
+            speaker_ids=speaker_ids,
+            turn_level_ids=turn_level_ids,
+        )
+        encoder_outputs = self.encoder(
+            embedding_output,
+            attention_mask=extended_attention_mask,
+            head_mask=head_mask,
+            encoder_hidden_states=encoder_hidden_states,
+            encoder_attention_mask=encoder_extended_attention_mask,
+            past_key_values=past_key_values,
+            use_cache=use_cache,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+        sequence_output = encoder_outputs[0]
+        pooled_output = self.pooler(sequence_output) if self.pooler is not None else None
+
+        if not return_dict:
+            return (sequence_output, pooled_output) + encoder_outputs[1:]
+
+        return BaseModelOutputWithPoolingAndCrossAttentions(
+            last_hidden_state=sequence_output,
+            pooler_output=pooled_output,
+            past_key_values=encoder_outputs.past_key_values,
+            hidden_states=encoder_outputs.hidden_states,
+            attentions=encoder_outputs.attentions,
+            cross_attentions=encoder_outputs.cross_attentions,
+        )
+

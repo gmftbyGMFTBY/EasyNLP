@@ -314,6 +314,35 @@ def main_recall(**args):
                     f.write(f'{neg}\n')
                 f.write('\n')
 
+def main_horse_human(**args):
+    args['mode'] = 'test'
+    new_args = deepcopy(args)
+    config = load_config(args)
+    args.update(config)
+
+    if args['model'] in args['no_test_models']:
+        print(f'[!] model {args["model"]} doesn"t support test')
+        return
+    
+    random.seed(args['seed'])
+    torch.manual_seed(args['seed'])
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args['seed'])
+
+    test_data, test_iter, _ = load_dataset(args)
+    agent = load_model(args)
+    pretrained_model_name = args['pretrained_model'].replace('/', '_')
+    save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}_{args["version"]}.pt'
+    agent.load_model(save_path)
+    collections = agent.test_model_horse_human(test_iter, print_output=True)
+    ndcg = []
+    for label, score in collections:
+        group = [(l, s) for l, s in zip(label, score)]
+        group = sorted(group, key=lambda x: x[1], reverse=True)
+        group = [l for l, s in group]
+        ndcg.append(NDCG(group, 5))
+    print(f'[!] NDCG@5: {round(np.mean(ndcg), 4)}')
+
 
 def main_rerank_fg(**args):
     args['mode'] = 'test'
@@ -425,6 +454,8 @@ if __name__ == "__main__":
         main_es_recall(**args)
     elif args['mode'] == 'rerank':
         main_rerank(**args)
+    elif args['mode'] == 'horse_human':
+        main_horse_human(**args)
     elif args['mode'] == 'generation':
         main_generation(**args)
     elif args['mode'] == 'fg_rerank':

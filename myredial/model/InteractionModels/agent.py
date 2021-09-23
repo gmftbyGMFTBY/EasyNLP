@@ -70,15 +70,17 @@ class InteractionAgent(RetrievalBaseAgent):
                 now_correct = torch.sum(output == label).item()
             correct += now_correct
             s += len(label)
-            
-            recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/Acc', correct/s, idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', now_correct/len(label), idx)
+
+            if recoder:
+                recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/Acc', correct/s, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', now_correct/len(label), idx)
 
             pbar.set_description(f'[!] train loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(now_correct/len(label), 4)}|{round(correct/s, 4)}')
-        recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
-        recoder.add_scalar(f'train-whole/Acc', correct/s, idx_)
+        if recoder:
+            recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/Acc', correct/s, idx_)
         return round(total_loss / batch_num, 4)
     
     @torch.no_grad()
@@ -190,12 +192,20 @@ class InteractionAgent(RetrievalBaseAgent):
     def load_model(self, path):
         state_dict = torch.load(path, map_location=torch.device('cpu'))
         if self.args['mode'] == 'train':
-            self.checkpointadapeter.init(
-                state_dict.keys(),
-                self.model.model.bert.state_dict().keys(),
-            )
-            new_state_dict = self.checkpointadapeter.convert(state_dict)
-            self.model.model.bert.load_state_dict(new_state_dict)
+            if self.args['model'] in ['sa-bert']:
+                self.checkpointadapeter.init(
+                    state_dict.keys(),
+                    self.model.model.state_dict().keys(),
+                )
+                new_state_dict = self.checkpointadapeter.convert(state_dict)
+                missing, unexcept = self.model.model.load_state_dict(new_state_dict, strict=False)
+            else:
+                self.checkpointadapeter.init(
+                    state_dict.keys(),
+                    self.model.model.bert.state_dict().keys(),
+                )
+                new_state_dict = self.checkpointadapeter.convert(state_dict)
+                self.model.model.bert.load_state_dict(new_state_dict)
         else:
             # test and inference mode
             self.checkpointadapeter.init(
@@ -219,4 +229,15 @@ class InteractionAgent(RetrievalBaseAgent):
                 collection[owner].append((label, scores))
             else:
                 collection[owner] = [(label, scores)]
+        return collection
+    
+    @torch.no_grad()
+    def test_model_horse_human(self, test_iter, print_output=False, rerank_agent=None):
+        self.model.eval()
+        pbar = tqdm(test_iter)
+        collection = []
+        for idx, batch in enumerate(pbar):                
+            label = batch['label']
+            scores = self.model(batch).cpu().tolist()    # [7]
+            collection.append((label, scores))
         return collection

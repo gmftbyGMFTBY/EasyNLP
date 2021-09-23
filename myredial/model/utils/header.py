@@ -35,3 +35,18 @@ import time
 from torch.cuda.amp import autocast, GradScaler
 from nlgeval import NLGEval
 from bert_score import BERTScorer
+
+
+# herits from huggingface models 
+from transformers import BertPreTrainedModel
+from transformers.models.bert.modeling_bert import BertEncoder, BertPooler
+from transformers.modeling_outputs import BaseModelOutputWithPoolingAndCrossAttentions, CausalLMOutputWithCrossAttentions, BaseModelOutputWithPastAndCrossAttentions
+from transformers.file_utils import (
+    ModelOutput,
+    add_code_sample_docstrings,
+    add_start_docstrings,
+    add_start_docstrings_to_model_forward,
+    replace_return_docstrings,
+) 
+
+from transformers.models.bert_generation.modeling_bert_generation import BertGenerationOnlyLMHead, BertGenerationPreTrainedModel

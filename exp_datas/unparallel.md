@@ -106,6 +106,7 @@ ISN means the inner session negative (hard negative)
 | ------------------ | ----- | ----- | ----- | ----- | ----- | ------ | --------- |
 | BERT               | 41.35 | 61.84 | 88.21 | 64.35 | 45.96 | 63.18  | 14800.94  |
 | SA-BERT            | 44.44 | 65.3  | 92.17 | 66.97 | 48.79 | 66.03  | 15135.32  |
+| SA-BERT+BERT-FP    | 51.46 | 69.43  | 92.82 | 71.99 | 57.07 | 70.72  | 15135.32  |
 | BERT-FP            | 49.32 | 69.89 | 91.86 | 70.81 | 54.55 | 69.8   | 21150.52  |
 | DR-BERT(bsz=16,max_len=128/32)    | 55.26 | 72.72 | 93.54 | 74.88 | 61.11 | 73.68 | 18.65 |
 | DR-BERT(bsz=32,max_len=128/32)    | 55.9  | 74.81 | 94.12 | 75.65 | 61.82 | 74.54 | 18.58 |
@@ -264,6 +265,12 @@ ATC means the average time cost
 | dual-bert+all(full-rank) | 211419.1337 |
 
 ### 5.3 Fine-grained test results
+
+| Methods        | NDCG@5 |
+| -------------- | ------ |
+| bert-ft        | 0.709  |
+| dual-bert      | 0.767  |
+| dual-bert-full | 0.774  |
 
 |   Methods   | SBM lt | Weight Kendall Tau lt | SBM brandenwang | Weight Kendall Tau brandenwang | SBM lt2 | WKT lt |
 | ----------- | --------- | ------------------ | ------- | ------ | ---- | ----- |
