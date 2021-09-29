@@ -60,46 +60,17 @@
 
 ### 1.4 Restoration-200k Dataset
 
-* ES test set
 
-<!-- + means the post-train has been used;
-bert-fp parameters: lr=3e-5; grad_clip=5.0; see0; batch_size=96; max_len=256, min_mask_num=2;
-max_mask_num=20; masked_lm_prob=0.15; min_context_length=2; min_token_length=20; epoch=25; warmup_ratio=0.01
-pseudo means the utterances in the train.txt is used for psuedo
-pseudo(350w) means the extra douban corpus is used for pseudo
-ISN means the inner session negative (hard negative)
--->
-| Models             | R10@1 | R10@2 | R10@5 | MRR   |
-| ------------------ | ----- | ----- | ----- | ----- |
-| bert-ft            | 39.22 | 56.6  | 84.54 | 57.63 |
-| BERT-FP(bert-ft+)  | 45.77 | 62.19 | 87.3  | 62.68 |
-| BERT-FP(bert-ft+)-full-pesudo+  | 44.95 | 63.28 | 88.22  | 62.42 |
-| dual-bert          | 45.08 | 61.74 | 87.38 | 62.17 |
-| dual-bert+         | 46.85 | 63.3  | 87.36 | 63.48 |
-| dual-bert-bow-full+    | 46.45 | 62.36 | 87.09 | 62.97 |
-| dual-bert-full+    | 49.82 | 65.62 | 89.05 | 65.73 |
-| dual-bert-full+ISN    | 50.72 | 67.75 | 89.66 | 66.79 |
-| dual-bert-full-mixup+    | 49.76 | 65.6 | 88.36 | 65.55 |
-| dual-bert-pesudo+  | 49.37 | 65.99 | 88.54 | 65.5  |
-| dual-bert-full-distributed_gather+    | 49.69 | 65.81 | 89.24 | 65.72 |
-| dual-bert-semi-full+    | 50.18 | 66.36 | 88.95 | 65.99 |
-| dual-bert-full-unparallel(350w)+    | 50.1 | 66.63 | 88.99 | 66.0 |
-| dual-bert-full-fake+    | 50.02 | 66.32 | 88.6 | 65.98 |
-| dual-bert-full-pesudo+  | 50.57 | 65.99 | 88.99 | 66.14  |
-| dual-bert-full-pesudo(350w)+  | 49.22 | 66.38 | 88.24 | 65.39  |
-| dual-bert-one2many+| 47.88 | 63.7  | 88.19 | 64.14 |
-| dual-bert-one2many-topk+| 47.1 | 63.85  | 87.52 | 63.65 |
-| dual-bert-one2many-full-pseudo+| 51.23 | 67.95  | 89.54 | 66.97 |
+<!- validation during training -->
+| Models             | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   | Time Cost(ms) |
+| ------------------ | ----- | ----- | ----- | ----- | ----- | ------ | --------- |
+| BERT               | 41.35 | 61.84 | 88.21 | 64.35 | 45.96 | 63.18  | 14800.94  |
+| SA-BERT            | 44.44 | 65.3  | 92.17 | 66.97 | 48.79 | 66.03  | 15135.32  |
+| SA-BERT+BERT-FP    | 51.46 | 69.43  | 92.82 | 71.99 | 57.07 | 70.72  | 15135.32  |
+| BERT-FP            | 49.32 | 69.89 | 91.86 | 70.81 | 54.55 | 69.8   | 21150.52  |
+| DR-BERT(full)      | 56.44 | 74.7  | 93.56 | 75.91 | 62.42 | 74.75  | 21150.52  |
+| DR-BERT-hier(full) | 48.91 | 69.07 | 91.87 | 70.14 | 53.94 | 69.1   | 19.84  |
 
-**Conclusion**:
-    1. full dataset is useful
-    2. mixup data augmention useless
-    3. bag of the word loss useless
-    4. one2many is usefull
-    5. full+one2many improve performance further
-    6. extended pseudo label useless
-
-* ES test set with human label
 
 <!-- the hyper-paraeter batch size-->
 | Models             | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   | Time Cost(ms) |
@@ -266,11 +237,12 @@ ATC means the average time cost
 
 ### 5.3 Fine-grained test results
 
-| Methods        | NDCG@5 |
-| -------------- | ------ |
-| bert-ft        | 0.709  |
-| dual-bert      | 0.767  |
-| dual-bert-full | 0.774  |
+| Methods        | NDCG@3 | NDCG@5 |
+| -------------- | ------ | ------ |
+| bert-fp        |        | 0.709  |
+| sa-bert-fp     |        | 0.753  |
+| dual-bert      |        | 0.767  |
+| DR-BERT(full)  | 0.699  | 0.776  |
 
 |   Methods   | SBM lt | Weight Kendall Tau lt | SBM brandenwang | Weight Kendall Tau brandenwang | SBM lt2 | WKT lt |
 | ----------- | --------- | ------------------ | ------- | ------ | ---- | ----- |

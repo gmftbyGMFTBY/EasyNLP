@@ -28,16 +28,25 @@ class BERTFTCompDataset(Dataset):
         
         self.data = []
         if self.args['mode'] == 'train':
-            path = f'{args["root_dir"]}/data/{args["dataset"]}/train_bert_mask_da_results.pt'
-            data = read_torch_data_bert_mask(path)
-            responses = []
-            response_overlap = set()
-            for context, response, candidates in tqdm(data):
+            path = f'{os.path.split(path)[0]}/train_bm25_gray.txt'
+            data = read_bm25_hard_negative(path)
+            responses, response_overlap = [], set()
+            for item in tqdm(data):
+                context, response, candidates = item['q'], item['r'], item['nr']
                 ids = self.vocab.batch_encode_plus(context + [response], add_special_tokens=False)['input_ids']
                 cids = []
+                sids, cache = [], 0
                 for u in ids[:-1]:
                     cids.extend(u + [self.eos])
+                    sids.extend([cache] * (len(u) + 1))
+                    cache = 1 if cache == 0 else 0
+                sids.pop()
                 cids.pop()
+
+                if len(cids) == 0:
+                    # the empty sequence raise exception
+                    continue
+
                 rids = ids[-1]
                 responses.append(rids)
                 if response not in response_overlap:
@@ -45,6 +54,7 @@ class BERTFTCompDataset(Dataset):
                     response_overlap.add(response)
                 self.data.append({
                     'context': cids,
+                    'sids': sids,
                     'response': rids,
                     'candidates': candidates,
                 })
@@ -64,59 +74,72 @@ class BERTFTCompDataset(Dataset):
     def __len__(self):
         return len(self.data)
 
-    def _packup(self, cids, rids1, rids2):
+    def _packup(self, cids, rids1, rids2, sids=None):
         cids_, rids1_, rids2_ = deepcopy(cids), deepcopy(rids1), deepcopy(rids2)
+        sids_ = deepcopy(sids)
         truncate_pair_two_candidates(
             cids_, rids1_, rids2_,
-            self.args['max_len']
+            self.args['max_len'],
+            sids=sids_,
         )
+        other_speaker = 0 if sids[-1] == 1 else 1
         ids = [self.cls] + cids_ + [self.sep] + rids1_ + [self.sep] + rids2_ + [self.sep]
+        sids_ = [sids_[0]] + sids_ + [sids_[-1]] + [other_speaker] * (len(rids1_) + len(rids2_) + 2)
         tids = [0] * (len(cids_) + 2) + [1] * (len(rids1_) + 1) + [0] * (len(rids2_) + 1)
-        return ids, tids
+        assert len(sids_) == len(ids)
+        return ids, tids, sids_
 
     def __getitem__(self, i):
         bundle = self.data[i]
         if self.args['mode'] == 'train':
             cids, rids = bundle['context'], bundle['response']
-            # if self.topk > len(bundle['candidates']):
-            #     # if have not enough candidates, just use the easy negative samples for supplyment
-            #     candidates = bundle['candidates']
-            #     if candidates:
-            #         hrids = self.vocab.batch_encode_plus(candidates, add_special_tokens=False)['input_ids']
-            #     else:
-            #         hrids = []
-            #     hrids += random.sample(self.responses, self.topk - len(candidates))
-            # else:
-            #     candidates = random.sample(bundle['candidates'], self.topk)
-            #     hrids = self.vocab.batch_encode_plus(candidates, add_special_tokens=False)['input_ids']
-            erids = random.sample(self.responses, 2*self.topk)
-            ids, tids, label = [], [], []
-            # label 0/2: positive vs. easy negative
+            speaker_ids = bundle['sids']
+
+            if self.args['no_hard_negative']:
+                hrids = random.sample(self.responses, self.topk)
+            else:
+                if self.topk > len(bundle['candidates']):
+                    candidates = bundle['candidates']
+                    if candidates:
+                        hrids = self.vocab.batch_encode_plus(candidates, add_special_tokens=False)['input_ids']
+                    else:
+                        hrids = []
+                    hrids += random.sample(self.responses, self.topk - len(candidates))
+                else:
+                    candidates = random.sample(bundle['candidates'], self.topk)
+                    hrids = self.vocab.batch_encode_plus(candidates, add_special_tokens=False)['input_ids']
+            erids = random.sample(self.responses, self.topk)
+            ids, sids, tids, label = [], [], [], []
+
+            # label 0/1: positive vs. easy negative
             for e in erids:
                 if random.random() > 0.5:
-                    ids_, tids_ = self._packup(cids, rids, e)
-                    l = 1 if self.num_labels == 1 else 2
+                    ids_, tids_, sids_ = self._packup(cids, rids, e, sids=speaker_ids)
+                    l = 1
                 else:
-                    ids_, tids_ = self._packup(cids, e, rids)
+                    ids_, tids_, sids_ = self._packup(cids, e, rids, sids=speaker_ids)
                     l = 0
                 ids.append(ids_)
+                sids.append(sids_)
                 tids.append(tids_)
                 label.append(l)
-            # label 0/2: positive vs. hard negatives
-            # for h in hrids:
-            #     if random.random() > 0.5:
-            #         ids_, tids_ = self._packup(cids, rids, h)
-            #         l = 1 if self.num_labels == 1 else 2
-            #     else:
-            #         ids_, tids_ = self._packup(cids, h, rids)
-            #         l = 0
-            #     ids.append(ids_)
-            #     tids.append(tids_)
-            #     label.append(l)
+            # label 0/1: positive vs. hard negatives
+            for h in hrids:
+                if random.random() > 0.5:
+                    ids_, tids_, sids_ = self._packup(cids, rids, h, sids=speaker_ids)
+                    l = 1
+                else:
+                    ids_, tids_, sids_ = self._packup(cids, h, rids, sids=speaker_ids)
+                    l = 0
+                ids.append(ids_)
+                sids.append(sids_)
+                tids.append(tids_)
+                label.append(l)
             # whole samples
             ids = [torch.LongTensor(i) for i in ids]
+            sids = [torch.LongTensor(i) for i in sids]
             tids = [torch.LongTensor(i) for i in tids]
-            return ids, tids, label
+            return ids, sids, tids, label
         else:
             # test
             return bundle['context'], bundle['responses'], bundle['label']
@@ -130,18 +153,21 @@ class BERTFTCompDataset(Dataset):
         
     def collate(self, batch):
         if self.args['mode'] == 'train':
-            ids, tids, label = [], [], []
+            ids, sids, tids, label = [], [], [], []
             for b in batch:
                 ids.extend(b[0])
-                tids.extend(b[1])
-                label.extend(b[2])
+                sids.extend(b[1])
+                tids.extend(b[2])
+                label.extend(b[3])
             label = torch.LongTensor(label)
             return {
                 'ids': ids, 
+                'sids': sids,
                 'tids': tids, 
                 'label': label
             }
-        elif self.args['mode'] == 'test':
+        else:
+            # test or valid set
             assert len(batch) == 1
             return {
                 'context': batch[0][0],

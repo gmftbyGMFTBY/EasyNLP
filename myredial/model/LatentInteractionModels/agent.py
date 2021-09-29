@@ -49,14 +49,16 @@ class LatentInteractionAgent(RetrievalBaseAgent):
             if batch_num in self.args['test_step']:
                 self.test_now(test_iter, recoder)
             
-            recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
+            if recoder:
+                recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
 
             pbar.set_description(f'[!] loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
-        recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
-        recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
+        if recoder:
+            recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
         return round(total_loss / batch_num, 4)
         
     @torch.no_grad()
@@ -151,3 +153,32 @@ class LatentInteractionAgent(RetrievalBaseAgent):
             )
             new_state_dict = self.checkpointadapeter.convert(state_dict)
             self.model.load_state_dict(new_state_dict)
+
+    @torch.no_grad()
+    def test_model_horse_human(self, test_iter, print_output=False, rerank_agent=None):
+        self.model.eval()
+        pbar = tqdm(test_iter)
+        collection = []
+        for batch in pbar:                
+            ctext = '\t'.join(batch['ctext'])
+            rtext = batch['rtext']
+            label = batch['label']
+
+            cid = batch['ids'].unsqueeze(0)
+            cid_mask = torch.ones_like(cid)
+            batch['ids'] = cid
+            batch['ids_mask'] = cid_mask
+
+            scores = self.model.predict(batch).cpu().tolist()
+
+            # print output
+            if print_output:
+                self.log_save_file.write(f'[CTX] {ctext}\n')
+                assert len(rtext) == len(scores)
+                for r, score, l in zip(rtext, scores, label):
+                    score = round(score, 4)
+                    self.log_save_file.write(f'[Score {score}, Label {l}] {r}\n')
+                self.log_save_file.write('\n')
+
+            collection.append((label, scores))
+        return collection

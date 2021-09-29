@@ -18,6 +18,7 @@ def parser_args():
     parser.add_argument('--cut_size', type=int, default=500000)
     parser.add_argument('--work_mode', type=str, default='response')
     parser.add_argument('--pool_size', type=int, default=200)
+    parser.add_argument('--data_filter_size', type=int, default=500000)
     return parser.parse_args()
 
 
@@ -37,11 +38,12 @@ def inference(**args):
         # load the pre-trained model on writer dataset
         agent.load_model(f'{args["root_dir"]}/ckpt/writer/{args["model"]}/best_{pretrained_model_name}.pt')
     else:
-        agent.load_model(f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}.pt')
+        agent.load_model(f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}_{args["version"]}.pt')
 
     if work_mode in ['response']:
         agent.inference(data_iter, size=args['cut_size'])
-        pass
+    elif work_mode in ['data-filter']:
+        agent.inference_data_filter(data_iter, size=args['cut_size'])
     elif work_mode in ['bert-aug']:
         agent.inference(data_iter, size=args['cut_size'])
     elif work_mode in ['simcse-ctx']:
@@ -86,6 +88,8 @@ if __name__ == "__main__":
     # only the main process will run the following inference strategies
     if args['work_mode'] in ['writer-inference']:
         writer_with_source_strategy(args)
+    elif args['work_mode'] in ['data-filter']:
+        data_filter_strategy(args)
     elif args['work_mode'] in ['bert-aug']:
         da_strategy(args)
     elif args['work_mode'] in ['response']:

@@ -37,23 +37,15 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
             if self.args['model'] in ['bert-ft-compare']:
-                # gradient accumulation
-                loss, output, label = self.model(batch, scaler=self.scaler, optimizer=self.optimizer)
-                if self.args['num_labels'] == 1:
-                    output = torch.sigmoid(output) > 0.5
-                    now_correct = torch.sum(output == label).item()
-                else:
-                    output = output.max(dim=-1)[1]
-                    now_correct = (output.cpu() == label.cpu()).sum().item()
-                acc = now_correct/len(label)
+                loss, acc = self.model(batch, optimizer=self.optimizer, scaler=self.scaler)
             else:
                 with autocast():
                     loss, acc = self.model(batch)
                 self.scaler.scale(loss).backward()
-            self.scaler.unscale_(self.optimizer)
-            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
+                self.scaler.unscale_(self.optimizer)
+                clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
             self.scheduler.step()
 
             total_loss += loss.item()
@@ -61,14 +53,16 @@ class CompareInteractionAgent(RetrievalBaseAgent):
             batch_num += 1
             if batch_num in self.args['test_step']:
                 self.test_now(test_iter, recoder)
-            
-            recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
+
+            if recoder:
+                recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
             pbar.set_description(f'[!] train loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
-        recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
-        recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
+        if recoder:
+            recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
         return round(total_loss / batch_num, 4)
 
     @torch.no_grad()
@@ -135,10 +129,10 @@ class CompareInteractionAgent(RetrievalBaseAgent):
     
     @torch.no_grad()
     def test_model(self, test_iter, print_output=False, rerank_agent=None):
+        self.model.eval()
         if self.args['model'] in ['dual-bert-comp-hn', 'dual-bert-compare']:
             return self.test_model_dual_bert(test_iter, print_output=print_output)
 
-        self.model.eval()
         pbar = tqdm(test_iter)
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
         total_examples, total_correct = 0, 0
@@ -188,78 +182,49 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         }
 
     @torch.no_grad()
-    def compare_one_turn(self, cids, rids, tickets, margin=0.0, fully=False, fast=False):
+    def compare_one_turn(self, cids, sids, rids, tickets, margin=0.0, fully=False, fast=False):
         '''Each item pair in the tickets (i, j), the i has the bigger scores than j'''
-        ids, tids, recoder = [], [], []
+        ids, tids, speaker_ids, recoder = [], [], [], []
+        other_speaker = 1 if sids[-1] == 0 else 0
         for i, j in tickets:
-            cids_, rids1, rids2 = deepcopy(cids), deepcopy(rids[i]), deepcopy(rids[j])
-            truncate_pair_two_candidates(cids_, rids1, rids2, self.args['max_len'])
+            cids_, sids_, rids1, rids2 = deepcopy(cids), deepcopy(sids), deepcopy(rids[i]), deepcopy(rids[j])
+            truncate_pair_two_candidates(cids_, rids1, rids2, self.args['max_len'], sids=sids_)
             ids_ = [self.cls] + cids_ + [self.sep] + rids1 + [self.sep] + rids2 + [self.sep]
+            sids_ = [sids_[0]] + sids_ + [sids[-1]] + [other_speaker] * (len(rids1) + len(rids2) + 2)
             tids_ = [0] * (len(cids_) + 2) + [1] * (len(rids1) + 1) + [0] * (len(rids2) + 1)
             ids.append(ids_)
+            speaker_ids.append(sids_)
             tids.append(tids_)
             recoder.append((i, j))
         ids = [torch.LongTensor(i) for i in ids]
+        speaker_ids = [torch.LongTensor(i) for i in speaker_ids]
         tids = [torch.LongTensor(i) for i in tids]
         ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+        speaker_ids = pad_sequence(speaker_ids, batch_first=True, padding_value=self.pad)
         tids = pad_sequence(tids, batch_first=True, padding_value=self.pad)
         mask = generate_mask(ids)
-        ids, tids, mask = to_cuda(ids, tids, mask)
+        ids, speaker_ids, tids, mask = to_cuda(ids, speaker_ids, tids, mask)
         # ===== make compare ===== # 
         batch_packup = {
             'ids': ids,
+            'sids': speaker_ids,
             'tids': tids,
             'mask': mask,
         }
-        # different num_labels
-        if self.args['num_labels'] == 3:
-            # three classificaiton, ignore the label 1
-            if self.args['mode'] == 'train':
-                comp_scores = self.model.module.predict(batch_packup).max(dim=-1)[1]    # [B, 3] -> [B]
-            else:
-                comp_scores = self.model.predict(batch_packup).max(dim=-1)[1]    # [B, 3] -> [B]
-
-            comp_label, new_recoder = [], []
-            for s, (i, j) in zip(comp_scores, recoder):
-                if s == 0:
-                    comp_label.append(False)
-                    new_recoder.append((i, j))
-                elif s == 2:
-                    comp_label.append(True)
-                    new_recoder.append((i, j))
-                else:
-                    # hard to tell will not be used
-                    pass
-            return comp_label, new_recoder
-        elif self.args['num_labels'] == 1:
-            if self.args['mode'] == 'train':
-                comp_scores = self.model.module.predict(batch_packup)    # [B]
-            else:
-                comp_scores = self.model.predict(batch_packup)    # [B]
-            comp_scores = comp_scores.tolist()
+        if self.args['mode'] == 'train':
+            comp_scores = self.model.module.predict(batch_packup)    # [B]
         else:
-            raise Exception(f'[!] donot support num_labels={self.args["num_labels"]}')
+            comp_scores = self.model.predict(batch_packup)    # [B]
+        comp_scores = comp_scores.tolist()
 
-        # these modes only for bert-ft-compare
-        if fast:
-            return comp_scores
-        elif fully is False:
-            comp_label = []
-            for s in comp_scores:
-                if s >= 0.5 + margin:
-                    comp_label.append(True)
-                else:
-                    comp_label.append(False)
-            return comp_label, recoder
-        else:
-            # only for bert-ft-compare full comparsion
-            comp_label = []
-            for s in comp_scores:
-                if s >= 0.5 + margin:
-                    comp_label.append(True)
-                elif s < 0.5 - margin:
-                    comp_label.append(False)
-            return comp_label, recoder
+        # only for bert-ft-compare full comparsion
+        comp_label = []
+        for s in comp_scores:
+            if s >= 0.5 + margin:
+                comp_label.append(True)
+            elif s < 0.5 - margin:
+                comp_label.append(False)
+        return comp_label, recoder
 
     @torch.no_grad()
     def fully_compare(self, batch):
@@ -268,8 +233,12 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         items = self.convert_text_to_ids(batch['context'] + batch['responses'])
         cids_ = items[:len(batch['context'])]
         cids = []
+        sids, cache = [], 0
         for u in cids_:
             cids.extend(u + [self.eos])
+            sids.extend([cache] * (len(u) + 1))
+            cache = 1 if cache == 0 else 0
+        sids.pop()
         cids.pop()
         rids = items[len(batch['context']):]
         tickets = []
@@ -277,7 +246,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
             for j in range(len(rids)):
                 if i < j:
                     tickets.append((i, j))
-        label, recoder = self.compare_one_turn(cids, rids, tickets, margin=pos_margin, fully=True)
+        label, recoder = self.compare_one_turn(cids, sids, rids, tickets, margin=pos_margin, fully=True)
         chain = {i: [] for i in range(len(rids))}
         # key is bigger than values
         for l, (i, j) in zip(label, recoder):
@@ -427,6 +396,12 @@ class CompareInteractionAgent(RetrievalBaseAgent):
                 )
                 new_state_dict = self.checkpointadapeter.convert(state_dict)
                 self.model.can_encoder.model.load_state_dict(new_state_dict)
+            elif self.args['model'] in ['bert-ft-compare']:
+                new_state_dict = OrderedDict()
+                for k, v in state_dict.items():
+                    k = f'bert.{k.replace("model.bert.", "")}'
+                    new_state_dict[k] = v
+                missing, unexcept = self.model.model.load_state_dict(new_state_dict, strict=False)
         else:
             self.checkpointadapeter.init(
                 state_dict.keys(),

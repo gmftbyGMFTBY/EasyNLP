@@ -17,8 +17,8 @@ train:
     stop_train_trigger:
         R10@1: 35.
     checkpoint: 
-        path: bert-post/best_nspmlm.pt
-        # path: bert-fp/best_bert-base-chinese.pt
+        # path: bert-post/best_nspmlm.pt
+        path: bert-fp/best_bert-base-chinese.pt
         # path: dual-bert-pt/best_bert-base-chinese.pt
         # path: bert-fp-no-cls/best_bert-base-chinese.pt
         # path: bert-fp-mono/best_bert-base-chinese.pt

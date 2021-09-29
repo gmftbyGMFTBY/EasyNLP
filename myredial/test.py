@@ -335,13 +335,15 @@ def main_horse_human(**args):
     save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}_{args["version"]}.pt'
     agent.load_model(save_path)
     collections = agent.test_model_horse_human(test_iter, print_output=True)
-    ndcg = []
+    ndcg_3, ndcg_5 = [], []
     for label, score in collections:
         group = [(l, s) for l, s in zip(label, score)]
         group = sorted(group, key=lambda x: x[1], reverse=True)
         group = [l for l, s in group]
-        ndcg.append(NDCG(group, 5))
-    print(f'[!] NDCG@5: {round(np.mean(ndcg), 4)}')
+        ndcg_3.append(NDCG(group, 3))
+        ndcg_5.append(NDCG(group, 5))
+    print(f'[!] NDCG@3: {round(np.mean(ndcg_3), 4)}')
+    print(f'[!] NDCG@5: {round(np.mean(ndcg_5), 4)}')
 
 
 def main_rerank_fg(**args):

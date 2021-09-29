@@ -51,18 +51,20 @@ class GenerationAgent(GenerationBaseAgent):
 
             if batch_num in self.args['test_step']:
                 self.test_now(test_iter, recoder)
-            
-            recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/PPL', total_ppl/batch_num, idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/RunPPL', ppl, idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/TokenAcc', total_token_acc/batch_num, idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/RunTokenAcc', token_acc, idx)
+           
+            if recoder:
+                recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/PPL', total_ppl/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunPPL', ppl, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/TokenAcc', total_token_acc/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunTokenAcc', token_acc, idx)
              
             pbar.set_description(f'[!] loss: {round(total_loss/batch_num, 4)}; ppl: {round(total_ppl/batch_num, 2)}; token acc: {round(total_token_acc/batch_num*100, 2)}')
-        recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
-        recoder.add_scalar(f'train-whole/PPL', total_ppl/batch_num, idx_)
-        recoder.add_scalar(f'train-whole/TokenAcc', total_token_acc/batch_num, idx_)
+        if recoder:
+            recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/PPL', total_ppl/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/TokenAcc', total_token_acc/batch_num, idx_)
     
     @torch.no_grad()
     def test_model(self, test_iter, print_output=True):

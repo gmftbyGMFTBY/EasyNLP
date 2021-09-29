@@ -32,7 +32,7 @@ class RepresentationAgent(RetrievalBaseAgent):
         else:
             # open the test save scores file handler
             pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
-            path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}.txt'
+            path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}_{args["version"]}.txt'
             self.log_save_file = open(path, 'w')
             if args['model'] in ['dual-bert-fusion']:
                 self.inference = self.inference2
@@ -475,6 +475,27 @@ class RepresentationAgent(RetrievalBaseAgent):
                 (embd, text, source), 
                 f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_with_source_{self.args["local_rank"]}_{idx}.pt'
             )
+    
+    @torch.no_grad()
+    def inference_data_filter(self, inf_iter, size=500000):
+        self.model.eval()
+        pbar = tqdm(inf_iter)
+        ctext, rtext, s = [], [], []
+        for batch in pbar:
+            ids = batch['ids']
+            rids = batch['rids']
+            ids_mask = batch['ids_mask']
+            rids_mask = batch['rids_mask']
+            cid_rep = self.model.module.get_ctx(ids, ids_mask)
+            rid_rep = self.model.module.get_cand(rids, rids_mask)
+            scores = (cid_rep * rid_rep).sum(dim=-1).tolist()    # [B]
+            ctext.extend(batch['ctext'])
+            rtext.extend(batch['rtext'])
+            s.extend(scores)
+        torch.save(
+            (ctext, rtext, s), 
+            f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_full_filter_{self.args["model"]}_{self.args["local_rank"]}.pt'
+        )
 
     @torch.no_grad()
     def inference(self, inf_iter, size=500000):
@@ -636,20 +657,20 @@ class RepresentationAgent(RetrievalBaseAgent):
                 self.model.ctx_encoder.load_state_dict(new_ctx_state_dict)
                 self.model.can_encoders[0].load_state_dict(new_res_state_dict)
                 self.model.can_encoders[1].load_state_dict(new_res_state_dict)
-            elif self.args['model'] in ['dual-bert-hn']:
-                new_ctx_state_dict = OrderedDict()
-                new_res_state_dict = OrderedDict()
-                for k, v in state_dict.items():
-                    if 'ctx_encoder' in k:
-                        new_k = k.replace('ctx_encoder.', '')
-                        new_ctx_state_dict[new_k] = v
-                    elif 'can_encoder' in k:
-                        new_k = k.replace('can_encoder.', '')
-                        new_res_state_dict[new_k] = v
-                    else:
-                        raise Exception()
-                self.model.ctx_encoder.load_state_dict(new_ctx_state_dict)
-                self.model.can_encoder.load_state_dict(new_res_state_dict)
+            # elif self.args['model'] in ['dual-bert-hn']:
+            #     new_ctx_state_dict = OrderedDict()
+            #     new_res_state_dict = OrderedDict()
+            #     for k, v in state_dict.items():
+            #         if 'ctx_encoder' in k:
+            #             new_k = k.replace('ctx_encoder.', '')
+            #             new_ctx_state_dict[new_k] = v
+            #         elif 'can_encoder' in k:
+            #             new_k = k.replace('can_encoder.', '')
+            #             new_res_state_dict[new_k] = v
+            #         else:
+            #             raise Exception()
+            #     self.model.ctx_encoder.load_state_dict(new_ctx_state_dict)
+            #     self.model.can_encoder.load_state_dict(new_res_state_dict)
             elif self.args['model'] in ['dual-bert-pt']:
                 state_dict = torch.load(path, map_location=torch.device('cpu'))
                 new_ctx_state_dict = OrderedDict()
@@ -674,6 +695,11 @@ class RepresentationAgent(RetrievalBaseAgent):
                 )
                 new_state_dict = self.checkpointadapeter.convert(state_dict)
                 self.model.ctx_encoder.model.load_state_dict(new_state_dict, strict=False)
+
+                if self.args['model'] in ['dual-bert-speaker']:
+                    self.model.ctx_encoder_1.model.load_state_dict(new_state_dict, strict=False)
+
+               
                 # response encoders checkpoint
                 if self.args['model'] in ['dual-bert-one2many-original']:
                     for i in range(self.args['gray_cand_num']+1):
@@ -753,10 +779,16 @@ class RepresentationAgent(RetrievalBaseAgent):
             ctext = '\t'.join(batch['ctext'])
             rtext = batch['rtext']
             label = batch['label']
+
             cid = batch['ids'].unsqueeze(0)
             cid_mask = torch.ones_like(cid)
             batch['ids'] = cid
             batch['ids_mask'] = cid_mask
+
+            # if self.args['model'] in ['dual-bert-sa']:
+            #     batch['sids'] = batch['sids'].unsqueeze(0)
+            #     batch['tlids'] = batch['tlids'].unsqueeze(0)
+
             scores = self.model.predict(batch).cpu().tolist()
 
             # print output

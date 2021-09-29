@@ -14,6 +14,7 @@ repetition_penalty: 3.0
 test_interval: 0.1
 gen_max_len: 512
 gen_min_len: 16
+test_interval: 0.1
 
 # train configuration
 train:
@@ -21,8 +22,8 @@ train:
     grad_clip: 5.0
     seed: 0
     batch_size: 32
-    max_len: 256
-    epoch: 1
+    max_len: 128
+    epoch: 10
     warmup_ratio: 0.05
     checkpoint: 
         # path: bert-post/best_nspmlm.pt

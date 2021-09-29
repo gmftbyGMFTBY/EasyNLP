@@ -20,11 +20,11 @@ class GPT2Model(nn.Module):
         self.repetition_penalty = args['repetition_penalty']
 
     @torch.no_grad()
-    def calculate_ppl(self, ids, ids_mask):
+    def calculate_ppl(self, ids, ids_mask, label):
         gen_logits = self.model(input_ids=ids, attention_mask=ids_mask)
         gen_logits = gen_logits.logits
         shift_logits = gen_logits[..., :-1, :].contiguous()
-        shift_labels = ids[..., 1:].contiguous()
+        shift_labels = label[..., 1:].contiguous()
         loss = self.gen_loss_fct(
             shift_logits.view(-1, shift_logits.size(-1)), 
             shift_labels.view(-1)

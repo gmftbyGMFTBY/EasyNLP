@@ -2,18 +2,8 @@ temp: 1.
 # five for restoration-200k is enough
 full_turn_length: 100
 test_interval: 0.01
-multi_ctx: 1
-min_conv_length: 3
-hidden_dropout_ratio: 0.3
-data_filter_size: 650000
-
-# data augmentation parameters
-alpha_sentence_swap: 5
-alpha_synonym_replacement: 0.1
-alpha_random_insertion: 0.1
-alpha_random_swap: 0.15
-alpha_random_deletion: 0.15
-aug_num: 2
+test_sample_num: 10
+sample_num: 5
 
 # train configuration
 train:
@@ -23,8 +13,8 @@ train:
     grad_clip: 5.0
     seed: 0
     batch_size: 64
-    max_len: 256
-    res_max_len: 64
+    max_len: 128
+    res_max_len: 32
     epoch: 5
     warmup_ratio: 0.
     stop_train: false
@@ -45,8 +35,8 @@ train:
 test:
     seed: 0
     batch_size: 1
-    max_len: 256
-    res_max_len: 64
+    max_len: 128
+    res_max_len: 32
 
 # inference configuration
 inference:

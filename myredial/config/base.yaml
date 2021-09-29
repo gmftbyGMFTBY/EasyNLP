@@ -28,10 +28,6 @@ pretrained_model:
     # zh: hfl/chinese-bert-wwm-ext
     en: bert-base-uncased
 
-# the number of the gray negative samples (writer dataset)
-gray_cand_num: 5
-rank: null
-
 no_test_models:
     - bert-fp
     - bert-fp-multi
@@ -79,9 +75,9 @@ models:
         dataset_name: SimCSEDataset
         # dataset_name: SimCSEUnlikelyhoodDataset
         # inference_dataset_name: BERTSimCSEInferenceDataset
-        inference_dataset_name: BERTSimCSEInferenceContextDataset
+        # inference_dataset_name: BERTSimCSEInferenceContextDataset
         # inference_dataset_name: BERTSimCSEUnlikelyhoodInferenceDataset
-        # inference_dataset_name: BERTSimCSEUnlikelyhoodInferenceContextDataset
+        inference_dataset_name: BERTSimCSEUnlikelyhoodInferenceContextDataset
     dual-bert-mixup: 
         type: Representation
         model_name: BERTDualMixUpEncoder
@@ -144,9 +140,12 @@ models:
     dual-bert-hn: 
         type: Representation
         model_name: BERTDualHNEncoder
+        # dataset_name: BERTDualCTXHNFullDataset
         # dataset_name: BERTDualHNDataset
+        dataset_name: BERTDualBM25HNDataset
+        # dataset_name: HORSETestDataset
         # dataset_name: BERTDualBertMaskHardNegativeDataset
-        dataset_name: BERTDualSimCSEHardNegativeDataset
+        # dataset_name: BERTDualSimCSEHardNegativeDataset
         # dataset_name: FineGrainedTestDataset
         # dataset_name: BERTDualFullWithHardNegDataset
         # inference_dataset_name: BERTDualInferenceDataset
@@ -182,8 +181,19 @@ models:
     dual-bert-sa: 
         type: Representation
         model_name: BERTDualSAEncoder
-        dataset_name: BERTDualSAFullDataset
+        # dataset_name: BERTDualSAFullDataset
+        dataset_name: HORSESATestDataset
         inference_dataset_name: null
+    dual-bert-vae:
+        type: Representation
+        model_name: BERTDualVAEEncoder
+        dataset_name: BERTDualFullDataset
+        inference_dataset_name: BERTDualInferenceDataset
+    dual-bert-speaker:
+        type: Representation
+        model_name: BERTDualSpeakerEncoder
+        dataset_name: BERTDualSpeakerFullDataset
+        inference_dataset_name: BERTDualInferenceDataset
     dual-bert: 
         type: Representation
         model_name: BERTDualEncoder
@@ -191,6 +201,7 @@ models:
         # dataset_name: BERTDualDataset
         # dataset_name: BERTDualFullWithHardNegDataset
         # dataset_name: BERTDualFullDataset
+        # dataset_name: BERTDualDAFullDataset
         dataset_name: HORSETestDataset
         # dataset_name: BERTDualRandomFullDataset
         # dataset_name: BERTDualMultiCTXFullDataset
@@ -202,12 +213,13 @@ models:
         # dataset_name: BERTDualFullNegSessionDataset
         # dataset_name: BERTDualFullWithSelfPlayDataset
         # dataset_name: BERTDualFullPseudoDataset
+        inference_dataset_name: BERTDualFullFilterInferenceDataset
         # inference_dataset_name: BERTDualInferenceDataset
         # inference_dataset_name: BERTDualInferenceWithTestDataset
         # inference_dataset_name: BERTDualInferenceFullWithTestDataset
         # inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
         # inference_dataset_name: BERTDualInferenceWithSourceDataset
-        inference_dataset_name: BERTDualInferenceFullDataset
+        # inference_dataset_name: BERTDualInferenceFullDataset
         # inference_dataset_name: BERTDualInferenceFullEXTDataset
         # inference_dataset_name: BERTDualInferenceContextDataset
         # inference_dataset_name: BERTDualInferenceFullContextDataset
@@ -287,10 +299,10 @@ models:
         # dataset_name: BERTDualArxivDataset
         # inference_dataset_name: BERTDualFullInferenceDataset
         inference_dataset_name: BERTDualFullWithSourceInferenceDataset
-    dual-bert-hierarchical: 
+    dual-bert-hier: 
         type: Representation
-        model_name: BERTDualHierarchicalTrsEncoder
-        dataset_name: BERTDualHierarchicalDataset
+        model_name: BERTDualHierarchicalEncoder
+        dataset_name: BERTDualFullHierDataset
         inference_dataset_name: BERTDualInferenceDataset
     bert-ft: 
         type: Interaction
@@ -337,7 +349,8 @@ models:
     sa-bert: 
         type: Interaction
         model_name: SABERTRetrieval 
-        dataset_name: SABERTFTDataset
+        # dataset_name: SABERTFTDataset
+        dataset_name: HORSETestSAInteractionDataset
         inference_dataset_name: null 
     poly-encoder-hn: 
         type: LatentInteraction
@@ -348,7 +361,8 @@ models:
     poly-encoder: 
         type: LatentInteraction
         model_name: PolyEncoder
-        dataset_name: BERTDualFullDataset
+        # dataset_name: BERTDualFullDataset
+        dataset_name: HORSETestDataset
         # dataset_name: BERTDualDataset
         # dataset_name: BERTDualTimeDataset
         inference_dataset_name: null
@@ -388,7 +402,7 @@ models:
         dataset_name: null
         inference_dataset_name: null
 
-# Global configuration
+# ========= Global configuration ========== #
 # huge file are saved in the root dir
 root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # root_dir: /home/johntianlan/sources/MyReDial
@@ -397,6 +411,10 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 test_interval: 0.1
 fgm: false
 version: 0
+# the number of the gray negative samples (writer dataset)
+gray_cand_num: 5
+rank: null
+load_param: true
 
 
 # ========== deploy parameters ========== #

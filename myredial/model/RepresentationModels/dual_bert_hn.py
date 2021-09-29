@@ -43,17 +43,17 @@ class BERTDualHNEncoder(nn.Module):
     
     def forward(self, batch):
         cid = batch['ids']
-        hid = batch['hids']
+        hrid = batch['hrids']
         rid = batch['rids']
         cid_mask = batch['ids_mask']
-        hid_mask = batch['hids_mask']
+        hrid_mask = batch['hrids_mask']
         rid_mask = batch['rids_mask']
         batch_size = len(cid)
 
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
-        hid_rep = self.ctx_encoder(hid, hid_mask)    # [B*(M-1), E]
-        cid_rep = torch.cat([cid_rep, hid_rep], dim=0)    # [B+B*M]
-        dot_product = torch.matmul(rid_rep, cid_rep.t())     # [B, B+B*M]
+        hrid_rep = self.can_encoder(hrid, hrid_mask)    # [B, E]
+        rid_rep = torch.cat([rid_rep, hrid_rep], dim=0)    # [2*B, E]
+        dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, 2*B]
         dot_product /= self.temp
 
         # constrastive loss

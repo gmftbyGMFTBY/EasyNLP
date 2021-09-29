@@ -40,7 +40,7 @@ from bert_score import BERTScorer
 # herits from huggingface models 
 from transformers import BertPreTrainedModel
 from transformers.models.bert.modeling_bert import BertEncoder, BertPooler
-from transformers.modeling_outputs import BaseModelOutputWithPoolingAndCrossAttentions, CausalLMOutputWithCrossAttentions, BaseModelOutputWithPastAndCrossAttentions
+from transformers.modeling_outputs import BaseModelOutputWithPoolingAndCrossAttentions, CausalLMOutputWithCrossAttentions, BaseModelOutputWithPastAndCrossAttentions, SequenceClassifierOutput
 from transformers.file_utils import (
     ModelOutput,
     add_code_sample_docstrings,

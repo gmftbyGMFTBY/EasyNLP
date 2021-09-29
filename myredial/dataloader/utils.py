@@ -507,6 +507,16 @@ def read_text_data_utterances_full_large(path, lang='zh', turn_length=5, min_len
     return data
 
 
+def read_text_data_utterances_full_data_filter(path):
+    '''the full conversation context will be used'''
+    dataset = torch.load(path)
+    data = []
+    for ctx, res, _ in dataset:
+        data.append((1, ctx + [res]))
+    print(f'[!] collect {len(data)} samples for training')
+    return data
+
+
 def read_text_data_utterances_full(path, lang='zh', turn_length=5):
     '''the full conversation context will be used'''
     dataset = read_text_data_utterances(path, lang=lang)
@@ -688,3 +698,13 @@ def read_torch_data_simcse(path, lang='zh'):
         data_cands.append(candidates)
     print(f'[!] collect {len(data)} samples for training')
     return data, data_cands
+
+
+def read_bm25_hard_negative(path):
+    dataset = []
+    with open(path) as f:
+        for line in tqdm(f.readlines()):
+            item = json.loads(line.strip())
+            dataset.append(item)
+    print(f'[!] load {len(dataset)} training samples')
+    return dataset

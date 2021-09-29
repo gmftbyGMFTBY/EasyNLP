@@ -6,14 +6,15 @@ class BERTDualEncoder(nn.Module):
         super(BERTDualEncoder, self).__init__()
         model = args['pretrained_model']
         self.temp = args['temp']
-        self.ctx_encoder = BertEmbedding(model=model, add_tokens=1, hidden_dropout_ratio=args['hidden_dropout_ratio'])
-        # response bert encoder set the origin dropout ratio
+        self.ctx_encoder = BertEmbedding(model=model, add_tokens=1)
         self.can_encoder = BertEmbedding(model=model, add_tokens=1)
         self.args = args
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
         rid_rep = self.can_encoder(rid, rid_mask)
+        # cosine similarity
+        # cid_rep, rid_rep = F.normalize(cid_rep), F.normalize(rid_rep)
         return cid_rep, rid_rep
 
     @torch.no_grad()
@@ -46,7 +47,6 @@ class BERTDualEncoder(nn.Module):
         rid_mask = batch['rids_mask']
 
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
-        cid_rep_ = self.ctx_encoder(cid, cid_mask)
         # gather all the embeddings in other processes
         # cid_rep, rid_rep = distributed_collect(cid_rep, rid_rep)
 
@@ -63,17 +63,5 @@ class BERTDualEncoder(nn.Module):
         # acc
         acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
         acc = acc_num / batch_size
-
-        # context contrastive loss
-        dot_product = torch.matmul(cid_rep, cid_rep_.t()) 
-        dot_product /= np.sqrt(768)
-        dot_product /= self.temp
-        batch_size = len(cid_rep)
-
-        # constrastive loss
-        mask = torch.zeros_like(dot_product)
-        mask[range(batch_size), range(batch_size)] = 1. 
-        loss_ = F.log_softmax(dot_product, dim=-1) * mask
-        loss += (-loss_.sum(dim=1)).mean()
 
         return loss, acc

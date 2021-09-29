@@ -15,7 +15,7 @@ repetition_penalty: 3.0
 test_interval: 0.1
 gen_max_len: 512
 gen_min_len: 16
-test_interval: 0.01
+test_interval: 0.1
 
 # train configuration
 train:
@@ -26,7 +26,7 @@ train:
     train_max_len: 128
     train_min_len: 64
     res_max_len: 64
-    epoch: 1
+    epoch: 10
     warmup_ratio: 0.05
     alpha: 0.2
     checkpoint: 

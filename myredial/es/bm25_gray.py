@@ -37,34 +37,34 @@ if __name__ == '__main__':
 
     # load train dataset
     read_path = f'{args["root_dir"]}/data/{args["dataset"]}/train.txt'
-    write_path = f'{args["root_dir"]}/data/{args["dataset"]}/train_gray.txt'
+    write_path = f'{args["root_dir"]}/data/{args["dataset"]}/train_bm25_gray.txt'
 
-    # dataset = read_text_data_dual_bert(read_path, lang=args['lang'])
     dataset = read_text_data_utterances_full(read_path, lang=args['lang'], turn_length=5)
-    # data = [(context, response) for label, context, response in dataset if label == 1]
     data = [(utterances[:-1], utterances[-1]) for label, utterances in dataset if label == 1]
     responses = [utterances[-1] for label, utterances in dataset]
     collector = []
     pbar = tqdm(range(0, len(data), args['batch_size']))
     for idx in pbar:
         # random choice the conversation context to search the topic related responses
-        context = [''.join(i[0]) for i in data[idx:idx+args['batch_size']]]
+        context = [i[0] for i in data[idx:idx+args['batch_size']]]
         response = [i[1] for i in data[idx:idx+args['batch_size']]]
-        rest_ = searcher.msearch(context, topk=args['pool_size'])
+        context_str = [' '.join(i[0]) for i in data[idx:idx+args['batch_size']]]
+        rest_ = searcher.msearch(context_str, topk=args['pool_size'])
 
         rest = []
-        for i in rest_:
+        for gt_ctx, gt_res, i in zip(context, response, rest_):
+            i = list(set(i))
+            if gt_res in i:
+                i.remove(gt_res)
             if len(i) < args['topk']:
                 rest.append(i + random.sample(responses, args['topk']-len(i)))
             else:
-                rest.append(random.sample(i, args['topk']))
+                rest.append(i[:args['topk']])
 
-        context = [i[0] for i in data[idx:idx+args['batch_size']]]
         for q, r, nr in zip(context, response, rest):
-            # ipdb.set_trace()
             collector.append({'q': q, 'r': r, 'nr': nr})
 
-    with open(write_path, 'w') as f:
+    with open(write_path, 'w', encoding='utf-8') as f:
         for data in collector:
             string = json.dumps(data)
             f.write(f'{string}\n')

@@ -6,9 +6,9 @@ train:
     lr: 0.00005
     grad_clip: 5.0
     seed: 0
-    batch_size: 48
-    max_len: 256
-    res_max_len: 64
+    batch_size: 64
+    max_len: 128
+    res_max_len: 32
     epoch: 5
     # no wamrup, set 0.0 (BERT-FP and UMS_BERT)
     warmup_ratio: 0.
@@ -21,8 +21,8 @@ train:
 test:
     seed: 0
     batch_size: 1
-    max_len: 256
-    res_max_len: 64
+    max_len: 128
+    res_max_len: 32
 
 # inference configuration
 inference:

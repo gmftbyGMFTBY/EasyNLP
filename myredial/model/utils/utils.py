@@ -137,13 +137,18 @@ class BertEmbeddingWithWordEmbd(nn.Module):
 
     def forward(self, ids, attn_mask, word_embeddings=None):
         if word_embeddings is None:
-            word_embeddings = self.model.embeddings(ids)    # [B, S, 768]
-        embds = self.model(
-            # input_ids=ids, 
-            attention_mask=attn_mask,
-            inputs_embeds=word_embeddings,    
-        )[0]
-        return embds[:, 0, :], word_embeddings
+            word_embeddings = self.model.embeddings.word_embeddings(ids)    # [B, S, 768]
+            embds = self.model(
+                input_ids=ids, 
+                attention_mask=attn_mask,
+            )[0]
+            return embds[:, 0, :], word_embeddings
+        else:
+            embds = self.model(
+                attention_mask=attn_mask,
+                inputs_embeds=word_embeddings,
+            )[0]
+            return embds[:, 0, :]
 
 
 class BertOAEmbedding(nn.Module):
@@ -207,7 +212,6 @@ class SABertEmbedding(nn.Module):
             input_ids=ids,
             attention_mask=attn_mask,
             speaker_ids=sids,
-            turn_level_ids=tlids,
         )[0]
         return embds[:, 0, :]
 
@@ -219,9 +223,9 @@ class BertEmbedding(nn.Module):
         if load_param:
             self.model = BertModel.from_pretrained(
                 pretrained_model_name_or_path=model, 
-                add_pooling_layer=False,
-                hidden_dropout_prob=hidden_dropout_ratio,
-                attention_probs_dropout_prob=hidden_dropout_ratio,
+                # add_pooling_layer=False,
+                # hidden_dropout_prob=hidden_dropout_ratio,
+                # attention_probs_dropout_prob=hidden_dropout_ratio,
             )
         else:
             config = BertConfig.from_pretrained(model)
@@ -486,7 +490,6 @@ class CheckpointAdapter:
         self.maybe_missing_list = [
             'embeddings.position_ids', 
             'embeddings.speaker_embeddings.weight', 
-            'embeddings.turn_level_embeddings.weight', 
             'model.embeddings.position_ids', 
             'model.bert.embeddings.position_ids', 
             # the followings are the BERTDualO2MTopKEmbedding extra parameters
@@ -628,7 +631,6 @@ class BertSAEmbeddings(nn.Module):
         self.position_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size)
         self.token_type_embeddings = nn.Embedding(config.type_vocab_size, config.hidden_size)
         self.speaker_embeddings = nn.Embedding(2, 768)
-        self.turn_level_embeddings = nn.Embedding(512, 768)
 
         # self.LayerNorm is not snake-cased to stick with TensorFlow model variable name and be able to load
         # any TensorFlow checkpoint file
@@ -645,7 +647,7 @@ class BertSAEmbeddings(nn.Module):
         )
 
     def forward(
-        self, input_ids=None, token_type_ids=None, position_ids=None, inputs_embeds=None, past_key_values_length=0, speaker_ids=None, turn_level_ids=None,
+        self, input_ids=None, token_type_ids=None, position_ids=None, inputs_embeds=None, past_key_values_length=0, speaker_ids=None,
     ):
         if input_ids is not None:
             input_shape = input_ids.size()
@@ -675,9 +677,6 @@ class BertSAEmbeddings(nn.Module):
         if speaker_ids is not None:
             speaker_embeddings = self.speaker_embeddings(speaker_ids)
             embeddings += speaker_embeddings
-        if turn_level_ids is not None:
-            turn_level_embeddings = self.turn_level_embeddings(turn_level_ids)
-            embeddings += turn_level_embeddings
         embeddings += token_type_embeddings
         if self.position_embedding_type == "absolute":
             position_embeddings = self.position_embeddings(position_ids)
@@ -726,7 +725,6 @@ class BertSAModel(BertPreTrainedModel):
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
-        turn_level_ids=None,
     ):
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
@@ -794,7 +792,6 @@ class BertSAModel(BertPreTrainedModel):
             inputs_embeds=inputs_embeds,
             past_key_values_length=past_key_values_length,
             speaker_ids=speaker_ids,
-            turn_level_ids=turn_level_ids,
         )
         encoder_outputs = self.encoder(
             embedding_output,

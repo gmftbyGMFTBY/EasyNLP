@@ -25,10 +25,11 @@ class GPT2Dataset(Dataset):
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
 
+        random.seed(args['seed'])
+
         self.data = []
         if self.args['mode'] == 'train':
             data = read_text_data_line_by_line(path)
-            data = random.sample(data, 1000)
             self.data = []
             for text in tqdm(data):
                 item = self.vocab.encode(text, add_special_tokens=False)
@@ -135,6 +136,8 @@ class GPT2UnlikelyhoodDataset(Dataset):
         self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
         self.unk = self.vocab.convert_tokens_to_ids('[UNK]')
         
+        random.seed(args['seed'])
+        
         if self.args['mode'] == 'test':
             # for test batch generation
             print(f'[!] set the padding side as the left')
@@ -151,7 +154,7 @@ class GPT2UnlikelyhoodDataset(Dataset):
         if self.args['mode'] == 'train':
             data = read_text_data_unlikelyhood(path)
             # for debug
-            data = random.sample(data, 1000)
+            # data = random.sample(data, 1000)
             self.data = []
             for utterances in tqdm(data):
                 item = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']
@@ -182,15 +185,16 @@ class GPT2UnlikelyhoodDataset(Dataset):
                     item = self.vocab.encode(context, add_special_tokens=False)
                     ids = [self.cls] + item[-(self.args['max_len']-1):]
                     
-                    cids, rids = self.vocab.encode([context, pos], add_special_tokens=False)['input_ids']
+                    cids, rids = self.vocab.batch_encode_plus([context, pos], add_special_tokens=False)['input_ids']
                     self.truncate_pair(cids, rids, self.args['max_len'])
                     pos_ids = [self.cls] + cids + rids + [self.sep]
                     pos_label = [0] * (len(cids) + 1) + rids + [self.sep]
                     
-                    cids, rids = self.vocab.encode([context, neg], add_special_tokens=False)['input_ids']
+                    cids, rids = self.vocab.batch_encode_plus([context, neg], add_special_tokens=False)['input_ids']
                     self.truncate_pair(cids, rids, self.args['max_len'])
                     neg_ids = [self.cls] + cids + rids + [self.sep]
                     neg_label = [0] * (len(cids) + 1) + rids + [self.sep]
+                    # ipdb.set_trace()
                     self.data.append({
                         'ids': ids,
                         'pos_ids': pos_ids,

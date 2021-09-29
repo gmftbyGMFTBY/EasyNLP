@@ -7,21 +7,19 @@ class BERTDualMixUpEncoder(nn.Module):
     def __init__(self, **args):
         super(BERTDualMixUpEncoder, self).__init__()
         model = args['pretrained_model']
-        self.ctx_encoder = BertEmbeddingWithWordEmbd(model=model, add_tokens=1)
+        self.ctx_encoder = BertEmbedding(model=model, add_tokens=1)
         self.can_encoder = BertEmbeddingWithWordEmbd(model=model, add_tokens=1)
         self.alpha = args['alpha']
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
-        cid_rep, cid_we = self.ctx_encoder(cid, cid_mask)
+        cid_rep = self.ctx_encoder(cid, cid_mask)
         rid_rep, rid_we = self.can_encoder(rid, rid_mask)    # [B, E]; [B, S, E]
         lam = np.random.beta(self.alpha, self.alpha)    # [B, E]
         index = torch.randperm(len(cid))
         # x, y: [B, E]
-        mixed_x = lam * cid_we + (1 - lam) * cid_we[index, :, :]
         mixed_y = lam * rid_we + (1 - lam) * rid_we[index, :, :]
-        cid_mix_rep, _ = self.ctx_encoder(cid, cid_mask, word_embeddings=mixed_x)
-        rid_mix_rep, _ = self.can_encoder(rid, rid_mask, word_embeddings=mixed_y)
-        return cid_rep, rid_rep, cid_mix_rep, rid_mix_rep
+        rid_mix_rep = self.can_encoder(rid, rid_mask, word_embeddings=mixed_y)
+        return cid_rep, rid_rep, rid_mix_rep
 
     @torch.no_grad()
     def get_cand(self, ids, attn_mask):
@@ -52,8 +50,7 @@ class BERTDualMixUpEncoder(nn.Module):
         rid_mask = batch['rids_mask']
 
         batch_size = cid.shape[0] * 2
-        cid_rep, rid_rep, cid_mix_rep, rid_mix_rep = self._encode(cid, rid, cid_mask, rid_mask)
-        cid_rep = torch.cat([cid_rep, cid_mix_rep], dim=0)
+        cid_rep, rid_rep, rid_mix_rep = self._encode(cid, rid, cid_mask, rid_mask)
         rid_rep = torch.cat([rid_rep, rid_mix_rep], dim=0)
         dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, B]
         # constrastive loss

@@ -38,7 +38,7 @@ def main(**args):
         config = load_config(test_args)
         test_args.update(config)
         # valid set for training
-        # test_args['mode'] = 'valid'
+        test_args['mode'] = 'valid'
         test_data, test_iter, _ = load_dataset(test_args)
     else:
         test_iter = None

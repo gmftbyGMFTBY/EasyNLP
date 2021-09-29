@@ -161,5 +161,5 @@ For bert-ft-compare model, the dataset name in this mode is `BERTCompEvaluationD
 # generate the gray response
 ./script/inference_gray_simcse.sh <dataset_name> simcse <cuda_ids>
 # generate the test set for unlikelyhood-gen dataset
-./script/inference_gray_unlikelyhood_simcse.sh <dataset_name> simcse <cuda_ids>
+./script/inference_gray_simcse_unlikelyhood.sh <dataset_name> simcse <cuda_ids>
 ```

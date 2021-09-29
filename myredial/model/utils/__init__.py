@@ -1,4 +1,5 @@
 from .base import *
+from .speaker_aware_models import *
 from .utils import *
 from .gen_utils import *
 from .header import *

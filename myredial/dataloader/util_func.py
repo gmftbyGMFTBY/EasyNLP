@@ -87,7 +87,7 @@ def truncate_pair(cids, rids, max_length):
             rids.pop()
 
 
-def truncate_pair_two_candidates(cids, rids1, rids2, max_length):
+def truncate_pair_two_candidates(cids, rids1, rids2, max_length, sids=None):
     max_length -= 4    # [CLS] ctx [SEP] rids1 [SEP] rids2 [SEP]
     while True:
         l = len(cids) + len(rids1) + len(rids2)
@@ -95,6 +95,8 @@ def truncate_pair_two_candidates(cids, rids1, rids2, max_length):
             break
         if len(cids) > len(rids1) + len(rids2):
             cids.pop(0)
+            if sids:
+                sids.pop(0)
         elif len(rids1) > len(rids2):
             rids1.pop()
         else:
