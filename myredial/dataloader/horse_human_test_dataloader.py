@@ -348,3 +348,52 @@ class HORSESATestDataset(Dataset):
             'ctext': ctext,
             'rtext': rtext,
         }
+
+        
+class HORSECompTestDataset(Dataset):
+    
+    def __init__(self, vocab, path, **args):
+        self.args = args
+        self.vocab = vocab
+        self.vocab.add_tokens(['[EOS]'])
+
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.eos = self.vocab.convert_tokens_to_ids('[EOS]')
+        self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
+
+        suffix = args['tokenizer'].replace('/', '_')
+        self.pp_path = f'{os.path.splitext(path)[0]}_horse_comp_human_test_{suffix}.pt'
+        if os.path.exists(self.pp_path):
+            self.data = torch.load(self.pp_path)
+            print(f'[!] load preprocessed file from {self.pp_path}')
+            return None
+        self.data = []
+        path = f'{args["root_dir"]}/data/{args["dataset"]}/horse-human-test.pkl'
+        data = pickle.load(open(path, 'rb'))
+        for item in tqdm(data):
+            self.data.append({
+                'label': [l for _, l in item['res']],
+                'context': item['ctx'],
+                'responses': [r for r, _ in item['res']]
+            })    
+                
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, i):
+        bundle = self.data[i]
+        return bundle['context'], bundle['responses'], bundle['label']
+
+    def save(self):
+        data = torch.save(self.data, self.pp_path)
+        print(f'[!] save preprocessed dataset into {self.pp_path}')
+        
+    def collate(self, batch):
+        assert len(batch) == 1
+        ctx, res, label = batch[0]
+        return {
+            'context': ctx,
+            'responses': res,
+            'label': label,
+        }

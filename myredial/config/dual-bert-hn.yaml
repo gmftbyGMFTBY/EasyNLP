@@ -1,7 +1,8 @@
 temp: 1.0
 full_turn_length: 100
 test_interval: 0.01
-gray_cand_num: 2
+gray_cand_num: 3
+valid_during_training: true
 
 # train configuration
 train:

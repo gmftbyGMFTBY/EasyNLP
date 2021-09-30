@@ -43,27 +43,30 @@ class BERTDualHNEncoder(nn.Module):
     
     def forward(self, batch):
         cid = batch['ids']
-        hrid = batch['hrids']
         rid = batch['rids']
         cid_mask = batch['ids_mask']
-        hrid_mask = batch['hrids_mask']
         rid_mask = batch['rids_mask']
         batch_size = len(cid)
 
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
-        hrid_rep = self.can_encoder(hrid, hrid_mask)    # [B, E]
-        rid_rep = torch.cat([rid_rep, hrid_rep], dim=0)    # [2*B, E]
-        dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, 2*B]
+        dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, B*K]
         dot_product /= self.temp
+
+        # mask the hard negative of other training samples in the batch
+        nset = set(range(0, len(rid), self.topk))
+        for i in range(batch_size):
+            nnset = nset | set(range(self.topk*i, self.topk*(i+1)))
+            index = [i for i in range(len(rid)) if i not in nnset]
+            dot_product[i, index] = -1e3
 
         # constrastive loss
         mask = torch.zeros_like(dot_product)
-        mask[range(batch_size), range(batch_size)] = 1. 
+        mask[range(batch_size), range(0, len(rid), self.topk)] = 1. 
         loss_ = F.log_softmax(dot_product, dim=-1) * mask
         loss = (-loss_.sum(dim=1)).mean()
 
         # acc
-        acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
+        acc_num = (dot_product.max(dim=-1)[1] == torch.LongTensor(torch.arange(0, len(rid), self.topk)).cuda()).sum().item()
         acc = acc_num / batch_size
 
         return loss, acc

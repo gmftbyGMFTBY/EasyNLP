@@ -37,7 +37,13 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
             if self.args['model'] in ['bert-ft-compare']:
-                loss, acc = self.model(batch, optimizer=self.optimizer, scaler=self.scaler)
+                loss, acc = self.model(
+                    batch, 
+                    optimizer=self.optimizer, 
+                    scaler=self.scaler, 
+                    grad_clip=self.args['grad_clip'], 
+                    scheduler=self.scheduler
+                )
             else:
                 with autocast():
                     loss, acc = self.model(batch)
@@ -46,7 +52,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
                 clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
-            self.scheduler.step()
+                self.scheduler.step()
 
             total_loss += loss.item()
             total_acc += acc
@@ -127,6 +133,21 @@ class CompareInteractionAgent(RetrievalBaseAgent):
             'MAP': round(100*avg_map, 2),
         }
     
+    @torch.no_grad()
+    def test_model_horse_human(self, test_iter, print_output=False, rerank_agent=None):
+        self.model.eval()
+        pbar = tqdm(test_iter)
+        collection = []
+        for batch in pbar:
+            label = np.array(batch['label'])
+            packup = {
+                'context': batch['context'],
+                'responses': batch['responses'],
+            }
+            scores = self.fully_compare(packup)
+            collection.append((label, scores))
+        return collection
+            
     @torch.no_grad()
     def test_model(self, test_iter, print_output=False, rerank_agent=None):
         self.model.eval()

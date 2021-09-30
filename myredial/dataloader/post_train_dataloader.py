@@ -618,3 +618,150 @@ class PostTrainMultiStrategiesDataset(Dataset):
             'attn_mask': attn_mask, 
             'label': labels,
         }
+
+        
+class PostTrainComparisonDataset(Dataset):
+
+    '''Dynamic Mask: no mask token will be set as the -1 label
+    For chinese corpus, the train.txt and test.txt must have been tokenzied by the white space'''
+    
+    def __init__(self, vocab, path, **args):
+        self.args = args
+        self.vocab = vocab
+        self.vocab.add_tokens(['[EOS]'])
+
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
+        self.unk = self.vocab.convert_tokens_to_ids('[UNK]')
+        self.mask = self.vocab.convert_tokens_to_ids('[MASK]')
+        self.eos = self.vocab.convert_tokens_to_ids('[EOS]')
+
+        self.special_tokens = set([self.pad, self.sep, self.cls, self.unk, self.mask, self.eos])
+
+        suffix = args['tokenizer'].replace('/', '_')
+        self.pp_path = f'{os.path.splitext(path)[0]}_post_train_{suffix}.pt'
+        if os.path.exists(self.pp_path):
+            self.data, self.table = torch.load(self.pp_path)
+            print(f'[!] load preprocessed file from {self.pp_path}')
+            return None
+
+        data = read_text_data_utterances(path, lang=self.args['lang'])
+        self.data = []
+        self.table = []
+        for label, utterances in tqdm(data):
+            if label == 0:
+                continue
+            item = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']
+            offset = len(self.data)
+            self.data.extend(item)
+
+            counter = 0
+            l = []
+            for utterance in item:
+                l.append(len([i for i in utterance if i not in self.special_tokens]))
+            # begin, end, max-length session
+            for i in range(1, len(item)):
+                if i < self.args['min_context_length']:
+                    continue
+                # check if the context and response are legal
+                # if sum(l[:i+1]) > self.args['min_token_length'] and l[i] > 0:
+                #     self.table.append((offset, offset+i, len(self.data)))
+
+                if l[i] > 0:
+                    self.table.append((offset, offset+i, len(self.data)))
+
+    def __len__(self):
+        return len(self.table)
+    
+    def _packup(self, cids, rids1, rids2, sids):
+        cids_, rids1_, rids2_ = deepcopy(cids), deepcopy(rids1), deepcopy(rids2)
+        sids_ = deepcopy(sids)
+        truncate_pair_two_candidates(
+            cids_, rids1_, rids2_,
+            self.args['max_len'],
+            sids=sids_,
+        )
+        other_speaker = 0 if sids[-1] == 1 else 1
+        ids = [self.cls] + cids_ + [self.sep] + rids1_ + [self.sep] + rids2_ + [self.sep]
+        sids_ = [sids_[0]] + sids_ + [sids_[-1]] + [other_speaker] * (len(rids1_) + len(rids2_) + 2)
+        tids = [0] * (len(cids_) + 2) + [1] * (len(rids1_) + 1) + [0] * (len(rids2_) + 1)
+        assert len(sids_) == len(ids)
+        return ids, tids, sids_
+
+    def __getitem__(self, i):
+        begin, end, max_l = self.table[i]
+        session = self.data[begin:end+1]
+        cids, sids, cache = [], [], 0
+        for u in session[:-1]:
+            cids.extend(u + [self.eos])
+            sids.extend([cache] * (len(u) + 1))
+            cache = 1 if cache == 0 else 0
+        cids.pop()
+        sids.pop()
+        # ground-truth
+        ground_truth = session[-1]
+        # negative samples
+        ratio = random.random()
+        if ratio > 0.5:
+            # within session
+            index = list(range(begin, max_l))
+            index.remove(end)
+            response = self.data[random.choice(index)]
+        else:
+            # random negative sample
+            while True:
+                rand_idx = random.randint(0, len(self.data)-1)
+                if rand_idx != end:
+                    break
+            response = self.data[rand_idx]
+        ratio = random.random()
+        if ratio > 0.5:
+            ids, tids, sids = self._packup(cids, ground_truth, response, sids)
+            label = 1
+        else:
+            ids, tids, sids = self._packup(cids, response, ground_truth, sids)
+            label = 0
+        mask_labels = mask_sentence(
+            ids,
+            self.args['min_mask_num'], 
+            self.args['max_mask_num'], 
+            self.args['masked_lm_prob'], 
+            special_tokens=self.special_tokens, 
+            mask=self.mask, 
+            vocab_size=len(self.vocab),
+        )
+        return ids, tids, sids, mask_labels, label
+
+    def save(self):
+        data = torch.save((self.data, self.table), self.pp_path)
+        print(f'[!] save preprocessed dataset into {self.pp_path}; size: {len(self.table)}')
+        
+    def collate(self, batch):
+        ids, tids, sids, mask_labels, labels = [], [], [], [], []
+        for ids_, tids_, sids_, mask_labels_, labels_ in batch:
+            ids.append(ids_)
+            sids.append(sids_)
+            tids.append(tids_)
+            mask_labels.append(mask_labels_)
+            labels.append(labels_)
+        ids = [torch.LongTensor(i) for i in ids]
+        sids = [torch.LongTensor(i) for i in sids]
+        tids = [torch.LongTensor(i) for i in tids]
+        mask_labels = [torch.LongTensor(i) for i in mask_labels]
+        labels = torch.LongTensor(labels)
+
+        ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+        sids = pad_sequence(sids, batch_first=True, padding_value=self.pad)
+        tids = pad_sequence(tids, batch_first=True, padding_value=self.pad)
+        mask_labels = pad_sequence(mask_labels, batch_first=True, padding_value=-1)    # pad is not calculated for MLM
+        attn_mask = generate_mask(ids)
+        ids, sids, tids, mask_labels, attn_mask, labels = to_cuda(ids, sids, tids, mask_labels, attn_mask, labels)
+        return {
+            'ids': ids, 
+            'sids': sids, 
+            'tids': tids, 
+            'mask_labels': mask_labels, 
+            'attn_mask': attn_mask, 
+            'label': labels,
+        }

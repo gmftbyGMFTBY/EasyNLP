@@ -30,6 +30,7 @@ pretrained_model:
 
 no_test_models:
     - bert-fp
+    - bert-fp-comp
     - bert-fp-multi
     - bert-fp-no-cls
     - bert-fp-mono
@@ -142,8 +143,8 @@ models:
         model_name: BERTDualHNEncoder
         # dataset_name: BERTDualCTXHNFullDataset
         # dataset_name: BERTDualHNDataset
-        dataset_name: BERTDualBM25HNDataset
-        # dataset_name: HORSETestDataset
+        # dataset_name: BERTDualBM25HNDataset
+        dataset_name: HORSETestDataset
         # dataset_name: BERTDualBertMaskHardNegativeDataset
         # dataset_name: BERTDualSimCSEHardNegativeDataset
         # dataset_name: FineGrainedTestDataset
@@ -326,6 +327,7 @@ models:
         type: CompareInteraction
         model_name: BERTCompareRetrieval
         dataset_name: BERTFTCompDataset
+        # dataset_name: HORSECompTestDataset
         inference_dataset_name: null
     dual-bert-comp-hn: 
         type: CompareInteraction
@@ -376,6 +378,11 @@ models:
         model_name: BERTFPMultiPostTrain
         dataset_name: PostTrainMultiStrategiesDataset
         inference_dataset_name: null 
+    bert-fp-comp: 
+        type: PostTrain
+        model_name: BERTFPCompPostTrain
+        dataset_name: PostTrainComparisonDataset
+        inference_dataset_name: null
     bert-fp: 
         type: PostTrain
         model_name: BERTFPPostTrain
@@ -406,8 +413,7 @@ models:
 # huge file are saved in the root dir
 root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # root_dir: /home/johntianlan/sources/MyReDial
-# test interval: higher than 1 means that we donot test during training procedure, which is necessary for the corpus which has the big test set
-# test_interval: 1.1
+# test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
 version: 0
@@ -415,9 +421,13 @@ version: 0
 gray_cand_num: 5
 rank: null
 load_param: true
+# default the test set is used during training, because douban, ecommerce has 1:1(pos:neg) settings in the validation set
+# for ubuntu and horse corpus, set this parameter as true, otherwise set false
+valid_during_training: true
+# ========= Global configuration ========== #
 
 
-# ========== deploy parameters ========== #
+# ========== Deploy configuration ========== #
 deploy:
     host: '0.0.0.0'
     port: 22335
@@ -445,3 +455,4 @@ deploy:
         activate: false
     pipeline_evaluation:
         activate: true
+# ========== Deploy configuration ========== #

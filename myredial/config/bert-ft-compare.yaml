@@ -6,15 +6,16 @@ compare_turn_num: 2
 positive_margin: 0.
 positive_margin_delta: 0.0
 num_labels: 1
-test_interval: 0.01
-grad_clip: 1.0
+test_interval: 0.05
 # true for domain-specific corpus: ecommerce and ubuntu
 # replace the hard negative with the random negative
 no_hard_negative: false
+valid_during_training: false
 
 # train configuration
 train:
     lr: 0.00005
+    grad_clip: 5.0
     seed: 0
     batch_size: 32
     max_len: 288    # 256 + 32
@@ -23,6 +24,7 @@ train:
     checkpoint: 
         path: bert-post/best_nspmlm.pt
         # path: bert-fp/best_bert-base-chinese.pt
+        # path: bert-fp-comp/best_bert-base-chinese.pt
         is_load: true
 
 # test configuration

@@ -14,8 +14,13 @@ def parser_args():
 
 
 def obtain_steps_parameters(train_data, args):
-    args['total_step'] = len(train_data) * args['epoch'] // args['batch_size'] // (args['multi_gpu'].count(',') + 1)
-    args['warmup_step'] = int(args['warmup_ratio'] * args['total_step'])
+    if args['model'] in ['bert-ft-compare']:
+        # each context contains `gray_cand_num` random negative and `gray_cand_num` hard negative samples
+        args['total_step'] = len(train_data) * args['epoch'] * args['gray_cand_num'] * 2 // args['inner_bsz'] // (args['multi_gpu'].count(',') + 1)
+        args['warmup_step'] = int(args['warmup_ratio'] * args['total_step'])
+    else:
+        args['total_step'] = len(train_data) * args['epoch'] // args['batch_size'] // (args['multi_gpu'].count(',') + 1)
+        args['warmup_step'] = int(args['warmup_ratio'] * args['total_step'])
 
 
 def main(**args):
@@ -37,8 +42,10 @@ def main(**args):
     if args['model'] not in args['no_test_models']:
         config = load_config(test_args)
         test_args.update(config)
-        # valid set for training
-        test_args['mode'] = 'valid'
+
+        if args['valid_during_training']:
+            # valid set for training
+            test_args['mode'] = 'valid'
         test_data, test_iter, _ = load_dataset(test_args)
     else:
         test_iter = None

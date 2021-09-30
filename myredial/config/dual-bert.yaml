@@ -32,7 +32,8 @@ train:
         R10@1: 35.
     checkpoint: 
         # path: bert-post/best_nspmlm.pt
-        path: bert-fp/best_bert-base-chinese.pt
+        # path: bert-fp/best_bert-base-chinese.pt
+        path: bert-fp-comp/best_bert-base-chinese.pt
         # path: bert-fp-multi/best_bert-base-chinese.pt
         # path: dual-bert-pt/best_bert-base-chinese.pt
         # path: bert-fp-no-cls/best_bert-base-chinese.pt

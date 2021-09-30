@@ -69,6 +69,7 @@
 | SA-BERT+BERT-FP    | 51.46 | 69.43  | 92.82 | 71.99 | 57.07 | 70.72  | 15135.32  |
 | BERT-FP            | 49.32 | 69.89 | 91.86 | 70.81 | 54.55 | 69.8   | 21150.52  |
 | DR-BERT(full)      | 56.44 | 74.7  | 93.56 | 75.91 | 62.42 | 74.75  | 21150.52  |
+| DR-BERT-hn(full)   | 55.35 | 74.87 | 94.12 | 75.27 | 61.01 | 74.16  | 23.59  |
 | DR-BERT-hier(full) | 48.91 | 69.07 | 91.87 | 70.14 | 53.94 | 69.1   | 19.84  |
 
 
@@ -237,39 +238,14 @@ ATC means the average time cost
 
 ### 5.3 Fine-grained test results
 
-| Methods        | NDCG@3 | NDCG@5 |
-| -------------- | ------ | ------ |
-| bert-fp        |        | 0.709  |
-| sa-bert-fp     |        | 0.753  |
-| dual-bert      |        | 0.767  |
-| DR-BERT(full)  | 0.699  | 0.776  |
-
-|   Methods   | SBM lt | Weight Kendall Tau lt | SBM brandenwang | Weight Kendall Tau brandenwang | SBM lt2 | WKT lt |
-| ----------- | --------- | ------------------ | ------- | ------ | ---- | ----- |
-| bert-ft   | 0.6437    | 0.1447               | 0.6032  | 0.0713 | 0.534  | -0.0215  |
-| dual-bert   | 0.6892    | 0.2262               | 0.6727  | 0.1761 | 0.435  | -0.1418  |
-| dual-bert-full | 0.6811 | 0.1965             | 0.6788  | 0.2231 | 0.4526  | -0.0878  |
-| dual-bert-full+bert-fp-mono(35) | 0.6916 | 0.2362      | 0.6802  | 0.1645 |  |   |
-| dual-bert-pos-mono | 0.6949  |             | 0.6665  |  | 0.4519  |  |
-| dual-bert-hn | 0.695  | 0.2293             | 0.6807  | 0.1943  |   |   |
-| dual-bert-hn-warmup(bert-mask-da: 0.5 mask ratio, 5 aug_t, 20 maxium mask num) | 0.6865  | 0.1825   | 0.6666  | 0.2144  | 0.4591 | -0.1259 |
-| dual-bert-hn-pos(0.5)  | 0.6983 |    | 0.6914  | | 0.4744 |  |
-| dual-bert-hn-pos(0.5,修改了部分bert-mask的代码)  | 0.6939 |  | 0.6669  | | | |
-| dual-bert-hn-pos  | 0.6883 |   | 0.6911  | | 0.4618 | |
-| dual-bert-hn-pos(warmup=0.05, epoch=5, new-pos, original-bert-mask, gray_cand_num=2, bert-fp-mono, w_delta=1.0)  | 0.6912 | 0.2279          | 0.6861  | 0.2092 | 0.4702 | -0.0949 |
-| dual-bert-hn-pos(warmup=0.05, epoch=5, new-pos, original-bert-mask, gray_cand_num=2, bert-fp-mono, w_delta=2.0)  | 0.6926 | 0.2369          | 0.6899  | 0.2359 | 0.4749 | -0.1034 |
-| dual-bert-hn-pos(warmup=0.05, epoch=5, new-pos, original-bert-mask, gray_cand_num=2, bert-fp-mono, w_delta=3.0)  | 0.7037 | 0.2299          | 0.7096  | 0.2099 | 0.4749 | -0.1365 |
-| dual-bert-hn-pos(warmup=0.05, epoch=5, new-pos, bert-mask[bert-fp-mono], gray_cand_num=2, bert-fp-mono, w_delta=3.0)  | 0.6689 | 0.1643          | 0.6682  | 0.2585 | 0.5107 | -0.1242 |
-| dual-bert-hn-pos(warmup=0.05, epoch=5, new-pos, bert-mask-dmr[bert-fp-mono], gray_cand_num=2, bert-fp-mono, w_delta=3.0)  | 0.6945 | 0.2081          | 0.6733  | 0.1905 | 0.4722 | -0.1506 |
-| dual-bert-hn-pos(warmup=0.05, epoch=5, new-pos, original-bert-mask, gray_cand_num=2, bert-fp-mono, w_delta=4.0)  | 0.689 | 0.2193          | 0.6901  | 0.2366 | 0.4752 | -0.0868 |
-| dual-bert-hn-pos(warmup=0.05, epoch=5, new-pos, original-bert-mask, gray_cand_num=2, bert-fp-mono, w_delta=5.0)  | 0.6885 | 0.2139          | 0.6844  | 0.2139 | 0.4745 | -0.0727 |
-| dual-bert-comp  | 0.6869 |  | 0.665  | | | |
-| dual-bert-comp-hn  | 0.6891 |   | 0.6802  | | | |
-| dual-bert-proj  | 0.6923 | 0.2044          | 0.6807  | 0.1918 | 4509 | -0.0561 |
-| dual-bert-hn  | 0.7061 | 0.2132          | 0.6832  | 0.2042 | 0.4812 | -0.1266 |
-| dual-bert-hn(bert-mask-da-dmr[bert-fp])  | 0.6959 | 0.238          | 0.6845  | 0.2264 | 0.4671 | -0.1044 |
-
-
+| Methods         | NDCG@3 | NDCG@5 |
+| --------------- | ------ | ------ |
+| BERT            | 0.625  | 0.714  |
+| BERT-FP         | 0.609  | 0.709  |
+| SA-BERT(BERT-FP)| 0.674  | 0.753  |
+| dual-bert       | 0.686  | 0.767  |
+| DR-BERT(full)   | 0.699  | 0.776  |
+| DR-BERT-hn(full)| 0.706  | 0.778  |
 
 ## 6. How to reproduce our results
 
@@ -278,7 +254,5 @@ ATC means the average time cost
 ### 2. generate the samples for human annotations
 
 #### 2.1 pure BM25 (q-q matching)
-
-
 
 #### 2.2 BM25 (q-q matching, topk=100) + BERT-FP

@@ -153,7 +153,7 @@ def main_rerank(**args):
         rerank_agent = None
 
     bt = time.time()
-    outputs = agent.test_model(test_iter, print_output=False, rerank_agent=rerank_agent)
+    outputs = agent.test_model(test_iter, print_output=True, rerank_agent=rerank_agent)
     cost_time = time.time() - bt
     cost_time *= 1000    # ms
     cost_time /= len(test_iter)

@@ -15,9 +15,8 @@ class BERTCompareRetrieval(nn.Module):
         self.vocab.add_tokens(['[EOS]'])
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
-        self.grad_clip = args['grad_clip']
 
-    def forward(self, batch, scaler=None, optimizer=None):
+    def forward(self, batch, scaler=None, optimizer=None, scheduler=None, grad_clip=1.0):
         inpt = batch['ids']
         sids = batch['sids']
         tids = batch['tids']
@@ -65,9 +64,10 @@ class BERTCompareRetrieval(nn.Module):
                 loss = self.criterion(logits, sub_label)
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)
-            clip_grad_norm_(self.parameters(), self.grad_clip)
+            clip_grad_norm_(self.parameters(), grad_clip)
             scaler.step(optimizer)
             scaler.update()
+            scheduler.step()
 
             tloss += loss
             acc += torch.sum((torch.sigmoid(logits) > 0.5) == sub_label).item()
