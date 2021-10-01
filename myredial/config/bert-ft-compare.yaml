@@ -3,14 +3,15 @@
 inner_bsz: 64
 gray_cand_num: 2
 compare_turn_num: 2
-positive_margin: 0.
+positive_margin: 0.2
 positive_margin_delta: 0.0
 num_labels: 1
 test_interval: 0.05
-# true for domain-specific corpus: ecommerce and ubuntu
-# replace the hard negative with the random negative
+# false: replace the hard negative with the random negative
 no_hard_negative: false
-valid_during_training: false
+# true for domain-specific corpus: ecommerce and douban
+# false for ubuntu and horse corpus
+valid_during_training: true
 
 # train configuration
 train:

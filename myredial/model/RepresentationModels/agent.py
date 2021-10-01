@@ -657,20 +657,20 @@ class RepresentationAgent(RetrievalBaseAgent):
                 self.model.ctx_encoder.load_state_dict(new_ctx_state_dict)
                 self.model.can_encoders[0].load_state_dict(new_res_state_dict)
                 self.model.can_encoders[1].load_state_dict(new_res_state_dict)
-            # elif self.args['model'] in ['dual-bert-hn']:
-            #     new_ctx_state_dict = OrderedDict()
-            #     new_res_state_dict = OrderedDict()
-            #     for k, v in state_dict.items():
-            #         if 'ctx_encoder' in k:
-            #             new_k = k.replace('ctx_encoder.', '')
-            #             new_ctx_state_dict[new_k] = v
-            #         elif 'can_encoder' in k:
-            #             new_k = k.replace('can_encoder.', '')
-            #             new_res_state_dict[new_k] = v
-            #         else:
-            #             raise Exception()
-            #     self.model.ctx_encoder.load_state_dict(new_ctx_state_dict)
-            #     self.model.can_encoder.load_state_dict(new_res_state_dict)
+            elif self.args['model'] in ['dual-bert-hn']:
+                new_ctx_state_dict = OrderedDict()
+                new_res_state_dict = OrderedDict()
+                for k, v in state_dict.items():
+                    if 'ctx_encoder' in k:
+                        new_k = k.replace('ctx_encoder.', '')
+                        new_ctx_state_dict[new_k] = v
+                    elif 'can_encoder' in k:
+                        new_k = k.replace('can_encoder.', '')
+                        new_res_state_dict[new_k] = v
+                    else:
+                        raise Exception()
+                self.model.ctx_encoder.load_state_dict(new_ctx_state_dict)
+                self.model.can_encoder.load_state_dict(new_res_state_dict)
             elif self.args['model'] in ['dual-bert-pt']:
                 state_dict = torch.load(path, map_location=torch.device('cpu'))
                 new_ctx_state_dict = OrderedDict()
@@ -784,10 +784,6 @@ class RepresentationAgent(RetrievalBaseAgent):
             cid_mask = torch.ones_like(cid)
             batch['ids'] = cid
             batch['ids_mask'] = cid_mask
-
-            # if self.args['model'] in ['dual-bert-sa']:
-            #     batch['sids'] = batch['sids'].unsqueeze(0)
-            #     batch['tlids'] = batch['tlids'].unsqueeze(0)
 
             scores = self.model.predict(batch).cpu().tolist()
 

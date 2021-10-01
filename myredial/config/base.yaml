@@ -310,7 +310,8 @@ models:
         model_name: BERTRetrieval
         # dataset_name: FineGrainedTestInteractionDataset
         # dataset_name: BERTFTDataset
-        dataset_name: HORSETestInteractionDataset
+        dataset_name: BERTFTFullDataset
+        # dataset_name: HORSETestInteractionDataset
         # dataset_name: BERTFTTimeDataset
         inference_dataset_name: null 
     bert-ft-essay: 

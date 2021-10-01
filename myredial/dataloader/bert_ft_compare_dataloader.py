@@ -61,6 +61,9 @@ class BERTFTCompDataset(Dataset):
             self.responses = responses
         else:
             data = read_text_data_utterances(path, lang=self.args['lang'])
+            if args['dataset'] in ['ubuntu'] and args['mode'] == 'valid':
+                # too many validation samples, just sample 1000
+                data = data[:10000]
             for i in tqdm(range(0, len(data), 10)):
                 batch = data[i:i+10]
                 responses = [b[1][-1] for b in batch]

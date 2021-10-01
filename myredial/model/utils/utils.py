@@ -456,28 +456,83 @@ class Metrics:
                   sum_r_2/total_s,
                   sum_r_5/total_s)
 
+# ========== PageRank Scorer ========== #
+class PageRank:
+
+    def __init__(self, vertices, graph, alpha=0.9, init_num=1., iter_num=100):
+        self.n = vertices
+        self.alpha = alpha
+        self.init_num = init_num
+        self.iter_num = iter_num
+        self.graph = graph
+
+    def iter(self):
+        # init
+        raw_g = [[0 for _ in range(self.n)] for _ in range(self.n)]
+        for i, j in self.graph:
+            raw_g[i][j] = 1
+        adj = np.full([self.n, self.n], raw_g, dtype=float)
+        # normalization
+        for i in range(self.n):
+            if adj[i].sum() > 0:
+                adj[i] /= adj[i].sum()
+
+        pr = np.full([1, self.n], self.init_num, dtype=float)
+        jump = np.full(
+            [2, 1], 
+            [
+                [self.alpha], 
+                [1-self.alpha]
+            ], 
+            dtype=float
+        )
+        for _ in range(self.iter_num):
+            pr = np.dot(pr, adj)    # [1, n]
+            
+            pr_jump = np.full([self.n, 2], [[0, 1/self.n]])
+            pr_jump[:, :-1] = pr.transpose()
+
+            pr = np.dot(pr_jump, jump)    # [n, 1]
+
+            pr = pr.transpose()    # [1, n]
+            pr = pr / pr.sum()
+        return pr.squeeze()    # [n]
+
+
 # ========== Topo Sort ========= #
 class Graph: 
+
+    '''0 for not searched; 1 for searching; 2 for searched'''
+
     def __init__(self, vertices): 
         self.graph = defaultdict(list) 
         self.V = vertices
+        # whether the graph have the loop
+        self.valid = True
   
     def addEdge(self,u,v): 
         self.graph[u].append(v) 
   
-    def topologicalSortUtil(self,v,visited,stack): 
-        visited[v] = True
+    def topologicalSortUtil(self, v, visited, stack): 
+        visited[v] = 1    #  set searching status
         for i in self.graph[v]: 
-            if visited[i] == False: 
-                self.topologicalSortUtil(i,visited,stack) 
-        stack.insert(0,v) 
+            if visited[i] == 0: 
+                self.topologicalSortUtil(i, visited, stack) 
+                if self.valid is False:
+                    return
+            elif visited[i] == 1:
+                self.valid = False
+                return
+        visited[v] = 2    # set searched status
+        stack.insert(0, v) 
   
     def topologicalSort(self): 
-        visited = [False]*self.V 
+        visited = [0] * self.V 
         stack = [] 
         for i in range(self.V): 
-            if visited[i] == False: 
-                self.topologicalSortUtil(i,visited,stack) 
+            if self.valid and visited[i] == 0: 
+                self.topologicalSortUtil(i, visited, stack) 
+        # the valid status can be accessed by self.valid
         return stack
 
 # ========== Model State Dict Adapter ========= #

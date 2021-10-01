@@ -517,6 +517,26 @@ def read_text_data_utterances_full_data_filter(path):
     return data
 
 
+def read_text_data_utterances_full_ft(path, lang='zh', turn_length=5):
+    '''the full conversation context will be used'''
+    dataset = read_text_data_utterances(path, lang=lang)
+    responses = [us[-1] for _, us in dataset]
+    responses = list(set(responses))
+    data = []
+    for label, utterances in dataset:
+        if label == 0:
+            continue
+        start_num = max(1, len(utterances) - turn_length)
+        for i in range(start_num, len(utterances)):
+            # i is the index of the response
+            # positive
+            data.append((1, utterances[:i+1]))
+            # negative
+            data.append((0, utterances[:i] + [random.choice(responses)]))
+    print(f'[!] collect {len(data)} samples for training')
+    return data
+
+
 def read_text_data_utterances_full(path, lang='zh', turn_length=5):
     '''the full conversation context will be used'''
     dataset = read_text_data_utterances(path, lang=lang)

@@ -21,7 +21,7 @@
     * small hard negative size?
     * no warmup
 - [ ] bert-fp-no-cls for context encoder, bert-fp-no-cls or bert-fp-mono for response encoder
-- [x] bert-fp data augmentation for bert-ft model is harmful, only useful for post-training process
+- [x] bert-fp data augmentation for bert-ft model is not very useful
 
 ## How to Use
 

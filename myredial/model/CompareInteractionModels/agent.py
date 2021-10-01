@@ -37,13 +37,21 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
             if self.args['model'] in ['bert-ft-compare']:
-                loss, acc = self.model(
+                loss, acc, inner_time = self.model(
                     batch, 
                     optimizer=self.optimizer, 
                     scaler=self.scaler, 
                     grad_clip=self.args['grad_clip'], 
                     scheduler=self.scheduler
                 )
+                for i in range(batch_num, batch_num+inner_time):
+                    if i in self.args['test_step']:
+                        self.test_now(test_iter, recoder)
+                        break
+                batch_num += inner_time
+                total_loss += loss.item()
+                total_acc += acc
+                acc /= inner_time
             else:
                 with autocast():
                     loss, acc = self.model(batch)
@@ -53,12 +61,12 @@ class CompareInteractionAgent(RetrievalBaseAgent):
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
                 self.scheduler.step()
+                batch_num += 1
+                if batch_num in self.args['test_step']:
+                    self.test_now(test_iter, recoder)
 
-            total_loss += loss.item()
-            total_acc += acc
-            batch_num += 1
-            if batch_num in self.args['test_step']:
-                self.test_now(test_iter, recoder)
+                total_loss += loss.item()
+                total_acc += acc
 
             if recoder:
                 recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
@@ -138,6 +146,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         self.model.eval()
         pbar = tqdm(test_iter)
         collection = []
+        valid_num, whole_num = 0, 0
         for batch in pbar:
             label = np.array(batch['label'])
             packup = {
@@ -145,7 +154,13 @@ class CompareInteractionAgent(RetrievalBaseAgent):
                 'responses': batch['responses'],
             }
             scores = self.fully_compare(packup)
+            whole_num += 1
+            if scores is None:
+                continue
+            else:
+                valid_num += 1
             collection.append((label, scores))
+        print(f'[!] total sample: {whole_num}; valid sample: {valid_num}')
         return collection
             
     @torch.no_grad()
@@ -158,6 +173,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
         total_examples, total_correct = 0, 0
         k_list = [1, 2, 5, 10]
+        valid_num, whole_num = 0, 0
         for batch in pbar:
             label = np.array(batch['label'])
             packup = {
@@ -165,6 +181,12 @@ class CompareInteractionAgent(RetrievalBaseAgent):
                 'responses': batch['responses'],
             }
             scores = self.fully_compare(packup)
+            whole_num += 1
+            if scores is None:
+                continue
+            else:
+                valid_num += 1
+
             
             # print output
             if print_output:
@@ -193,6 +215,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         avg_mrr = float(total_mrr / total_examples)
         avg_prec_at_one = float(total_prec_at_one / total_examples)
         avg_map = float(total_map / total_examples)
+        print(f'[!] total sample: {whole_num}; valid sample: {valid_num}')
         return {
             f'R10@{k_list[0]}': round(((total_correct[0]/total_examples)*100), 2),        
             f'R10@{k_list[1]}': round(((total_correct[1]/total_examples)*100), 2),        
@@ -203,7 +226,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         }
 
     @torch.no_grad()
-    def compare_one_turn(self, cids, sids, rids, tickets, margin=0.0, fully=False, fast=False):
+    def compare_one_turn(self, cids, sids, rids, tickets, margin=0.0):
         '''Each item pair in the tickets (i, j), the i has the bigger scores than j'''
         ids, tids, speaker_ids, recoder = [], [], [], []
         other_speaker = 1 if sids[-1] == 0 else 0
@@ -239,13 +262,15 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         comp_scores = comp_scores.tolist()
 
         # only for bert-ft-compare full comparsion
-        comp_label = []
-        for s in comp_scores:
+        comp_label, n_recoder = [], []
+        for s, (i, j) in zip(comp_scores, recoder):
             if s >= 0.5 + margin:
                 comp_label.append(True)
+                n_recoder.append((i, j))
             elif s < 0.5 - margin:
                 comp_label.append(False)
-        return comp_label, recoder
+                n_recoder.append((i, j))
+        return comp_label, n_recoder
 
     @torch.no_grad()
     def fully_compare(self, batch):
@@ -267,7 +292,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
             for j in range(len(rids)):
                 if i < j:
                     tickets.append((i, j))
-        label, recoder = self.compare_one_turn(cids, sids, rids, tickets, margin=pos_margin, fully=True)
+        label, recoder = self.compare_one_turn(cids, sids, rids, tickets, margin=pos_margin)
         chain = {i: [] for i in range(len(rids))}
         # key is bigger than values
         for l, (i, j) in zip(label, recoder):
@@ -275,7 +300,14 @@ class CompareInteractionAgent(RetrievalBaseAgent):
                 chain[i].append(j)
             else:
                 chain[j].append(i)
-        scores = self.generate_scores(chain)
+        # topological sort scorer
+        # scores, valid = self.generate_scores(chain)
+        # if valid:
+        #     return scores
+        # else:
+        #     return None
+        # pagerank scorer
+        scores = self.generate_scores_pagerank(chain)
         return scores
 
     @torch.no_grad()
@@ -385,6 +417,16 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         items = self.vocab.batch_encode_plus(texts, add_special_tokens=False)['input_ids']
         return items
 
+    def generate_scores_pagerank(self, edges):
+        # reverse the edges
+        new_edges = []
+        for i, item_list in edges.items():
+            for j in item_list:
+                new_edges.append((j, i))
+        g = PageRank(len(edges), new_edges)
+        s = g.iter()
+        return s
+
     def generate_scores(self, edges):
         '''topological sort'''
         # len(edges) = the number of the vertices
@@ -398,7 +440,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         scores = [(i, j) for i, j in zip(rest, scores)]
         scores = sorted(scores, key=lambda x:x[0])
         scores = [j for i, j in scores]
-        return scores
+        return scores, g.valid
 
     def load_model(self, path):
         state_dict = torch.load(path, map_location=torch.device('cpu'))

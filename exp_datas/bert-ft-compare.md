@@ -8,7 +8,9 @@
 | ------------------ | ----- | ----- | ----- | ----- |
 | SA-BERT+HCL        | 72.1  | 89.6  | 99.3  | -     |
 | BERT-FP            | 87.0  | 95.6  | 99.3  | 92.52 |
-| BERT-FT-Compare    |       |       |       |       |
+| BERT-FT-Compare(bert-fp,margin=0.0)    |  85.1     |   94.3    |    99.1   |    91.2    |
+| BERT-FT-Compare(bert-fp,margin=0.1)    |  96.0     |   99.6    |    99.8   |    97.89   |
+| BERT-FT-Compare(bert-fp,margin=0.2)    |  97.5     |   99.6    |    99.8   |    98.63   |
 
 ### 1.2 Douban Dataset
 
@@ -36,6 +38,10 @@
 | BERT-FP            | 49.32 | 69.89 | 91.86 | 70.81 | 54.55 | 69.8   |
 | DR-BERT(full)      | 56.44 | 74.7  | 93.56 | 75.91 | 62.42 | 74.75  |
 | BERT-FT-Compare(bert-fp-comp)    | 64.23 | 80.96 | 94.79 | 81.38 | 70.4  | 80.29  |
+| BERT-FT-Compare(bert-fp,margin=-0.1)   | 64.39 | 80.65 | 96.26 | 81.76 | 71.01  | 80.75  |
+| BERT-FT-Compare(bert-fp,margin=0.0)    | 58.91 | 75.83 | 94.61 | 77.47 | 64.95  | 76.32  |
+| BERT-FT-Compare(bert-fp,margin=0.1)    | 86.12 | 95.19 | 98.51 | 96.3 | 93.43  | 95.19  |
+| BERT-FT-Compare(bert-fp,margin=0.2)    | 86.83 | 95.57 | 98.87 | 96.81 | 94.24  | 95.66  |
 
 * HORSe ranking test set
 
@@ -47,6 +53,9 @@
 | Poly-encoder     | 0.679  | 0.765  |
 | DR-BERT(full)    | 0.699  | 0.774  |
 | BERT-FT-Compare(bert-fp-comp)  | 0.663  | 0.749  |
+| BERT-FT-Compare(bert-fp,margin=0.0)  | 0.679  | 0.758  |
+| BERT-FT-Compare(bert-fp,margin=0.1)  | 0.547  | 0.649  |
+| BERT-FT-Compare(bert-fp,margin=-0.1) | 0.669  | 0.747  |
 
 
 ## 2. Automatic Evaluation Metric

@@ -70,11 +70,10 @@ class BERTCompareRetrieval(nn.Module):
             scheduler.step()
 
             tloss += loss
-            acc += torch.sum((torch.sigmoid(logits) > 0.5) == sub_label).item()
+            acc += torch.sum((torch.sigmoid(logits) > 0.5) == sub_label).item()/len(sub_label)
             counter += 1
         tloss /= counter
-        acc /= len(label)
-        return tloss, acc
+        return tloss, acc, counter
 
     def predict(self, batch):
         inpt = batch['ids']
