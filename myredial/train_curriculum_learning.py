@@ -14,13 +14,9 @@ def parser_args():
 
 
 def obtain_steps_parameters(train_data, args):
-    if args['model'] in ['bert-ft-compare']:
-        # each context contains `gray_cand_num` random negative and `gray_cand_num` hard negative samples
-        args['total_step'] = len(train_data) * args['epoch'] * args['gray_cand_num'] * 2 // args['inner_bsz'] // (args['multi_gpu'].count(',') + 1)
-        args['warmup_step'] = int(args['warmup_ratio'] * args['total_step'])
-    else:
-        args['total_step'] = len(train_data) * args['epoch'] // args['batch_size'] // (args['multi_gpu'].count(',') + 1)
-        args['warmup_step'] = int(args['warmup_ratio'] * args['total_step'])
+    # multiple 2 means the 2 stage of the curriculumn training
+    args['total_step'] = 2 * len(train_data) * args['epoch'] // args['batch_size'] // (args['multi_gpu'].count(',') + 1)
+    args['warmup_step'] = int(args['warmup_ratio'] * args['total_step'])
 
 
 def main(**args):
@@ -36,7 +32,12 @@ def main(**args):
     args.update(config)
     if args['model'] in args['no_train_models']:
         raise Exception(f'[!] {args["model"]} is not allowed to be trained')
-    # print('train', args)
+    
+    # check
+    if args['model'] not in args['curriculum_learning_models']:
+        raise Exception(f'[!] {args["model"]} should not be trained with the curriculum learning strategy')
+
+    # load dataset
     train_data, train_iter, sampler = load_dataset(args)
 
     if args['model'] not in args['no_test_models']:
@@ -68,6 +69,7 @@ def main(**args):
     else:
         sum_writer = None
     batch_num = 0
+    # 1st: easy in-batch negative mining
     for epoch_i in range(args['epoch']):
         sampler.set_epoch(epoch_i)    # shuffle for DDP
         nb = agent.train_model(
@@ -75,13 +77,27 @@ def main(**args):
             test_iter,
             recoder=sum_writer,
             idx_=epoch_i,
+            hard=False,
+            whole_batch_num=batch_num,
+        )
+        batch_num += nb
+    # 2nd: hard negative mining
+    print(f'[!] BEGIN the 2nd curriculum training stage')
+    train_iter.dataset.mode = 'hard'
+    agent.best_test = None
+    for epoch_i in range(args['epoch'], args['epoch'] * 2):
+        sampler.set_epoch(epoch_i)    # shuffle for DDP
+        nb = agent.train_model(
+            train_iter, 
+            test_iter,
+            recoder=sum_writer,
+            idx_=epoch_i,
+            hard=True,
             whole_batch_num=batch_num,
         )
         batch_num += nb
     if sum_writer:
         sum_writer.close()
-
-    # if not valid, just save the checkpoint
     if agent.best_test is None:
         pmn = args['pretrained_model'].replace('/', '_')
         save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pmn}_{args["version"]}.pt'

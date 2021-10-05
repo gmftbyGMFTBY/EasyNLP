@@ -1,9 +1,9 @@
 # [inner_bsz] the batch for one train step is to big, split and run it in multiple times
 # then the gradient accumulation is used
 inner_bsz: 64
-gray_cand_num: 2
+gray_cand_num: 4
 compare_turn_num: 2
-positive_margin: 0.2
+positive_margin: 0.1
 positive_margin_delta: 0.0
 num_labels: 1
 test_interval: 0.05
@@ -23,8 +23,8 @@ train:
     epoch: 5
     warmup_ratio: 0.
     checkpoint: 
-        path: bert-post/best_nspmlm.pt
-        # path: bert-fp/best_bert-base-chinese.pt
+        # path: bert-post/best_nspmlm.pt
+        path: bert-fp/best_bert-base-chinese.pt
         # path: bert-fp-comp/best_bert-base-chinese.pt
         is_load: true
 

@@ -60,19 +60,34 @@ class BERTFTCompDataset(Dataset):
                 })
             self.responses = responses
         else:
-            data = read_text_data_utterances(path, lang=self.args['lang'])
             if args['dataset'] in ['ubuntu'] and args['mode'] == 'valid':
+                data = read_text_data_utterances(path, lang=self.args['lang'])
                 # too many validation samples, just sample 1000
                 data = data[:10000]
-            for i in tqdm(range(0, len(data), 10)):
-                batch = data[i:i+10]
-                responses = [b[1][-1] for b in batch]
-                context = batch[0][1][:-1]
-                self.data.append({
-                    'label': [b[0] for b in batch],
-                    'context': context,
-                    'responses': responses,
-                })    
+                for i in tqdm(range(0, len(data), 10)):
+                    batch = data[i:i+10]
+                    responses = [b[1][-1] for b in batch]
+                    context = batch[0][1][:-1]
+                    self.data.append({
+                        'label': [b[0] for b in batch],
+                        'context': context,
+                        'responses': responses,
+                    })    
+            else:
+                path = f'{args["root_dir"]}/data/{args["dataset"]}/test_gray_base.txt'
+                data = []
+                with open(path) as f:
+                    for line in f.readlines():
+                        line = json.loads(line.strip())
+                        data.append(line)
+
+                for sample in tqdm(data):
+                    self.data.append({
+                        'label': sample['label'],
+                        'context': sample['q'],
+                        'responses': sample['r'],
+                        'candidates': sample['cand'],
+                    })    
 
     def __len__(self):
         return len(self.data)
@@ -145,7 +160,7 @@ class BERTFTCompDataset(Dataset):
             return ids, sids, tids, label
         else:
             # test
-            return bundle['context'], bundle['responses'], bundle['label']
+            return bundle['context'], bundle['responses'], bundle['candidates'], bundle['label']
 
     def save(self):
         if self.args['mode'] == 'train':
@@ -175,7 +190,8 @@ class BERTFTCompDataset(Dataset):
             return {
                 'context': batch[0][0],
                 'responses': batch[0][1],
-                'label': batch[0][2],
+                'candidates': batch[0][2],
+                'label': batch[0][3],
             }
 
 

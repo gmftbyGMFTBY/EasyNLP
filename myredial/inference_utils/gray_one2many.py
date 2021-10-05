@@ -64,7 +64,7 @@ def gray_one2many_strategy(args):
     print(f'[!] lossing {lossing} samples that are invalid')
 
     # write into new file
-    path = f'{args["root_dir"]}/data/{args["dataset"]}/train_gray.txt'
+    path = f'{args["root_dir"]}/data/{args["dataset"]}/train_dpr_gray.txt'
     with open(path, 'w') as f:
         for item in tqdm(collection):
             string = json.dumps(item)

@@ -1,5 +1,6 @@
 from header import *
 from .dual_bert_hier_dataloader import *
+from .dual_bert_curriculum_learning_dataloader import *
 from .horse_human_test_dataloader import *
 from .time_evaluation_dataloader import *
 from .fine_grained_test_dataloader import *

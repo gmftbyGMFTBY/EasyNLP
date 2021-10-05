@@ -248,6 +248,7 @@ ATC means the average time cost
 | DR-BERT(full)   | 0.699  | 0.776  |
 | DR-BERT-hn(full)| 0.706  | 0.778  |
 | DR-BERT-hn(full,from-dual-bert)| 0.708  | 0.778  |
+| DR-BERT-hn-ctx(full,from-dual-bert)| 0.704  | 0.778  |
 
 ## 6. How to reproduce our results
 

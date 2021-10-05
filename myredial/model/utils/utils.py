@@ -875,3 +875,9 @@ class BertSAModel(BertPreTrainedModel):
             cross_attentions=encoder_outputs.cross_attentions,
         )
 
+
+def cosine_distance(x1, x2):
+    # x1/x2: [B, E]
+    sim = F.cosine_similarity(x1, x2, dim=-1)
+    sim = (1 + sim) / 2    # range from 0 to 1
+    return sim    # [B]

@@ -46,6 +46,9 @@ no_train_models:
     - bert-mask-da-dmr
     - bert-mask-da-sep
 
+curriculum_learning_models:
+    - dual-bert-hn-cl
+
 models:
     bert-mask-da-sep:
         type: Augmentation
@@ -121,8 +124,11 @@ models:
         # inference_dataset_name: BERTDualInferenceWithTestDataset
     dual-bert-hn-ctx: 
         type: Representation
-        model_name: BERTDualHNContextEncoder
-        dataset_name: BERTDualBertMaskRandomContextHardNegativeDataset
+        # model_name: BERTDualHNContextEncoder
+        model_name: BERTDualShuffleCtxHNEncoder
+        # dataset_name: BERTDualBertMaskRandomContextHardNegativeDataset
+        dataset_name: BERTDualFullShuffleCtxDataset
+        # dataset_name: HORSETestDataset
         # dataset_name: FineGrainedTestDataset
         inference_dataset_name: BERTDualInferenceDataset
         # inference_dataset_name: BERTDualInferenceFullEXTDataset
@@ -138,13 +144,20 @@ models:
         model_name: BERTDualHNEncoderBCE
         dataset_name: BERTDualBertMaskHardNegativeDataset
         inference_dataset_name: null
+    dual-bert-hn-cl: 
+        type: Representation
+        model_name: BERTDualHNCurriculumEncoder
+        dataset_name: BERTDualCurriculumLearningFullDataset
+        # dataset_name: HORSETestDataset
+        inference_dataset_name: BERTDualInferenceFullEXTDataset
     dual-bert-hn: 
         type: Representation
         model_name: BERTDualHNEncoder
         # dataset_name: BERTDualCTXHNFullDataset
         # dataset_name: BERTDualHNDataset
-        # dataset_name: BERTDualBM25HNDataset
-        dataset_name: HORSETestDataset
+        # dataset_name: BERTDualFullDataset
+        dataset_name: BERTDualBM25HNDataset
+        # dataset_name: HORSETestDataset
         # dataset_name: BERTDualBertMaskHardNegativeDataset
         # dataset_name: BERTDualSimCSEHardNegativeDataset
         # dataset_name: FineGrainedTestDataset
@@ -201,9 +214,9 @@ models:
         # dataset_name: BERTDualFullFakeCtxDataset
         # dataset_name: BERTDualDataset
         # dataset_name: BERTDualFullWithHardNegDataset
-        # dataset_name: BERTDualFullDataset
+        dataset_name: BERTDualFullDataset
         # dataset_name: BERTDualDAFullDataset
-        dataset_name: HORSETestDataset
+        # dataset_name: HORSETestDataset
         # dataset_name: BERTDualRandomFullDataset
         # dataset_name: BERTDualMultiCTXFullDataset
         # dataset_name: BERTDualTimeDataset
@@ -214,8 +227,8 @@ models:
         # dataset_name: BERTDualFullNegSessionDataset
         # dataset_name: BERTDualFullWithSelfPlayDataset
         # dataset_name: BERTDualFullPseudoDataset
-        inference_dataset_name: BERTDualFullFilterInferenceDataset
-        # inference_dataset_name: BERTDualInferenceDataset
+        # inference_dataset_name: BERTDualFullFilterInferenceDataset
+        inference_dataset_name: BERTDualInferenceDataset
         # inference_dataset_name: BERTDualInferenceWithTestDataset
         # inference_dataset_name: BERTDualInferenceFullWithTestDataset
         # inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
@@ -226,6 +239,11 @@ models:
         # inference_dataset_name: BERTDualInferenceFullContextDataset
         # inference_dataset_name: BERTDualInferenceFullContextSingleExtendDataset
         # inference_dataset_name: BERTDualInferenceFullForOne2ManyDataset
+    dual-bert-triplet:
+        type: Representation
+        model_name: BERTDualEncoderTripletMargin
+        dataset_name: BERTDualFullDataset
+        inference_dataset_name: null
     dual-bert-bow: 
         type: Representation
         model_name: BERTDualBOWEncoder
@@ -417,7 +435,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 0
+version: 8
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
 rank: null

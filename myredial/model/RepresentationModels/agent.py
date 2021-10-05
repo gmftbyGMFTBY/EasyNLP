@@ -195,13 +195,18 @@ class RepresentationAgent(RetrievalBaseAgent):
             recoder.add_scalar(f'train-whole/Acc', total_cls_acc/batch_num, idx_)
         return round(total_loss / batch_num, 4)
     
-    def train_model(self, train_iter, test_iter, recoder=None, idx_=0):
+    def train_model(self, train_iter, test_iter, recoder=None, idx_=0, hard=False, whole_batch_num=0):
         self.model.train()
-        total_loss, total_acc, batch_num = 0, 0, 0
+        total_loss, total_acc = 0, 0
         total_tloss, total_bloss = 0, 0
         pbar = tqdm(train_iter)
         correct, s, oom_t = 0, 0, 0
+        batch_num = 0
         for idx, batch in enumerate(pbar):
+
+            # compatible with the curriculumn learning
+            batch['mode'] = 'hard' if hard is True else 'easy'
+
             self.optimizer.zero_grad()
 
             if self.args['model'] in ['dual-bert-gray-writer']:
@@ -242,7 +247,7 @@ class RepresentationAgent(RetrievalBaseAgent):
             total_acc += acc
             batch_num += 1
 
-            if batch_num in self.args['test_step']:
+            if whole_batch_num + batch_num in self.args['test_step']:
                 self.test_now(test_iter, recoder)
 
             if recoder:
@@ -256,7 +261,7 @@ class RepresentationAgent(RetrievalBaseAgent):
         if recoder:
             recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
             recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
-        return round(total_loss / batch_num, 4)
+        return batch_num
    
     @torch.no_grad()
     def test_model(self, test_iter, print_output=False, rerank_agent=None, core_time=False):
@@ -657,7 +662,7 @@ class RepresentationAgent(RetrievalBaseAgent):
                 self.model.ctx_encoder.load_state_dict(new_ctx_state_dict)
                 self.model.can_encoders[0].load_state_dict(new_res_state_dict)
                 self.model.can_encoders[1].load_state_dict(new_res_state_dict)
-            elif self.args['model'] in ['dual-bert-hn']:
+            elif self.args['model'] in ['dual-bert-hn', 'dual-bert-hn-ctx']:
                 new_ctx_state_dict = OrderedDict()
                 new_res_state_dict = OrderedDict()
                 for k, v in state_dict.items():

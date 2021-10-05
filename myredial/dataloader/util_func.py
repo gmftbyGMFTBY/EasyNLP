@@ -260,3 +260,35 @@ def mask_sentence_only_mask(
         else:
             mask_label.append(-1)
     return mask_label
+
+# ========== context augmentation ========== #
+def sentence_shuffle(context_utterances):
+    if len(context_utterances) == 1:
+        return context_utterances
+    else:
+        random_idx = list(range(len(context_utterances)))
+        while True:
+            random.shuffle(random_idx)
+            if random_idx[-1] != len(context_utterances) - 1:
+                break
+        context_utterances = [context_utterances[i] for i in random_idx]
+        return context_utterances
+
+def token_shuffle(context_utterances):
+    for i in range(len(context_utterances)):
+        random.shuffle(context_utterances[i])
+    return context_utterances
+
+def sentence_deletion(context_utterances):
+    if len(context_utterances) == 1:
+        return context_utterances
+    else:
+        random_idx = random.choice(range(len(context_utterances)-1))
+        context_utterances = [context_utterances[i] for i in range(len(context_utterances)) if i != random_idx]
+        return context_utterances
+
+def replace_last_utterance(context_utterances, pool):
+    response = random.choice(pool)['rids']
+    response = response[1:-1]
+    context_utterances[-1] = response
+    return context_utterances

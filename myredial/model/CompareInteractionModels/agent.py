@@ -173,21 +173,15 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
         total_examples, total_correct = 0, 0
         k_list = [1, 2, 5, 10]
-        valid_num, whole_num = 0, 0
         for batch in pbar:
             label = np.array(batch['label'])
             packup = {
                 'context': batch['context'],
                 'responses': batch['responses'],
+                'candidates': batch['candidates'],
+                'labels': batch['label'],
             }
-            scores = self.fully_compare(packup)
-            whole_num += 1
-            if scores is None:
-                continue
-            else:
-                valid_num += 1
-
-            
+            scores = self.fully_compare_with_base(packup)
             # print output
             if print_output:
                 c = batch['context']
@@ -215,7 +209,6 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         avg_mrr = float(total_mrr / total_examples)
         avg_prec_at_one = float(total_prec_at_one / total_examples)
         avg_map = float(total_map / total_examples)
-        print(f'[!] total sample: {whole_num}; valid sample: {valid_num}')
         return {
             f'R10@{k_list[0]}': round(((total_correct[0]/total_examples)*100), 2),        
             f'R10@{k_list[1]}': round(((total_correct[1]/total_examples)*100), 2),        
@@ -226,7 +219,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         }
 
     @torch.no_grad()
-    def compare_one_turn(self, cids, sids, rids, tickets, margin=0.0):
+    def compare_one_turn(self, cids, sids, rids, tickets, margin=0.0, soft=False):
         '''Each item pair in the tickets (i, j), the i has the bigger scores than j'''
         ids, tids, speaker_ids, recoder = [], [], [], []
         other_speaker = 1 if sids[-1] == 0 else 0
@@ -261,16 +254,51 @@ class CompareInteractionAgent(RetrievalBaseAgent):
             comp_scores = self.model.predict(batch_packup)    # [B]
         comp_scores = comp_scores.tolist()
 
-        # only for bert-ft-compare full comparsion
-        comp_label, n_recoder = [], []
-        for s, (i, j) in zip(comp_scores, recoder):
-            if s >= 0.5 + margin:
-                comp_label.append(True)
-                n_recoder.append((i, j))
-            elif s < 0.5 - margin:
-                comp_label.append(False)
-                n_recoder.append((i, j))
-        return comp_label, n_recoder
+        if soft:
+            return comp_scores, recoder
+        else:
+            comp_label, n_recoder = [], []
+            for s, (i, j) in zip(comp_scores, recoder):
+                if s >= 0.5 + margin:
+                    comp_label.append(True)
+                    n_recoder.append((i, j))
+                elif s < 0.5 - margin:
+                    comp_label.append(False)
+                    n_recoder.append((i, j))
+                # cannot decide, add the bi-edges
+                # else:
+                #     comp_label.append(True)
+                #     n_recoder.append((i, j))
+                #     comp_label.append(False)
+                #     n_recoder.append((i, j))
+            return comp_label, n_recoder
+    
+    @torch.no_grad()
+    def fully_compare_with_base(self, batch):
+        self.model.eval() 
+        ids = self.convert_text_to_ids(batch['context'])
+        rids = self.convert_text_to_ids(batch['responses'])
+        cids_ = self.convert_text_to_ids(batch['candidates'])
+        cand_num = len(batch['candidates'])
+        rids += cids_
+        cids = []
+        sids, cache = [], 0
+        for u in cids_:
+            cids.extend(u + [self.eos])
+            sids.extend([cache] * (len(u) + 1))
+            cache = 1 if cache == 0 else 0
+        sids.pop()
+        cids.pop()
+        tickets = []
+        for i in range(10):
+            # candidate idx
+            for j in range(10, 10+cand_num):
+                tickets.append((i, j))
+        s, _ = self.compare_one_turn(cids, sids, rids, tickets, soft=True)
+        scores = []
+        for i in range(0, len(s), cand_num):
+            scores.append(np.mean(s[i:i+cand_num]))
+        return scores
 
     @torch.no_grad()
     def fully_compare(self, batch):
@@ -346,14 +374,16 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         self.model.eval() 
         compare_turn_num = self.args['compare_turn_num']
         pos_margin = self.args['positive_margin']
-        pos_margin_delta = self.args['positive_margin_delta']
         scores = batch['scores']
         length = len(batch['context'])
         items = self.convert_text_to_ids(batch['context'] + batch['responses'])
         cids_, rids = items[:length], items[length:]
-        cids = []
+        cids, sids, cache = [], [], 0
         for u in cids_:
             cids.extend(u + [self.eos])
+            sids.extend([cache] * (len(u) + 1))
+            cache = 1 if cache == 0 else 0
+        sids.pop()
         cids.pop()
 
         # sort the rids (decrease order)
@@ -391,7 +421,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
             if len(tickets) == 0:
                 break
 
-            label, recoder = self.compare_one_turn(cids, rids, tickets, margin=pos_margin)
+            label, recoder = self.compare_one_turn(cids, sids, rids, tickets, margin=pos_margin)
             d = {j:i for l, (i, j) in zip(label, recoder) if l is False}
             d = sorted(list(d.items()), key=lambda x:x[0])    # left to right
             for j, i in d:

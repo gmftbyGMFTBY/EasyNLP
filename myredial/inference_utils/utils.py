@@ -160,6 +160,20 @@ def remove_duplicate_punctuation(utterance):
         chars.append(i)
     return ''.join(chars)
 
+
+def load_utterances_test(args, path):
+    data = read_text_data_utterances(path, args['lang'])
+    data = [(label, us) for label, us in data]
+    dataset = []
+    for i in range(0, len(data), 10):
+        batch = data[i:i+10]
+        label = [i[0] for i in batch]
+        sample = [i[1] for i in batch]
+        ctx = sample[0][:-1]
+        res = [i[-1] for i in sample]
+        dataset.append((ctx, res, label))
+    return dataset
+
 def load_utterances(args, path):
     utterances = read_response_data_full(path, lang=args['lang'], turn_length=5)
     utterances = list(set(utterances))

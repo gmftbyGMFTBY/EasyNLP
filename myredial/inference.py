@@ -90,6 +90,8 @@ if __name__ == "__main__":
         writer_with_source_strategy(args)
     elif args['work_mode'] in ['data-filter']:
         data_filter_strategy(args)
+    elif args['work_mode'] in ['gray-test']:
+        gray_test_strategy(args)
     elif args['work_mode'] in ['bert-aug']:
         da_strategy(args)
     elif args['work_mode'] in ['response']:
