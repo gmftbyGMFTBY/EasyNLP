@@ -30,7 +30,7 @@ class PostTrainAgent(RetrievalBaseAgent):
         # best metric (acc)
         self.best_acc = -1
         
-    def train_model(self, train_iter, test_iter, recoder=None, idx_=0):
+    def train_model(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
         self.model.train()
 
         total_loss, batch_num = 0, 0
@@ -86,6 +86,7 @@ class PostTrainAgent(RetrievalBaseAgent):
                 pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
                 save_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_{pretrained_model_name}.pt'
                 self.save_model(save_path)
+        return batch_num
     
     def train_model_simcse(self, train_iter, test_iter, recoder=None, idx_=0):
         self.model.train()

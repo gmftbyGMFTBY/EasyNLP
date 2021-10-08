@@ -60,34 +60,33 @@ class BERTFTCompDataset(Dataset):
                 })
             self.responses = responses
         else:
-            if args['dataset'] in ['ubuntu'] and args['mode'] == 'valid':
-                data = read_text_data_utterances(path, lang=self.args['lang'])
-                # too many validation samples, just sample 1000
-                data = data[:10000]
-                for i in tqdm(range(0, len(data), 10)):
-                    batch = data[i:i+10]
-                    responses = [b[1][-1] for b in batch]
-                    context = batch[0][1][:-1]
-                    self.data.append({
-                        'label': [b[0] for b in batch],
-                        'context': context,
-                        'responses': responses,
-                    })    
-            else:
-                path = f'{args["root_dir"]}/data/{args["dataset"]}/test_gray_base.txt'
-                data = []
-                with open(path) as f:
-                    for line in f.readlines():
-                        line = json.loads(line.strip())
-                        data.append(line)
-
-                for sample in tqdm(data):
-                    self.data.append({
-                        'label': sample['label'],
-                        'context': sample['q'],
-                        'responses': sample['r'],
-                        'candidates': sample['cand'],
-                    })    
+            # if args['dataset'] in ['ubuntu'] and args['mode'] == 'valid':
+            data = read_text_data_utterances(path, lang=self.args['lang'])
+            # too many validation samples, just sample 1000
+            # data = data[:10000]
+            for i in tqdm(range(0, len(data), 10)):
+                batch = data[i:i+10]
+                responses = [b[1][-1] for b in batch]
+                context = batch[0][1][:-1]
+                self.data.append({
+                    'label': [b[0] for b in batch],
+                    'context': context,
+                    'responses': responses,
+                })    
+            # else:
+            #     path = f'{args["root_dir"]}/data/{args["dataset"]}/test_gray_base.txt'
+            #     data = []
+            #     with open(path) as f:
+            #         for line in f.readlines():
+            #             line = json.loads(line.strip())
+            #             data.append(line)
+            #     for sample in tqdm(data):
+            #         self.data.append({
+            #             'label': sample['label'],
+            #             'context': sample['q'],
+            #             'responses': sample['r'],
+            #             'candidates': sample['cand'],
+            #         })    
 
     def __len__(self):
         return len(self.data)
@@ -133,10 +132,10 @@ class BERTFTCompDataset(Dataset):
             for e in erids:
                 if random.random() > 0.5:
                     ids_, tids_, sids_ = self._packup(cids, rids, e, sids=speaker_ids)
-                    l = 1
+                    l = 1.
                 else:
                     ids_, tids_, sids_ = self._packup(cids, e, rids, sids=speaker_ids)
-                    l = 0
+                    l = 0.
                 ids.append(ids_)
                 sids.append(sids_)
                 tids.append(tids_)
@@ -145,14 +144,24 @@ class BERTFTCompDataset(Dataset):
             for h in hrids:
                 if random.random() > 0.5:
                     ids_, tids_, sids_ = self._packup(cids, rids, h, sids=speaker_ids)
-                    l = 1
+                    l = 1.
                 else:
                     ids_, tids_, sids_ = self._packup(cids, h, rids, sids=speaker_ids)
-                    l = 0
+                    l = 0.
                 ids.append(ids_)
                 sids.append(sids_)
                 tids.append(tids_)
                 label.append(l)
+            # label 0.5: negative vs. negative
+            for _ in range(self.topk):
+                r1, r2 = random.sample(hrids, 2)
+                ids_, tids_, sids_ = self._packup(cids, r1, r2, sids=speaker_ids)
+                l = 0.5
+                ids.append(ids_)
+                sids.append(sids_)
+                tids.append(tids_)
+                label.append(l)
+
             # whole samples
             ids = [torch.LongTensor(i) for i in ids]
             sids = [torch.LongTensor(i) for i in sids]
@@ -160,7 +169,7 @@ class BERTFTCompDataset(Dataset):
             return ids, sids, tids, label
         else:
             # test
-            return bundle['context'], bundle['responses'], bundle['candidates'], bundle['label']
+            return bundle['context'], bundle['responses'], bundle['label']
 
     def save(self):
         if self.args['mode'] == 'train':
@@ -177,7 +186,7 @@ class BERTFTCompDataset(Dataset):
                 sids.extend(b[1])
                 tids.extend(b[2])
                 label.extend(b[3])
-            label = torch.LongTensor(label)
+            label = torch.tensor(label)
             return {
                 'ids': ids, 
                 'sids': sids,
@@ -190,8 +199,7 @@ class BERTFTCompDataset(Dataset):
             return {
                 'context': batch[0][0],
                 'responses': batch[0][1],
-                'candidates': batch[0][2],
-                'label': batch[0][3],
+                'label': batch[0][2],
             }
 
 

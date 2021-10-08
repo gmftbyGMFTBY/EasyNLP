@@ -1,10 +1,7 @@
-temp: 0.07
-# five for restoration-200k is enough
+large_temp: 0.07
+mini_temp: 1.0
 full_turn_length: 100
 test_interval: 0.01
-multi_ctx: 1
-min_conv_length: 3
-data_filter_size: 650000
 valid_during_training: true
 
 # train configuration
@@ -15,8 +12,8 @@ train:
     grad_clip: 5.0
     seed: 0
     batch_size: 64
-    max_len: 256
-    res_max_len: 64
+    max_len: 128
+    res_max_len: 32
     epoch: 5
     warmup_ratio: 0.
     stop_train: false
@@ -24,7 +21,8 @@ train:
         R10@1: 35.
     checkpoint: 
         # path: bert-post/best_nspmlm.pt
-        path: bert-fp/best_bert-base-chinese.pt
+        # path: bert-fp/best_bert-base-chinese.pt
+        path: dual-bert-cl/best_bert-base-chinese_0.pt
         # path: bert-fp-comp/best_bert-base-chinese.pt
         # path: bert-fp-multi/best_bert-base-chinese.pt
         # path: dual-bert-pt/best_bert-base-chinese.pt

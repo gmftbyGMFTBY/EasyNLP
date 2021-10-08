@@ -246,6 +246,8 @@ ATC means the average time cost
 | SA-BERT(BERT-FP)| 0.674  | 0.753  |
 | dual-bert       | 0.686  | 0.767  |
 | DR-BERT(full)   | 0.699  | 0.776  |
+| DR-BERT-triplet(full)   | 0.702  | 0.776  |
+| DR-BERT-memory(full)   | 0.694  | 0.774  |
 | DR-BERT-hn(full)| 0.706  | 0.778  |
 | DR-BERT-hn(full,from-dual-bert)| 0.708  | 0.778  |
 | DR-BERT-hn-ctx(full,from-dual-bert)| 0.704  | 0.778  |

@@ -26,6 +26,8 @@ class RepresentationAgent(RetrievalBaseAgent):
                 self.model.ssl_interval_step = int(self.args['total_step'] * self.args['ssl_interval'])
             elif self.args['model'] in ['dual-bert-pt']:
                 self.train_model = self.train_model_pt
+            elif self.args['model'] in ['dual-bert-adv']:
+                self.train_model = self.train_model_adv
 
             self.set_test_interval()
             self.load_checkpoint()
@@ -662,7 +664,7 @@ class RepresentationAgent(RetrievalBaseAgent):
                 self.model.ctx_encoder.load_state_dict(new_ctx_state_dict)
                 self.model.can_encoders[0].load_state_dict(new_res_state_dict)
                 self.model.can_encoders[1].load_state_dict(new_res_state_dict)
-            elif self.args['model'] in ['dual-bert-hn', 'dual-bert-hn-ctx']:
+            elif self.args['model'] in ['dual-bert-hn', 'dual-bert-hn-ctx', 'dual-bert-cl']:
                 new_ctx_state_dict = OrderedDict()
                 new_res_state_dict = OrderedDict()
                 for k, v in state_dict.items():
@@ -706,8 +708,8 @@ class RepresentationAgent(RetrievalBaseAgent):
 
                
                 # response encoders checkpoint
-                if self.args['model'] in ['dual-bert-one2many-original']:
-                    for i in range(self.args['gray_cand_num']+1):
+                if self.args['model'] in ['dual-bert-multi', 'dual-bert-one2many-original']:
+                    for i in range(self.args['gray_cand_num']):
                         self.checkpointadapeter.init(
                             state_dict.keys(),
                             self.model.can_encoders[i].state_dict().keys(),
@@ -803,3 +805,62 @@ class RepresentationAgent(RetrievalBaseAgent):
 
             collection.append((label, scores))
         return collection
+    
+    def train_model_adv(self, train_iter, test_iter, recoder=None, idx_=0, hard=False, whole_batch_num=0):
+        self.model.train()
+        total_loss, total_acc = 0, 0
+        total_dc_acc = 0
+        total_tloss, total_dc_loss = 0, 0
+        total_tloss, total_bloss = 0, 0
+        pbar = tqdm(train_iter)
+        correct, s, oom_t = 0, 0, 0
+        batch_num = 0
+        for idx, batch in enumerate(pbar):
+            # add the progress for adv training
+            p = (whole_batch_num + batch_num) / self.args['total_step']
+            l = 2. / (1. + np.exp(-10. * p)) - 1
+            batch['l'] = l
+            # 
+
+            self.optimizer.zero_grad()
+            with autocast():
+                loss, dc_loss, acc, dc_acc = self.model(batch)
+                tloss = loss + dc_loss
+            self.scaler.scale(tloss).backward()
+            self.scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            self.scheduler.step()
+
+            total_tloss += tloss.item()
+            total_loss += loss.item()
+            total_dc_loss += dc_loss.item()
+            total_acc += acc
+            total_dc_acc += dc_acc
+            batch_num += 1
+
+            if whole_batch_num + batch_num in self.args['test_step']:
+                self.test_now(test_iter, recoder)
+
+            if recoder:
+                recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/DCLoss', total_dc_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunDCLoss', dc_loss.item(), idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/TotalLoss', total_tloss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunTotalLoss', tloss.item(), idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/DCAcc', total_dc_acc/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunDCAcc', dc_acc, idx)
+             
+            pbar.set_description(f'[!] loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc(acc|dc_acc): {round(total_acc/batch_num, 4)}|{round(total_dc_acc/batch_num, 4)}')
+
+        if recoder:
+            recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/DCLoss', total_dc_loss/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/TotalLoss', total_tloss/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/DCAcc', total_dc_acc/batch_num, idx_)
+        return batch_num

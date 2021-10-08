@@ -1,7 +1,7 @@
 # [inner_bsz] the batch for one train step is to big, split and run it in multiple times
 # then the gradient accumulation is used
 inner_bsz: 64
-gray_cand_num: 4
+gray_cand_num: 2
 compare_turn_num: 2
 positive_margin: 0.1
 positive_margin_delta: 0.0
@@ -11,11 +11,11 @@ test_interval: 0.05
 no_hard_negative: false
 # true for domain-specific corpus: ecommerce and douban
 # false for ubuntu and horse corpus
-valid_during_training: true
+valid_during_training: false
 
 # train configuration
 train:
-    lr: 0.00005
+    lr: 0.00002
     grad_clip: 5.0
     seed: 0
     batch_size: 32

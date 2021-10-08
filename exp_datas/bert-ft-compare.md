@@ -42,6 +42,7 @@
 | bert-ft-compare(margin=0.1,bi-edge)  | 87.82 | 97.96   | 99.95 | 97.53 | 95.25 | 97.45  |
 | bert-ft-compare(margin=0.2)  | 68.93 | 81.88  | 96.84 | 84.32 | 76.06 | 83.15  |
 
+
 * HORSe ranking test set
 
 | Models           | NDCG@3 | NDCG@5 |

@@ -39,8 +39,8 @@ if __name__ == '__main__':
     read_path = f'{args["root_dir"]}/data/{args["dataset"]}/train.txt'
     write_path = f'{args["root_dir"]}/data/{args["dataset"]}/train_bm25_gray.txt'
 
-    dataset = read_text_data_utterances_full(read_path, lang=args['lang'], turn_length=5)
-    # dataset = read_text_data_utterances(read_path, lang=args['lang'])
+    # dataset = read_text_data_utterances_full(read_path, lang=args['lang'], turn_length=5)
+    dataset = read_text_data_utterances(read_path, lang=args['lang'])
     data = [(utterances[:-1], utterances[-1]) for label, utterances in dataset if label == 1]
     responses = [utterances[-1] for label, utterances in dataset]
     collector = []

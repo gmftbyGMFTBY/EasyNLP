@@ -1,16 +1,13 @@
 temp: 0.07
-# five for restoration-200k is enough
+dropout: 0.1
 full_turn_length: 100
 test_interval: 0.01
-multi_ctx: 1
-min_conv_length: 3
-data_filter_size: 650000
 valid_during_training: true
+memory_alpha: 1.0
 
 # train configuration
 train:
     load_param: true
-    # load_param: false
     lr: 0.00002
     grad_clip: 5.0
     seed: 0

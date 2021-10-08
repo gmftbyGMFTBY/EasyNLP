@@ -292,3 +292,14 @@ def replace_last_utterance(context_utterances, pool):
     response = response[1:-1]
     context_utterances[-1] = response
     return context_utterances
+
+def random_insert_before_context(context_utterances, pool):
+    u = random.choice(random.choice(pool)['cids'])
+    context_utterances.insert(0, u)
+    return context_utterances
+
+def random_insert_context(context_utterances, pool):
+    u = random.choice(random.choice(pool)['cids'])
+    idx = random.choice(range(len(context_utterances)))
+    context_utterances.insert(idx, u)
+    return context_utterances

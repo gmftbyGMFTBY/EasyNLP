@@ -10,7 +10,7 @@ class BERTCompareRetrieval(nn.Module):
         self.num_labels = args['num_labels']
         self.model = SABertForSequenceClassification.from_pretrained(model, num_labels=self.num_labels)
         self.model.resize_token_embeddings(self.model.config.vocab_size+1)
-        self.criterion = nn.BCEWithLogitsLoss()
+        self.criterion = nn.MSELoss()
         self.vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
         self.vocab.add_tokens(['[EOS]'])
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
@@ -61,6 +61,8 @@ class BERTCompareRetrieval(nn.Module):
                     speaker_ids=sub_sids,
                 )[0]
                 logits = logits.squeeze()     # [B]
+                # NOTE:
+                logits = torch.sigmoid(logits)    # [B]
                 loss = self.criterion(logits, sub_label)
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)
