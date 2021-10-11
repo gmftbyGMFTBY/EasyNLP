@@ -11,19 +11,19 @@ class BERTDualHNEncoder(nn.Module):
         self.ctx_encoder = BertEmbedding(model=model, add_tokens=1)
         self.can_encoder = BertEmbedding(model=model, add_tokens=1)
         self.args = args
-        self.easy_margin = args['easy_margin']
-        self.hard_margin = args['hard_margin']
+        # self.easy_margin = args['easy_margin']
+        # self.hard_margin = args['hard_margin']
         self.temp = args['temp']
-        self.easy_criterion = nn.TripletMarginWithDistanceLoss(
-            margin=self.easy_margin, 
-            reduction='sum',
-            distance_function=cosine_distance,    
-        )
-        self.hard_criterion = nn.TripletMarginWithDistanceLoss(
-            margin=self.hard_margin, 
-            reduction='sum',
-            distance_function=cosine_distance,    
-        )
+        # self.easy_criterion = nn.TripletMarginWithDistanceLoss(
+        #     margin=self.easy_margin, 
+        #     reduction='sum',
+        #     distance_function=cosine_distance,    
+        # )
+        # self.hard_criterion = nn.TripletMarginWithDistanceLoss(
+        #     margin=self.hard_margin, 
+        #     reduction='sum',
+        #     distance_function=cosine_distance,    
+        # )
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
@@ -73,29 +73,29 @@ class BERTDualHNEncoder(nn.Module):
         acc = acc_num / batch_size
             
         # margin loss for topk hard negative samples
-        hard_anchor_reps, hard_rid_reps, hard_nid_reps = [], [], []
-        easy_anchor_reps, easy_rid_reps, easy_nid_reps = [], [], []
-        for idx in range(batch_size):
-            # hard
-            for i in range(idx*self.topk+1, idx*self.topk+self.topk):
-                hard_anchor_reps.append(cid_rep[idx])
-                hard_rid_reps.append(rid_rep[idx*self.topk])
-                hard_nid_reps.append(rid_rep[i])
-            # easy
-            index = list(set(range(len(rid))) - set(range(idx*self.topk, idx*self.topk + self.topk)))
-            index = random.sample(index, self.topk)
-            for i in index:
-                easy_anchor_reps.append(cid_rep[idx])
-                easy_rid_reps.append(rid_rep[idx*self.topk])
-                easy_nid_reps.append(rid_rep[i])
-        easy_anchor_reps = torch.stack(easy_anchor_reps)
-        easy_rid_reps = torch.stack(easy_rid_reps)
-        easy_nid_reps = torch.stack(easy_nid_reps)
-        hard_anchor_reps = torch.stack(hard_anchor_reps)
-        hard_rid_reps = torch.stack(hard_rid_reps)
-        hard_nid_reps = torch.stack(hard_nid_reps)
-        loss += self.hard_criterion(hard_anchor_reps, hard_nid_reps, hard_rid_reps)
-        loss += self.easy_criterion(easy_anchor_reps, easy_nid_reps, easy_rid_reps)
+        # hard_anchor_reps, hard_rid_reps, hard_nid_reps = [], [], []
+        # easy_anchor_reps, easy_rid_reps, easy_nid_reps = [], [], []
+        # for idx in range(batch_size):
+        #     # hard
+        #     for i in range(idx*self.topk+1, idx*self.topk+self.topk):
+        #         hard_anchor_reps.append(cid_rep[idx])
+        #         hard_rid_reps.append(rid_rep[idx*self.topk])
+        #         hard_nid_reps.append(rid_rep[i])
+        #     # easy
+        #     index = list(set(range(len(rid))) - set(range(idx*self.topk, idx*self.topk + self.topk)))
+        #     index = random.sample(index, self.topk)
+        #     for i in index:
+        #         easy_anchor_reps.append(cid_rep[idx])
+        #         easy_rid_reps.append(rid_rep[idx*self.topk])
+        #         easy_nid_reps.append(rid_rep[i])
+        # easy_anchor_reps = torch.stack(easy_anchor_reps)
+        # easy_rid_reps = torch.stack(easy_rid_reps)
+        # easy_nid_reps = torch.stack(easy_nid_reps)
+        # hard_anchor_reps = torch.stack(hard_anchor_reps)
+        # hard_rid_reps = torch.stack(hard_rid_reps)
+        # hard_nid_reps = torch.stack(hard_nid_reps)
+        # loss += self.hard_criterion(hard_anchor_reps, hard_nid_reps, hard_rid_reps)
+        # loss += self.easy_criterion(easy_anchor_reps, easy_nid_reps, easy_rid_reps)
         return loss, acc
 
 

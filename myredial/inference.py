@@ -80,7 +80,7 @@ if __name__ == "__main__":
     torch.distributed.barrier()
 
     if args['local_rank'] != 0:
-        if args['work_mode'] in ['self-play', 'gray-simcse', 'gray-simcse-unlikelyhood']:
+        if args['work_mode'] in ['self-play', 'gray-simcse', 'gray-simcse-unlikelyhood', 'gray-one2many']:
             pass
         else:
             exit()

@@ -21,6 +21,8 @@ class CompareInteractionAgent(RetrievalBaseAgent):
             pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
             path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}.txt'
             self.log_save_file = open(path, 'w')
+        if args['model'] in ['bert-ft-compare-multi']:
+            self.test_model = self.test_model_multi
         if torch.cuda.is_available():
             self.model.cuda()
         if args['mode'] in ['train', 'inference']:
@@ -31,7 +33,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
     def train_model(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
         self.model.train()
         total_loss, batch_num, correct, s = 0, 0, 0, 0
-        total_acc = 0
+        total_acc, total_token_acc = 0, 0
         pbar = tqdm(train_iter)
         correct, s = 0, 0
         for idx, batch in enumerate(pbar):
@@ -42,7 +44,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
                     optimizer=self.optimizer, 
                     scaler=self.scaler, 
                     grad_clip=self.args['grad_clip'], 
-                    scheduler=self.scheduler
+                    scheduler=self.scheduler,
                 )
                 for i in range(batch_num, batch_num+inner_time):
                     if whole_batch_num + i in self.args['test_step']:
@@ -345,7 +347,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
             # pagerank scorer
             # scores = self.generate_scores_pagerank(chain)
         else:
-            # propagate scorer
+            # propagation scorer
             chain = torch.zeros(len(rids), len(rids))
             for l, (i, j) in zip(label, recoder):
                 # advantage from i to j
@@ -554,3 +556,111 @@ class CompareInteractionAgent(RetrievalBaseAgent):
             else:
                 collection[owner] = [(label, scores)]
         return collection
+    
+    @torch.no_grad()
+    def test_model_multi(self, test_iter, print_output=False, rerank_agent=None):
+        self.model.eval()
+        pbar = tqdm(test_iter)
+        total_mrr, total_prec_at_one, total_map = 0, 0, 0
+        total_examples, total_correct = 0, 0
+        k_list = [1, 2, 5, 10]
+        for batch in pbar:
+            label = batch['label']
+            packup = {
+                'context': batch['context'],
+                'responses': batch['responses'],
+                'labels': batch['label'],
+            }
+            scores = self.fully_compare_multi(packup)
+            # print output
+            if print_output:
+                c = batch['context']
+                self.log_save_file.write(f'[Context] {c}\n')
+                for r, score in zip(batch['responses'], scores):
+                    score = round(score, 4)
+                    self.log_save_file.write(f'[Score {score}] {r}\n')
+                self.log_save_file.write('\n')
+
+            rank_by_pred, pos_index, stack_scores = \
+          calculate_candidates_ranking(
+                np.array(scores), 
+                np.array(label),
+                10)
+            num_correct = logits_recall_at_k(pos_index, k_list)
+            if self.args['dataset'] in ["douban", "restoration-200k"]:
+                total_prec_at_one += precision_at_one(rank_by_pred)
+                total_map += mean_average_precision(pos_index)
+                for pred in rank_by_pred:
+                    if sum(pred) == 0:
+                        total_examples -= 1
+            total_mrr += logits_mrr(pos_index)
+            total_correct = np.add(total_correct, num_correct)
+            total_examples += math.ceil(len(label) / 10)
+        avg_mrr = float(total_mrr / total_examples)
+        avg_prec_at_one = float(total_prec_at_one / total_examples)
+        avg_map = float(total_map / total_examples)
+        return {
+            f'R10@{k_list[0]}': round(((total_correct[0]/total_examples)*100), 2),        
+            f'R10@{k_list[1]}': round(((total_correct[1]/total_examples)*100), 2),        
+            f'R10@{k_list[2]}': round(((total_correct[2]/total_examples)*100), 2),        
+            'MRR': round(100*avg_mrr, 2),
+            'P@1': round(100*avg_prec_at_one, 2),
+            'MAP': round(100*avg_map, 2),
+        }
+        
+    @torch.no_grad()
+    def fully_compare_multi(self, batch):
+        self.model.eval() 
+        items = self.convert_text_to_ids(batch['context'] + batch['responses'])
+        cids_ = items[:len(batch['context'])]
+        cids = []
+        sids, cache = [], 0
+        for u in cids_:
+            cids.extend(u + [self.eos])
+            sids.extend([cache] * (len(u) + 1))
+            cache = 1 if cache == 0 else 0
+        sids.pop()
+        cids.pop()
+        rids = items[len(batch['context']):]
+        scores = self.compare_one_turn_multi(cids, sids, rids)
+        return scores
+    
+    @torch.no_grad()
+    def compare_one_turn_multi(self, cids, sids, rids):
+        ctx_max_length, res_max_length = self.args['ctx_max_length'], self.args['res_max_length']
+        # length limitation
+        rids = [i[:(res_max_length-2)] for i in rids]
+        cids = cids[-(ctx_max_length-2):]
+        sids = sids[-(ctx_max_length-2):]
+
+        cids_ = [self.cls] + cids + [self.sep]
+        sids_ = [sids[0]] + sids + [sids[-1]]
+        tids_ = [0] * (len(cids) + 2)
+        lids_ = [-100] * (len(cids) + 2)
+        other_speaker = 1 if sids[-1] == 0 else 0
+        tcache = 1
+        for idx, r in enumerate(rids):
+            cids_ += [idx + 1] + r + [self.sep]
+            sids_ += [other_speaker] * (len(r) + 2)
+            tids_ += [tcache] * (len(r) + 2)
+            lids_ += [0] + [-100] * (len(r) + 1)
+            tcache = 0 if tcache == 1 else 1
+        assert len(cids_) == len(sids_) == len(tids_) == len(lids_)
+        cids_ = torch.LongTensor(cids_).unsqueeze(0)
+        sids_ = torch.LongTensor(sids_).unsqueeze(0)
+        tids_ = torch.LongTensor(tids_).unsqueeze(0)
+        lids_ = torch.LongTensor(lids_).unsqueeze(0)
+        mask = generate_mask(cids_)
+        cids_, sids_, tids_, lids_, mask = to_cuda(cids_, sids_, tids_, lids_, mask)
+        batch_packup = {
+            'cids': cids_,
+            'sids': sids_,
+            'tids': tids_,
+            'lids': lids_,
+            'mask': mask,
+        }
+        if self.args['mode'] == 'train':
+            comp_scores = self.model.module.predict(batch_packup)
+        else:
+            comp_scores = self.model.predict(batch_packup)
+        return comp_scores.tolist()

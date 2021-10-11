@@ -178,6 +178,7 @@ class BERTDualInferenceFullForOne2ManyDataset(Dataset):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
+        # context, response = read_response_and_context_full(path, lang=self.args['lang'], turn_length=args['full_turn_length'])
         context, response = read_response_and_context_full(path, lang=self.args['lang'], turn_length=1)
 
         self.data = []

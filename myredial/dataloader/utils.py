@@ -728,3 +728,26 @@ def read_bm25_hard_negative(path):
             dataset.append(item)
     print(f'[!] load {len(dataset)} training samples')
     return dataset
+
+def read_dpr_gray(path):
+    dataset = []
+    with open(path) as f:
+        for line in tqdm(f.readlines()):
+            dataset.append(json.loads(line))
+    print(f'[!] collect {len(dataset)} samples')
+    return dataset
+
+
+def read_text_data_utterances_full_add_next_history_prediction(path, lang='zh', turn_length=5):
+    '''the full conversation context will be used'''
+    dataset = read_text_data_utterances(path, lang=lang)
+    data = []
+    for label, utterances in dataset:
+        if label == 0:
+            continue
+        start_num = max(1, len(utterances) - turn_length)
+        for i in range(start_num, len(utterances)):
+            # format: [label, contexts, responses]
+            data.append((1, utterances[:i], utterances[i:]))
+    print(f'[!] collect {len(data)} samples for training')
+    return data

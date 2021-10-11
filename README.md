@@ -22,6 +22,7 @@
     * no warmup
 - [ ] bert-fp-no-cls for context encoder, bert-fp-no-cls or bert-fp-mono for response encoder
 - [x] bert-fp data augmentation for bert-ft model is not very useful
+- [x] for bert-ft-compare, donot use the data augmentation technique
 
 ## How to Use
 

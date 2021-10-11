@@ -14,4 +14,4 @@ from .gray_one2many_res import *
 from .gray_one2many_with_source import *
 from .unparallel import *
 from .self_play import *
-from .ctx_res import *
+from .gray_one2many_ctx import *

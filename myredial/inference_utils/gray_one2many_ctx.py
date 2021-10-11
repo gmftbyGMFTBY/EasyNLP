@@ -4,6 +4,7 @@ from .utils import *
 
 '''response strategy:
 Read the candidate embeddings and save it into the faiss index
+Need the inference dataset: BERTDualInferenceFullForOne2ManyDataset
 '''
 
 def context_response_strategy(args):

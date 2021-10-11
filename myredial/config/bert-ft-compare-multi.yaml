@@ -1,23 +1,20 @@
-# [inner_bsz] the batch for one train step is to big, split and run it in multiple times
-inner_bsz: 64
-gray_cand_num: 2
-dropout: 0.1
 compare_turn_num: 2
-positive_margin: 0.1
-positive_margin_delta: 0.0
-num_labels: 1
+dropout: 0.1
 test_interval: 0.05
-# false: replace the hard negative with the random negative
 no_hard_negative: false
 valid_during_training: false
+no_inner_session_negative: true
+compare_set_size: 10
+gray_cand_num: 2
 
 # train configuration
 train:
     lr: 0.00003
     grad_clip: 1.0
     seed: 0
-    batch_size: 32
-    max_len: 288    # 256 + 32
+    batch_size: 64
+    ctx_max_length: 128
+    res_max_length: 32
     epoch: 5
     warmup_ratio: 0.
     checkpoint: 

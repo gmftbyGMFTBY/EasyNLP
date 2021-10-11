@@ -157,8 +157,8 @@ models:
         # dataset_name: BERTDualHNDataset
         # dataset_name: BERTDualFullDataset
         # dataset_name: BERTDualBM25HNDataset
-        dataset_name: HORSETestDataset
-        # dataset_name: BERTDualBertMaskHardNegativeDataset
+        # dataset_name: HORSETestDataset
+        dataset_name: BERTDualBertMaskHardNegativeDataset
         # dataset_name: BERTDualSimCSEHardNegativeDataset
         # dataset_name: FineGrainedTestDataset
         # dataset_name: BERTDualFullWithHardNegDataset
@@ -238,6 +238,11 @@ models:
         # dataset_name: BERTDualFullDataset
         dataset_name: HORSETestDataset
         inference_dataset_name: BERTDualInferenceDataset
+    dual-bert-nhp: 
+        type: Representation
+        model_name: BERTDualNHPEncoder
+        dataset_name: BERTDualFullNHPDataset
+        inference_dataset_name: BERTDualInferenceDataset
     dual-bert: 
         type: Representation
         model_name: BERTDualEncoder
@@ -258,7 +263,7 @@ models:
         # dataset_name: BERTDualFullWithSelfPlayDataset
         # dataset_name: BERTDualFullPseudoDataset
         # inference_dataset_name: BERTDualFullFilterInferenceDataset
-        inference_dataset_name: BERTDualInferenceDataset
+        # inference_dataset_name: BERTDualInferenceDataset
         # inference_dataset_name: BERTDualInferenceWithTestDataset
         # inference_dataset_name: BERTDualInferenceFullWithTestDataset
         # inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
@@ -268,7 +273,7 @@ models:
         # inference_dataset_name: BERTDualInferenceContextDataset
         # inference_dataset_name: BERTDualInferenceFullContextDataset
         # inference_dataset_name: BERTDualInferenceFullContextSingleExtendDataset
-        # inference_dataset_name: BERTDualInferenceFullForOne2ManyDataset
+        inference_dataset_name: BERTDualInferenceFullForOne2ManyDataset
     dual-bert-triplet:
         type: Representation
         model_name: BERTDualEncoderTripletMargin
@@ -375,6 +380,12 @@ models:
         model_name: BERTFPRetrieval
         dataset_name: BERTFTDataset
         inference_dataset_name: null 
+    bert-ft-compare-multi: 
+        type: CompareInteraction
+        model_name: BERTCompareMultiEncoder
+        dataset_name: BERTFTCompMultiDataset
+        # dataset_name: HORSECompTestDataset
+        inference_dataset_name: null
     bert-ft-compare: 
         type: CompareInteraction
         model_name: BERTCompareRetrieval
@@ -468,7 +479,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 10
+version: 0
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
 rank: null

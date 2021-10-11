@@ -33,5 +33,6 @@ class AugmentationAgent(RetrievalBaseAgent):
         torch.save((contexts, responses, results), f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_bert_mask_da_{self.args["local_rank"]}.pt')
 
     def load_model(self, path):
-        # only use the bert-base-chinese
-        return
+        state_dict = torch.load(path, map_location=torch.device('cpu'))
+        missing, unexcept = self.model.module.load_state_dict(state_dict, strict=False)
+        print(f'[!] load PLMs from {path}')

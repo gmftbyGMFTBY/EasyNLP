@@ -72,6 +72,6 @@ class BERTMaskAugmentationDMRModel(nn.Module):
                 string = self.vocab.decode(ts)
             else:
                 string = [self.vocab.convert_ids_to_tokens(t) for t in ts]
-                string = ''.join(string)
+                string = ''.join(string).replace('##', '')
             sentences.append(string)
         return sentences

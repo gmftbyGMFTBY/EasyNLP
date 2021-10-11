@@ -9,8 +9,11 @@ class BERTCompareRetrieval(nn.Module):
         self.inner_bsz = args['inner_bsz']
         self.num_labels = args['num_labels']
         self.model = SABertForSequenceClassification.from_pretrained(model, num_labels=self.num_labels)
+        # add the [EOS]
         self.model.resize_token_embeddings(self.model.config.vocab_size+1)
-        self.criterion = nn.MSELoss()
+        self.criterion = nn.BCEWithLogitsLoss()
+
+        # vocabulary
         self.vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
         self.vocab.add_tokens(['[EOS]'])
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
@@ -31,7 +34,7 @@ class BERTCompareRetrieval(nn.Module):
         label = [label[i] for i in random_idx]
         label = torch.stack(label)
 
-        acc, tloss, counter = 0, 0, 0
+        token_acc, acc, tloss, counter = 0, 0, 0, 0
         for i in range(0, len(inpt), self.inner_bsz):
             sub_ids = pad_sequence(
                 inpt[i:i+self.inner_bsz],
@@ -54,16 +57,24 @@ class BERTCompareRetrieval(nn.Module):
 
             sub_ids, sub_sids, sub_tids, sub_attn_mask, sub_label = to_cuda(sub_ids, sub_sids, sub_tids, sub_attn_mask, sub_label)
             with autocast():
-                logits = self.model(
+                output = self.model(
                     input_ids=sub_ids,
                     attention_mask=sub_attn_mask,
                     token_type_ids=sub_tids,
                     speaker_ids=sub_sids,
-                )[0]
-                logits = logits.squeeze()     # [B]
-                # NOTE:
-                logits = torch.sigmoid(logits)    # [B]
+                    # output_hidden_states=True,
+                )
+                # CLS token classifcation loss
+                logits = output.logits.squeeze(dim=1)     # [B]
                 loss = self.criterion(logits, sub_label)
+                # token-level classification loss
+                # hidden_states = output.hidden_states[-1]    # [B, S, E]
+                # hidden_states = self.token_level_cls(hidden_states)    # [B, S, 2]
+                # loss += self.token_level_criterion(
+                #     hidden_states.view(-1, 2), 
+                #     sub_tlids.view(-1)
+                # )
+
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)
             clip_grad_norm_(self.parameters(), grad_clip)
@@ -73,6 +84,8 @@ class BERTCompareRetrieval(nn.Module):
 
             tloss += loss
             acc += torch.sum((torch.sigmoid(logits) > 0.5) == sub_label).item()/len(sub_label)
+            # hidden_states, sub_tlids = hidden_states.view(-1, 2), sub_tlids.view(-1)
+            # token_acc += (hidden_states.max(dim=-1)[1] == sub_tlids).to(torch.float).mean().item()
             counter += 1
         tloss /= counter
         return tloss, acc, counter

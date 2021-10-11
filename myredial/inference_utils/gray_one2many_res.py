@@ -4,6 +4,12 @@ from .utils import *
 
 '''response strategy:
 Read the candidate embeddings and save it into the faiss index
+
+Prepare steps:
+    1. generate the full context and response [Needs the Dataloader: BERTDualInferenceFullForOne2ManyDataset]
+        ./scripts/inference_full_ctx_res.sh <dataset_name> dual-bert 0,1,2,3,4,5,6,7
+    2. run the res-search-ctx strategy [Donot need the special dataloader]
+        ./scripts/inference_gray_res_search_ctx.sh <dataset_name> dual-bert 0,1,2,3,4,5,6,7
 '''
 
 def res_search_ctx_strategy(args):
@@ -60,23 +66,17 @@ def res_search_ctx_strategy(args):
         batch = res_embds[i:i+args['batch_size']]    # [B, E]
         responses = rtexts[i:i+args['batch_size']]
         contexts = ctexts[i:i+args['batch_size']]
+        # result = searcher._search(batch, topk=args['pool_size'])
         result, distance = searcher._search_dis(batch, topk=args['pool_size'])
-        ipdb.set_trace()
         for c, r, rest, dis in zip(contexts, responses, result, distance):
-            # rest = remove_duplicate_and_hold_the_order(rest)
-            rest = [i for i, j in zip(rest, dis) if j < 1e8]
+            ipdb.set_trace()
             if c in rest:
                 rest.remove(c)
-            # if len(rest) < args['gray_topk']:
-            #     lossing += 1
-            #     continue
             rest = rest[:args['gray_topk']]
             collection.append({'r': r, 'cs': rest})
-        # pbar.set_description(f'[!] found {lossing} error samples')
-    # print(f'[!] lossing {lossing} samples that are invalid')
 
     # write into new file
-    path = f'{args["root_dir"]}/data/{args["dataset"]}/train_gray.txt'
+    path = f'{args["root_dir"]}/data/{args["dataset"]}/train_gray_response_one2many.txt'
     with open(path, 'w') as f:
         for item in tqdm(collection):
             string = json.dumps(item)

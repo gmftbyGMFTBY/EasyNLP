@@ -1,22 +1,18 @@
-temp: 0.07
-# five for restoration-200k is enough
+temp: 1.0
 full_turn_length: 100
 test_interval: 0.05
-multi_ctx: 1
-min_conv_length: 3
-data_filter_size: 650000
 valid_during_training: false
 
 # train configuration
 train:
     load_param: true
     # load_param: false
-    lr: 0.00003
+    lr: 0.00005
     grad_clip: 5.0
     seed: 0
     batch_size: 64
     max_len: 256
-    res_max_len: 64
+    res_max_len: 128
     epoch: 5
     warmup_ratio: 0.
     stop_train: false
@@ -39,7 +35,7 @@ test:
     seed: 0
     batch_size: 1
     max_len: 256
-    res_max_len: 64
+    res_max_len: 128
 
 # inference configuration
 inference:

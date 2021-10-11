@@ -157,6 +157,9 @@ class GPT2UnlikelyModel(nn.Module):
 
         # negative samples feedforward
         gpt2_hidden_states, _, _ = self.gpt2_forward(neg_gpt2_ids, neg_gpt2_mask)
+        # reverse the gradient for reversed loss optimization
+        gpt2_hidden_states = GradientReverseFunction.apply(gpt2_hidden_states, 1.)
         _, neg_bert_loss = self.bert_forward(gpt2_hidden_states, neg_gpt2_ids, neg_gpt2_mask, neg_bert_label)
-        loss -= self.alpha * neg_bert_loss
-        return loss, bert_token_acc
+        loss += self.alpha * neg_bert_loss
+        # bert_loss for calculating the ppl
+        return loss, bert_token_acc, bert_loss

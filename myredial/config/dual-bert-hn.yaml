@@ -2,23 +2,23 @@ temp: 0.07
 full_turn_length: 100
 test_interval: 0.05
 gray_cand_num: 4
-valid_during_training: true
+valid_during_training: false
 hard_margin: 0.05
 easy_margin: 0.1
 
 # train configuration
 train:
-    lr: 0.00001
+    lr: 0.00003
     grad_clip: 1.0
     seed: 0
-    batch_size: 64
+    batch_size: 32
     max_len: 256
     res_max_len: 64
     epoch: 3
     warmup_ratio: 0.
     checkpoint: 
         # path: bert-post/best_nspmlm.pt
-        path: dual-bert/best_bert-base-chinese_200.pt
+        path: dual-bert/best_bert-base-chinese_0.pt
         # path: dual-bert/best_bert-base-uncased.pt
         # path: bert-fp/best_bert-base-chinese.pt
         # path: bert-fp-mono/best_bert-base-chinese.pt

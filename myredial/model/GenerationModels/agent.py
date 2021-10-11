@@ -27,15 +27,16 @@ class GenerationAgent(GenerationBaseAgent):
         self.nlgeval = NLGEval(no_glove=True, no_skipthoughts=True)
         self.bertscorer = BERTScorer(lang=self.args['lang'], rescale_with_baseline=True)
     
-    def train_model(self, train_iter, test_iter, recoder=None, idx_=0):
+    def train_model(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
         self.model.train()
         total_loss, total_token_acc, batch_num = 0, 0, 0
+        total_bert_loss = 0
         total_ppl = 0
         pbar = tqdm(train_iter)
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
             with autocast():
-                loss, token_acc = self.model(batch)
+                loss, token_acc, bert_loss = self.model(batch)
             self.scaler.scale(loss).backward()
             self.scaler.unscale_(self.optimizer)
             clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
@@ -43,28 +44,33 @@ class GenerationAgent(GenerationBaseAgent):
             self.scaler.update()
             self.scheduler.step()
 
-            ppl = math.exp(loss.item())
+            ppl = math.exp(bert_loss.item())
             total_ppl += ppl
             total_loss += loss.item()
+            total_bert_loss += bert_loss.item()
             total_token_acc += token_acc
             batch_num += 1
 
-            if batch_num in self.args['test_step']:
+            if whole_batch_num + batch_num in self.args['test_step']:
                 self.test_now(test_iter, recoder)
            
             if recoder:
                 recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
                 recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/BERTLoss', total_bert_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunBERTLoss', bert_loss.item(), idx)
                 recoder.add_scalar(f'train-epoch-{idx_}/PPL', total_ppl/batch_num, idx)
                 recoder.add_scalar(f'train-epoch-{idx_}/RunPPL', ppl, idx)
                 recoder.add_scalar(f'train-epoch-{idx_}/TokenAcc', total_token_acc/batch_num, idx)
                 recoder.add_scalar(f'train-epoch-{idx_}/RunTokenAcc', token_acc, idx)
              
-            pbar.set_description(f'[!] loss: {round(total_loss/batch_num, 4)}; ppl: {round(total_ppl/batch_num, 2)}; token acc: {round(total_token_acc/batch_num*100, 2)}')
+            pbar.set_description(f'[!] loss: {round(bert_loss.item(), 4)}|{round(total_bert_loss/batch_num, 4)}; ppl: {round(ppl, 2)}; token acc: {round(total_token_acc/batch_num*100, 2)}')
         if recoder:
             recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/BERTLoss', total_bert_loss/batch_num, idx_)
             recoder.add_scalar(f'train-whole/PPL', total_ppl/batch_num, idx_)
             recoder.add_scalar(f'train-whole/TokenAcc', total_token_acc/batch_num, idx_)
+        return batch_num
     
     @torch.no_grad()
     def test_model(self, test_iter, print_output=True):
@@ -77,12 +83,28 @@ class GenerationAgent(GenerationBaseAgent):
                 logits = self.model.module.predict(batch)     # [B, S, V]
                 # calculate ppl
                 ppl_pos_ = self.model.module.calculate_ppl(batch['pos_ids'], batch['pos_ids_mask'], batch['pos_label'])
-                ppl_neg_ = self.model.module.calculate_ppl(batch['neg_ids'], batch['neg_ids_mask'], batch['neg_label'])
+                ppl_neg_ = []
+                for neg_ids, neg_ids_mask, neg_label in zip(batch['neg_ids'], batch['neg_ids_mask'], batch['neg_label']):
+                    ppl_neg__ = self.model.module.calculate_ppl(
+                        neg_ids, 
+                        neg_ids_mask, 
+                        neg_label
+                    )
+                    ppl_neg_.append(ppl_neg__)
+                ppl_neg_ = np.mean(ppl_neg_)
             else:
                 logits = self.model.predict(batch)     # [B, S, V]
                 # calculate ppl
                 ppl_pos_ = self.model.calculate_ppl(batch['pos_ids'], batch['pos_ids_mask'], batch['pos_label'])
-                ppl_neg_ = self.model.calculate_ppl(batch['neg_ids'], batch['neg_ids_mask'], batch['neg_label'])
+                ppl_neg_ = []
+                for neg_ids, neg_ids_mask, neg_label in zip(batch['neg_ids'], batch['neg_ids_mask'], batch['neg_label']):
+                    ppl_neg__ = self.model.calculate_ppl(
+                        neg_ids,
+                        neg_ids_mask, 
+                        neg_label
+                    )
+                    ppl_neg_.append(ppl_neg__)
+                ppl_neg_ = np.mean(ppl_neg_)
             ppl_pos.append(ppl_pos_)
             ppl_neg.append(ppl_neg_)
 
@@ -91,11 +113,11 @@ class GenerationAgent(GenerationBaseAgent):
                 tokens = [i for i in self.vocab.convert_ids_to_tokens(logit) if i not in ['[PAD]', '[CLS]', '[SEP]']]
                 gen_texts.append(''.join(tokens))
             if print_output:
-                for prefix_t, pos_t, neg_t, gen_t in zip(batch['text'], batch['pos_text'], batch['neg_text'], gen_texts):
+                for prefix_t, pos_t, gen_t in zip(batch['text'], batch['pos_text'], gen_texts):
                     self.log_save_file.write(f'[Prefix     ] {prefix_t}\n')
                     self.log_save_file.write(f'[Positive   ] {pos_t}\n')
-                    self.log_save_file.write(f'[Negative   ] {neg_t}\n')
                     self.log_save_file.write(f'[Generation ] {gen_t}\n\n')
+                self.log_save_file.flush()
             for gt_t, gen_t in zip(batch['text'], gen_texts):
                 results.append((gt_t, gen_t))
         # calculate the evalution results
