@@ -380,6 +380,12 @@ models:
         model_name: BERTFPRetrieval
         dataset_name: BERTFTDataset
         inference_dataset_name: null 
+    bert-ft-compare-multi-cls: 
+        type: CompareInteraction
+        model_name: BERTCompareMultiCLSEncoder
+        dataset_name: BERTFTCompMultiCLSDataset
+        # dataset_name: HORSECompTestDataset
+        inference_dataset_name: null
     bert-ft-compare-multi: 
         type: CompareInteraction
         model_name: BERTCompareMultiEncoder

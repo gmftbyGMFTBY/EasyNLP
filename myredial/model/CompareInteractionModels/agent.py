@@ -21,7 +21,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
             pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
             path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}.txt'
             self.log_save_file = open(path, 'w')
-        if args['model'] in ['bert-ft-compare-multi']:
+        if args['model'] in ['bert-ft-compare-multi', 'bert-ft-compare-multi-cls']:
             self.test_model = self.test_model_multi
         if torch.cuda.is_available():
             self.model.cuda()
@@ -155,7 +155,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
                 'context': batch['context'],
                 'responses': batch['responses'],
             }
-            scores = self.fully_compare(packup)
+            scores = self.fully_compare_multi(packup)
             whole_num += 1
             if scores is None:
                 continue
@@ -519,6 +519,12 @@ class CompareInteractionAgent(RetrievalBaseAgent):
                 new_state_dict = OrderedDict()
                 for k, v in state_dict.items():
                     k = f'bert.{k.replace("model.bert.", "")}'
+                    new_state_dict[k] = v
+                missing, unexcept = self.model.model.load_state_dict(new_state_dict, strict=False)
+            elif self.args['model'] in ['bert-ft-compare-multi', 'bert-ft-compare-multi-cls']:
+                new_state_dict = OrderedDict()
+                for k, v in state_dict.items():
+                    k = k.replace("model.bert.", "")
                     new_state_dict[k] = v
                 missing, unexcept = self.model.model.load_state_dict(new_state_dict, strict=False)
         else:

@@ -54,3 +54,48 @@ class BERTCompareMultiEncoder(nn.Module):
         assert len(logits) == 10
         logits = logits[:, 1]    # label 1 score
         return logits
+
+
+class BERTCompareMultiCLSEncoder(nn.Module):
+
+    def __init__(self, **args):
+        super(BERTCompareMultiCLSEncoder, self).__init__()
+        model = args['pretrained_model']
+        self.model = BertSAModel.from_pretrained(model)
+        self.cls = nn.Sequential(
+            nn.Dropout(p=args['dropout']) ,
+            nn.Linear(768, 10)
+        )
+        # add the [EOS]
+        self.model.resize_token_embeddings(self.model.config.vocab_size+1)
+        self.criterion = nn.CrossEntropyLoss()
+
+    def forward(self, batch):
+        ids, sids, tids, label, mask = batch['ids'], batch['sids'], batch['tids'], batch['label'], batch['mask']
+        
+        output = self.model(
+            input_ids=ids,
+            attention_mask=mask,
+            token_type_ids=tids,
+            speaker_ids=sids,
+        )[0]    # [B, S, E]
+        logits = self.cls(output[:, 0, :])    # [B, 10]
+        loss = self.criterion(logits, label)
+
+        # acc
+        acc = (logits.max(dim=-1)[1] == label).to(torch.float).mean().item()
+        return loss, acc
+
+    def predict(self, batch):
+        ids  = batch['cids']
+        sids = batch['sids']
+        tids = batch['tids']
+        mask = batch['mask']  
+        logits = self.model(
+            input_ids=ids,
+            attention_mask=mask,
+            token_type_ids=tids,
+            speaker_ids=sids,
+        )[0]
+        logits = F.softmax(self.cls(logits[:, 0, :]), dim=-1)[0]
+        return logits

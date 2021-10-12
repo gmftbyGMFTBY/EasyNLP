@@ -406,3 +406,164 @@ class BERTFTCompMultiDataset(Dataset):
                 'responses': batch[0][1],
                 'label': batch[0][2],
             }
+
+            
+class BERTFTCompMultiCLSDataset(Dataset):
+
+    def __init__(self, vocab, path, **args):
+        self.args = args
+        self.vocab = vocab
+        self.vocab.add_tokens(['[EOS]'])
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.eos = self.vocab.convert_tokens_to_ids('[EOS]')
+        self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
+        self.topk = args['gray_cand_num']
+        self.compare_set_size = args['compare_set_size']
+
+        suffix = args['tokenizer'].replace('/', '_')
+        self.pp_path = f'{os.path.splitext(path)[0]}_ft_comp_multi_{suffix}.pt'
+        if os.path.exists(self.pp_path):
+            if self.args['mode'] == 'train':
+                self.data, self.responses = torch.load(self.pp_path)
+            else:
+                self.data = torch.load(self.pp_path)
+            print(f'[!] load preprocessed file from {self.pp_path}')
+            return None
+        
+        self.data = []
+        if self.args['mode'] == 'train':
+            path = f'{os.path.split(path)[0]}/train_bm25_gray.txt'
+            data = read_bm25_hard_negative(path)
+            responses, response_overlap = [], set()
+            for item in tqdm(data):
+                context, response, candidates = item['q'], item['r'], item['nr']
+                ids = self.vocab.batch_encode_plus(context + [response], add_special_tokens=False)['input_ids']
+                cids = []
+                sids, cache = [], 0
+                for u in ids[:-1]:
+                    cids.extend(u + [self.eos])
+                    sids.extend([cache] * (len(u) + 1))
+                    cache = 1 if cache == 0 else 0
+                sids.pop()
+                cids.pop()
+
+                if self.args['no_inner_session_negative'] is False:
+                    candidates += context
+
+                if len(cids) == 0:
+                    continue
+
+                rids = ids[-1]
+                responses.append(rids)
+                if response not in response_overlap:
+                    responses.append(rids)
+                    response_overlap.add(response)
+                self.data.append({
+                    'context': cids,
+                    'sids': sids,
+                    'response': rids,
+                    'candidates': candidates,
+                })
+            self.responses = responses
+        else:
+            data = read_text_data_utterances(path, lang=self.args['lang'])
+            for i in tqdm(range(0, len(data), 10)):
+                batch = data[i:i+10]
+                responses = [b[1][-1] for b in batch]
+                context = batch[0][1][:-1]
+                self.data.append({
+                    'label': [b[0] for b in batch],
+                    'context': context,
+                    'responses': responses,
+                })    
+
+    def __len__(self):
+        return len(self.data)
+
+    def _packup(self, cids, sids, rids):
+        ctx_max_length, res_max_length = self.args['ctx_max_length'], self.args['res_max_length']
+        num = len(rids)
+        # length limitation
+        rids = [i[:(res_max_length-2)] for i in rids]
+        cids = cids[-(ctx_max_length-2):]
+        sids = sids[-(ctx_max_length-2):]
+
+        cids_ = [self.cls] + cids + [self.sep]
+        sids_ = [sids[0]] + sids + [sids[-1]]
+        tids_ = [0] * (len(cids) + 2)
+        other_speaker = 0 if sids[-1] == 1 else 1
+        tcache = 1
+        # concatenation
+        for idx, r in enumerate(rids):
+            # [unused1] ~ [unused10]
+            cids_ += [idx + 1] + r + [self.sep]
+            sids_ += [other_speaker] * (len(r) + 2)
+            tids_ += [tcache] * (len(r) + 2)
+            tcache = 0 if tcache == 1 else 1
+        assert len(cids_) == len(sids_) == len(tids_)
+        return cids_, sids_, tids_
+
+    def __getitem__(self, i):
+        bundle = self.data[i]
+        if self.args['mode'] == 'train':
+            cids, rids, sids = deepcopy(bundle['context']), deepcopy(bundle['response']), deepcopy(bundle['sids'])
+
+            if self.args['no_hard_negative']:
+                hrids = random.sample(self.responses, self.topk)
+            else:
+                candidates = random.sample(
+                    bundle['candidates'], self.topk
+                )
+                hrids = self.vocab.batch_encode_plus(candidates, add_special_tokens=False)['input_ids']
+            
+            rids = [rids] + random.sample(hrids, self.topk) + random.sample(self.responses, self.compare_set_size - self.topk - 1)
+            random_idx = list(range(self.compare_set_size))
+            random.shuffle(random_idx)
+            label = random_idx.index(0)
+            rids  = [rids[i] for i in random_idx]
+            ids, sids, tids = self._packup(cids, sids, rids) 
+            ids = torch.LongTensor(ids)
+            sids = torch.LongTensor(sids)
+            tids = torch.LongTensor(tids)
+            return ids, sids, tids, label
+        else:
+            # test
+            return bundle['context'], bundle['responses'], bundle['label']
+
+    def save(self):
+        if self.args['mode'] == 'train':
+            data = torch.save((self.data, self.responses), self.pp_path)
+        else:
+            data = torch.save(self.data, self.pp_path)
+        print(f'[!] save preprocessed dataset into {self.pp_path}')
+        
+    def collate(self, batch):
+        if self.args['mode'] == 'train':
+            ids, sids, tids, label = [], [], [], []
+            for a, b, c, d in batch:
+                ids.append(a)
+                sids.append(b)
+                tids.append(c)
+                label.append(d)
+            ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+            sids = pad_sequence(sids, batch_first=True, padding_value=self.pad)
+            tids = pad_sequence(tids, batch_first=True, padding_value=self.pad)
+            label = torch.LongTensor(label)
+            mask = generate_mask(ids)
+            ids, sids, tids, label, mask = to_cuda(ids, sids, tids, label, mask)
+            return {
+                'ids': ids, 
+                'sids': sids,
+                'tids': tids, 
+                'label': label,
+                'mask': mask,
+            }
+        else:
+            # test or valid set
+            assert len(batch) == 1
+            return {
+                'context': batch[0][0],
+                'responses': batch[0][1],
+                'label': batch[0][2],
+            }
