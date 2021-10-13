@@ -129,8 +129,8 @@
     For bert-ft-compare model, the dataset name in this mode is `BERTCompEvaluationDataset`
 
     ```bash
-# model_name: bert-ft-compare, bert-ft-compare-plus
-# file_tags: 22335,22336
+    # model_name: bert-ft-compare, bert-ft-compare-plus
+    # file_tags: 22335,22336
     ./scripts/test_comparison.sh <dataset_name> <model_name> <file_tags> 0
     ```
 
