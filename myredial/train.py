@@ -14,7 +14,7 @@ def parser_args():
 
 
 def obtain_steps_parameters(train_data, args):
-    if args['model'] in ['bert-ft-compare']:
+    if args['model'] in ['bert-ft-compare', 'bert-ft-compare-token']:
         # each context contains `gray_cand_num` random negative and `gray_cand_num` hard negative samples
         args['total_step'] = len(train_data) * args['epoch'] * args['gray_cand_num'] * 2 // args['inner_bsz'] // (args['multi_gpu'].count(',') + 1)
         args['warmup_step'] = int(args['warmup_ratio'] * args['total_step'])

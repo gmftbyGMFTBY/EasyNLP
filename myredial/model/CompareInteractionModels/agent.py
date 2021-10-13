@@ -21,8 +21,6 @@ class CompareInteractionAgent(RetrievalBaseAgent):
             pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
             path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}.txt'
             self.log_save_file = open(path, 'w')
-        if args['model'] in ['bert-ft-compare-multi', 'bert-ft-compare-multi-cls']:
-            self.test_model = self.test_model_multi
         if torch.cuda.is_available():
             self.model.cuda()
         if args['mode'] in ['train', 'inference']:
@@ -38,7 +36,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         correct, s = 0, 0
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
-            if self.args['model'] in ['bert-ft-compare']:
+            if self.args['model'] in ['bert-ft-compare', 'bert-ft-compare-token']:
                 loss, acc, inner_time = self.model(
                     batch, 
                     optimizer=self.optimizer, 
@@ -168,28 +166,23 @@ class CompareInteractionAgent(RetrievalBaseAgent):
     @torch.no_grad()
     def test_model(self, test_iter, print_output=False, rerank_agent=None):
         self.model.eval()
-        if self.args['model'] in ['dual-bert-comp-hn', 'dual-bert-compare']:
-            return self.test_model_dual_bert(test_iter, print_output=print_output)
-
         pbar = tqdm(test_iter)
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
         total_examples, total_correct = 0, 0
         k_list = [1, 2, 5, 10]
         for batch in pbar:
             label = np.array(batch['label'])
-            # packup = {
-            #     'context': batch['context'],
-            #     'responses': batch['responses'],
-            #     'candidates': batch['candidates'],
-            #     'labels': batch['label'],
-            # }
-            # scores = self.fully_compare_with_base(packup)
             packup = {
                 'context': batch['context'],
                 'responses': batch['responses'],
                 'labels': batch['label'],
             }
-            scores = self.fully_compare(packup)
+            if self.args['model'] in ['bert-ft-compare-token']:
+                scores = self.fully_compare_token(packup)
+            elif self.args['model'] in ['bert-ft-compare-multi', 'bert-ft-compare-multi-cls']:
+                scores = self.fully_compare_multi(packup)
+            else:
+                scores = self.fully_compare(packup)
             # print output
             if print_output:
                 c = batch['context']
@@ -521,7 +514,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
                     k = f'bert.{k.replace("model.bert.", "")}'
                     new_state_dict[k] = v
                 missing, unexcept = self.model.model.load_state_dict(new_state_dict, strict=False)
-            elif self.args['model'] in ['bert-ft-compare-multi', 'bert-ft-compare-multi-cls']:
+            elif self.args['model'] in ['bert-ft-compare-multi', 'bert-ft-compare-multi-cls', 'bert-ft-compare-multi-ens', 'bert-ft-compare-token']:
                 new_state_dict = OrderedDict()
                 for k, v in state_dict.items():
                     k = k.replace("model.bert.", "")
@@ -564,57 +557,6 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         return collection
     
     @torch.no_grad()
-    def test_model_multi(self, test_iter, print_output=False, rerank_agent=None):
-        self.model.eval()
-        pbar = tqdm(test_iter)
-        total_mrr, total_prec_at_one, total_map = 0, 0, 0
-        total_examples, total_correct = 0, 0
-        k_list = [1, 2, 5, 10]
-        for batch in pbar:
-            label = batch['label']
-            packup = {
-                'context': batch['context'],
-                'responses': batch['responses'],
-                'labels': batch['label'],
-            }
-            scores = self.fully_compare_multi(packup)
-            # print output
-            if print_output:
-                c = batch['context']
-                self.log_save_file.write(f'[Context] {c}\n')
-                for r, score in zip(batch['responses'], scores):
-                    score = round(score, 4)
-                    self.log_save_file.write(f'[Score {score}] {r}\n')
-                self.log_save_file.write('\n')
-
-            rank_by_pred, pos_index, stack_scores = \
-          calculate_candidates_ranking(
-                np.array(scores), 
-                np.array(label),
-                10)
-            num_correct = logits_recall_at_k(pos_index, k_list)
-            if self.args['dataset'] in ["douban", "restoration-200k"]:
-                total_prec_at_one += precision_at_one(rank_by_pred)
-                total_map += mean_average_precision(pos_index)
-                for pred in rank_by_pred:
-                    if sum(pred) == 0:
-                        total_examples -= 1
-            total_mrr += logits_mrr(pos_index)
-            total_correct = np.add(total_correct, num_correct)
-            total_examples += math.ceil(len(label) / 10)
-        avg_mrr = float(total_mrr / total_examples)
-        avg_prec_at_one = float(total_prec_at_one / total_examples)
-        avg_map = float(total_map / total_examples)
-        return {
-            f'R10@{k_list[0]}': round(((total_correct[0]/total_examples)*100), 2),        
-            f'R10@{k_list[1]}': round(((total_correct[1]/total_examples)*100), 2),        
-            f'R10@{k_list[2]}': round(((total_correct[2]/total_examples)*100), 2),        
-            'MRR': round(100*avg_mrr, 2),
-            'P@1': round(100*avg_prec_at_one, 2),
-            'MAP': round(100*avg_map, 2),
-        }
-        
-    @torch.no_grad()
     def fully_compare_multi(self, batch):
         self.model.eval() 
         items = self.convert_text_to_ids(batch['context'] + batch['responses'])
@@ -650,7 +592,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
             sids_ += [other_speaker] * (len(r) + 2)
             tids_ += [tcache] * (len(r) + 2)
             lids_ += [0] + [-100] * (len(r) + 1)
-            tcache = 0 if tcache == 1 else 1
+            # tcache = 0 if tcache == 1 else 1
         assert len(cids_) == len(sids_) == len(tids_) == len(lids_)
         cids_ = torch.LongTensor(cids_).unsqueeze(0)
         sids_ = torch.LongTensor(sids_).unsqueeze(0)
@@ -670,3 +612,76 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         else:
             comp_scores = self.model.predict(batch_packup)
         return comp_scores.tolist()
+    
+    @torch.no_grad()
+    def fully_compare_token(self, batch):
+        self.model.eval() 
+        items = self.convert_text_to_ids(batch['context'] + batch['responses'])
+        cids_ = items[:len(batch['context'])]
+        cids = []
+        sids, cache = [], 0
+        for u in cids_:
+            cids.extend(u + [self.eos])
+            sids.extend([cache] * (len(u) + 1))
+            cache = 1 if cache == 0 else 0
+        sids.pop()
+        cids.pop()
+        rids = items[len(batch['context']):]
+        tickets = []
+        for i in range(len(rids)):
+            for j in range(len(rids)):
+                if i < j:
+                    tickets.append((i, j))
+        label, recoder = self.compare_one_turn_token(cids, sids, rids, tickets)
+        # propagation scorer
+        chain = torch.zeros(len(rids), len(rids))
+        for l, (i, j) in zip(label, recoder):
+            # advantage from i to j
+            chain[i, j] = l
+        scores = self.generate_scores_propagate_with_edge_weight(chain)
+        return scores
+    
+    @torch.no_grad()
+    def compare_one_turn_token(self, cids, sids, rids, tickets):
+        '''Each item pair in the tickets (i, j), the i has the bigger scores than j'''
+        ids, tids, speaker_ids, tlids, recoder = [], [], [], [], []
+        other_speaker = 1 if sids[-1] == 0 else 0
+        for i, j in tickets:
+            cids_, sids_, rids1, rids2 = deepcopy(cids), deepcopy(sids), deepcopy(rids[i]), deepcopy(rids[j])
+            truncate_pair_two_candidates(cids_, rids1, rids2, self.args['max_len'], sids=sids_)
+            ids_ = [self.cls] + cids_ + [self.sep] + [1] + rids1 + [self.sep] + [2] + rids2 + [self.sep]
+            sids_ = [sids_[0]] + sids_ + [sids[-1]] + [other_speaker] * (len(rids1) + len(rids2) + 4)
+            tids_ = [0] * (len(cids_) + 2) + [1] * (len(rids1) + 2) + [0] * (len(rids2) + 2)
+            tlids_ = [-100] * (len(cids_) + 2) + [1] + [-100] * (len(rids1) + 1) + [1] + [-100] * (len(rids2) + 1)
+            assert len(tlids_) == len(ids_) == len(sids_) == len(tids_)
+            ids.append(ids_)
+            speaker_ids.append(sids_)
+            tids.append(tids_)
+            tlids.append(tlids_)
+            recoder.append((i, j))
+        ids = [torch.LongTensor(i) for i in ids]
+        speaker_ids = [torch.LongTensor(i) for i in speaker_ids]
+        tids = [torch.LongTensor(i) for i in tids]
+        tlids = [torch.LongTensor(i) for i in tlids]
+        ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+        speaker_ids = pad_sequence(speaker_ids, batch_first=True, padding_value=self.pad)
+        tids = pad_sequence(tids, batch_first=True, padding_value=self.pad)
+        tlids = pad_sequence(tlids, batch_first=True, padding_value=-100)
+        mask = generate_mask(ids)
+        ids, speaker_ids, tids, mask, tlids = to_cuda(ids, speaker_ids, tids, mask, tlids)
+        # ===== make compare ===== # 
+        batch_packup = {
+            'ids': ids,
+            'sids': speaker_ids,
+            'tids': tids,
+            'mask': mask,
+            'tlids': tlids,
+        }
+        if self.args['mode'] == 'train':
+            comp_scores, comp_scores_reverse = self.model.module.predict(batch_packup)    # [B]
+        else:
+            comp_scores, comp_scores_reverse = self.model.predict(batch_packup)    # [B]
+        comp_scores = comp_scores.tolist()
+        comp_scores += comp_scores_reverse.tolist()
+        recoder += [(j, i) for i, j in recoder]
+        return comp_scores, recoder

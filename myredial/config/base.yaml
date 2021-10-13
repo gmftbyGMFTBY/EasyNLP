@@ -380,6 +380,18 @@ models:
         model_name: BERTFPRetrieval
         dataset_name: BERTFTDataset
         inference_dataset_name: null 
+    bert-ft-compare-token: 
+        type: CompareInteraction
+        model_name: BERTCompareTokenEncoder
+        dataset_name: BERTFTCompTokenDataset
+        # dataset_name: HORSECompTestDataset
+        inference_dataset_name: null
+    bert-ft-compare-multi-ens: 
+        type: CompareInteraction
+        model_name: BERTCompareMultiENSEncoder
+        dataset_name: BERTFTCompMultiDataset
+        # dataset_name: HORSECompTestDataset
+        inference_dataset_name: null
     bert-ft-compare-multi-cls: 
         type: CompareInteraction
         model_name: BERTCompareMultiCLSEncoder
@@ -485,7 +497,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 0
+version: 1
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
 rank: null
