@@ -84,7 +84,7 @@ class PostTrainAgent(RetrievalBaseAgent):
             # save the model
             if self.args['local_rank'] == 0:
                 pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
-                save_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_{pretrained_model_name}.pt'
+                save_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_{pretrained_model_name}_{self.args["version"]}.pt'
                 self.save_model(save_path)
         return batch_num
     

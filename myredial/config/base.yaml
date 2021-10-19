@@ -483,6 +483,7 @@ models:
         type: PostTrain
         model_name: BERTMonolingualPostTrain
         dataset_name: PostTrainMonoDataset
+        # dataset_name: PostTrainMonoPlusDataset
         inference_dataset_name: null 
     dual-bert-pt: 
         type: Representation
@@ -517,7 +518,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 2
+version: 1
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
 rank: null
