@@ -10,6 +10,7 @@ def parser_args():
     parser.add_argument('--model', type=str)
     parser.add_argument('--multi_gpu', type=str, default=None)
     parser.add_argument('--local_rank', type=int)
+    parser.add_argument('--total_workers', type=int)
     return parser.parse_args()
 
 
@@ -82,10 +83,10 @@ def main(**args):
         sum_writer.close()
 
     # if not valid, just save the checkpoint
-    if agent.best_test is None:
-        pmn = args['pretrained_model'].replace('/', '_')
-        save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pmn}_{args["version"]}.pt'
-        agent.save_model(save_path)
+    # if agent.best_test is None:
+    #     pmn = args['pretrained_model'].replace('/', '_')
+    #     save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pmn}_{args["version"]}.pt'
+    #     agent.save_model(save_path)
 
 if __name__ == "__main__":
     args = parser_args()

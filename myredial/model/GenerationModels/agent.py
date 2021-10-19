@@ -29,25 +29,25 @@ class GenerationAgent(GenerationBaseAgent):
     
     def train_model(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
         self.model.train()
-        total_loss, total_token_acc, batch_num = 0, 0, 0
-        total_bert_loss = 0
-        total_ppl = 0
+        total_ppl, total_loss, total_tloss, total_neg_loss, total_token_acc, batch_num = 0, 0, 0, 0, 0, 0
         pbar = tqdm(train_iter)
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
             with autocast():
-                loss, token_acc, bert_loss = self.model(batch)
-            self.scaler.scale(loss).backward()
+                loss, neg_loss, token_acc = self.model(batch)
+                tloss = loss + neg_loss
+                ppl = math.exp(loss.item())
+            self.scaler.scale(tloss).backward()
             self.scaler.unscale_(self.optimizer)
             clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
             self.scaler.step(self.optimizer)
             self.scaler.update()
             self.scheduler.step()
 
-            ppl = math.exp(bert_loss.item())
             total_ppl += ppl
             total_loss += loss.item()
-            total_bert_loss += bert_loss.item()
+            total_neg_loss += neg_loss.item()
+            total_tloss += tloss.item()
             total_token_acc += token_acc
             batch_num += 1
 
@@ -57,17 +57,17 @@ class GenerationAgent(GenerationBaseAgent):
             if recoder:
                 recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
                 recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
-                recoder.add_scalar(f'train-epoch-{idx_}/BERTLoss', total_bert_loss/batch_num, idx)
-                recoder.add_scalar(f'train-epoch-{idx_}/RunBERTLoss', bert_loss.item(), idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/NegLoss', total_neg_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunNegLoss', neg_loss.item(), idx)
                 recoder.add_scalar(f'train-epoch-{idx_}/PPL', total_ppl/batch_num, idx)
                 recoder.add_scalar(f'train-epoch-{idx_}/RunPPL', ppl, idx)
                 recoder.add_scalar(f'train-epoch-{idx_}/TokenAcc', total_token_acc/batch_num, idx)
                 recoder.add_scalar(f'train-epoch-{idx_}/RunTokenAcc', token_acc, idx)
              
-            pbar.set_description(f'[!] loss: {round(bert_loss.item(), 4)}|{round(total_bert_loss/batch_num, 4)}; ppl: {round(ppl, 2)}; token acc: {round(total_token_acc/batch_num*100, 2)}')
+            pbar.set_description(f'[!] loss(neg|pos): {round(total_neg_loss/batch_num, 4)}|{round(total_loss/batch_num, 4)}; ppl: {round(ppl, 2)}; token acc: {round(total_token_acc/batch_num*100, 2)}')
         if recoder:
             recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
-            recoder.add_scalar(f'train-whole/BERTLoss', total_bert_loss/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/NegLoss', total_neg_loss/batch_num, idx_)
             recoder.add_scalar(f'train-whole/PPL', total_ppl/batch_num, idx_)
             recoder.add_scalar(f'train-whole/TokenAcc', total_token_acc/batch_num, idx_)
         return batch_num

@@ -1,24 +1,23 @@
-# rank: bert-ft-compare
-rank: null
 dropout: 0.1
-gray_cand_num: 1
+gray_cand_num: 3
+test_interval: 0.05
+valid_during_training: false
 temp: 1.
 
 # train configuration
 train:
-    lr: 0.00003
+    lr: 0.00005
     grad_clip: 5.0
     seed: 0
     batch_size: 64
     max_len: 256
     res_max_len: 64
     epoch: 5
-    # no wamrup, set 0.0 (BERT-FP and UMS_BERT)
     warmup_ratio: 0.
     checkpoint: 
         # path: bert-post/best_nspmlm.pt
         # path: bert-fp/best_bert-base-chinese.pt
-        path: dual-bert/best_bert-base-chinese.pt
+        path: dual-bert/best_bert-base-chinese_0.pt
         is_load: true
 
 # test configuration

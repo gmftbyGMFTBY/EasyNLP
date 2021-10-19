@@ -338,7 +338,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
             # else:
             #     return None
             # pagerank scorer
-            # scores = self.generate_scores_pagerank(chain)
+            scores = self.generate_scores_pagerank(chain)
         else:
             # propagation scorer
             chain = torch.zeros(len(rids), len(rids))

@@ -62,18 +62,9 @@ class BERTCompareRetrieval(nn.Module):
                     attention_mask=sub_attn_mask,
                     token_type_ids=sub_tids,
                     speaker_ids=sub_sids,
-                    # output_hidden_states=True,
                 )
-                # CLS token classifcation loss
                 logits = output.logits.squeeze(dim=1)     # [B]
                 loss = self.criterion(logits, sub_label)
-                # token-level classification loss
-                # hidden_states = output.hidden_states[-1]    # [B, S, E]
-                # hidden_states = self.token_level_cls(hidden_states)    # [B, S, 2]
-                # loss += self.token_level_criterion(
-                #     hidden_states.view(-1, 2), 
-                #     sub_tlids.view(-1)
-                # )
 
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)
@@ -84,8 +75,6 @@ class BERTCompareRetrieval(nn.Module):
 
             tloss += loss
             acc += torch.sum((torch.sigmoid(logits) > 0.5) == sub_label).item()/len(sub_label)
-            # hidden_states, sub_tlids = hidden_states.view(-1, 2), sub_tlids.view(-1)
-            # token_acc += (hidden_states.max(dim=-1)[1] == sub_tlids).to(torch.float).mean().item()
             counter += 1
         tloss /= counter
         return tloss, acc, counter

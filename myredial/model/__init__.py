@@ -7,6 +7,7 @@ from .EvaluationModels import *
 from .GenerationModels import *
 from .PostTrainModels import *
 from .LanguageModels import *
+from .MutualTrainingModels import *
 
 def load_model(args):
     model_type, model_name = args['models'][args['model']]['type'], args['models'][args['model']]['model_name']
@@ -20,6 +21,7 @@ def load_model(args):
         'PostTrain': PostTrainAgent,
         'Evaluation': EvaluationAgent,
         'LanguageModel': LanguageModelsAgent,
+        'MutualTrainingModel': MutualTrainingAgent,
     }
     if model_type in MAP:
         agent_t = MAP[model_type]
@@ -32,6 +34,10 @@ def load_model(args):
         vocab.add_tokens(['[CTX]'])
     args['vocab_size'] = vocab.vocab_size
 
-    model = globals()[model_name](**args)
-    agent = agent_t(vocab, model, args)
+    if model_type in ['MutualTrainingModel']:
+        model = globals()[model_name](vocab, **args)
+        agent = agent_t(vocab, model, args)
+    else:
+        model = globals()[model_name](**args)
+        agent = agent_t(vocab, model, args)
     return agent

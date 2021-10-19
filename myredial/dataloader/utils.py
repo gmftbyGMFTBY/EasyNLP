@@ -188,15 +188,14 @@ def read_text_data_with_super_hard_q_r(path, lang='zh'):
     return dataset
 
 def read_text_data_one2many(path, lang='zh'):
-    path_ = f'{os.path.splitext(path)[0]}_gray.txt'
-    with open(path_) as f:
+    with open(path) as f:
         dataset = []
         for line in tqdm(f.readlines()):
             line = json.loads(line.strip())
             q, r = line['q'], line['r']
             cands = line['snr']
             dataset.append((q, r, cands))
-    print(f'[!] load {len(dataset)} samples from {path_}')
+    print(f'[!] load {len(dataset)} samples from {path}')
     return dataset
 
 def read_text_data_one2many_replace(path, lang='zh'):

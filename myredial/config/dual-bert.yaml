@@ -1,7 +1,8 @@
-temp: 0.07
+temp: 1.
 # five for restoration-200k is enough
+# test 100 full_turn_length for ubuntu corpus
 full_turn_length: 100
-test_interval: 0.05
+test_interval: 0.01
 multi_ctx: 1
 min_conv_length: 3
 data_filter_size: 650000
@@ -11,25 +12,26 @@ valid_during_training: false
 train:
     load_param: true
     # load_param: false
-    lr: 0.00003
+    lr: 0.00005
     grad_clip: 5.0
     seed: 0
     batch_size: 64
     max_len: 256
     res_max_len: 64
-    epoch: 5
+    epoch: 10
     warmup_ratio: 0.
     stop_train: false
     stop_train_trigger:
         R10@1: 35.
     checkpoint: 
         # path: bert-post/best_nspmlm.pt
-        path: bert-fp/best_bert-base-chinese.pt
+        # path: bert-fp/best_bert-base-chinese.pt
         # path: bert-fp-comp/best_bert-base-chinese.pt
         # path: bert-fp-multi/best_bert-base-chinese.pt
         # path: dual-bert-pt/best_bert-base-chinese.pt
         # path: bert-fp-no-cls/best_bert-base-chinese.pt
-        # path: bert-fp-mono/best_bert-base-chinese.pt
+        # path: bert-fp/best_bert-base-chinese.pt
+        path: bert-fp-mono/best_bert-base-chinese.pt
         # path: bert-fp-mono/best_bert-base-uncased.pt
         # path: simcse/best_bert-base-chinese.pt
         is_load: true

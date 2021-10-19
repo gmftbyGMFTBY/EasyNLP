@@ -153,7 +153,7 @@ class GPT2UnlikelyModel(nn.Module):
         # positive samples feedforward
         gpt2_hidden_states, gpt2_token_acc, gpt2_loss = self.gpt2_forward(gpt2_ids, gpt2_mask)
         bert_token_acc, bert_loss = self.bert_forward(gpt2_hidden_states, gpt2_ids, gpt2_mask, bert_label)
-        loss += gpt2_loss + bert_loss
+        # loss += gpt2_loss + bert_loss
 
         # negative samples feedforward
         gpt2_hidden_states, _, _ = self.gpt2_forward(neg_gpt2_ids, neg_gpt2_mask)
@@ -162,4 +162,4 @@ class GPT2UnlikelyModel(nn.Module):
         _, neg_bert_loss = self.bert_forward(gpt2_hidden_states, neg_gpt2_ids, neg_gpt2_mask, neg_bert_label)
         loss += self.alpha * neg_bert_loss
         # bert_loss for calculating the ppl
-        return loss, bert_token_acc, bert_loss
+        return bert_loss, self.alpha * neg_bert_loss, bert_token_acc

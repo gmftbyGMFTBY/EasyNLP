@@ -82,7 +82,7 @@ class GPT2GRLModel(nn.Module):
 
         # negtive sample training
         neg_ids = batch['neg_ids']
-        neg_ids_mask = batch['neg_ids_mask']
+        neg_ids_mask = batch['neg_mask']
         neg_label = batch['neg_label']
         neg_gen_logits = self.model(
             input_ids=neg_ids, 
@@ -90,11 +90,11 @@ class GPT2GRLModel(nn.Module):
         )
         neg_gen_logits = neg_gen_logits.logits
         # reverse the gradient
-        neg_gen_logits = GradientReverseFunction.apply(neg_gen_logits)
+        neg_gen_logits = GradientReverseFunction.apply(neg_gen_logits, 1.)
         shift_logits = neg_gen_logits[..., :-1, :].contiguous()
         shift_labels = neg_label[..., 1:].contiguous()
-        loss += self.gen_loss_fct(
+        neg_loss = self.gen_loss_fct(
             shift_logits.view(-1, shift_logits.size(-1)), 
             shift_labels.view(-1)
         )
-        return loss, gen_acc
+        return loss, neg_loss, gen_acc

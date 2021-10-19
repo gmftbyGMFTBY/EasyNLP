@@ -314,7 +314,7 @@ class PostTrainAgent(RetrievalBaseAgent):
                         self.model.model.bert.state_dict().keys(),
                     )
                     new_state_dict = self.checkpointadapeter.convert(state_dict)
-                    self.model.model.bert.load_state_dict(new_state_dict)
+                    missing, unexcept = self.model.model.bert.load_state_dict(new_state_dict, strict=False)
 
             elif self.args['model'] in ['dual-bert-unsup']:
                 state_dict = torch.load(path, map_location=torch.device('cpu'))

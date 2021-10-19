@@ -7,7 +7,6 @@ positive_margin: 0.1
 positive_margin_delta: 0.0
 num_labels: 1
 test_interval: 0.05
-# false: replace the hard negative with the random negative
 no_hard_negative: false
 valid_during_training: false
 
@@ -17,7 +16,8 @@ train:
     grad_clip: 1.0
     seed: 0
     batch_size: 32
-    max_len: 288    # 256 + 32
+    # max_len: 288    # 256 + 32
+    max_len: 384    # 320 + 32 + 32
     epoch: 5
     warmup_ratio: 0.
     checkpoint: 
@@ -31,4 +31,4 @@ test:
     seed: 0
     # must be one (because of the fully compare)
     batch_size: 1
-    max_len: 288
+    max_len: 384

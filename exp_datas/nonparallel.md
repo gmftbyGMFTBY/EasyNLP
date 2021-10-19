@@ -18,7 +18,26 @@
 | dual-bert-hn(epoch=5,gray=2,cosine[temp=0.07],bert-mask-da-dmr[aug_t=10,0.4-0.6])  | 95.4  | 98.1  | 99.4  | 97.2 |
 | dual-bert-hn(no-fg,epoch=5,gray=2,cosine[temp=0.07],bert-mask-da-dmr[aug_t=10,0.4-0.6])  | 91.3  | 96.2  | 99.1  | 94.62 |
 
+<!-- ablation study -->
+| Models             | R10@1 | R10@2 | R10@5 | MRR   |
+| ------------------ | ----- | ----- | ----- | ----- |
+| SA-BERT+HCL        | 72.1  | 89.6  | 99.3  | -     |
+| BERT-FP            | 87.0  | 95.6  | 99.3  | 92.52 |
+| dual-bert          | 92.5  | 97.0  | 99.4  | 95.49 |
+| dual-bert-full(5,lr=5e-5,bert-fp) | 91.1  | 97.0 | 99.5 | 94.87 |
+| dual-bert-full(5,lr=5e-5,bert-fp-mono,epoch=5) | 93.6  | 97.7  | 99.6  | 96.25 |
+| dual-bert-full(10,lr=5e-5,bert-fp,epoch=5) | 94.9  | 98.4  | 99.7 | 97.6 |
+| dual-bert-full(10,lr=5e-5,bert-fp-mono,epoch=5) | 95.9 | 98.7 | 99.5 | 97.59 |
+
 ### 1.2 Douban Dataset
+
+<!-- ablation study of the bert-fp-mono -->
+| Models             | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   | Time Cost(ms) |
+| ------------------ | ----- | ----- | ----- | ----- | ----- | ------ | --------- |
+| SA-BERT+HCL        | 33.0  | 53.1  | 85.8  | 68.1  | 51.4  | 63.9   |           |
+| BERT-FP            | 32.4  | 54.2  | **87.0**  | 68.0  | 51.2  | 64.4   |  64775.34        |
+| DR-BERT(bert-fp-mono,epoch-5,full=5)            | 34.74  | 53.98  | 86.14  | 69.44  | 53.97  | 65.23   |  25.15        |
+| DR-BERT(bert-fp-mono,epoch-5,full=5)            | 34.65  | 54.84  | 86.03  | 69.29  | 52.92  | 65.53   |  24.72        |
 
 <!-- seed=0; bsz=64; max_len=256,64; epoch=10; lr=5e-5; warmup_ratio=0.0l grad_clip=5.0;-->
 | Models             | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   | Time Cost(ms) |
@@ -51,12 +70,16 @@
 | -------------- | ----- | ----- | ----- | ------ |
 | SA-BERT+HCL    | 86.7  | 94.0  | 99.2  | 97.7   |
 | BERT-FP        | **91.1**  | **96.2**  | **99.4**  | **97.7**   |
+| bert-ft        | 90.16 | 95.82 | 99.25 | - |
 | poly-encoder | 88.15 | 94.86 | 99.04 | - |
 | poly-encoder-full(5) | 90.12 | 95.76 | 99.21 | - |
 | dual-bert      | 88.57 | 95.06 | 99.09 | - |
 | dual-bert-full | 90.36 | 95.82 | 99.18 | - |
 | dual-bert-full(bert-fp-mono) | 90.1 | 95.55 | 99.03 | - |
-| bert-ft        | 90.16 | 95.82 | 99.25 | - |
+| DR-BERT(full=5,bert-fp-mono,epoch=5)      | 90.52 | 95.74 | 99.17 | - |
+| DR-BERT(full=5,bert-fp-mono,epoch=10)      | 90.52 | 95.86 | 99.2 | - |
+| DR-BERT(full=100,bert-fp-mono,epoch=5)      |  |  |  | - |
+| DR-BERT(full=100,bert-fp-mono,epoch=10)     |  |  |  | - |
 
 ### 1.4 Restoration-200k Dataset
 
@@ -246,6 +269,9 @@ ATC means the average time cost
 | SA-BERT(BERT-FP)| 0.674  | 0.753  |
 | dual-bert       | 0.686  | 0.767  |
 | DR-BERT(full)   | 0.699  | 0.776  |
+| DR-BERT(bert-fp-mono,full)   | 0.702  | 0.780  |
+| DR-BERT(bert-fp-mono,full,epoch=10)   | 0.702  | 0.779  |
+| DR-BERT-hn(bert-fp-mono,full)   | 0.708  | 0.780  |
 | DR-BERT-triplet(full)   | 0.702  | 0.776  |
 | DR-BERT-memory(full)   | 0.694  | 0.774  |
 | DR-BERT-hn(full)| 0.706  | 0.778  |

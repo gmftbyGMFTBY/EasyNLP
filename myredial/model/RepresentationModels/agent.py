@@ -53,6 +53,8 @@ class RepresentationAgent(RetrievalBaseAgent):
         if self.args['fgm']:
             self.fgm = FGM(self.model)
 
+        # faiss searcher for inference
+
     def train_model_hash(self, train_iter, test_iter, recoder=None, idx_=0):
         self.model.train()
         total_loss, batch_num = 0, 0
@@ -281,10 +283,13 @@ class RepresentationAgent(RetrievalBaseAgent):
                 batch['ids'], batch['ids_mask'] = cid, cid_mask
                 batch['rids'], batch['rids_mask'] = rid, rid_mask
             elif 'ids' in batch:
-                cid = batch['ids'].unsqueeze(0)
-                cid_mask = torch.ones_like(cid)
-                batch['ids'] = cid
-                batch['ids_mask'] = cid_mask
+                if self.args['model'] in ['dual-bert-multi-ctx']:
+                    pass
+                else:
+                    cid = batch['ids'].unsqueeze(0)
+                    cid_mask = torch.ones_like(cid)
+                    batch['ids'] = cid
+                    batch['ids_mask'] = cid_mask
 
             if self.args['mode'] in ['train']:
                 scores = self.model.module.predict(batch).cpu().tolist()    # [B]
@@ -662,9 +667,11 @@ class RepresentationAgent(RetrievalBaseAgent):
                     else:
                         raise Exception()
                 self.model.ctx_encoder.load_state_dict(new_ctx_state_dict)
-                self.model.can_encoders[0].load_state_dict(new_res_state_dict)
-                self.model.can_encoders[1].load_state_dict(new_res_state_dict)
-            elif self.args['model'] in ['dual-bert-hn', 'dual-bert-hn-ctx', 'dual-bert-cl']:
+                for idx in range(self.args['gray_cand_num'] + 1):
+                    self.model.can_encoders[idx].load_state_dict(new_res_state_dict)
+                print(f'[!] init the context encoder and {self.args["gray_cand_num"]+1} response encoders')
+                # print(f'[!] init the context encoder and response encoders')
+            elif self.args['model'] in ['dual-bert-hn-ctx', 'dual-bert-cl']:
                 new_ctx_state_dict = OrderedDict()
                 new_res_state_dict = OrderedDict()
                 for k, v in state_dict.items():
@@ -864,3 +871,44 @@ class RepresentationAgent(RetrievalBaseAgent):
             recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
             recoder.add_scalar(f'train-whole/DCAcc', total_dc_acc/batch_num, idx_)
         return batch_num
+
+    @torch.no_grad()
+    def inference_and_update_index(self, inf_iter, inner_size=500000):
+        # inference the whole dataset, only one worker can be allowed to run the following steps
+        self.inference(inf_iter, size=inner_size)
+        torch.distributed.barrier()
+        if self.args['local_rank'] != 0:
+            return
+        # load all of the saved samples
+        embds, texts = [], []
+        for i in tqdm(range(args['total_workers'])):
+            for idx in range(100):
+                try:
+                    embd, text = torch.load(
+                        f'{args["root_dir"]}/data/{args["dataset"]}/inference_{args["model"]}_{i}_{idx}.pt'
+                    )
+                    print(f'[!] load {args["root_dir"]}/data/{args["dataset"]}/inference_{args["model"]}_{i}_{idx}.pt')
+                except:
+                    break
+                embds.append(embd)
+                texts.extend(text)
+                already_added.append((i, idx))
+            if len(embds) > 10000000:
+                break
+        embds = np.concatenate(embds) 
+
+        # init the faiss searcher
+        self.searcher = Searcher(
+            args['index_type'], dimension=args['dimension']
+        )
+        searcher._build(embds, texts, speedup=True)
+        print(f'[!] train the searcher over')
+        
+        # save the faiss searcher
+        model_name = args['model']
+        pretrained_model_name = args['pretrained_model']
+        self.searcher.save(
+            f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_faiss.ckpt',
+            f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt',
+        )
+        print(f'[!] update faiss index over')

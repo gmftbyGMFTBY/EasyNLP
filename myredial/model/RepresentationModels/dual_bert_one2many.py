@@ -6,22 +6,20 @@ class BERTDualO2MEncoder(nn.Module):
         super(BERTDualO2MEncoder, self).__init__()
         model = args['pretrained_model']
         self.topk = args['gray_cand_num'] + 1
-        self.temp = args['temp']
         self.ctx_encoder = BertEmbedding(model=model)
         self.can_encoders = nn.ModuleList([
             BertEmbedding(model=model) for _ in range(self.topk) 
         ])
+        # self.can_encoder = BertEmbedding(model=model)
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
-        cid_reps = []
-        for cid_, cid_mask_ in zip(cid, cid_mask):
-            cid_rep = self.ctx_encoder(cid_, cid_mask_)    # [B, E]
-            cid_reps.append(cid_rep)
+        cid_rep = self.ctx_encoder(cid, cid_mask)    # [B, E]
         rid_reps = []
-        for i in range(self.topk):
-            rid_rep = self.can_encoders[i](rid, rid_mask)
+        for idx, (rid_, rid_mask_) in enumerate(zip(rid, rid_mask)):
+            rid_rep = self.can_encoders[idx](rid_, rid_mask_)
+            # rid_rep = self.can_encoder(rid_, rid_mask_)
             rid_reps.append(rid_rep)
-        return cid_reps, rid_reps
+        return cid_rep, rid_reps
 
     @torch.no_grad()
     def get_cand(self, ids, attn_mask):
@@ -29,7 +27,6 @@ class BERTDualO2MEncoder(nn.Module):
         for idx in range(self.topk):
             rid_rep = self.can_encoders[idx](ids, attn_mask)
             rid_reps.append(rid_rep)
-        # K*[B, E]
         rid_rep = torch.cat(rid_reps)    # [B*K, E]
         return rid_rep
 
@@ -46,41 +43,40 @@ class BERTDualO2MEncoder(nn.Module):
         rid_mask = batch['rids_mask']
 
         batch_size = rid.shape[0]
-        cid_rep = self.ctx_encoder(cid, cid_mask)
-        rid_rep_1 = self.can_encoders[0](rid, rid_mask)
-        rid_rep_2 = self.can_encoders[1](rid, rid_mask)
+        # [B, E]; K*[B, E]
+        cid_rep, rid_reps = self._encode(cid, [rid]*self.topk, cid_mask, [rid_mask]*self.topk)
         dot_products = []
-        for rid_rep in [rid_rep_1, rid_rep_2]:
+        for rid_rep in rid_reps:
             dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)    # [B]
             dot_products.append(dot_product)
         dot_product = torch.stack(dot_products)    # [K, B]
-        score = dot_product.max(dim=0)[0]
+        # score = dot_product.mean(dim=0)    # [B]
+        # score = dot_product.max(dim=0)[0]
+        score = dot_product.min(dim=0)[0]
         return score
 
     def forward(self, batch):
-        cid = batch['ids']     # 2*[B, S]
-        rid = batch['rids']     # [B, S]
+        cid = batch['ids']
+        rid = batch['rids']
         cid_mask = batch['ids_mask']
         rid_mask = batch['rids_mask']
+        batch_size = len(cid)
 
-        batch_size = len(rid)
-        cid_reps, rid_reps = self._encode(cid, rid, cid_mask, rid_mask)
-        dot_products = []
-        loss = 0
-        for cid_rep, rid_rep in zip(cid_reps, rid_reps):
-            dot_product = torch.matmul(cid_rep, rid_rep.t())     # [B, B]
-            dot_product /= self.temp
+        cid_rep, rid_reps = self._encode(cid, rid, cid_mask, rid_mask)
+        dot_products, loss = [], 0
+        for rid_rep in rid_reps:
+            dot_product = torch.matmul(cid_rep, rid_rep.t())
             mask = torch.zeros_like(dot_product)
             mask[range(batch_size), range(batch_size)] = 1. 
             loss_ = F.log_softmax(dot_product, dim=-1) * mask
             loss += (-loss_.sum(dim=1)).mean()
             dot_products.append(dot_product)
-        loss /= 2
+        loss /= len(rid_reps)
         # acc
         acc_num = 0
         for dp in dot_products:
-            acc_num += (F.softmax(dp, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
-        acc = acc_num / batch_size / 2
+            acc_num += (dp.max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
+        acc = acc_num / batch_size / len(dot_products)
         return loss, acc
 
 

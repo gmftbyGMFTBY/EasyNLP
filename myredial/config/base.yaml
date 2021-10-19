@@ -157,8 +157,8 @@ models:
         # dataset_name: BERTDualHNDataset
         # dataset_name: BERTDualFullDataset
         # dataset_name: BERTDualBM25HNDataset
-        # dataset_name: HORSETestDataset
-        dataset_name: BERTDualBertMaskHardNegativeDataset
+        dataset_name: HORSETestDataset
+        # dataset_name: BERTDualBertMaskHardNegativeDataset
         # dataset_name: BERTDualSimCSEHardNegativeDataset
         # dataset_name: FineGrainedTestDataset
         # dataset_name: BERTDualFullWithHardNegDataset
@@ -243,6 +243,11 @@ models:
         model_name: BERTDualNHPEncoder
         dataset_name: BERTDualFullNHPDataset
         inference_dataset_name: BERTDualInferenceDataset
+    dual-bert-multi-ctx: 
+        type: Representation
+        model_name: BERTDualMultiContextEncoder
+        dataset_name: BERTDualFullMultiContextDataset
+        inference_dataset_name: BERTDualInferenceDataset
     dual-bert: 
         type: Representation
         model_name: BERTDualEncoder
@@ -270,10 +275,10 @@ models:
         # inference_dataset_name: BERTDualInferenceWithSourceDataset
         # inference_dataset_name: BERTDualInferenceFullDataset
         # inference_dataset_name: BERTDualInferenceFullEXTDataset
-        # inference_dataset_name: BERTDualInferenceContextDataset
+        inference_dataset_name: BERTDualInferenceContextDataset
         # inference_dataset_name: BERTDualInferenceFullContextDataset
         # inference_dataset_name: BERTDualInferenceFullContextSingleExtendDataset
-        inference_dataset_name: BERTDualInferenceFullForOne2ManyDataset
+        # inference_dataset_name: BERTDualInferenceFullForOne2ManyDataset
     dual-bert-triplet:
         type: Representation
         model_name: BERTDualEncoderTripletMargin
@@ -328,6 +333,11 @@ models:
         type: Generation
         model_name: GPT2UnlikelyModel
         dataset_name: GPT2UnlikelyhoodDataset
+        inference_dataset_name: null
+    gpt2-grl: 
+        type: Generation
+        model_name: GPT2GRLModel
+        dataset_name: GPT2WithNegDataset
         inference_dataset_name: null
     gpt2: 
         type: Generation
@@ -489,6 +499,16 @@ models:
         model_name: GPT2LM
         dataset_name: null
         inference_dataset_name: null
+    trans-bi-encoder:
+        type: MutualTrainingModel
+        model_name: TransBiEncoder
+        dataset_name: MutualTrainingDataset
+        inference_dataset_name: null
+    trans-encoder:
+        type: MutualTrainingModel
+        model_name: TransEncoder
+        dataset_name: MutualTrainingDataset
+        inference_dataset_name: null
 
 # ========= Global configuration ========== #
 # huge file are saved in the root dir
@@ -497,7 +517,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 1
+version: 2
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
 rank: null

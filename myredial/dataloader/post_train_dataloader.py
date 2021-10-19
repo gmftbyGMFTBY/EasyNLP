@@ -155,8 +155,8 @@ class PostTrainMonoDataset(Dataset):
         if self.args['dataset'] in ['restoration-200k']:
             data = read_extended_douban_corpus(path)
         else:
-            # for douban, ecommerce, ubuntu
-            data = read_text_data_utterances(path)
+            # for douban, ecommerce, ubuntu, just on their own dataset
+            data = read_text_data_utterances(path, lang=args['lang'])
             data = list(chain(*[utterances for l, utterances in data if l == 1]))
             data = list(set(data))
         self.data = []

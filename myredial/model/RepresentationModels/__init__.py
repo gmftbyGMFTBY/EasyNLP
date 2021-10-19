@@ -1,4 +1,5 @@
 from .agent import *
+from .dual_bert_multi_ctx import *
 from .dual_bert import *
 from .dual_bert_adv import *
 from .dual_bert_memory import *

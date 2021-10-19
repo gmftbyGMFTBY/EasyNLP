@@ -354,12 +354,24 @@ class GPT2WithNegDataset(Dataset):
             self.data = []
             for text in tqdm(data):
                 item = self.vocab.encode(text, add_special_tokens=False)
-                for idx in range(0, len(item), self.args['max_len']-2):
-                    ids = item[idx:idx+self.args['max_len']-2]
+                if len(item) < self.args['min_train_len']:
+                    continue
+                for idx in range(0, len(item), self.args['max_len']):
+                    ids = item[idx:idx+self.args['max_len']]
                     if len(ids) < self.args['min_len']:
                         continue
-                    ids = [self.cls] + ids + [self.sep]
-                    self.data.append({'ids': ids})
+
+                    # negative samples: 16 tokens in negative responses
+                    min_neg_len, max_neg_len = self.args['min_neg_len'], self.args['max_neg_len']
+                    neg_len = random.randint(min_neg_len, max_neg_len)
+                    index_range = list(range(0, len(item) - neg_len))
+                    index_begin = random.choice(index_range)
+                    negative_response = item[index_begin:index_begin+neg_len]
+                    ctx_ids = ids[:-neg_len]
+                    neg_ids = ctx_ids + negative_response 
+                    neg_label = [0] * len(ctx_ids) + negative_response
+                    
+                    self.data.append({'ids': ids, 'neg_ids': neg_ids, 'neg_label': neg_label})
         else:
             path = f'{args["root_dir"]}/data/{args["dataset"]}/test_gray_simcse.pt'
             data = torch.load(path)
@@ -371,11 +383,11 @@ class GPT2WithNegDataset(Dataset):
                 for neg in neg_responses:
                     # prefix
                     item = self.vocab.encode(context, add_special_tokens=False)
-                    ids = [self.cls] + item[-(self.args['max_len']-1):]
+                    ids = item[-self.args['max_len']:]
                     item = self.vocab.encode(context+pos, add_special_tokens=False)
-                    pos_ids = [self.cls] + item[:self.args['max_len']-2] + [self.sep]
+                    pos_ids = item[:self.args['max_len']]
                     item = self.vocab.encode(context+neg, add_special_tokens=False)
-                    neg_ids = [self.cls] + item[:self.args['max_len']-2] + [self.sep]
+                    neg_ids = item[:self.args['max_len']]
                     self.data.append({
                         'ids': ids,
                         'pos_ids': pos_ids,
@@ -392,7 +404,9 @@ class GPT2WithNegDataset(Dataset):
         bundle = self.data[i]
         if self.args['mode'] == 'train':
             ids = torch.LongTensor(bundle['ids'])
-            return ids
+            neg_ids = torch.LongTensor(bundle['neg_ids'])
+            neg_label = torch.LongTensor(bundle['neg_label'])
+            return ids, neg_ids, neg_label
         else:
             ids = torch.LongTensor(bundle['ids'])
             pos_ids = torch.LongTensor(bundle['pos_ids'])
@@ -405,12 +419,21 @@ class GPT2WithNegDataset(Dataset):
         
     def collate(self, batch):
         if self.args['mode'] == 'train':
-            ids = pad_sequence(batch, batch_first=True, padding_value=self.pad)
+            ids, neg_ids = [i[0] for i in batch], [i[1] for i in batch]
+            neg_label = [i[2] for i in batch]
+            ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+            neg_ids = pad_sequence(neg_ids, batch_first=True, padding_value=self.pad)
+            neg_label = pad_sequence(neg_label, batch_first=True, padding_value=self.pad)
             mask = generate_mask(ids)
+            neg_mask = generate_mask(neg_ids)
             ids, mask = to_cuda(ids, mask)
+            neg_ids, neg_mask, neg_label = to_cuda(neg_ids, neg_mask, neg_label)
             return {
                 'ids': ids, 
                 'mask': mask, 
+                'neg_ids': neg_ids,
+                'neg_mask': neg_mask,
+                'neg_label': neg_label,
             }
         else:
             ids = [i[0] for i in batch]
