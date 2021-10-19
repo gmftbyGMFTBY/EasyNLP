@@ -78,7 +78,7 @@
 | dual-bert-full(bert-fp-mono) | 90.1 | 95.55 | 99.03 | - |
 | DR-BERT(full=5,bert-fp-mono,epoch=5)      | 90.52 | 95.74 | 99.17 | - |
 | DR-BERT(full=5,bert-fp-mono,epoch=10)      | 90.52 | 95.86 | 99.2 | - |
-| DR-BERT(full=100,bert-fp-mono,epoch=5)      |  |  |  | - |
+| DR-BERT(full=100,bert-fp-mono,epoch=5)      | 91.25 | 96.08 | 99.3 | - |
 | DR-BERT(full=100,bert-fp-mono,epoch=10)     |  |  |  | - |
 
 ### 1.4 Restoration-200k Dataset
