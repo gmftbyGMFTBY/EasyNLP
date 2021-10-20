@@ -34,6 +34,7 @@ no_test_models:
     - bert-fp-multi
     - bert-fp-no-cls
     - bert-fp-mono
+    - bert-fp-mono-plus
     - simcse
     - bert-mask-da
     - bert-mask-da-dmr
@@ -248,15 +249,21 @@ models:
         model_name: BERTDualMultiContextEncoder
         dataset_name: BERTDualFullMultiContextDataset
         inference_dataset_name: BERTDualInferenceDataset
+    dual-bert-sp: 
+        type: Representation
+        model_name: BERTDualEncoder
+        # dataset_name: BERTDualFullDataset
+        dataset_name: HORSETestDataset
+        inference_dataset_name: BERTDualInferenceDataset
     dual-bert: 
         type: Representation
         model_name: BERTDualEncoder
         # dataset_name: BERTDualFullFakeCtxDataset
         # dataset_name: BERTDualDataset
         # dataset_name: BERTDualFullWithHardNegDataset
-        dataset_name: BERTDualFullDataset
+        # dataset_name: BERTDualFullDataset
         # dataset_name: BERTDualDAFullDataset
-        # dataset_name: HORSETestDataset
+        dataset_name: HORSETestDataset
         # dataset_name: BERTDualRandomFullDataset
         # dataset_name: BERTDualMultiCTXFullDataset
         # dataset_name: BERTDualTimeDataset
@@ -479,11 +486,15 @@ models:
         model_name: BERTFPPostTrain
         dataset_name: PostTrainDataset
         inference_dataset_name: null 
+    bert-fp-mono-plus: 
+        type: PostTrain
+        model_name: BERTMonolingualPostTrain
+        dataset_name: PostTrainMonoPlusDataset
+        inference_dataset_name: null 
     bert-fp-mono: 
         type: PostTrain
         model_name: BERTMonolingualPostTrain
         dataset_name: PostTrainMonoDataset
-        # dataset_name: PostTrainMonoPlusDataset
         inference_dataset_name: null 
     dual-bert-pt: 
         type: Representation
@@ -518,7 +529,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 22
+version: 104
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
 rank: null

@@ -126,7 +126,6 @@ class RetrievalBaseAgent:
                 path = self.args['checkpoint']['path']
                 path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{path}'
                 self.load_model(path)
-                print(f'[!] load checkpoint from {path}')
             else:
                 print(f'[!] DONOT load checkpoint')
         else:

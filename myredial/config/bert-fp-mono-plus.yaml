@@ -1,4 +1,7 @@
 # basic configuration for building the model
+max_turn_length: 5
+min_turn_length: 1
+each_turn_max_sample_num: 2
 dropout: 0.1
 
 # train configuration

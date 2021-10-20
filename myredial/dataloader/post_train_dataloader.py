@@ -791,7 +791,7 @@ class PostTrainMonoPlusDataset(Dataset):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
-        # for douban, ecommerce, ubuntu, restoration-200k just on their own dataset
+        # multiple sentences to append the post train corpus
         dataset = read_text_data_utterances(path, lang=args['lang'])
         dataset = [utterances for l, utterances in dataset if l == 1]
         data = []

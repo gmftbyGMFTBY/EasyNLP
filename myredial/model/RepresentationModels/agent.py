@@ -644,17 +644,32 @@ class RepresentationAgent(RetrievalBaseAgent):
         return scores
 
     def load_model(self, path):
+        # ========== special case ========== #
+        if self.args['mode'] == 'train' and self.args['model'] in ['dual-bert-sp']:
+            context_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["checkpoint"]["context_encoder_path"]}'
+            response_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["checkpoint"]["response_encoder_path"]}'
+            # load context from bert-fp
+            state_dict = torch.load(context_path, map_location=torch.device('cpu'))
+            self.checkpointadapeter.init(
+                state_dict.keys(),
+                self.model.ctx_encoder.model.state_dict().keys(),
+            )
+            new_state_dict = self.checkpointadapeter.convert(state_dict)
+            self.model.ctx_encoder.model.load_state_dict(new_state_dict, strict=False)
+            # load response from bert-fp
+            state_dict = torch.load(response_path, map_location=torch.device('cpu'))
+            self.checkpointadapeter.init(
+                state_dict.keys(),
+                self.model.can_encoder.model.state_dict().keys(),
+            )
+            new_state_dict = self.checkpointadapeter.convert(state_dict)
+            self.model.can_encoder.model.load_state_dict(new_state_dict, strict=False)
+            print(f'[!] load following PLMs:\n - context BERT encoder: {context_path}\n - response BERT encoder: {response_path}')
+            return 
+        # ========== common case ========== #
         state_dict = torch.load(path, map_location=torch.device('cpu'))
         if self.args['mode'] == 'train':
-            if 'simsce' in path:
-                self.checkpointadapeter.init(
-                    state_dict.keys(),
-                    self.model.state_dict().keys(),
-                )
-                new_state_dict = self.checkpointadapeter.convert(state_dict)
-                self.model.load_state_dict(new_state_dict)
-                print(f'[!] load the simcse pre-trained model')
-            elif self.args['model'] in ['dual-bert-one2many']:
+            if self.args['model'] in ['dual-bert-one2many']:
                 new_ctx_state_dict = OrderedDict()
                 new_res_state_dict = OrderedDict()
                 for k, v in state_dict.items():
