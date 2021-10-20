@@ -24,10 +24,11 @@
 | SA-BERT+HCL        | 72.1  | 89.6  | 99.3  | -     |
 | BERT-FP            | 87.0  | 95.6  | 99.3  | 92.52 |
 | dual-bert          | 92.5  | 97.0  | 99.4  | 95.49 |
-| dual-bert-full(5,lr=5e-5,bert-fp) | 91.1  | 97.0 | 99.5 | 94.87 |
-| dual-bert-full(5,lr=5e-5,bert-fp-mono,epoch=5) | 93.6  | 97.7  | 99.6  | 96.25 |
-| dual-bert-full(10,lr=5e-5,bert-fp,epoch=5) | 94.9  | 98.4  | 99.7 | 97.6 |
-| dual-bert-full(10,lr=5e-5,bert-fp-mono,epoch=5) | 95.9 | 98.7 | 99.5 | 97.59 |
+| dual-bert-full(full=5,lr=5e-5,bert-fp,epoch=5) | 91.1  | 97.0 | 99.5 | 94.87 |
+| dual-bert-full(full=5,lr=5e-5,bert-fp-mono,epoch=5) | 93.6  | 97.7  | 99.6  | 96.25 |
+| dual-bert-full(full=5,lr=5e-5,bert-fp,epoch=10) | 94.9  | 98.4  | 99.7 | 97.6 |
+| dual-bert-full(full=5,lr=5e-5,bert-fp-mono,epoch=10) | 95.9 | 98.7 | 99.5 | 97.59 |
+| dual-bert-full(no-full,lr=5e-5,bert-fp-mono,epoch=10) | 92.5 | 96.9| 99.5 | 95.52 |
 
 ### 1.2 Douban Dataset
 
@@ -38,6 +39,7 @@
 | BERT-FP            | 32.4  | 54.2  | **87.0**  | 68.0  | 51.2  | 64.4   |  64775.34        |
 | DR-BERT(bert-fp-mono,epoch-5,full=5)            | 34.74  | 53.98  | 86.14  | 69.44  | 53.97  | 65.23   |  25.15        |
 | DR-BERT(bert-fp-mono,epoch-5,full=5)            | 34.65  | 54.84  | 86.03  | 69.29  | 52.92  | 65.53   |  24.72        |
+| DR-BERT(no-full,bert-fp-mono,epoch-5)            | 31.07  | 49.59  | 83.4  | 65.54  | 48.73  | 61.3   |  25.03        |
 
 <!-- seed=0; bsz=64; max_len=256,64; epoch=10; lr=5e-5; warmup_ratio=0.0l grad_clip=5.0;-->
 | Models             | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   | Time Cost(ms) |
@@ -79,7 +81,8 @@
 | DR-BERT(full=5,bert-fp-mono,epoch=5)      | 90.52 | 95.74 | 99.17 | - |
 | DR-BERT(full=5,bert-fp-mono,epoch=10)      | 90.52 | 95.86 | 99.2 | - |
 | DR-BERT(full=100,bert-fp-mono,epoch=5)      | 91.25 | 96.08 | 99.3 | - |
-| DR-BERT(full=100,bert-fp-mono,epoch=10)     |  |  |  | - |
+| DR-BERT(full=100,bert-fp-mono,epoch=10)     | 91.0 | 95.95 | 99.25 | - |
+| DR-BERT(no-full,bert-fp-mono,epoch=5)      | 88.86 | 94.99 | 99.11 | - |
 
 ### 1.4 Restoration-200k Dataset
 

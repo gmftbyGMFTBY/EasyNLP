@@ -27,7 +27,7 @@ train:
         # path: dual-bert-pt/best_bert-base-chinese.pt
         # path: bert-fp-no-cls/best_bert-base-chinese.pt
         # path: bert-fp/best_bert-base-chinese.pt
-        path: bert-fp-mono/best_bert-base-chinese.pt
+        path: bert-fp-mono/best_bert-base-chinese_1.pt
         # path: bert-fp-mono/best_bert-base-uncased.pt
         # path: simcse/best_bert-base-chinese.pt
         is_load: true

@@ -23,10 +23,10 @@ class BERTDualDataset(Dataset):
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
 
-        data = read_text_data_utterances(path, lang=self.args['lang'])
 
         self.data = []
         if self.args['mode'] == 'train':
+            data = read_text_data_utterances(path, lang=self.args['lang'])
             for label, utterances in tqdm(data):
                 if label == 0:
                     continue
@@ -47,6 +47,10 @@ class BERTDualDataset(Dataset):
                     'rtext': utterances[-1],
                 })
         else:
+            data = read_text_data_utterances(path, lang=self.args['lang'])
+            # DEBUG for Ubuntu Corpus
+            if args['dataset'] in ['ubuntu'] and args['mode'] == 'valid':
+                data = data[:10000]    # 1000 sampels for ubunut
             for i in tqdm(range(0, len(data), 10)):
                 batch = data[i:i+10]
                 rids = []
