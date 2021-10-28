@@ -261,7 +261,7 @@ class BERTDualFullDataset(Dataset):
         self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
 
         suffix = args['tokenizer'].replace('/', '_')
-        self.pp_path = f'{os.path.splitext(path)[0]}_dual_full_{suffix}.pt'
+        self.pp_path = f'{os.path.splitext(path)[0]}_dual_full_{self.args["full_turn_length"]}_{suffix}.pt'
         if os.path.exists(self.pp_path):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')

@@ -612,8 +612,8 @@ class RepresentationAgent(RetrievalBaseAgent):
             vectors = self.model.get_ctx(ids, ids_mask, pos_w)    # [B, E]
         else:
             ids, ids_mask = self.totensor(texts, ctx=True)
-            # vectors = self.model.get_ctx(ids, ids_mask)    # [B, E]
-            vectors = self.model.module.get_ctx(ids, ids_mask)    # [B, E]
+            vectors = self.model.get_ctx(ids, ids_mask)    # [B, E]
+            # vectors = self.model.module.get_ctx(ids, ids_mask)    # [B, E]
         return vectors.cpu().numpy()
 
     @torch.no_grad()
@@ -715,6 +715,23 @@ class RepresentationAgent(RetrievalBaseAgent):
                         new_can_state_dict[k] = v
                 self.model.ctx_encoder.load_state_dict(new_ctx_state_dict)
                 self.model.can_encoder.load_state_dict(new_can_state_dict)
+            elif self.args['model'] in ['xmoco']:
+                # fast or slow context encoder load
+                self.checkpointadapeter.init(
+                    state_dict.keys(),
+                    self.model.ctx_fast_encoder.model.state_dict().keys(),
+                )
+                new_state_dict = self.checkpointadapeter.convert(state_dict)
+                self.model.ctx_fast_encoder.model.load_state_dict(new_state_dict, strict=False)
+                self.model.ctx_slow_encoder.model.load_state_dict(new_state_dict, strict=False)
+                # fast or slow response encoder load
+                self.checkpointadapeter.init(
+                    state_dict.keys(),
+                    self.model.can_fast_encoder.model.state_dict().keys(),
+                )
+                new_state_dict = self.checkpointadapeter.convert(state_dict)
+                self.model.can_fast_encoder.model.load_state_dict(new_state_dict, strict=False)
+                self.model.can_slow_encoder.model.load_state_dict(new_state_dict, strict=False)
             else:
                 # context encoder checkpoint
                 self.checkpointadapeter.init(

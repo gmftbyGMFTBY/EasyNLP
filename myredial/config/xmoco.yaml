@@ -1,12 +1,8 @@
-temp: 1.
-# five for restoration-200k is enough
-# test 100 full_turn_length for ubuntu corpus
-full_turn_length: 9
+full_turn_length: 5
 test_interval: 0.05
-multi_ctx: 1
-min_conv_length: 3
-data_filter_size: 650000
 valid_during_training: false
+queue_size: 16384
+momentum_ratio: 0.001
 
 # network issue, load locally
 tokenizer:
@@ -20,10 +16,10 @@ train:
     grad_clip: 5.0
     seed: 0
     batch_size: 64
-    max_len: 256
-    res_max_len: 64
-    epoch: 5 
-    warmup_ratio: 0.
+    max_len: 64
+    res_max_len: 32
+    epoch: 10
+    warmup_ratio: 0.05
     checkpoint: 
         # path: bert-post/best_nspmlm.pt
         # path: bert-fp/best_bert-base-chinese.pt
@@ -41,8 +37,8 @@ train:
 test:
     seed: 0
     batch_size: 1
-    max_len: 256
-    res_max_len: 64
+    max_len: 64
+    res_max_len: 32
 
 # inference configuration
 inference:

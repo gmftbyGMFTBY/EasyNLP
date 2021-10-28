@@ -4,7 +4,13 @@ class BERTDualEncoder(nn.Module):
 
     def __init__(self, **args):
         super(BERTDualEncoder, self).__init__()
+
+        # load globally from internet
         model = args['pretrained_model']
+        # load locally
+        # model = f'{args["root_dir"]}/{args["pretrained_model"]}'
+        # ipdb.set_trace()
+
         self.temp = args['temp']
         self.ctx_encoder = BertEmbedding(model=model, add_tokens=1)
         self.can_encoder = BertEmbedding(model=model, add_tokens=1)

@@ -325,8 +325,9 @@ class GenerationBaseAgent:
         if self.best_test is None:
             self.best_test = new_test
             return True
-        ppl_pos = self.best_test['PPL-pos']
-        ppl_neg = self.best_test['PPL-neg']
+        # ppl_pos = self.best_test['PPL-pos']
+        # ppl_neg = self.best_test['PPL-neg']
+        ppl = self.best_test['PPL']
         b_1 = self.best_test['BLEU-1']
         b_2 = self.best_test['BLEU-2']
         b_3 = self.best_test['BLEU-3']
@@ -337,10 +338,12 @@ class GenerationBaseAgent:
         r = self.best_test['BERTScore-R']
         f = self.best_test['BERTScore-F']
         # now_test_score = b_1 + b_2 + b_3 + b_4 + rouge_l + meteor + p + r + f
-        now_test_score = ppl_neg - ppl_pos
+        # now_test_score = ppl_neg - ppl_pos
+        now_test_score = ppl
         
-        ppl_pos = new_test['PPL-pos']
-        ppl_neg = new_test['PPL-neg']
+        # ppl_pos = new_test['PPL-pos']
+        # ppl_neg = new_test['PPL-neg']
+        ppl = new_test['PPL']
         b_1 = new_test['BLEU-1']
         b_2 = new_test['BLEU-2']
         b_3 = new_test['BLEU-3']
@@ -351,8 +354,10 @@ class GenerationBaseAgent:
         r = new_test['BERTScore-R']
         f = new_test['BERTScore-F']
         # new_test_score = b_1 + b_2 + b_3 + b_4 + rouge_l + meteor + p + r + f
-        new_test_score = ppl_neg - ppl_pos
-        if new_test_score > now_test_score:
+        # new_test_score = ppl_neg - ppl_pos
+        new_test_score = ppl
+        # if new_test_score > now_test_score:
+        if new_test_score < now_test_score:
             self.best_test = new_test
             return True
         else:
@@ -363,7 +368,7 @@ class GenerationBaseAgent:
         if self.args['model'] in self.args['no_test_models']:
             if self.args['local_rank'] == 0:
                 pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
-                save_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_{pretrained_model_name}.pt'
+                save_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_{pretrained_model_name}_{self.args["version"]}.pt'
                 self.save_model(save_path)
             return
 
@@ -371,8 +376,9 @@ class GenerationBaseAgent:
         test_rest = self.test_model(test_iter)
 
         print(test_rest)
-        ppl_pos = test_rest['PPL-pos']
-        ppl_neg = test_rest['PPL-neg']
+        # ppl_pos = test_rest['PPL-pos']
+        # ppl_neg = test_rest['PPL-neg']
+        ppl = test_rest['PPL']
         b_1 = test_rest['BLEU-1']
         b_2 = test_rest['BLEU-2']
         b_3 = test_rest['BLEU-3']
@@ -384,8 +390,9 @@ class GenerationBaseAgent:
         f = test_rest['BERTScore-F']
 
         if recoder:
-            recoder.add_scalar(f'train-test/PPL-pos', ppl_pos, index)
-            recoder.add_scalar(f'train-test/PPL-neg', ppl_neg, index)
+            # recoder.add_scalar(f'train-test/PPL-pos', ppl_pos, index)
+            # recoder.add_scalar(f'train-test/PPL-neg', ppl_neg, index)
+            recoder.add_scalar(f'train-test/PPL', ppl, index)
             recoder.add_scalar(f'train-test/BLEU-1', b_1, index)
             recoder.add_scalar(f'train-test/BLEU-2', b_2, index)
             recoder.add_scalar(f'train-test/BLEU-3', b_3, index)
@@ -402,7 +409,7 @@ class GenerationBaseAgent:
             # check the performance
             if self.compare_performance(test_rest):
                 pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
-                save_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_{pretrained_model_name}.pt'
+                save_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_{pretrained_model_name}_{self.args["version"]}.pt'
                 self.save_model(save_path)
                 print(f'[!] find new best model at test step: {index}')
 

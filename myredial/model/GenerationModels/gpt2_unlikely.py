@@ -6,38 +6,30 @@ class GPT2UnlikelyModel(nn.Module):
 
     def __init__(self, **args):
         super(GPT2UnlikelyModel, self).__init__()
-        gpt2_model = args['pretrained_model']
-        bert_model = args['bert_pretrained_model']
-        self.gpt2_model = GPT2LMHeadModel.from_pretrained(gpt2_model)
-        self.bert_model = BertGenerationOnGPT2Decoder.from_pretrained(bert_model)
-        # pad token is 0
+        self.model = GPT2IteractiveLMHeadModel.from_pretrained(args['pretrained_model'])
+        self.cls_head = nn.Sequential(
+            nn.Dropout(p=args['dropout']),
+            nn.Linear(768, 768),
+            nn.Tanh(),
+            nn.Dropout(p=args['dropout']),
+            nn.Linear(768, 1),
+        )
         self.gen_loss_fct = nn.CrossEntropyLoss(ignore_index=0)
-        self.vocab = BertTokenizerFast.from_pretrained(gpt2_model)
-        self.pad, self.bos, self.eos = self.vocab.convert_tokens_to_ids(['[PAD]', '[CLS]', '[SEP]'])
+        self.cls_loss_fct = nn.BCEWithLogitsLoss()
+        self.vocab = BertTokenizerFast.from_pretrained(args['pretrained_model'])
+        self.pad, self.cls, self.unk, self.sep = self.vocab.convert_tokens_to_ids(['[PAD]', '[CLS]', '[UNK]', '[SEP]'])
         self.topk = args['topk']
         self.topp = args['topp']
-        self.temp = args['temp']
         self.test_max_len = args['gen_max_len']
-        self.test_min_len = args['gen_min_len']
+        self.test_max_ctx_len = args['gen_max_ctx_len']
         self.repetition_penalty = args['repetition_penalty']
-        self.alpha = args['alpha']
+        self.iteractive_num = args['iteractive_num']
+        self.scale_ratio = args['scale_ratio']
 
     @torch.no_grad()
     def calculate_ppl(self, ids, ids_mask, label):
-        gpt2_output = self.gpt2_model(
-            input_ids=ids, 
-            attention_mask=ids_mask,
-            output_hidden_states=True    
-        )
-        gpt2_hidden_states = gpt2_output.hidden_states[-1]    # [B, S, E]
-        gpt2_hidden_states = gpt2_hidden_states.mean(dim=1)    # [B, E]
-        bert_output = self.bert_model(
-            input_ids=ids, 
-            attention_mask=ids_mask,
-            gpt2_hidden_states=gpt2_hidden_states,
-        )
-        bert_logits = bert_output.logits    # [B, S, V]
-        shift_logits = bert_logits[..., :-1, :].contiguous()
+        gen_logits, _ = self.gpt2_forward(ids, ids_mask, torch.zeros(len(ids), 768).cuda())
+        shift_logits = gen_logits[..., :-1, :].contiguous()
         shift_labels = label[..., 1:].contiguous()
         loss = self.gen_loss_fct(
             shift_logits.view(-1, shift_logits.size(-1)), 
@@ -61,52 +53,114 @@ class GPT2UnlikelyModel(nn.Module):
             shift_labels.view(-1)
         )
         return loss
+    
+    @torch.no_grad()
+    def predict_once(self, batch, iteractive_embd):
+        '''batch_size is 1'''
+        ids = batch['cids']
+        ids_mask = batch['cids_mask']
+        generated = []
+        while True:
+            logits, hidden = self.gpt2_forward(ids, ids_mask, iteractive_embd)
+            # cls rest and cls hidden for next iteraction
+            cls_output = hidden[0, -1, :]    # [E]
+            cls_rest = torch.sigmoid(self.cls_head(cls_output))
+            # 
+            next_token_logits = logits[-1, -1, :]    # [V]
+            next_token_logits[self.unk] = -np.inf
+            if generated:
+                next_token_logits[list(set(generated))] /= self.repetition_penalty
+            filtered_logits = top_k_top_p_filtering(
+                next_token_logits, 
+                top_k=self.topk, 
+                top_p=self.topp
+            )
+            next_token = torch.multinomial(
+                F.softmax(filtered_logits, dim=-1),
+                num_samples=1,
+            )
+            if next_token == self.sep or len(generated) > self.test_max_len:
+                break
+            generated.append(next_token.item())
+            # reconstruct the ids and ids_mask
+            ids = torch.cat((ids, next_token.unsqueeze(0)), dim=1)    # [1, S+1]
+            ids = ids[:, -self.test_max_ctx_len:]
+            ids_mask = torch.ones_like(ids)
+        # make sure the 1 batch size is append to the cls_output
+        return generated, cls_output.unsqueeze(0), cls_rest.item()
 
     @torch.no_grad()
     def predict(self, batch):
-        ids = batch['ids']
-        ids_mask = batch['mask']
-        # gpt2 inference
-        gpt2_output = self.gpt2_model(
-            input_ids=ids, 
-            attention_mask=ids_mask,
-            output_hidden_states=True    
-        )
-        gpt2_hidden_states = gpt2_output.hidden_states[-1]    # [B, S, E]
-        gpt2_hidden_states = gpt2_hidden_states.mean(dim=1)    # [B, E]
-        # bert inference
-        model_kwargs = {'gpt2_hidden_states': gpt2_hidden_states}
-        logits = self.bert_model.generate(
-            input_ids=ids, 
-            attention_mask=ids_mask,
-            pad_token_id=self.pad,
-            bos_token_id=self.bos,
-            eos_token_id=self.eos,
-            top_k=self.topk,
-            top_p=self.topp,
-            temperature=self.temp,
-            forced_eos_token_id=True,
-            do_sampling=True,
-            max_length=self.test_max_len,
-            min_length=self.test_min_len,
-            repetition_penalty=self.repetition_penalty,
-            **model_kwargs,
-        )
-        return logits
+        ids = batch['cids']
+        ids_mask = batch['cids_mask']
+        cls_output = F.normalize(torch.randn(len(ids), 768).cuda(), dim=-1)
+        best_cls_rest = -1
+        cls_rest_history = []
+        for _ in range(self.iteractive_num):
+            n_generated, cls_output, cls_rest = self.predict_once(
+                batch,
+                cls_output,
+            )
+            cls_rest_history.append(cls_rest)
+            if cls_rest > best_cls_rest:
+                generated = n_generated
+                best_cls_rest = cls_rest
+            # during predict, not add the additional noise into the cls_output for the accurate prediction
+            cls_output = F.normalize(cls_output, dim=-1)
+        return generated
 
-    def gpt2_forward(self, ids, ids_mask):
-        gpt2_output = self.gpt2_model(
+    def gpt2_forward(self, ids, ids_mask, iteractive_hidden_states):
+        # lower the influence of this noise or iteractive embedding
+        iteractive_hidden_states *= self.scale_ratio
+        output = self.model(
             input_ids=ids, 
             attention_mask=ids_mask,
-            output_hidden_states=True    
+            iteractive_hidden_states=iteractive_hidden_states,
+            output_hidden_states=True,
         )
-        gpt2_logits = gpt2_output.logits    # [B, S, V]
-        gpt2_hidden_states = gpt2_output.hidden_states[-1]    # [B, S, E]
-        
-        shift_logits = gpt2_logits[..., :-1, :].contiguous()
-        shift_labels = ids[..., 1:].contiguous()
+        gpt2_hidden_states = output.hidden_states[-1]
+        gpt2_logits = output.logits
+        return gpt2_logits, gpt2_hidden_states
 
-        gpt2_gen_acc = self.calculate_token_acc(
+    def forward(self, batch):
+        # ===== input ===== #
+        noise_ids      = batch['noise_ids']
+        noise_mask     = batch['noise_mask']
+        cls_label      = batch['cls_label']     # [B]
+        last_token_pos = batch['last_token_pos']
+        # ground-truth
+        gpt2_ids   = batch['gpt2_ids']
+        gpt2_mask  = batch['gpt2_mask']
+        batch_size = len(gpt2_ids)
+        # ===== input ===== # 
+
+        # input the first stage ids, only inference
+        with torch.no_grad():
+            cls_output = F.normalize(
+                torch.randn(batch_size, 768).cuda(), 
+                dim=-1
+            )
+            _, hidden = self.gpt2_forward(
+                noise_ids,
+                noise_mask,
+                cls_output,
+            )
+        # cls loss
+        cls_output = hidden[range(batch_size), last_token_pos, :]
+        cls_rest = self.cls_head(cls_output).squeeze(-1)
+        cls_loss = self.cls_loss_fct(cls_rest, cls_label.to(torch.float))
+
+        # input the second stage ids and last iteractive hidden states
+        cls_otuput = F.normalize(cls_output, dim=-1)
+        logits, _ = self.gpt2_forward(
+            gpt2_ids, 
+            gpt2_mask, 
+            cls_output,
+        )
+        # generation loss
+        shift_logits = logits[..., :-1, :].contiguous()
+        shift_labels = gpt2_ids[..., 1:].contiguous()
+        gpt2_token_acc = self.calculate_token_acc(
             shift_logits, 
             shift_labels
         )
@@ -114,52 +168,5 @@ class GPT2UnlikelyModel(nn.Module):
             shift_logits, 
             shift_labels
         )
-        # [B, E], scalar, tensor scalar
-        gpt2_hidden_states = gpt2_hidden_states.mean(dim=1)    # [B, E]
-        return gpt2_hidden_states, gpt2_gen_acc, gpt2_loss
-
-    def bert_forward(self, gpt2_hidden_states, ids, ids_mask, label):
-        bert_output = self.bert_model(
-            input_ids=ids, 
-            attention_mask=ids_mask,
-            gpt2_hidden_states=gpt2_hidden_states,
-        )
-        bert_logits = bert_output.logits    # [B, S, V]
-        shift_logits = bert_logits[..., :-1, :].contiguous()
-        shift_labels = label[..., 1:].contiguous()
-
-        bert_gen_acc = self.calculate_token_acc(
-            shift_logits, 
-            shift_labels
-        )
-        bert_loss = self.get_lm_loss(
-            shift_logits, 
-            shift_labels
-        )
-        return bert_gen_acc, bert_loss
-
-    def forward(self, batch):
-        # ===== input ===== #
-        gpt2_ids       = batch['gpt2_ids']
-        gpt2_mask      = batch['gpt2_mask']
-        bert_label     = batch['bert_label']
-        
-        neg_gpt2_ids   = batch['neg_gpt2_ids']
-        neg_gpt2_mask  = batch['neg_gpt2_mask']
-        neg_bert_label = batch['neg_bert_label']
-        # ===== input ===== # 
-
-        loss = 0
-        # positive samples feedforward
-        gpt2_hidden_states, gpt2_token_acc, gpt2_loss = self.gpt2_forward(gpt2_ids, gpt2_mask)
-        bert_token_acc, bert_loss = self.bert_forward(gpt2_hidden_states, gpt2_ids, gpt2_mask, bert_label)
-        # loss += gpt2_loss + bert_loss
-
-        # negative samples feedforward
-        gpt2_hidden_states, _, _ = self.gpt2_forward(neg_gpt2_ids, neg_gpt2_mask)
-        # reverse the gradient for reversed loss optimization
-        gpt2_hidden_states = GradientReverseFunction.apply(gpt2_hidden_states, 1.)
-        _, neg_bert_loss = self.bert_forward(gpt2_hidden_states, neg_gpt2_ids, neg_gpt2_mask, neg_bert_label)
-        loss += self.alpha * neg_bert_loss
-        # bert_loss for calculating the ppl
-        return bert_loss, self.alpha * neg_bert_loss, bert_token_acc
+        loss = gpt2_loss + cls_loss
+        return loss, gpt2_token_acc, math.exp(gpt2_loss.item())

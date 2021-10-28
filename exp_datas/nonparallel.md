@@ -30,7 +30,30 @@
 | dual-bert-full(full=5,lr=5e-5,bert-fp-mono,epoch=10) | 95.9 | 98.7 | 99.5 | 97.59 |
 | dual-bert-full(no-full,lr=5e-5,bert-fp-mono,epoch=10) | 92.5 | 96.9| 99.5 | 95.52 |
 
+<!-- ablation study on fine-grained degree -->
+| Models             | R10@1 | R10@2 | R10@5 | MRR   |
+| ------------------ | ----- | ----- | ----- | ----- |
+| SA-BERT+HCL        | 72.1  | 89.6  | 99.3  | -     |
+| BERT-FP            | 87.0  | 95.6  | 99.3  | 92.52 |
+| dual-bert-full(no-full,lr=5e-5,bert-fp-mono,epoch=10)| 92.5 | 96.9 | 99.5 | 95.52 |
+| dual-bert-full(full=2,lr=5e-5,bert-fp-mono,epoch=10) | 91.5 | 96.9 | 99.6 | 95.01 |
+| dual-bert-full(full=3,lr=5e-5,bert-fp-mono,epoch=10) | 95.2 | 98.5 | 99.6 | 95.01 |
+| dual-bert-full(full=5,lr=5e-5,bert-fp-mono,epoch=10) | 95.9 | 98.7 | 99.5 | 97.59 |
+| dual-bert-full(full=7,lr=5e-5,bert-fp-mono,epoch=10) | 95.6 | 98.9 | 99.8 |  97.5 |
+| dual-bert-full(full=9,lr=5e-5,bert-fp-mono,epoch=10) | 96.0 | 98.4 | 99.6 |  97.6 |
+
 ### 1.2 Douban Dataset
+
+<!-- ablation study of the fine-grained degree -->
+| Models             | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   | Time Cost(ms) |
+| ------------------ | ----- | ----- | ----- | ----- | ----- | ------ | --------- |
+| SA-BERT+HCL        | 33.0  | 53.1  | 85.8  | 68.1  | 51.4  | 63.9   |           |
+| BERT-FP            | 32.4  | 54.2  | **87.0**  | 68.0  | 51.2  | 64.4   |  64775.34        |
+| DR-BERT(bert-fp-mono,epoch-5,full=1)            | 31.07  | 49.59  | 83.4  | 65.54  | 48.73  | 61.3   |  25.03        |
+| DR-BERT(bert-fp-mono,epoch-5,full=3)            | 32.51  | 53.55  | 87.15 | 68.34  |  51.72 | 64.32  |   24.99     |
+| DR-BERT(bert-fp-mono,epoch-5,full=5)            | 34.74  | 53.98  | 86.14  | 69.44  | 53.97  | 65.23   |  25.15        |
+| DR-BERT(bert-fp-mono,epoch-5,full=7)            | 33.89 | 53.64  | 86.26 | 68.9  | 52.77  | 65.08  |  24.98      |
+| DR-BERT(bert-fp-mono,epoch-5,full=9)            | 33.03 | 54.39  | 87.29 | 68.21  | 51.27  | 64.79  |  29.24      |
 
 <!-- ablation study of the bert-fp-mono -->
 | Models             | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   | Time Cost(ms) |
@@ -111,7 +134,7 @@
 | BERT-FP            | 49.32 | 69.89 | 91.86 | 70.81 | 54.55 | 69.8   | 21150.52  |
 | DR-BERT(bsz=16,max_len=64/32,bert-fp-mono,full=5)    | 53.99 | 74.17 | 93.72 | 74.57| 59.8| 73.19| 23.55 |
 | DR-BERT(bsz=32,max_len=64/32)    | 56.21 | 73.74 | 94.04 | 75.4 | 61.82 | 74.33| 23.79 |
-| DR-BERT(bsz=48,max_len=64/32)    | 56.84 | 74.79 | 93.86 | 76.26| |63.03 | 74.95 |
+| DR-BERT(bsz=48,max_len=64/32)    | 56.84 | 74.79 | 93.86 | 76.26|63.03 | 74.95 | 23.92 |
 | DR-BERT(bsz=64,max_len=64/32)    | 55.46 | 76.76 | 94.13 |76.03 |61.62 | 74.77| 24.33 |
 | DR-BERT(bsz=80,max_len=64/32)    | 58.08  | 75.86 | 94.42 | 77.18| 64.34 | 75.82 | 24.23 |
 | DR-BERT(bsz=96,max_len=64/32)    | 56.46 | 75.95 | 94.44 | 76.19| 62.53| 75.12| 23.51 |

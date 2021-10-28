@@ -82,12 +82,6 @@ def main(**args):
     if sum_writer:
         sum_writer.close()
 
-    # if not valid, just save the checkpoint
-    # if agent.best_test is None:
-    #     pmn = args['pretrained_model'].replace('/', '_')
-    #     save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pmn}_{args["version"]}.pt'
-    #     agent.save_model(save_path)
-
 if __name__ == "__main__":
     args = parser_args()
     args = vars(args)

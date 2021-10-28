@@ -31,3 +31,5 @@ model_name=${names[1]}
 
 # test on one gpu
 ./scripts/test_rerank.sh $dataset_name $model_name 0
+# test the generation model
+# ./scripts/test_generation.sh $dataset_name $model_name 0

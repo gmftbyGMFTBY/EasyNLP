@@ -22,7 +22,6 @@ def init_recall(args):
     else:
         searcher = Searcher(args['index_type'], dimension=args['dimension'], with_source=args['with_source'], nprobe=args['index_nprobe'])
         model_name = args['model']
-        ipdb.set_trace()
         pretrained_model_name = args['pretrained_model'].replace('/', '_')
         if args['with_source']:
             path_source_corpus = f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_source_corpus.ckpt'
@@ -40,7 +39,7 @@ def init_recall(args):
         if args['with_source']:
             save_path = f'{args["root_dir"]}/ckpt/writer/{args["model"]}/best_{pretrained_model_name}.pt'
         else:
-            save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}.pt'
+            save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}_{args["version"]}.pt'
         agent.load_model(save_path)
         print(f'[!] load model over')
         size = searcher.searcher.ntotal

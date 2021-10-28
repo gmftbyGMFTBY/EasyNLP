@@ -14,7 +14,7 @@ class RerankAgent:
         else:
             self.agent = load_model(args) 
             pretrained_model_name = args['pretrained_model'].replace('/', '_')
-            save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}.pt'
+            save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}_{args["version"]}.pt'
             self.agent.load_model(save_path)
         self.args = args
 

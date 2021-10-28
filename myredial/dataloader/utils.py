@@ -667,9 +667,20 @@ def read_text_data_line_by_line(path):
     dataset = []
     with open(path) as f:
         for line in tqdm(f.readlines()):
-            line = ''.join(line.strip().split())
-            dataset.append(line)
+            dataset.append(line.strip())
     print(f'[!] read {len(dataset)} lines')
+    return dataset
+
+def read_text_data_line_by_line_sep(path):
+    dataset = []
+    with open(path) as f:
+        for line in tqdm(f.readlines()):
+            try:    
+                ctx, res = line.strip().split('\t')
+                dataset.append((ctx, res))
+            except:
+                continue
+    print(f'[!] read {len(dataset)} context-response pairs')
     return dataset
 
 def read_text_data_unlikelyhood(path):

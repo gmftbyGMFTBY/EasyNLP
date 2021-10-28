@@ -26,10 +26,14 @@ class InteractionAgent(RetrievalBaseAgent):
         if args['mode'] in ['train', 'inference']:
             self.set_optimizer_scheduler_ddp()
 
+        if self.args['model'] in ['bert-ft-ibns']:
+            self.train_model = self.train_ibns_model
+
+
         self.criterion = nn.BCEWithLogitsLoss()
         self.show_parameters(self.args)
-        
-    def train_model(self, train_iter, test_iter, recoder=None, idx_=0):
+
+    def train_model(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
         self.model.train()
         total_loss, batch_num, correct, s = 0, 0, 0, 0
         pbar = tqdm(train_iter)
@@ -81,7 +85,7 @@ class InteractionAgent(RetrievalBaseAgent):
         if recoder:
             recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
             recoder.add_scalar(f'train-whole/Acc', correct/s, idx_)
-        return round(total_loss / batch_num, 4)
+        return batch_num
     
     @torch.no_grad()
     def test_model(self, test_iter, print_output=False, rerank_agent=None, core_time=False):
@@ -241,3 +245,46 @@ class InteractionAgent(RetrievalBaseAgent):
             scores = self.model(batch).cpu().tolist()    # [7]
             collection.append((label, scores))
         return collection
+    
+    def train_ibns_model(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
+        self.model.train()
+        total_acc, total_loss, batch_num, correct, s = 0, 0, 0, 0, 0
+        pbar = tqdm(train_iter)
+        correct, s = 0, 0
+        for idx, batch in enumerate(pbar):
+            self.optimizer.zero_grad()
+            with autocast():
+                score = self.model(batch)    # [B]
+
+                score = torch.stack(torch.split(score, self.args['gray_cand_num']))
+                mask = torch.zeros_like(score)
+                mask[:, 0] = 1.
+                loss_ = F.log_softmax(score, dim=-1) * mask
+                loss = (-loss_.sum(dim=1)).mean()
+                acc_num = (score.max(dim=-1)[1] == torch.zeros(len(score)).cuda()).sum().item()
+                acc = acc_num / len(score)
+
+            self.scaler.scale(loss).backward()
+            self.scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            self.scheduler.step()
+
+            total_loss += loss.item()
+            total_acc += acc
+            batch_num += 1
+            if batch_num in self.args['test_step']:
+                self.test_now(test_iter, recoder)
+
+            if recoder:
+                recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
+
+            pbar.set_description(f'[!] train loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
+        if recoder:
+            recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
+        return batch_num
