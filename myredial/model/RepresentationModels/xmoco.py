@@ -68,19 +68,19 @@ class XMoCoEncoder(nn.Module):
         bsz = len(batch)
         start = self.ctx_queue_idx if ctx else self.can_queue_idx
         if ctx:
-            self.ctx_queue[start:start+bsz] = batch
             last_index = []
             for i in range(bsz):
-                i = (self.ctx_queue_idx + i) % self.args['queue_size']
-                last_index.append(i)
+                ii = (self.ctx_queue_idx + i) % self.args['queue_size']
+                last_index.append(ii)
+                self.ctx_queue[ii, :] = batch[i]
             self.ctx_queue_idx = (last_index[-1] + 1) % self.args['queue_size']
             self.ctx_queue_size = min(self.args['queue_size'], self.ctx_queue_size + bsz)
         else:
-            self.can_queue[start:start+bsz] = batch
             last_index = []
             for i in range(bsz):
-                i = (self.can_queue_idx + i) % self.args['queue_size']
-                last_index.append(i)
+                ii = (self.can_queue_idx + i) % self.args['queue_size']
+                last_index.append(ii)
+                self.can_queue[ii, :] = batch[i]
             self.can_queue_idx = (last_index[-1] + 1) % self.args['queue_size']
             self.can_queue_size = min(self.args['queue_size'], self.can_queue_size + bsz)
         return last_index
@@ -134,7 +134,7 @@ class XMoCoEncoder(nn.Module):
         self.momentum_update()
 
         # distributed collect
-        cid_s_rep, rid_s_rep = distributed_collect(cid_s_rep, rid_s_rep)
+        # cid_s_rep, rid_s_rep = distributed_collect(cid_s_rep, rid_s_rep)
         # push the slow vectors into the queues
         last_cid_index = self.push_queue(cid_s_rep, ctx=True)
         last_rid_index = self.push_queue(rid_s_rep, ctx=False)

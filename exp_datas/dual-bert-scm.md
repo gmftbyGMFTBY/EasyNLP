@@ -1,4 +1,4 @@
-# The experiments of the Unparallel settings of Dialog Response Selection
+# The experiments of SCM
 
 ## 1. Traditional Comparison Protocol
 
@@ -8,15 +8,7 @@
 | ------------------ | ----- | ----- | ----- | ----- |
 | SA-BERT+HCL        | 72.1  | 89.6  | 99.3  | -     |
 | BERT-FP            | 87.0  | 95.6  | 99.3  | 92.52 |
-| poly-encoder       |  92.4  |  96.3 | 99.2 | 95.32 |
-| poly-encoder-full(5)| 93.8 | 98.5  | 99.5  | 96.49 |
-| dual-bert          | 92.5  | 97.0  | 99.4  | 95.49 |
-| dual-bert-full(5, lr=3e-5) | 93.1  | 97.6  | 99.7  | 95.96 |
-| dual-bert-full(5, lr=5e-5) | 94.4  | 98.3  | 99.5  | 96.76 |
-| dual-bert-full(5, lr=8e-5) | 94.7  | 98.2  | 99.7  | 96.89 |
-| dual-bert-hn(full=5, epoch=10, linear scheduler)  | 95.6  | 98.2  | 99.7  | 97.38 |
-| dual-bert-hn(epoch=5,gray=2,cosine[temp=0.07],bert-mask-da-dmr[aug_t=10,0.4-0.6])  | 95.4  | 98.1  | 99.4  | 97.2 |
-| dual-bert-hn(no-fg,epoch=5,gray=2,cosine[temp=0.07],bert-mask-da-dmr[aug_t=10,0.4-0.6])  | 91.3  | 96.2  | 99.1  | 94.62 |
+| dual-bert-scm(epoch=10,bert-fp-mono,bsz=64,full=9)      |   |   |   |  |
 
 <!-- ablation study -->
 | Models             | R10@1 | R10@2 | R10@5 | MRR   |
@@ -152,52 +144,10 @@
 | BERT               | 41.35 | 61.84 | 88.21 | 64.35 | 45.96 | 63.18  | 14800.94  |
 | SA-BERT            | 44.44 | 65.3  | 92.17 | 66.97 | 48.79 | 66.03  | 15135.32  |
 | BERT-FP            | 49.32 | 69.89 | 91.86 | 70.81 | 54.55 | 69.8   | 21150.52  |
-| poly-encoder(m=128)| 53.64 | 70.17 | 92.24 |  72.86 | 58.89 |  71.81  |  30397.72 |
-| poly-encoder-full(m=128)| 55.42 | 74.2  | 92.9  | 75.02 | 62.02 | 74.51  | 26724.77  |
-| poly-encoder-full+hn(m=128)| 56.13 | 75.25  | 94.23  | 75.94 | 62.12 | 74.77  | 28.44  |
-| dual-bert-hn(simcse[256,10],epoch=1,lr=1e-5,grad=1,no-other-hn) | 59.76 | 74.89  | 93.81  | 77.71 | 65.86 | 76.52  | 25.91  |
-| dual-bert-hn(bert-mask-da-dmr[0.4-0.6,aug_t=10],epoch=5,no-other-hn,cosine) | 58.47 | 73.59  | 94.23  | 76.72 | 64.44 | 75.44  | 22.8  |
-| dual-bert-hn(bert-mask-da-dmr[0.4-0.6,aug_t=10],epoch=5,no-other-hn,cosine,no-full) | 54.92 | 71.85  | 93.38  | 74.28 | 60.71 | 73.18  | 22.8  |
-| dual-bert-hn-bce | 14.43 | 26.14  | 58.7  | 36.46 | 16.26 | 35.78  | 23.22  |
-| dual-bert+full(cosine scheduler)     | 56.54 | 75.12 | 94.18 | 76.04 | 62.53 | 74.78  | 24070.67  |
-| dual-bert-ctx-cut+full    | 57.65 | 74.32 | 94.02 | 76.37 | 63.64 | 75.19  | 24070.67  |
-| dual-bert+full-warmup(0.05)     | 56.54 | 75.12 | 94.18 | 76.04 | 62.53 | 74.78  | 24070.67  |
-| dual-bert+full(bsz=128,max_len=128,32)     | 58.1 | 74.49 | 94.98 | 76.89 | 64.04 | 75.81  | 24010.91  |
-| dual-bert-pos+full     | 57.23 | 74.87 | 94.54 | 76.44 | 63.33 | 75.16  | 24070.67  |
-| dual-bert+full(fp-mono)     | 57.34 | 74.85 | 93.97 | 76.46 | 63.43 | 75.25  | 24070.67  |
-| dual-bert+full(fp-mono-35)     | 57.11 | 75.15 | 93.9 | 76.29 | 63.13 | 75.15  | 24070.67  |
-| dual-bert+compfull     | 57.1 | 74.57 | 94.35 | 76.37 | 63.23 | 75.14  | 24070.67  |
-| dual-bert-cosine+full     | 55.85 | 73.92 | 94.27 | 75.34 | 61.62 | 74.3  | 24070.67  |
-| dual-bert+full-extra-neg     | 57.79 | 75.13 | 93.59 | 76.62 | 63.94 | 75.39  | 24070.67  |
-| dual-bert+full(epoc=10)     | 56.41 | 73.64 | 93.73 | 75.64 | 62.32 | 74.52  | 24070.67  |
-| dual-bert+full+pseudo     | 56.46 | 75.69 | 93.39 | 76.23 | 62.73 | 74.82  | 24070.67  |
-| dual-bert     | 53.96 | 72.29 | 92.4 | 74.06 | 60.00 | 72.76  | 24070.67  |
-| dual-bert-one2many     | 52.95 | 71.58 | 93.27 | 73.29 | 58.69 | 72.11  | 24070.67  |
-| dual-bert+grading(0.8)-full     | 57.18 | 74.24 | 93.83 | 76.22 | 62.83 | 75.07  | 24070.67  |
-| dual-bert+full-ishn-temp(0.07)     | 56.22 | 76.34 | 93.33 | 76.07 | 61.92 | 75.01  | 23549.8  |
-| dual-bert+full-ishn-temp(.07)-epoch(10)-warmup(0.05)     | 54.71 | 75.81 | 94.02 | 75.37 | 60.61 | 74.2  | 23549.8  |
-| dual-bert+full-grading     | 55.09 | 75.1 | 94.5 | 75.2 | 60.71 | 74.15  | 23549.8  |
-| dual-bert+full-temp(0.07)     | 55.65 | 74.37 | 94.81 | 75.52 | 61.62 | 74.42  | 24070.67  |
-| dual-bert+full+mixup      | 56.29 | 75.52 | 93.72 | 76.09 | 62.32 | 74.9  | 24006.35  |
-| dual-bert+full+simsce     | 56.24 | 75.64 | 93.4 | 75.87 | 62.12 | 74.84  | 24070.67  |
-| dual-bert+full+one2many     | 56.19 | 74.8 | 93.75 | 76.01 | 62.42 | 74.73  | 68816.42  |
-| dual-bert+full+ISN | 55.56 | 74.36 | 93.91 | 75.28 | 61.11 | 74.24  | 19678.29  |
-| dual-bert-comp-hn(warmup=0.05) | 56.65 | 75.12 | 92.52 | 75.81 | 62.63 | 74.83  | 19678.29  |
-| dual-bert-hn-pos(warmup=0.05) | 56.16 | 74.57 | 93.43 | 75.59 | 62.02 | 74.61  | 19678.29  |
-| dual-bert-hn-pos(warmup=0.05, epoch=5, gray_cand_num=2, bert-fp-mono) | 57.31 | 76.79 | 94.43 | 76.83 | 63.03 | 75.81  | 19678.29  |
-| dual-bert-hn-pos(warmup=0.05, epoch=5, gray_cand_num=2, bert-fp-mono, new-pos, original-bert-mask) | 56.93 | 76.2 | 93.57 | 76.38 | 62.93 | 75.29  | 19678.29  |
-| dual-bert-hn-pos(warmup=0.05, epoch=5, gray_cand_num=2, bert-fp-mono, new-pos, original-bert-mask, w_delta=2.0) | 57.15 | 75.2 | 93.75 | 76.41 | 63.13 | 75.3  | 19678.29  |
-| dual-bert-hn-pos(warmup=0.05, epoch=5, gray_cand_num=2, bert-fp-mono, new-pos, original-bert-mask, w_delta=3.0) | 56.84 | 75.24 | 94.31 | 76.24 | 62.73 | 75.1  | 19678.29  |
-| dual-bert-hn-pos(warmup=0.05, epoch=5, gray_cand_num=2, bert-fp-mono, new-pos, bert-mask[bert-fp-mono], w_delta=3.0) | 57.89 | 75.71 | 94.55 | 76.92 | 63.94 | 75.79  | 19678.29  |
-| dual-bert-hn-pos(warmup=0.05, epoch=5, gray_cand_num=2, bert-fp-mono, new-pos, bert-mask-dmr[bert-fp-mono], w_delta=3.0) | 56.54 | 75.9 | 93.48 | 76.21 | 62.42 | 75.05  | 19678.29  |
-| dual-bert-hn-pos(warmup=0.05, epoch=5, gray_cand_num=2, bert-fp-mono, new-pos, original-bert-mask, w_delta=4.0) | 57.38 | 75.51 | 93.8 | 76.49 | 63.33 | 75.44 | 19678.29  |
-| dual-bert-hn-pos(warmup=0.05, epoch=5, gray_cand_num=2, bert-fp-mono, new-pos, original-bert-mask, w_delta=5.0) | 57.89 | 75.41 | 93.75 | 76.84 | 63.94 | 75.68 | 19678.29  |
-| dual-bert-hn(warmup=0.05, epoch=5, gray_cand_num=2) | 57.48 | 74.92 | 93.41 | 76.47 | 63.43 | 75.39  | 19678.29  |
-| dual-bert-hn(warmup=0.05, epoch=5, bert-mask-da[bert-fp], gray_cand_num=2) | 56.86 | 76.36 | 93.63 | 76.5 | 63.03 | 75.24  | 19678.29  |
-| dual-bert-hn(warmup=0.05, epoch=5, bert-mask-da-dmr[bert-fp], gray_cand_num=2) | 57.35 | 76.87 | 93.85 | 76.91 | 63.43 | 75.62  | 19678.29  |
-| dual-bert-hn(warmup=0., epoch=2, bert-mask-da-dmr[bert-fp], gray_cand_num=2, no-hard-negative-of-other-samples) | 58.33 | 76.73 | 93.79 | 77.2 | 64.34 | 76.06  | 19678.29  |
-| dual-bert-hn(simcse hard negative) | 55.94 | 74.38 | 93.75 | 75.58 | 62.02 | 74.43  | 23525.63  |
-| dual-bert-hn(simcse hard negative,no last utterance candidates) | 56.78 | 74.13 | 94.61 | 76.12 | 62.93 | 75.0  | 23551.79  |
+| DR-BERT+SCM(bsz=64,test)        | 57.69 | 75.46 | 94.49 | 76.63 | 63.64 | 75.8   | 27.69  |
+| DR-BERT+SCM(bsz=80,test)        | 57.71 | 76.3  | 93.54 | 77.05 | 64.04 | 75.71  | 28.53  |
+| DR-BERT+SCM(bsz=64,valid)       | 56.37 | 75.42 | 94.44 | 75.99 | 62.53 | 74.82  | 28.06  |
+| DR-BERT+SCM(bsz=80,valid)       | 57.15 | 74.23 | 93.94 | 76.32 | 63.43 | 74.89  | 28.21  |
 
 ## 2. Full-rank Comparison Protocol
 

@@ -216,6 +216,33 @@ class SABertEmbedding(nn.Module):
         return embds[:, 0, :]
 
 
+class BertEmbeddingWithEncoderHidden(nn.Module):
+    
+    def __init__(self, model='bert-base-chinese', add_tokens=1, load_param=True, hidden_dropout_ratio=0.1):
+        super(BertEmbeddingWithEncoderHidden, self).__init__()
+        if load_param:
+            self.model = BertModel.from_pretrained(
+                pretrained_model_name_or_path=model, 
+            )
+        else:
+            config = BertConfig.from_pretrained(model)
+            self.model = BertModel(config, add_pooling_layer=False)
+        # bert-fp checkpoint has the special token: [EOS]
+        if add_tokens > 0:
+            self.resize(add_tokens)
+
+    def resize(self, num):
+        self.model.resize_token_embeddings(self.model.config.vocab_size + num)
+
+    def forward(self, ids, attn_mask, encoder_hidden_states):
+        embds = self.model(
+            input_ids=ids, 
+            attention_mask=attn_mask,
+            encoder_hidden_states=encoder_hidden_states
+        )[0]
+        return embds
+
+
 class BertEmbedding(nn.Module):
     
     def __init__(self, model='bert-base-chinese', add_tokens=1, load_param=True, hidden_dropout_ratio=0.1):
@@ -237,9 +264,12 @@ class BertEmbedding(nn.Module):
     def resize(self, num):
         self.model.resize_token_embeddings(self.model.config.vocab_size + num)
 
-    def forward(self, ids, attn_mask, speaker_type_ids=None):
+    def forward(self, ids, attn_mask, speaker_type_ids=None, hidden=False):
         embds = self.model(ids, attention_mask=attn_mask)[0]
-        return embds[:, 0, :]
+        if hidden:
+            return embds    # [B, S, E]
+        else:
+            return embds[:, 0, :]    # [B, E]
 
 
 # label smoothing loss
@@ -879,3 +909,37 @@ class BertSAModel(BertPreTrainedModel):
 def cosine_distance(x1, x2):
     # range from 0 to 2, bigger -> worse 
     return 1 - F.cosine_similarity(x1, x2, dim=-1)
+
+
+# ========== Topo Sort Compatible ========= #
+class GraphC: 
+
+    '''0 for not searched; 1 for searching; 2 for searched'''
+
+    def __init__(self, vertices): 
+        self.graph = defaultdict(list) 
+        self.V = vertices
+        self.valid = False
+  
+    def addEdge(self,u,v): 
+        self.graph[u].append(v) 
+  
+    def topologicalSortUtil(self, v, visited, stack): 
+        visited[v] = 1    #  set searching status
+        for i in self.graph[v]: 
+            if visited[i] == 0: 
+                self.topologicalSortUtil(i, visited, stack) 
+            elif visited[i] == 1:
+                self.valid = False
+        visited[v] = 2    # set searched status
+        stack.insert(0, v) 
+  
+    def topologicalSort(self): 
+        visited = [0] * self.V 
+        stack = [] 
+        for i in range(self.V): 
+            if visited[i] == 0: 
+                self.topologicalSortUtil(i, visited, stack) 
+        # the valid status can be accessed by self.valid
+        return stack
+

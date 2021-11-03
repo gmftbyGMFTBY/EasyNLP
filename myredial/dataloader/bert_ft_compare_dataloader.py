@@ -62,10 +62,10 @@ class BERTFTCompDataset(Dataset):
                 })
             self.responses = responses
         else:
-            # if args['dataset'] in ['ubuntu'] and args['mode'] == 'valid':
             data = read_text_data_utterances(path, lang=self.args['lang'])
-            # too many validation samples, just sample 1000
-            # data = data[:10000]
+            if args['dataset'] in ['ubuntu'] and args['mode'] == 'valid':
+                # ubuntu dataset is so huge, use a part of it for validation
+                data = data[:10000]
             for i in tqdm(range(0, len(data), 10)):
                 batch = data[i:i+10]
                 responses = [b[1][-1] for b in batch]
@@ -170,7 +170,11 @@ class BERTFTCompDataset(Dataset):
             tids = [torch.LongTensor(i) for i in tids]
             return ids, sids, tids, label
         else:
-            # test
+            # random shuffle
+            random_idx = list(range(len(bundle['label'])))
+            random.shuffle(random_idx)
+            bundle['responses'] = [bundle['responses'][i] for i in random_idx]
+            bundle['label'] = [bundle['label'][i] for i in random_idx]
             return bundle['context'], bundle['responses'], bundle['label']
 
     def save(self):

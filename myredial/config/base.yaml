@@ -260,6 +260,11 @@ models:
         model_name: XMoCoEncoder
         dataset_name: BERTDualFullDataset
         inference_dataset_name: BERTDualInferenceDataset
+    dual-bert-scm: 
+        type: CompareInteraction
+        model_name: BERTDualSCMEncoder
+        dataset_name: BERTDualFullDataset
+        inference_dataset_name: null
     dual-bert: 
         type: Representation
         model_name: BERTDualEncoder
@@ -385,7 +390,7 @@ models:
         inference_dataset_name: BERTDualInferenceDataset
     bert-ft-ibns: 
         type: Interaction
-        model_name: BERTIBNSRetrieval
+        model_name: BERTRetrieval
         dataset_name: BERTFTIBNSDataset
         inference_dataset_name: null 
     bert-ft: 
