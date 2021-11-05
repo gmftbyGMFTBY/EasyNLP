@@ -8,7 +8,8 @@
 | ------------------ | ----- | ----- | ----- | ----- |
 | SA-BERT+HCL        | 72.1  | 89.6  | 99.3  | -     |
 | BERT-FP            | 87.0  | 95.6  | 99.3  | 92.52 |
-| dual-bert-scm(epoch=10,bert-fp-mono,bsz=64,full=9)      |   |   |   |  |
+| DR-BERT            | 96.0  | 98.4  | 99.6  | 92.52 |
+| dual-bert-scm(epoch=10,bert-fp-mono,bsz=64,full=9)      |  96.4 | 98.7  | 99.7  | 28.09 |
 
 <!-- ablation study -->
 | Models             | R10@1 | R10@2 | R10@5 | MRR   |
@@ -46,6 +47,7 @@
 | DR-BERT(bert-fp-mono,epoch-5,full=5)            | 34.74  | 53.98  | 86.14  | 69.44  | 53.97  | 65.23   |  25.15        |
 | DR-BERT(bert-fp-mono,epoch-5,full=7)            | 33.89 | 53.64  | 86.26 | 68.9  | 52.77  | 65.08  |  24.98      |
 | DR-BERT(bert-fp-mono,epoch-5,full=9)            | 33.03 | 54.39  | 87.29 | 68.21  | 51.27  | 64.79  |  29.24      |
+| DR-BERT+SCM(bert-fp-mono,epoch-5,full=9,bsz=80) | 33.91 | 54.99  | 86.70 | 69.26  | 52.77  | 65.4  |  28.81      |
 
 <!-- ablation study of the bert-fp-mono -->
 | Models             | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   | Time Cost(ms) |
@@ -98,6 +100,7 @@
 | DR-BERT(full=100,bert-fp-mono,epoch=5)      | 91.25 | 96.08 | 99.3 | - |
 | DR-BERT(full=100,bert-fp-mono,epoch=10)     | 91.0 | 95.95 | 99.25 | - |
 | DR-BERT(no-full,bert-fp-mono,epoch=5)      | 88.86 | 94.99 | 99.11 | - |
+| DR-BERT+SCM(full=100,bert-fp-mono,epoch=5)      | 90.3 | 95.63 | 99.23 | 29.27 |
 
 ### 1.4 Restoration-200k Dataset
 
@@ -139,6 +142,7 @@
 | DR-BERT-ext-neg(bsz=64,max_len=128/32,ext_neg_size=256)    | 57.49 | 75.57 | 93.53| 76.59 | 63.43 | 75.47  | 23.4  |
 
 
+<!-- conclusio: (1) more fusion encoder layer is not useful, leads to lower validation performance; (2) hard negative is necessary -->
 | Models             | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   | Time Cost(ms) |
 | ------------------ | ----- | ----- | ----- | ----- | ----- | ------ | --------- |
 | BERT               | 41.35 | 61.84 | 88.21 | 64.35 | 45.96 | 63.18  | 14800.94  |
@@ -148,6 +152,17 @@
 | DR-BERT+SCM(bsz=80,test)        | 57.71 | 76.3  | 93.54 | 77.05 | 64.04 | 75.71  | 28.53  |
 | DR-BERT+SCM(bsz=64,valid)       | 56.37 | 75.42 | 94.44 | 75.99 | 62.53 | 74.82  | 28.06  |
 | DR-BERT+SCM(bsz=80,valid)       | 57.15 | 74.23 | 93.94 | 76.32 | 63.43 | 74.89  | 28.21  |
+| DR-BERT+SCM(bm25-hn,bsz=80,valid)       | 58.95 | 76.81 | 93.85 | 77.5 | 64.65 | 76.33  | 28.15  |
+| DR-BERT+SCM(nhead=8,nlayer=2,bsz=80,valid)       | 57.27 | 74.65 | 94.47 | 76.5 | 63.33 | 75.21 | 26.55 |
+| DR-BERT+SCM(nhead=8,nlayer=4,gray=2,bsz=80,valid)       | 58.95 | 76.81 | 93.85 | 77.50 | 64.65 | 76.33 | 26.45 |
+| DR-BERT+SCM(nhead=8,nlayer=2,gray=2,bsz=80,valid)       | 57.52 | 77.27 | 94.33 | 77.11 | 63.23 | 75.98 | 26.45 |
+| DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=80,valid)       | 58.14 | 77.04 | 93.68 | 77.28 | 64.04 | 76.09 | 26.21 |
+| DR-BERT+SCM(nhead=8,nlayer=2,gray=1,bsz=80,valid)       | 57.95 | 77.26 | 94.74 | 77.26 | 64.94 | 76.17 | 26.25 |
+| DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=80,easy-hn,valid)       | 55.56 | 74.84 | 93.74 | 75.56 | 61.62 | 74.22 | 25.29 |
+| DR-BERT+SCM(residual,bsz=80,valid)       | 56.06 | 75.37 | 93.47 |76.06  | 62.32 | 74.67  | 28.4  |
+| DR-BERT+SCM(memory-padding-mask,bsz=80,valid)       | 56.87 | 74.68 | 93.54 |76.2  | 63.03 | 74.83  | 28.2  |
+| DR-BERT+SCM(nhead=12,bsz=80,valid)      | 55.82 | 75.3 | 94.1 | 75.83 | 61.92 | 74.52 | 28.84 |
+| DR-BERT+SCM(nhead=6,bsz=80,valid)       | 56.59 | 76.88 | 93.3 | 76.5 | 62.93 | 75.13 | 28.19 |
 
 ## 2. Full-rank Comparison Protocol
 

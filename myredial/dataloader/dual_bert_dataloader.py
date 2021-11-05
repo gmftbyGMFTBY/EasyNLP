@@ -4809,3 +4809,138 @@ class BERTDualFullMultiContextDataset(Dataset):
                 'label': label,
                 'ids_length': ids_length
             }
+
+    
+class BERTDualBM25SCMDataset(Dataset):
+
+    '''easy + hard'''
+
+    def __init__(self, vocab, path, **args):
+        self.args = args
+        self.vocab = vocab
+        self.vocab.add_tokens(['[EOS]'])
+
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.eos = self.vocab.convert_tokens_to_ids('[EOS]')
+        self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
+        self.gray_cand_num = args['gray_cand_num']
+
+        suffix = args['tokenizer'].replace('/', '_')
+        self.pp_path = f'{os.path.splitext(path)[0]}_dual_bm25_scm_{suffix}.pt'
+        if os.path.exists(self.pp_path):
+            self.data = torch.load(self.pp_path)
+            print(f'[!] load preprocessed file from {self.pp_path}')
+            return None
+
+        self.data = []
+        if self.args['mode'] == 'train':
+            data = read_bm25_hard_negative(f'{args["root_dir"]}/data/{args["dataset"]}/train_bm25_gray.txt')
+            for item in tqdm(data):
+                ctx, res, cands = item['q'], item['r'], item['nr']
+                utterances = ctx + [res] + cands
+                tokens = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']
+                cids = tokens[:len(ctx)]
+                rids = tokens[len(ctx)]
+                crids = tokens[-len(cands):]
+                # also append the context utterances as the hard negative candidates
+                crids.extend(cids)
+                ids = []
+                for u in cids:
+                    ids.extend(u + [self.sep])
+                ids.pop()
+                ids = ids[-(self.args['max_len']-2):]
+                ids = [self.cls] + ids + [self.sep]
+                rids = rids[:(self.args['res_max_len']-2)]
+                rids = [self.cls] + rids + [self.sep]
+                crids = [i[:(self.args["res_max_len"]-2)] for i in crids]
+                crids = [[self.cls] + i + [self.sep] for i in crids]
+                self.data.append({
+                    'ids': ids,
+                    'rids': rids,
+                    'crids': crids,
+                })
+        else:
+            data = read_text_data_utterances(path, lang=self.args['lang'])
+            for i in tqdm(range(0, len(data), 10)):
+                batch = data[i:i+10]
+                rids = []
+                gt_text = []
+                for label, utterances in batch:
+                    item = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']
+                    cids, rids_ = item[:-1], item[-1]
+                    ids = []
+                    for u in cids:
+                        ids.extend(u + [self.sep])
+                    ids.pop()
+                    ids = ids[-(self.args['max_len']-2):]    # ignore [CLS] and [SEP]
+                    rids_ = rids_[:(self.args['res_max_len']-2)]
+                    ids = [self.cls] + ids + [self.sep]
+                    rids_ = [self.cls] + rids_ + [self.sep]
+                    rids.append(rids_)
+                    if label == 1:
+                        gt_text.append(utterances[-1])
+                self.data.append({
+                    'label': [b[0] for b in batch],
+                    'ids': ids,
+                    'rids': rids,
+                    'text': gt_text,
+                })    
+                
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, i):
+        bundle = self.data[i]
+        if self.args['mode'] == 'train':
+            ids, rids = bundle['ids'], bundle['rids']
+            if self.args['easy_gray']:
+                hrids = [j['rids'] for j in random.sample(self.data, self.args['gray_cand_num'])]
+            else:
+
+                hrids = random.sample(bundle['crids'], self.args['gray_cand_num'])
+            ids = torch.LongTensor(ids)
+            rids = torch.LongTensor(rids)
+            hrids = [torch.LongTensor(i) for i in hrids]
+            return ids, [rids] + hrids
+        else:
+            ids = torch.LongTensor(bundle['ids'])
+            rids = [torch.LongTensor(i) for i in bundle['rids']]
+            return ids, rids, bundle['label'], bundle['text']
+
+    def save(self):
+        data = torch.save(self.data, self.pp_path)
+        print(f'[!] save preprocessed dataset into {self.pp_path}')
+        
+    def collate(self, batch):
+        if self.args['mode'] == 'train':
+            ids = [i[0] for i in batch]
+            rids = []
+            for i in batch:
+                rids.extend(i[1])
+            ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+            rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
+            ids_mask = generate_mask(ids)
+            rids_mask = generate_mask(rids)
+            ids, rids, ids_mask, rids_mask = to_cuda(ids, rids, ids_mask, rids_mask)
+            return {
+                'ids': ids, 
+                'rids': rids,
+                'ids_mask': ids_mask, 
+                'rids_mask': rids_mask,
+            }
+        else:
+            # batch size is batch_size * 10
+            assert len(batch) == 1
+            ids, rids, label, text = batch[0]
+            rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
+            rids_mask = generate_mask(rids)
+            label = torch.LongTensor(label)
+            ids, rids, rids_mask, label = to_cuda(ids, rids, rids_mask, label)
+            return {
+                'ids': ids, 
+                'rids': rids, 
+                'rids_mask': rids_mask, 
+                'label': label,
+                'text': text
+            }

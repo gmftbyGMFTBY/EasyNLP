@@ -19,6 +19,7 @@ def parser_args():
     parser.add_argument('--batch_size', default=128, type=int)
     parser.add_argument('--recall_mode', default='q-q', type=str)
     parser.add_argument('--topk', default=10, type=int)
+    parser.add_argument('--full_turn_length', default=5, type=int)
     return parser.parse_args()
 
 if __name__ == '__main__':
@@ -39,8 +40,8 @@ if __name__ == '__main__':
     read_path = f'{args["root_dir"]}/data/{args["dataset"]}/train.txt'
     write_path = f'{args["root_dir"]}/data/{args["dataset"]}/train_bm25_gray.txt'
 
-    # dataset = read_text_data_utterances_full(read_path, lang=args['lang'], turn_length=5)
-    dataset = read_text_data_utterances(read_path, lang=args['lang'])
+    dataset = read_text_data_utterances_full(read_path, lang=args['lang'], turn_length=args['full_turn_length'])
+    # dataset = read_text_data_utterances(read_path, lang=args['lang'])
     data = [(utterances[:-1], utterances[-1]) for label, utterances in dataset if label == 1]
     responses = [utterances[-1] for label, utterances in dataset]
     collector = []

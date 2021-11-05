@@ -3,8 +3,10 @@ full_turn_length: 5
 test_interval: 0.05
 valid_during_training: true
 nhead: 8
-num_layers: 2
-dropout: 0.1
+num_layers: 1
+# easy or hard additional negative samples
+easy_gray: true
+gray_cand_num: 2
 
 # network issue, load locally
 tokenizer:
@@ -35,8 +37,8 @@ train:
 test:
     seed: 0
     batch_size: 1
-    max_len: 64
-    res_max_len: 32
+    max_len: 256
+    res_max_len: 64
 
 # inference configuration
 inference:
