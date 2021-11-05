@@ -5,6 +5,7 @@ valid_during_training: true
 nhead: 8
 num_layers: 2
 dropout: 0.1
+context_aware_before_comparison: true
 
 # network issue, load locally
 tokenizer:

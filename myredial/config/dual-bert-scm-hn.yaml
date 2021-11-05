@@ -2,11 +2,15 @@ temp: 1.
 full_turn_length: 5
 test_interval: 0.05
 valid_during_training: true
-nhead: 8
+nhead: 32
 num_layers: 1
 # easy or hard additional negative samples
-easy_gray: true
+easy_gray: false
 gray_cand_num: 2
+# context-aware
+context_aware_before_comparison: true
+proj_hidden_size: 2048
+dropout: 0.1
 
 # network issue, load locally
 tokenizer:
@@ -23,7 +27,7 @@ train:
     max_len: 64
     res_max_len: 32
     epoch: 5
-    warmup_ratio: 0.
+    warmup_ratio: 0.05
     checkpoint: 
         # path: bert-post/best_nspmlm.pt
         # path: bert-fp/best_bert-base-chinese.pt

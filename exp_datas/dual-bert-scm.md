@@ -142,7 +142,7 @@
 | DR-BERT-ext-neg(bsz=64,max_len=128/32,ext_neg_size=256)    | 57.49 | 75.57 | 93.53| 76.59 | 63.43 | 75.47  | 23.4  |
 
 
-<!-- conclusio: (1) more fusion encoder layer is not useful, leads to lower validation performance; (2) hard negative is necessary -->
+<!-- conclusio: (1) more fusion encoder layer is not useful, leads to lower validation performance; (2) hard negative is necessary; (3) more heads in MHA seems useful; (4) context-aware before comparison is useful; (5) bigger transformer decoder capacity is not useful (SCMHN2) -->
 | Models             | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   | Time Cost(ms) |
 | ------------------ | ----- | ----- | ----- | ----- | ----- | ------ | --------- |
 | BERT               | 41.35 | 61.84 | 88.21 | 64.35 | 45.96 | 63.18  | 14800.94  |
@@ -156,9 +156,14 @@
 | DR-BERT+SCM(nhead=8,nlayer=2,bsz=80,valid)       | 57.27 | 74.65 | 94.47 | 76.5 | 63.33 | 75.21 | 26.55 |
 | DR-BERT+SCM(nhead=8,nlayer=4,gray=2,bsz=80,valid)       | 58.95 | 76.81 | 93.85 | 77.50 | 64.65 | 76.33 | 26.45 |
 | DR-BERT+SCM(nhead=8,nlayer=2,gray=2,bsz=80,valid)       | 57.52 | 77.27 | 94.33 | 77.11 | 63.23 | 75.98 | 26.45 |
-| DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=80,valid)       | 58.14 | 77.04 | 93.68 | 77.28 | 64.04 | 76.09 | 26.21 |
+| DR-BERT+SCM(nhead=8,nhead=8,nlayer=1,gray=2,bsz=80,valid)       | 58.14 | 77.04 | 93.68 | 77.28 | 64.04 | 76.09 | 26.21 |
+| DR-BERT+SCM(nhead=8,nhead=8,nlayer=1,gray=2,bsz=80,valid,context-aware-before-comparison)       | 58.68 | 77.12 | 94.4  | 77.73 | 64.75 | 76.56 | 25.53 |
+| DR-BERT+SCM2(nhead=8,nhead=24,proj_hidden_size=2048,nlayer=1,gray=2,bsz=80,valid,context-aware-before-comparison)       | 56.15 | 73.8 | 92.66  | 75.16 | 61.82 | 74.07 | 25.08 |
 | DR-BERT+SCM(nhead=8,nlayer=2,gray=1,bsz=80,valid)       | 57.95 | 77.26 | 94.74 | 77.26 | 64.94 | 76.17 | 26.25 |
 | DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=80,easy-hn,valid)       | 55.56 | 74.84 | 93.74 | 75.56 | 61.62 | 74.22 | 25.29 |
+| DR-BERT+SCM(nhead=8,nhead=2,nlayer=1,gray=2,bsz=80,valid)       | 58.19 | 76.69 | 93.5  | 77.24 | 64.04 | 76.15 | 25.2 |
+| DR-BERT+SCM(nhead=8,nhead=4,nlayer=1,gray=2,bsz=80,valid)       | 58.8  | 77.16 | 93.88 | 77.6  | 64.85 | 76.32 | 25.19 |
+| DR-BERT+SCM(nhead=8,nhead=12,nlayer=1,gray=2,bsz=80,valid)      | 58.96 | 77.39 | 93.83 | 77.73 | 64.85 | 76.69 | 25.05 |
 | DR-BERT+SCM(residual,bsz=80,valid)       | 56.06 | 75.37 | 93.47 |76.06  | 62.32 | 74.67  | 28.4  |
 | DR-BERT+SCM(memory-padding-mask,bsz=80,valid)       | 56.87 | 74.68 | 93.54 |76.2  | 63.03 | 74.83  | 28.2  |
 | DR-BERT+SCM(nhead=12,bsz=80,valid)      | 55.82 | 75.3 | 94.1 | 75.83 | 61.92 | 74.52 | 28.84 |
