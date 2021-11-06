@@ -260,6 +260,16 @@ models:
         model_name: XMoCoEncoder
         dataset_name: BERTDualFullDataset
         inference_dataset_name: BERTDualInferenceDataset
+    dual-bert-scm-hn-mch: 
+        type: CompareInteraction
+        model_name: BERTDualSCMMCHHNEncoder
+        dataset_name: BERTDualBM25SCMDataset
+        inference_dataset_name: null
+    dual-bert-scm-hn-with-easy: 
+        type: CompareInteraction
+        model_name: BERTDualSCMHNWithEasyEncoder
+        dataset_name: BERTDualBM25SCMDataset
+        inference_dataset_name: null
     dual-bert-scm-hn: 
         type: CompareInteraction
         model_name: BERTDualSCMHNEncoder
@@ -555,7 +565,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 34
+version: 51
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
 rank: null

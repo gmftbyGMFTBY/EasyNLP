@@ -142,7 +142,7 @@
 | DR-BERT-ext-neg(bsz=64,max_len=128/32,ext_neg_size=256)    | 57.49 | 75.57 | 93.53| 76.59 | 63.43 | 75.47  | 23.4  |
 
 
-<!-- conclusio: (1) more fusion encoder layer is not useful, leads to lower validation performance; (2) hard negative is necessary; (3) more heads in MHA seems useful; (4) context-aware before comparison is useful; (5) bigger transformer decoder capacity is not useful (SCMHN2) -->
+<!-- conclusio: (1) more fusion encoder layer is not useful, leads to lower validation performance; (2) hard negative is necessary; (3) more heads in MHA seems useful; (4) context-aware before comparison is useful; (5) bigger transformer decoder capacity is not useful (SCMHN2); (5) innert context negative is bad; -->
 | Models             | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   | Time Cost(ms) |
 | ------------------ | ----- | ----- | ----- | ----- | ----- | ------ | --------- |
 | BERT               | 41.35 | 61.84 | 88.21 | 64.35 | 45.96 | 63.18  | 14800.94  |
@@ -156,18 +156,31 @@
 | DR-BERT+SCM(nhead=8,nlayer=2,bsz=80,valid)       | 57.27 | 74.65 | 94.47 | 76.5 | 63.33 | 75.21 | 26.55 |
 | DR-BERT+SCM(nhead=8,nlayer=4,gray=2,bsz=80,valid)       | 58.95 | 76.81 | 93.85 | 77.50 | 64.65 | 76.33 | 26.45 |
 | DR-BERT+SCM(nhead=8,nlayer=2,gray=2,bsz=80,valid)       | 57.52 | 77.27 | 94.33 | 77.11 | 63.23 | 75.98 | 26.45 |
-| DR-BERT+SCM(nhead=8,nhead=8,nlayer=1,gray=2,bsz=80,valid)       | 58.14 | 77.04 | 93.68 | 77.28 | 64.04 | 76.09 | 26.21 |
-| DR-BERT+SCM(nhead=8,nhead=8,nlayer=1,gray=2,bsz=80,valid,context-aware-before-comparison)       | 58.68 | 77.12 | 94.4  | 77.73 | 64.75 | 76.56 | 25.53 |
-| DR-BERT+SCM2(nhead=8,nhead=24,proj_hidden_size=2048,nlayer=1,gray=2,bsz=80,valid,context-aware-before-comparison)       | 56.15 | 73.8 | 92.66  | 75.16 | 61.82 | 74.07 | 25.08 |
+| DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=128,valid)       | 59.22 | 77.89 | 94.43 | 78.18 | 65.35 | 76.91 | 25.04 |
+| DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=112,valid)       | 58.61 | 76.78 | 94.75 | 77.64 | 64.75 | 76.47 | 25.46 |
+| DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=96,valid)       | 58.36 | 77.01 | 94.28 | 77.52 | 64.34 | 76.32 | 25.21 |
+| DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=80,valid)       | 58.14 | 77.04 | 93.68 | 77.28 | 64.04 | 76.09 | 26.21 |
+| DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=64,valid)       | 59.03 | 77.57 | 94.28 | 77.92 | 65.05 | 76.71 | 25.34 |
+| DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=48,valid)       | 57.89 | 78.49 | 93.82 | 77.4  | 63.64 | 76.29 | 25.21 |
+| DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=32,valid)       | 58.68 | 76.83 | 93.4  | 77.43 | 64.55 | 76.17 | 24.85 |
+| DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=16,valid)       | 58.29 | 75.18 | 93.64 | 76.84 | 63.84 | 75.58 | 25.55 |
+| DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=80,valid,context-aware-before-comparison)       | 58.68 | 77.12 | 94.4  | 77.73 | 64.75 | 76.56 | 25.53 |
+| DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=80,valid,context-aware-before-comparison,bm25-q-r-hn)       | 55.88 | 74.07 | 93.31  | 75.24 | 61.52 | 74.2 | 25.52 |
+| DR-BERT+SCM(nhead=8,nlayer=1,gray=4,bsz=80,valid,context-aware-before-comparison)       | 57.38 | 76.73 | 93.43 | 76.68 | 63.13 | 75.46 | 25.14 |
+| DR-BERT+SCM(nhead=8,nlayer=1,bm25+ctx-hn,gray=2,bsz=80,valid,context-aware-before-comparison)       | 55.86 | 74.82 | 94.25 | 75.84 |  62.02| 74.57 | 24.9 |
+| DR-BERT+SCM(nhead=12,nlayer=1,gray=2,bsz=80,valid,context-aware-before-comparison)       | 57.13 | 76.18 | 93.66  | 76.67 | 63.23 | 75.35 | 25.13 |
+| DR-BERT+SCM2(nhead=32,proj_hidden_size=2048,nlayer=1,gray=2,bsz=80,valid,context-aware-before-comparison)       | 56.15 | 73.8 | 92.66  | 75.16 | 61.82 | 74.07 | 25.08 |
 | DR-BERT+SCM(nhead=8,nlayer=2,gray=1,bsz=80,valid)       | 57.95 | 77.26 | 94.74 | 77.26 | 64.94 | 76.17 | 26.25 |
 | DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=80,easy-hn,valid)       | 55.56 | 74.84 | 93.74 | 75.56 | 61.62 | 74.22 | 25.29 |
-| DR-BERT+SCM(nhead=8,nhead=2,nlayer=1,gray=2,bsz=80,valid)       | 58.19 | 76.69 | 93.5  | 77.24 | 64.04 | 76.15 | 25.2 |
-| DR-BERT+SCM(nhead=8,nhead=4,nlayer=1,gray=2,bsz=80,valid)       | 58.8  | 77.16 | 93.88 | 77.6  | 64.85 | 76.32 | 25.19 |
-| DR-BERT+SCM(nhead=8,nhead=12,nlayer=1,gray=2,bsz=80,valid)      | 58.96 | 77.39 | 93.83 | 77.73 | 64.85 | 76.69 | 25.05 |
+| DR-BERT+SCM(nhead=2,nlayer=1,gray=2,bsz=80,valid)       | 58.19 | 76.69 | 93.5  | 77.24 | 64.04 | 76.15 | 25.2 |
+| DR-BERT+SCM(nhead=4,nlayer=1,gray=2,bsz=80,valid)       | 58.8  | 77.16 | 93.88 | 77.6  | 64.85 | 76.32 | 25.19 |
+| DR-BERT+SCM(nhead=12,nlayer=1,gray=2,bsz=80,valid)      | 58.96 | 77.39 | 93.83 | 77.73 | 64.85 | 76.69 | 25.05 |
 | DR-BERT+SCM(residual,bsz=80,valid)       | 56.06 | 75.37 | 93.47 |76.06  | 62.32 | 74.67  | 28.4  |
 | DR-BERT+SCM(memory-padding-mask,bsz=80,valid)       | 56.87 | 74.68 | 93.54 |76.2  | 63.03 | 74.83  | 28.2  |
 | DR-BERT+SCM(nhead=12,bsz=80,valid)      | 55.82 | 75.3 | 94.1 | 75.83 | 61.92 | 74.52 | 28.84 |
 | DR-BERT+SCM(nhead=6,bsz=80,valid)       | 56.59 | 76.88 | 93.3 | 76.5 | 62.93 | 75.13 | 28.19 |
+| DR-BERT+SCM-MCH(nhead=8,fusion_layer=5,gray=2,bsz=80,valid)       | 58.19 | 75.2 | 93.52 | 76.93 | 64.24 | 75.67 | 29.92 |
+| DR-BERT+SCM-MCH(nhead=8,fusion_layer=5,gray=4,bsz=80,valid)       | 58.04 | 75.68 | 92.81 | 76.81 | 63.74 | 75.64 | 30.58 |
 
 ## 2. Full-rank Comparison Protocol
 

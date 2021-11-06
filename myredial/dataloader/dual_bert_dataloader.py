@@ -4853,6 +4853,11 @@ class BERTDualBM25SCMDataset(Dataset):
                 ids = [self.cls] + ids + [self.sep]
                 rids = rids[:(self.args['res_max_len']-2)]
                 rids = [self.cls] + rids + [self.sep]
+
+                # if args['inner_context_negative']:
+                #     crids = [[self.cls] + item[:(self.args['res_max_len']-2)] + [self.sep] for item in cids]
+                # else:
+                #     crids = []
                 crids = [i[:(self.args["res_max_len"]-2)] for i in crids]
                 crids = [[self.cls] + i + [self.sep] for i in crids]
                 self.data.append({

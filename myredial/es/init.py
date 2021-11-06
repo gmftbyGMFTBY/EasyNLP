@@ -27,7 +27,8 @@ def q_r_dataset(args):
     data = list(set(train_data))
     # maximum sentences limitation
     # too many candidates in the elasticseach will slow down the searching speed
-    data = random.sample(data, 1000000)
+    if len(data) > 1000000:
+        data = random.sample(data, 1000000)
     print(f'[!] collect {len(data)} sentence for BM25 retrieval')
     return data
 
