@@ -681,6 +681,13 @@ def distributed_collect(cid_rep, rid_rep):
     rid_reps = torch.cat(rid_reps, dim=0)
     return cid_reps, rid_reps
 
+def distributed_collect_item(rep):
+    reps = [torch.zeros_like(rep) for _ in range(dist.get_world_size())]
+    dist.all_gather(tensor_list=reps, tensor=rep.contiguous())
+    reps[dist.get_rank()] = rep
+    reps = torch.cat(reps, dim=0)
+    return reps
+
 # FGM
 class FGM:
 

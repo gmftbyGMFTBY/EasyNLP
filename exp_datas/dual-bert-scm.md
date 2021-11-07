@@ -157,7 +157,10 @@
 | DR-BERT+SCM(nhead=8,nlayer=2,bsz=80,valid)       | 57.27 | 74.65 | 94.47 | 76.5 | 63.33 | 75.21 | 26.55 |
 | DR-BERT+SCM(nhead=8,nlayer=4,gray=2,bsz=80,valid)       | 58.95 | 76.81 | 93.85 | 77.50 | 64.65 | 76.33 | 26.45 |
 | DR-BERT+SCM(nhead=8,nlayer=2,gray=2,bsz=80,valid)       | 57.52 | 77.27 | 94.33 | 77.11 | 63.23 | 75.98 | 26.45 |
+| DR-BERT+SCM(nhead=8,nlayer=1,gray=4,bsz=128,valid)       |  |  |  |  |  |  |  |
 | DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=128,valid)       | 59.22 | 77.89 | 94.43 | 78.18 | 65.35 | 76.91 | 25.04 |
+| DR-BERT+SCM(nhead=8,nlayer=2,gray=2,bsz=128,valid)       | 59.39 | 79.12 | 95.02 | 78.71 | 65.76 | 77.39 | 26.27 |
+| DR-BERT+SCM(nhead=8,nlayer=3,gray=2,bsz=128,valid)       |  |  |  |  |  |  |  |
 | DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=112,valid)       | 58.61 | 76.78 | 94.75 | 77.64 | 64.75 | 76.47 | 25.46 |
 | DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=96,valid)       | 58.36 | 77.01 | 94.28 | 77.52 | 64.34 | 76.32 | 25.21 |
 | DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=80,valid)       | 58.14 | 77.04 | 93.68 | 77.28 | 64.04 | 76.09 | 26.21 |

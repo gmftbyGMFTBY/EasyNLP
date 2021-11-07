@@ -26,7 +26,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         if args['mode'] in ['train', 'inference']:
             self.set_optimizer_scheduler_ddp()
 
-        if args['model'] in ['dual-bert-scm', 'dual-bert-scm-hn', 'dual-bert-scm-hn-mch', 'dual-bert-scm-hn-with-easy']:
+        if args['model'] in ['dual-bert-scm', 'dual-bert-scm-hn', 'dual-bert-scm-hn-mch', 'dual-bert-scm-hn-with-easy', 'dual-bert-scm-hn-dist']:
             self.test_model = self.test_model_dual_bert
 
         self.show_parameters(self.args)
@@ -501,7 +501,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
     def load_model(self, path):
         state_dict = torch.load(path, map_location=torch.device('cpu'))
         if self.args['mode'] == 'train':
-            if self.args['model'] in ['dual-bert-comp-hn', 'dual-bert-comp', 'dual-bert-compare', 'dual-bert-scm', 'dual-bert-scm-hn', 'dual-bert-scm-hn-mch', 'dual-bert-scm-hn-with-easy']:
+            if self.args['model'] in ['dual-bert-comp-hn', 'dual-bert-comp', 'dual-bert-compare', 'dual-bert-scm', 'dual-bert-scm-hn', 'dual-bert-scm-hn-mch', 'dual-bert-scm-hn-with-easy', 'dual-bert-scm-hn-dist']:
                 self.checkpointadapeter.init(
                     state_dict.keys() ,
                     self.model.ctx_encoder.model.state_dict().keys(),

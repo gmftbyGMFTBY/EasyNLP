@@ -3,16 +3,12 @@ full_turn_length: 5
 test_interval: 0.05
 valid_during_training: true
 nhead: 8
-num_layers: 5
-# easy or hard additional negative samples
+num_layers: 1
 easy_gray: false
 gray_cand_num: 2
 # context-aware
 context_aware_before_comparison: true
-proj_hidden_size: 2048
 dropout: 0.1
-# add the innert context negative sample
-inner_context_negative: false
 
 # network issue, load locally
 tokenizer:
@@ -25,7 +21,7 @@ train:
     lr: 0.00005
     grad_clip: 5.0
     seed: 0
-    batch_size: 128
+    batch_size: 32
     max_len: 64
     res_max_len: 32
     epoch: 5
