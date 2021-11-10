@@ -41,9 +41,8 @@
 | SA-BERT            | 44.44 | 65.3  | 92.17 | 66.97 | 48.79 | 66.03  | 15135.32  |
 | BERT-FP            | 49.32 | 69.89 | 91.86 | 70.81 | 54.55 | 69.8   | 21150.52  |
 | DR-BERT(bsz=80)    | 58.08 | 75.86 | 94.42 | 77.81 | 64.34 | 75.82   | 24.23  |
-| DR-BERT+SCM(bsz=64)       | 56.37 | 75.42 | 94.44 | 75.99 | 62.53 | 74.82  | 28.06  |
-| DR-BERT+SCM(bsz=80)       | 57.15 | 74.23 | 93.94 | 76.32 | 63.43 | 74.89  | 28.21  |
 | DR-BERT+SCM(bm25-hn,bsz=80)       | 58.95 | 76.81 | 93.85 | 77.5 | 64.65 | 76.33  | 28.15  |
+| DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=80,easy-hn)       | 55.56 | 74.84 | 93.74 | 75.56 | 61.62 | 74.22 | 25.29 |
 | DR-BERT+SCM(nhead=8,nlayer=2,bsz=80)       | 57.27 | 74.65 | 94.47 | 76.5 | 63.33 | 75.21 | 26.55 |
 | DR-BERT+SCM(nhead=8,nlayer=4,gray=2,bsz=80)       | 58.95 | 76.81 | 93.85 | 77.50 | 64.65 | 76.33 | 26.45 |
 | DR-BERT+SCM(nhead=8,nlayer=2,gray=2,bsz=80)       | 57.52 | 77.27 | 94.33 | 77.11 | 63.23 | 75.98 | 26.45 |
@@ -53,7 +52,6 @@
 | DR-BERT+SCM(nhead=8,nlayer=1,gray=4,bsz=80,context-aware-before-comparison)       | 57.38 | 76.73 | 93.43 | 76.68 | 63.13 | 75.46 | 25.14 |
 | DR-BERT+SCM(nhead=8,nlayer=1,bm25+ctx-hn,gray=2,bsz=80,context-aware-before-comparison)       | 55.86 | 74.82 | 94.25 | 75.84 |  62.02| 74.57 | 24.9 |
 | DR-BERT+SCM(nhead=12,nlayer=1,gray=2,bsz=80,context-aware-before-comparison)       | 57.13 | 76.18 | 93.66  | 76.67 | 63.23 | 75.35 | 25.13 |
-| DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=80,easy-hn)       | 55.56 | 74.84 | 93.74 | 75.56 | 61.62 | 74.22 | 25.29 |
 | DR-BERT+SCM(residual,bsz=80)       | 56.06 | 75.37 | 93.47 |76.06  | 62.32 | 74.67  | 28.4  |
 | DR-BERT+SCM(nhead=12,bsz=80)      | 55.82 | 75.3 | 94.1 | 75.83 | 61.92 | 74.52 | 28.84 |
 | DR-BERT+SCM(nhead=6,bsz=80)       | 56.59 | 76.88 | 93.3 | 76.5 | 62.93 | 75.13 | 28.19 |
@@ -63,6 +61,7 @@
 <!-- batch size ablation study -->
 | Models             | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   | Time Cost(ms) |
 | ------------------ | ----- | ----- | ----- | ----- | ----- | ------ | --------- |
+| DR-BERT+SCM(dynamic_mask[10-128],nhead=8,nlayer=1,gray=2,bsz=128)      | 58.48 | 77.38 | 94.13 | 77.64 | 64.55 | 76.33 | 26.02 |
 | DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=128)      | 59.22 | 77.89 | 94.43 | 78.18 | 65.35 | 76.91 | 25.04 |
 | DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=112)      | 58.61 | 76.78 | 94.75 | 77.64 | 64.75 | 76.47 | 25.46 |
 | DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=96)       | 58.36 | 77.01 | 94.28 | 77.52 | 64.34 | 76.32 | 25.21 |
@@ -99,3 +98,32 @@
 | ------------------ | ----- | ----- | ----- | ----- | ----- | ------ | --------- |
 | DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=128)       | 59.22 | 77.89 | 94.43 | 78.18 | 65.35 | 76.91 | 25.04 |
 | DR-BERT+SCM(nhead=8,nlayer=1,gray=4,bsz=128)       | 58.29 | 75.95 | 93.41 | 77.11 | 64.24 | 75.94 | 25.13 |
+
+
+<!-- transformer encoder or decoder -->
+| Models             | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   | Time Cost(ms) |
+| ------------------ | ----- | ----- | ----- | ----- | ----- | ------ | --------- |
+| DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=128)       | 59.22 | 77.89 | 94.43 | 78.18 | 65.35 | 76.91 | 25.04 |
+| DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=128,trs-enc)       | 58.21 | 77.72 | 93.99 | 77.56 | 64.24 | 76.42 | 24.62 |
+
+<!-- transformer encoder batch size -->
+| Models             | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   | Time Cost(ms) |
+| ------------------ | ----- | ----- | ----- | ----- | ----- | ------ | --------- |
+| DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=128,trs-enc)       | 58.21 | 77.72 | 93.99 | 77.56 | 64.24 | 76.42 | 24.62 |
+| DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=256,trs-enc)       |  |  |  |  |  |  |  |
+
+
+<!-- before comparison ablation study -->
+<!-- | DR-BERT+SCM(nhead=8,nlayer=2,gray=2,bsz=128,before_comp)       | 58.83 | 77.62 | 94.13 | 77.81 | 64.95 | 76.82 | 26.4 | -->
+<!-- | DR-BERT+SCM(nhead=12,nlayer=2,gray=2,bsz=128,before_comp)      | 59.81 | 75.88 | 94.07 | 77.91 | 65.86 | 76.9 | 26.72 | -->
+| Models             | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   | Time Cost(ms) |
+| ------------------ | ----- | ----- | ----- | ----- | ----- | ------ | --------- |
+| DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=128)       | 59.22 | 77.89 | 94.43 | 78.18 | 65.35 | 76.91 | 25.04 |
+| DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=128,before_comp)       | 60.4 | 78.27 | 94.33 | 78.71 | 66.46 | 77.71 | 25.73 |
+| DR-BERT+SCM(nhead=12,nlayer=1,gray=2,bsz=128,before_comp)      | 58.49 | 77.39 | 93.85 | 77.63 | 64.65 | 76.54 | 25.98 |
+| DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=64)       | 59.03 | 77.57 | 94.28 | 77.92 | 65.05 | 76.71 | 25.34 |
+| DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=64,before_comp)       | 58.51 | 78.01 | 94.70 | 77.72 | 64.55 | 76.68 | 25.14 |
+| DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=32)       | 58.68 | 76.83 | 93.4  | 77.43 | 64.55 | 76.17 | 24.85 |
+| DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=32,before_comp)       | 59.42 | 77.59 |  94.25 | 78.12 |65.45  | 76.89 | 25.4 |
+| DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=16)       | 58.29 | 75.18 | 93.64 | 76.84 | 63.84 | 75.58 | 25.55 |
+| DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=16,before_comp)       | 58.02 | 76.51 | 93.91 | 77.26 | 64.14 | 75.95 | 24.66 |

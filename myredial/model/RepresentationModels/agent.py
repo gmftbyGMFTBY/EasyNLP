@@ -28,6 +28,8 @@ class RepresentationAgent(RetrievalBaseAgent):
                 self.train_model = self.train_model_pt
             elif self.args['model'] in ['dual-bert-adv']:
                 self.train_model = self.train_model_adv
+            elif self.args['model'] in ['dual-bert-seed']:
+                self.train_model = self.train_model_seed
 
             self.set_test_interval()
             self.load_checkpoint()
@@ -736,7 +738,6 @@ class RepresentationAgent(RetrievalBaseAgent):
                 # context encoder checkpoint
                 self.checkpointadapeter.init(
                     state_dict.keys(),
-                    # NOTE
                     self.model.ctx_encoder.model.state_dict().keys(),
                 )
                 new_state_dict = self.checkpointadapeter.convert(state_dict)
@@ -764,6 +765,13 @@ class RepresentationAgent(RetrievalBaseAgent):
                     self.model.can_encoder.model.load_state_dict(new_state_dict)
                     self.model.hard_can_encoder.model.load_state_dict(new_state_dict)
                 elif self.args['model'] in ['dual-bert-proj']:
+                    self.checkpointadapeter.init(
+                        state_dict.keys(),
+                        self.model.can_encoder.model.state_dict().keys(),
+                    )
+                    new_state_dict = self.checkpointadapeter.convert(state_dict)
+                    self.model.can_encoder.model.load_state_dict(new_state_dict)
+                elif self.args['model'] in ['dual-bert-seed']:
                     self.checkpointadapeter.init(
                         state_dict.keys(),
                         self.model.can_encoder.model.state_dict().keys(),
@@ -944,3 +952,57 @@ class RepresentationAgent(RetrievalBaseAgent):
             f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt',
         )
         print(f'[!] update faiss index over')
+    
+    def train_model_seed(self, train_iter, test_iter, recoder=None, idx_=0, hard=False, whole_batch_num=0):
+        self.model.train()
+        total_loss, total_acc = 0, 0
+        total_tloss, total_bloss = 0, 0
+        total_cid_de_acc, total_rid_de_acc = 0, 0
+        pbar = tqdm(train_iter)
+        correct, s, oom_t = 0, 0, 0
+        batch_num = 0
+        for idx, batch in enumerate(pbar):
+
+            # compatible with the curriculumn learning
+            batch['mode'] = 'hard' if hard is True else 'easy'
+
+            self.optimizer.zero_grad()
+
+            with autocast():
+                loss, acc, cid_de_acc, rid_de_acc = self.model(batch)
+            self.scaler.scale(loss).backward()
+            self.scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+
+            # comment for the constant learning ratio
+            self.scheduler.step()
+
+            total_loss += loss.item()
+            total_acc += acc
+            total_cid_de_acc += cid_de_acc
+            total_rid_de_acc += rid_de_acc
+            batch_num += 1
+
+            if whole_batch_num + batch_num in self.args['test_step']:
+                self.test_now(test_iter, recoder)
+
+            if recoder:
+                recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/ContextDecoderTokenAcc', total_cid_de_acc/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/ContextDecoderRunTokenAcc', cid_de_acc, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/ResponseDecoderTokenAcc', total_rid_de_acc/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/ResponseDecoderRunTokenAcc', rid_de_acc, idx)
+             
+            pbar.set_description(f'[!] loss: {round(total_loss/batch_num, 4)}; acc: {round(total_acc/batch_num, 4)}; c_token_acc: {round(total_cid_de_acc/batch_num, 4)}; r_token_acc: {round(total_rid_de_acc/batch_num, 4)}')
+
+        if recoder:
+            recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/ContextDecoderTokenAcc', total_cid_de_acc/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/ResponseDecoderTokenAcc', total_rid_de_acc/batch_num, idx_)
+        return batch_num

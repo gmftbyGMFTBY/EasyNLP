@@ -156,6 +156,7 @@ class PostTrainMonoDataset(Dataset):
         data = read_text_data_utterances(path, lang=args['lang'])
         data = list(chain(*[utterances for l, utterances in data if l == 1]))
         # also add the extended nonparallel corpus
+        # in re-rank exp, do not use it; in full-rank exp, use it.
         if self.args['dataset'] in ['restoration-200k']:
             ext_path = f'{args["root_dir"]}/data/ext_douban/train.txt'
             data += read_extended_douban_corpus(ext_path)

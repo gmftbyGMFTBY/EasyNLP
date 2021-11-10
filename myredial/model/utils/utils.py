@@ -80,10 +80,8 @@ class TopKBertEmbedding(nn.Module):
         weight = weight.unsqueeze(1).repeat(1, self.m, 1)    # [B, M, S]
         return weight
 
-    def forward(self, ids, attn_mask, speaker_type_ids=None):
-        # embds = self.model(ids, attention_mask=attn_mask)[1]
+    def forward(self, ids, attn_mask, hidden=False):
         embds = self.model(ids, attention_mask=attn_mask)[0]     # [B, S, E]
-        
         # [B, S, E] x [M, E] -> [B, S, E] x [E, M] -> [B, S, M] -> [B, M, S]
         queries = self.queries[:self.m, :]    # [M, E]
         scores = torch.matmul(embds, queries.t()).permute(0, 2, 1)
@@ -103,7 +101,10 @@ class TopKBertEmbedding(nn.Module):
             rep_ = self.proj_heads[idx](rep_)
             reps.append(rep_)
         reps = torch.stack(reps)    # [M, B, E]
-        return reps
+        if hidden is False:
+            return reps
+        else:
+            return reps, embds
 
 
 class BertMLEmbedding(nn.Module):
@@ -682,6 +683,28 @@ def distributed_collect(cid_rep, rid_rep):
     return cid_reps, rid_reps
 
 def distributed_collect_item(rep):
+    reps = [torch.zeros_like(rep) for _ in range(dist.get_world_size())]
+    dist.all_gather(tensor_list=reps, tensor=rep.contiguous())
+    reps[dist.get_rank()] = rep
+    reps = torch.cat(reps, dim=0)
+    return reps
+
+def distributed_collect_mask(rep, max_size=256):
+    # pad to the max_size in dim 1
+    # rep: [B, S]
+    batch_size, length = len(rep), len(rep[0])
+    rep = torch.cat([rep, torch.zeros(batch_size, max_size-length).cuda()], dim=-1)    # [B, S, E]
+    reps = [torch.zeros_like(rep) for _ in range(dist.get_world_size())]
+    dist.all_gather(tensor_list=reps, tensor=rep.contiguous())
+    reps[dist.get_rank()] = rep
+    reps = torch.cat(reps, dim=0)
+    return reps
+
+def distributed_collect_encoder_hidden_states(rep, max_size=256):
+    # pad to the max_size in dim 1
+    # rep: [B, S, E]
+    batch_size, length = len(rep), len(rep[0])
+    rep = torch.cat([rep, torch.zeros(batch_size, max_size-length, 768).cuda()], dim=1)    # [B, S, E]
     reps = [torch.zeros_like(rep) for _ in range(dist.get_world_size())]
     dist.all_gather(tensor_list=reps, tensor=rep.contiguous())
     reps[dist.get_rank()] = rep
