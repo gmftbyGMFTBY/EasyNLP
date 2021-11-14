@@ -274,13 +274,13 @@ class RetrievalBaseAgent:
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         ids, tids = [], []
-        for idx in range(0, len(responses_), 128):
-            responses = responses_[idx:idx+128]
+        for idx in range(0, len(responses_), 512):
+            responses = responses_[idx:idx+512]
             ids_, tids_ = _encode_one_session(ctx_, responses)
             ids.extend(ids_)
             tids.extend(tids_)
-        ids = pad_sequence(ids_, batch_first=True, padding_value=self.pad)
-        tids = pad_sequence(tids_, batch_first=True, padding_value=self.pad)
+        ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+        tids = pad_sequence(tids, batch_first=True, padding_value=self.pad)
         mask = generate_mask(ids)
         ids, tids, mask = to_cuda(ids, tids, mask)
         return ids, tids, mask

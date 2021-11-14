@@ -855,3 +855,89 @@ class PostTrainMonoPlusDataset(Dataset):
             'mask_labels': mask_labels, 
             'attn_mask': attn_mask, 
         }
+
+class PostTrainMonoSEEDDataset(Dataset):
+
+    def __init__(self, vocab, path, **args):
+        self.args = args
+        self.vocab = vocab
+        self.vocab.add_tokens(['[EOS]'])
+
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
+        self.unk = self.vocab.convert_tokens_to_ids('[UNK]')
+        self.mask = self.vocab.convert_tokens_to_ids('[MASK]')
+        self.eos = self.vocab.convert_tokens_to_ids('[EOS]')
+
+        self.special_tokens = set([self.pad, self.sep, self.cls, self.unk, self.mask, self.eos])
+
+        suffix = args['tokenizer'].replace('/', '_')
+        self.pp_path = f'{os.path.splitext(path)[0]}_post_train_mono_{suffix}.pt'
+        if os.path.exists(self.pp_path):
+            self.data = torch.load(self.pp_path)
+            print(f'[!] load preprocessed file from {self.pp_path}')
+            return None
+        # for restoration-200k
+        # for douban, ecommerce, ubuntu, restoration-200k just on their own dataset
+        data = read_text_data_utterances(path, lang=args['lang'])
+        data = list(chain(*[utterances for l, utterances in data if l == 1]))
+        # also add the extended nonparallel corpus
+        # in re-rank exp, do not use it; in full-rank exp, use it.
+        if self.args['dataset'] in ['restoration-200k']:
+            ext_path = f'{args["root_dir"]}/data/ext_douban/train.txt'
+            data += read_extended_douban_corpus(ext_path)
+        data = list(set(data))
+
+        self.data = []
+        for utterance in tqdm(data):
+            item = self.vocab.encode(utterance, add_special_tokens=False)
+            item = item[:self.args['max_len']-2]
+            num_valid = len([i for i in item if i not in self.special_tokens])
+            if num_valid < self.args['min_len']:
+                continue
+            self.data.append(item)
+        print(f'[!] dataset size: {len(self.data)}')
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, i):
+        tokens = self.data[i]
+        ids = [self.cls] + tokens + [self.sep]
+        no_mask_ids = deepcopy(ids)
+        mask_labels = mask_sentence(
+            ids,
+            self.args['min_mask_num'], 
+            self.args['max_mask_num'], 
+            self.args['masked_lm_prob'], 
+            special_tokens=self.special_tokens, 
+            mask=self.mask, 
+            vocab_size=len(self.vocab),
+        )
+        return no_mask_ids, ids, mask_labels
+
+    def save(self):
+        data = torch.save(self.data, self.pp_path)
+        print(f'[!] save preprocessed dataset into {self.pp_path}; size: {len(self.data)}')
+        
+    def collate(self, batch):
+        no_mask_ids, ids, mask_labels = [], [], []
+        for no_mask_ids_, ids_, mask_labels_ in batch:
+            no_mask_ids.append(no_mask_ids_)
+            ids.append(ids_)
+            mask_labels.append(mask_labels_)
+        no_mask_ids = [torch.LongTensor(i) for i in no_mask_ids]
+        ids = [torch.LongTensor(i) for i in ids]
+        mask_labels = [torch.LongTensor(i) for i in mask_labels]
+        no_mask_ids = pad_sequence(no_mask_ids, batch_first=True, padding_value=self.pad)
+        ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+        mask_labels = pad_sequence(mask_labels, batch_first=True, padding_value=-1)    # pad is not calculated for MLM
+        attn_mask = generate_mask(ids)
+        no_mask_ids, ids, mask_labels, attn_mask = to_cuda(no_mask_ids, ids, mask_labels, attn_mask)
+        return {
+            'no_mask_ids': no_mask_ids,
+            'ids': ids, 
+            'mask_labels': mask_labels, 
+            'attn_mask': attn_mask, 
+        }

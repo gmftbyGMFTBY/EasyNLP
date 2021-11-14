@@ -34,6 +34,7 @@ no_test_models:
     - bert-fp-multi
     - bert-fp-no-cls
     - bert-fp-mono
+    - bert-fp-mono-seed
     - bert-fp-mono-plus
     - simcse
     - bert-mask-da
@@ -260,6 +261,11 @@ models:
         model_name: XMoCoEncoder
         dataset_name: BERTDualFullDataset
         inference_dataset_name: BERTDualInferenceDataset
+    dual-bert-scm-compare: 
+        type: CompareInteraction
+        model_name: BERTDualSCMHNCompareEncoder
+        dataset_name: BERTDualBM25SCMDataset
+        inference_dataset_name: null
     dual-bert-scm-hn-mch: 
         type: CompareInteraction
         model_name: BERTDualSCMMCHHNEncoder
@@ -310,9 +316,9 @@ models:
         type: Representation
         model_name: BERTDualEncoder
         # dataset_name: BERTDualFullFakeCtxDataset
-        # dataset_name: BERTDualDataset
+        dataset_name: BERTDualDataset
         # dataset_name: BERTDualFullWithHardNegDataset
-        dataset_name: BERTDualFullDataset
+        # dataset_name: BERTDualFullDataset
         # dataset_name: BERTDualDAFullDataset
         # dataset_name: HORSETestDataset
         # dataset_name: BERTDualRandomFullDataset
@@ -505,8 +511,8 @@ models:
     sa-bert: 
         type: Interaction
         model_name: SABERTRetrieval 
-        # dataset_name: SABERTFTDataset
-        dataset_name: HORSETestSAInteractionDataset
+        dataset_name: SABERTFTDataset
+        # dataset_name: HORSETestSAInteractionDataset
         inference_dataset_name: null 
     poly-encoder-hn: 
         type: LatentInteraction
@@ -517,8 +523,8 @@ models:
     poly-encoder: 
         type: LatentInteraction
         model_name: PolyEncoder
-        # dataset_name: BERTDualFullDataset
-        dataset_name: HORSETestDataset
+        dataset_name: BERTDualFullDataset
+        # dataset_name: HORSETestDataset
         # dataset_name: BERTDualDataset
         # dataset_name: BERTDualTimeDataset
         inference_dataset_name: null
@@ -546,6 +552,11 @@ models:
         type: PostTrain
         model_name: BERTMonolingualPostTrain
         dataset_name: PostTrainMonoPlusDataset
+        inference_dataset_name: null 
+    bert-fp-mono-seed: 
+        type: PostTrain
+        model_name: BERTMonoSEEDPostTrain
+        dataset_name: PostTrainMonoSEEDDataset
         inference_dataset_name: null 
     bert-fp-mono: 
         type: PostTrain
@@ -585,7 +596,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 75
+version: 1001
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
 rank: null
@@ -599,13 +610,13 @@ valid_during_training: true
 # ========== Deploy configuration ========== #
 deploy:
     host: '0.0.0.0'
-    port: 22335
+    port: 22351
     dataset: restoration-200k
     max_len: 64
     res_max_len: 32
     recall:
         activate: false
-        model: dual-bert
+        model: full 
         topk: 100
         # only the arxiv, writer dataset need the with_source
         with_source: false
@@ -614,7 +625,7 @@ deploy:
         dimension: 768
     rerank:
         activate: false
-        model: null
+        model: bert-ft
     pipeline:
         activate: false
     pipeline_evaluation:

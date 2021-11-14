@@ -26,7 +26,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         if args['mode'] in ['train', 'inference']:
             self.set_optimizer_scheduler_ddp()
 
-        if args['model'] in ['dual-bert-scm', 'dual-bert-scm-hn', 'dual-bert-scm-hn-mch', 'dual-bert-scm-hn-with-easy', 'dual-bert-scm-hn-dist', 'dual-bert-scm-hn-dm', 'dual-bert-scm-hn-topk']:
+        if args['model'] in ['dual-bert-scm', 'dual-bert-scm-hn', 'dual-bert-scm-hn-mch', 'dual-bert-scm-hn-with-easy', 'dual-bert-scm-hn-dist', 'dual-bert-scm-hn-dm', 'dual-bert-scm-hn-topk', 'dual-bert-scm-compare']:
             self.test_model = self.test_model_dual_bert
 
         self.show_parameters(self.args)
@@ -66,6 +66,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
                 self.scheduler.step()
                 batch_num += 1
                 if whole_batch_num + batch_num in self.args['test_step']:
+                    ipdb.set_trace()
                     self.test_now(test_iter, recoder)
 
                 total_loss += loss.item()
@@ -501,13 +502,20 @@ class CompareInteractionAgent(RetrievalBaseAgent):
     def load_model(self, path):
         state_dict = torch.load(path, map_location=torch.device('cpu'))
         if self.args['mode'] == 'train':
-            if self.args['model'] in ['dual-bert-comp-hn', 'dual-bert-comp', 'dual-bert-compare', 'dual-bert-scm', 'dual-bert-scm-hn', 'dual-bert-scm-hn-mch', 'dual-bert-scm-hn-with-easy', 'dual-bert-scm-hn-dist', 'dual-bert-scm-hn-dm', 'dual-bert-scm-hn-topk']:
-                self.checkpointadapeter.init(
-                    state_dict.keys() ,
-                    self.model.ctx_encoder.model.state_dict().keys(),
-                )
-                new_state_dict = self.checkpointadapeter.convert(state_dict)
-                self.model.ctx_encoder.model.load_state_dict(new_state_dict)
+            if self.args['model'] in ['dual-bert-comp-hn', 'dual-bert-comp', 'dual-bert-compare', 'dual-bert-scm', 'dual-bert-scm-hn', 'dual-bert-scm-hn-mch', 'dual-bert-scm-hn-with-easy', 'dual-bert-scm-hn-dist', 'dual-bert-scm-hn-dm', 'dual-bert-scm-hn-topk', 'dual-bert-scm-compare']:
+                if self.args['model'] in ['dual-bert-scm-compare']:
+                    new_state_dict = OrderedDict()
+                    for k, v in state_dict.items():
+                        k = k.replace("model.bert.", "")
+                        new_state_dict[k] = v
+                    missing, unexcept = self.model.ctx_encoder.load_state_dict(new_state_dict, strict=False)
+                else:
+                    self.checkpointadapeter.init(
+                        state_dict.keys() ,
+                        self.model.ctx_encoder.model.state_dict().keys(),
+                    )
+                    new_state_dict = self.checkpointadapeter.convert(state_dict)
+                    self.model.ctx_encoder.model.load_state_dict(new_state_dict)
                 
                 self.checkpointadapeter.init(
                     state_dict.keys() ,

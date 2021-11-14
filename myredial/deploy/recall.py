@@ -19,6 +19,12 @@ def init_recall(args):
         agent = None
         print(f'[!] load {len(searcher)} samples for full-rerank mode')
         size = len(searcher)
+        
+        # searcher = [a for _, a in load_qa_pair(f'{args["root_dir"]}/data/{args["dataset"]}/train.txt')]
+        # searcher += load_extended_sentences(f'{args["root_dir"]}/data/ext_douban/train.txt')
+        # agent = None
+        # print(f'[!] load {len(searcher)} samples for full-rerank mode')
+        # size = len(searcher)
     else:
         searcher = Searcher(args['index_type'], dimension=args['dimension'], with_source=args['with_source'], nprobe=args['index_nprobe'])
         model_name = args['model']

@@ -25,6 +25,8 @@ class PostTrainAgent(RetrievalBaseAgent):
             self.set_optimizer_scheduler_ddp()
         if args['model'] in ['simcse']:
             self.train_model = self.train_model_simcse
+        elif args['model'] in ['bert-fp-mono-seed']:
+            self.train_model = self.train_model_seed
         self.show_parameters(self.args)
 
         # best metric (acc)
@@ -355,3 +357,63 @@ class PostTrainAgent(RetrievalBaseAgent):
             new_state_dict = self.checkpointadapeter.convert(state_dict)
             self.model.load_state_dict(new_state_dict)
             print(f'[!] Inference mode: simcse loads pre-trained model from {path}')
+    
+    def train_model_seed(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
+        self.model.train()
+        total_loss, batch_num = 0, 0
+        total_mlm_loss, total_de_loss = 0, 0
+        total_de_acc, total_mlm_acc = 0, 0
+        pbar = tqdm(train_iter)
+        correct, s = 0, 0
+        for idx, batch in enumerate(pbar):
+            self.optimizer.zero_grad()
+            with autocast():
+                mlm_loss, de_loss, token_acc, de_acc = self.model(batch)
+                loss = mlm_loss + de_loss
+            self.scaler.scale(loss).backward()
+            self.scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            self.scheduler.step()
+
+            total_loss += loss.item()
+            total_de_loss += de_loss.item()
+            total_mlm_loss += mlm_loss.item()
+            total_de_acc += de_acc
+            total_mlm_acc += token_acc
+            batch_num += 1
+           
+            if recoder:
+                recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/DecoderLoss', total_de_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunDecoderLoss', de_loss.item(), idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/MLMLoss', total_mlm_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunMLMLoss', mlm_loss.item(), idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/TokenAcc', total_mlm_acc/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunTokenAcc', token_acc, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/DecoderTokenAcc', total_de_acc/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/DecoderRunTokenAcc', de_acc, idx)
+            pbar.set_description(f'[!] loss: {round(total_de_loss/batch_num, 2)}|{round(total_mlm_loss/batch_num, 2)}; acc: {round(100*total_de_acc/batch_num, 2)}|{round(100*total_mlm_acc/batch_num, 2)}')
+
+        if recoder:
+            recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/DecoderLoss', total_de_loss/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/MLMLoss', total_mlm_loss/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/TokenAcc', total_mlm_acc/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/DecoderTokenAcc', total_de_acc/batch_num, idx_)
+
+        # current acc
+        current_acc = total_mlm_acc/batch_num + total_de_acc/batch_num
+        if current_acc > self.best_acc:
+            self.best_acc = current_acc
+            # save the model
+            if self.args['local_rank'] == 0:
+                pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
+                save_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_{pretrained_model_name}_{self.args["version"]}.pt'
+                self.save_model(save_path)
+        return batch_num
+    
+    def train_model_simcse(self, train_iter, test_iter, recoder=None, idx_=0):
+        self.model.train()

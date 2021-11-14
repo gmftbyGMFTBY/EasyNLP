@@ -199,6 +199,17 @@
 | dual-bert-hn(simcse hard negative) | 55.94 | 74.38 | 93.75 | 75.58 | 62.02 | 74.43  | 23525.63  |
 | dual-bert-hn(simcse hard negative,no last utterance candidates) | 56.78 | 74.13 | 94.61 | 76.12 | 62.93 | 75.0  | 23551.79  |
 
+<!-- 500 size select test set-->
+| Models             | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   | Time Cost(ms) |
+| ------------------ | ----- | ----- | ----- | ----- | ----- | ------ | --------- |
+| BERT               | 40.41 | 60.6  |  87.51| 63.9 | 45.27 | 62.49  |  15.54 |
+| SA-BERT+BERT-FP    | 49.71 | 68.54 | 93.13 | 71.51 | 55.53 | 70.08  | 14.82  |
+| BERT-FP            | 48.84 | 70.84 | 92.71 | 71.22 | 54.33|  70.17  |  14.87 |
+| poly-encoder       | 51.78 | 70.81 | 92.54 | 72.92 | 57.75|  71.5  |  25.39 |
+| DR-BERT(bsz=80,max_len=64/32,bert-fp-mono,full=5)  | 57.08  | 74.55 | 94.32| 76.75 | 63.78| 75.36| 19.25 |
+| DR-BERT w/o. NDAP  | 53.34 | 69.42 | 93.06| 73.21 |59.15 | 71.99| 20.18 |
+| DR-BERT w/o. FG    | 51.19 | 70.47 | 91.65| 72.62 |57.34 |71.22 | 19.65 |
+
 ## 2. Full-rank Comparison Protocol
 
 The restoration-200k dataset is used for this full-rank comparison protocol.

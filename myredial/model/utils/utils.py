@@ -251,7 +251,7 @@ class BertEmbedding(nn.Module):
         if load_param:
             self.model = BertModel.from_pretrained(
                 pretrained_model_name_or_path=model, 
-                # add_pooling_layer=False,
+                add_pooling_layer=False,
                 # hidden_dropout_prob=hidden_dropout_ratio,
                 # attention_probs_dropout_prob=hidden_dropout_ratio,
             )

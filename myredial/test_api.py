@@ -21,7 +21,59 @@ def parser_args():
     parser.add_argument('--dataset', type=str, default='douban')
     parser.add_argument('--seed', type=float, default=0.0)
     parser.add_argument('--prefix_name', type=str, default='')
+    # worker from 0-7, only for bert-ft full-rank
+    parser.add_argument('--worker_num', type=int, default=0)
+    parser.add_argument('--worker_id', type=int, default=0)
     return parser.parse_args()
+
+def load_pipeline_data_with_worker_id(path, size=1000):
+    '''for pipeline and recall test'''
+    data = read_text_data_utterances(path, lang='zh')
+
+
+    dataset = []
+    for i in range(0, len(data), 10):
+        session = data[i:i+10]
+        cache = []
+        for label, utterances in session:
+            if label == 1:
+                cache.append(utterances[-1])
+        # NOTE:
+        dataset.append({
+            'ctx': utterances[:-1],
+            'res': cache
+        })
+    # obtain a part of the data
+    size = int(len(dataset) / args['worker_num'])
+    dataset = dataset[size*args['worker_id']:size*(args['worker_id'] + 1)]
+
+    dataset = [
+        {
+            'ctx': [
+                '吃过那么多好吃的还是最喜欢妈妈的菜',
+                '吃过那么多好吃的还是依然做不好一碗鸡蛋羹',
+                '真是笨啊',
+                '其实我压根就不会'
+            ],
+            'res': '没有'
+        }        
+    ]
+
+    cache, block_size = [], random.randint(1, args['block_size'])
+    current_num = 0
+    collector = []
+    for item in tqdm(dataset):
+        collector.append({
+            'segment_list': [{
+                'str': item['ctx'], 
+                'status': 'editing',
+                'ground-truth': item['res'],
+            }],
+            'lang': 'zh',
+            'topk': args['topk'],
+        })
+    print(f'[!] collect {len(collector)} samples for pipeline agent')
+    return collector
 
 def load_pipeline_data(path, size=1000):
     '''for pipeline and recall test'''
@@ -256,7 +308,7 @@ def test_rerank(args):
     return collections
 
 def test_pipeline(args):
-    data = load_pipeline_data(
+    data = load_pipeline_data_with_worker_id(
         f'{args["root_dir"]}/data/{args["dataset"]}/test.txt',
         size=args['size'],
     )
@@ -280,6 +332,8 @@ def test_pipeline(args):
             avg_recall_times.append(rest['header']['recall_core_time_cost_ms'])
             avg_rerank_times.append(rest['header']['rerank_core_time_cost_ms'])
         pbar.set_description(f'[!] time: {round(np.mean(avg_times), 2)} ms; error: {error_counter}')
+        # for debug
+        print(rest)
     # show the result
     for name in ['R@1000', 'R@500', 'R@100', 'R@50', 'MRR']:
         print(f'{name}: {rest["results"][name]}')
@@ -307,7 +361,7 @@ if __name__ == '__main__':
     collections = MAP[args['mode']](args)
     
     # write into log file
-    write_path = f'{args["root_dir"]}/data/{args["dataset"]}/test_api_{args["mode"]}_{args["port"]}_{args["prefix_name"]}_log.txt'
+    write_path = f'{args["root_dir"]}/data/{args["dataset"]}/test_api_{args["mode"]}_{args["port"]}_{args["prefix_name"]}_{args["worker_id"]}_log.txt'
     with open(write_path, 'w') as f:
         for sample in tqdm(collections):
             data = sample['item_list']
