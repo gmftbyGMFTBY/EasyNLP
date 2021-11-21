@@ -17,6 +17,7 @@ from .dual_bert_full_dataloader import *
 from .dual_bert_arxiv_dataloader import *
 from .sa_bert_dataloader import *
 from .bert_ft_dataloader import *
+from .bert_ft_scm_dataloader import *
 from .bert_ft_auxiliary_dataloader import *
 from .bert_ft_compare_dataloader import *
 from .inference_dataloader import *

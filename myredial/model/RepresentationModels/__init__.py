@@ -1,5 +1,6 @@
 from .agent import *
 from .xmoco import *
+from .dual_bert_tacl import *
 from .dual_bert_seed import *
 from .dual_bert_multi_ctx import *
 from .dual_bert import *

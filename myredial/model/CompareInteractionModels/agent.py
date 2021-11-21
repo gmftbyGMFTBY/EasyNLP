@@ -26,8 +26,11 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         if args['mode'] in ['train', 'inference']:
             self.set_optimizer_scheduler_ddp()
 
-        if args['model'] in ['dual-bert-scm', 'dual-bert-scm-hn', 'dual-bert-scm-hn-mch', 'dual-bert-scm-hn-with-easy', 'dual-bert-scm-hn-dist', 'dual-bert-scm-hn-dm', 'dual-bert-scm-hn-topk', 'dual-bert-scm-compare']:
+        if args['model'] in ['dual-bert-scm', 'dual-bert-scm-hn', 'dual-bert-scm-hn-mch', 'dual-bert-scm-hn-with-easy', 'dual-bert-scm-hn-dist', 'dual-bert-scm-hn-dm', 'dual-bert-scm-hn-topk', 'dual-bert-scm-compare', 'dual-bert-scm-sdl']:
             self.test_model = self.test_model_dual_bert
+            self.test_model_horse_human = self.test_model_horse_human_dual_bert
+        elif args['model'] in ['bert-ft-scm']:
+            self.test_model = self.test_model_bert_ft
 
         self.show_parameters(self.args)
         
@@ -66,7 +69,6 @@ class CompareInteractionAgent(RetrievalBaseAgent):
                 self.scheduler.step()
                 batch_num += 1
                 if whole_batch_num + batch_num in self.args['test_step']:
-                    ipdb.set_trace()
                     self.test_now(test_iter, recoder)
 
                 total_loss += loss.item()
@@ -144,6 +146,35 @@ class CompareInteractionAgent(RetrievalBaseAgent):
             'P@1': round(100*avg_prec_at_one, 2),
             'MAP': round(100*avg_map, 2),
         }
+
+    @torch.no_grad()
+    def test_model_horse_human_dual_bert(self, test_iter, print_output=False, rerank_agent=None):
+        self.model.eval()
+        pbar = tqdm(test_iter)
+        collection = []
+        for batch in pbar:                
+            ctext = '\t'.join(batch['ctext'])
+            rtext = batch['rtext']
+            label = batch['label']
+
+            cid = batch['ids'].unsqueeze(0)
+            cid_mask = torch.ones_like(cid)
+            batch['ids'] = cid
+            batch['ids_mask'] = cid_mask
+
+            scores = self.model.predict(batch).cpu().tolist()
+
+            # print output
+            if print_output:
+                self.log_save_file.write(f'[CTX] {ctext}\n')
+                assert len(rtext) == len(scores)
+                for r, score, l in zip(rtext, scores, label):
+                    score = round(score, 4)
+                    self.log_save_file.write(f'[Score {score}, Label {l}] {r}\n')
+                self.log_save_file.write('\n')
+
+            collection.append((label, scores))
+        return collection
     
     @torch.no_grad()
     def test_model_horse_human(self, test_iter, print_output=False):
@@ -502,7 +533,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
     def load_model(self, path):
         state_dict = torch.load(path, map_location=torch.device('cpu'))
         if self.args['mode'] == 'train':
-            if self.args['model'] in ['dual-bert-comp-hn', 'dual-bert-comp', 'dual-bert-compare', 'dual-bert-scm', 'dual-bert-scm-hn', 'dual-bert-scm-hn-mch', 'dual-bert-scm-hn-with-easy', 'dual-bert-scm-hn-dist', 'dual-bert-scm-hn-dm', 'dual-bert-scm-hn-topk', 'dual-bert-scm-compare']:
+            if self.args['model'] in ['dual-bert-comp-hn', 'dual-bert-comp', 'dual-bert-compare', 'dual-bert-scm', 'dual-bert-scm-hn', 'dual-bert-scm-hn-mch', 'dual-bert-scm-hn-with-easy', 'dual-bert-scm-hn-dist', 'dual-bert-scm-hn-dm', 'dual-bert-scm-hn-topk', 'dual-bert-scm-compare', 'dual-bert-scm-sdl']:
                 if self.args['model'] in ['dual-bert-scm-compare']:
                     new_state_dict = OrderedDict()
                     for k, v in state_dict.items():
@@ -529,6 +560,12 @@ class CompareInteractionAgent(RetrievalBaseAgent):
                     k = f'bert.{k.replace("model.bert.", "")}'
                     new_state_dict[k] = v
                 missing, unexcept = self.model.model.load_state_dict(new_state_dict, strict=False)
+            elif self.args['model'] in ['bert-ft-scm']:
+                new_state_dict = OrderedDict()
+                for k, v in state_dict.items():
+                    k = k.replace("model.bert.", "")
+                    new_state_dict[k] = v
+                missing, unexcept = self.model.model.load_state_dict(new_state_dict, strict=False)
             elif self.args['model'] in ['bert-ft-compare-multi', 'bert-ft-compare-multi-cls', 'bert-ft-compare-multi-ens', 'bert-ft-compare-token']:
                 new_state_dict = OrderedDict()
                 for k, v in state_dict.items():
@@ -542,6 +579,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
             )
             new_state_dict = self.checkpointadapeter.convert(state_dict)
             self.model.load_state_dict(new_state_dict)
+        print(f'[!] ========== load checkpoint over ==========')
 
     @torch.no_grad()
     def test_model_fg(self, test_iter, print_output=False):
@@ -779,3 +817,60 @@ class CompareInteractionAgent(RetrievalBaseAgent):
                 'P@1': round(100*avg_prec_at_one, 2),
                 'MAP': round(100*avg_map, 2),
             }
+    
+    @torch.no_grad()
+    def test_model_bert_ft(self, test_iter, print_output=False):
+        self.model.eval()
+        pbar = tqdm(test_iter)
+        total_mrr, total_prec_at_one, total_map = 0, 0, 0
+        total_examples, total_correct = 0, 0
+        k_list = [1, 2, 5, 10]
+        for idx, batch in enumerate(pbar):                
+            label = batch['label']
+            if self.args['mode'] in ['train']:
+                scores = self.model.module.predict(batch).cpu().tolist()    # [B]
+            else:
+                scores = self.model.predict(batch).cpu().tolist()    # [B]
+
+            # print output
+            if print_output:
+                if 'responses' in batch:
+                    self.log_save_file.write(f'[CTX] {batch["context"]}\n')
+                    for rtext, score in zip(responses, scores):
+                        score = round(score, 4)
+                        self.log_save_file.write(f'[Score {score}] {rtext}\n')
+                else:
+                    ctext = self.convert_to_text(batch['ids'].squeeze(0))
+                    self.log_save_file.write(f'[CTX] {ctext}\n')
+                    for rid, score in zip(batch['rids'], scores):
+                        rtext = self.convert_to_text(rid)
+                        score = round(score, 4)
+                        self.log_save_file.write(f'[Score {score}] {rtext}\n')
+                self.log_save_file.write('\n')
+
+            rank_by_pred, pos_index, stack_scores = \
+            calculate_candidates_ranking(
+                np.array(scores), 
+                np.array(label.cpu().tolist()),
+                10)
+            num_correct = logits_recall_at_k(pos_index, k_list)
+            if self.args['dataset'] in ["douban", "restoration-200k"]:
+                total_prec_at_one += precision_at_one(rank_by_pred)
+                total_map += mean_average_precision(pos_index)
+                for pred in rank_by_pred:
+                    if sum(pred) == 0:
+                        total_examples -= 1
+            total_mrr += logits_mrr(pos_index)
+            total_correct = np.add(total_correct, num_correct)
+            total_examples += 1
+        avg_mrr = float(total_mrr / total_examples)
+        avg_prec_at_one = float(total_prec_at_one / total_examples)
+        avg_map = float(total_map / total_examples)
+        return {
+            f'R10@{k_list[0]}': round(((total_correct[0]/total_examples)*100), 2),        
+            f'R10@{k_list[1]}': round(((total_correct[1]/total_examples)*100), 2),        
+            f'R10@{k_list[2]}': round(((total_correct[2]/total_examples)*100), 2),        
+            'MRR': round(100*avg_mrr, 2),
+            'P@1': round(100*avg_prec_at_one, 2),
+            'MAP': round(100*avg_map, 2),
+        }

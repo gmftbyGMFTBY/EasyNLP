@@ -30,6 +30,8 @@ class RepresentationAgent(RetrievalBaseAgent):
                 self.train_model = self.train_model_adv
             elif self.args['model'] in ['dual-bert-seed']:
                 self.train_model = self.train_model_seed
+            elif self.args['model'] in ['dual-bert-tacl']:
+                self.train_model = self.train_model_tacl
 
             self.set_test_interval()
             self.load_checkpoint()
@@ -1005,4 +1007,56 @@ class RepresentationAgent(RetrievalBaseAgent):
             recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
             recoder.add_scalar(f'train-whole/ContextDecoderTokenAcc', total_cid_de_acc/batch_num, idx_)
             recoder.add_scalar(f'train-whole/ResponseDecoderTokenAcc', total_rid_de_acc/batch_num, idx_)
+        return batch_num
+    
+    def train_model_tacl(self, train_iter, test_iter, recoder=None, idx_=0, hard=False, whole_batch_num=0):
+        self.model.train()
+        total_loss, total_loss1, total_loss2, total_loss3 = 0, 0, 0, 0
+        total_acc1, total_acc2, total_acc3 = 0, 0, 0
+        pbar = tqdm(train_iter)
+        batch_num = 0
+        for idx, batch in enumerate(pbar):
+            self.optimizer.zero_grad()
+            with autocast():
+                (loss1, loss2, loss3), (acc1, acc2, acc3) = self.model(batch)
+                loss = loss1 + loss2 + loss3
+            self.scaler.scale(loss).backward()
+            self.scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            self.scheduler.step()
+
+            # 
+            total_loss += loss.item()
+            total_loss1 += loss1.item()
+            total_loss2 += loss2.item()
+            total_loss3 += loss3.item()
+            total_acc1 += acc1
+            total_acc2 += acc2
+            total_acc3 += acc3
+            batch_num += 1
+
+            if whole_batch_num + batch_num in self.args['test_step']:
+                self.test_now(test_iter, recoder)
+
+            if recoder:
+                recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/Loss_sentence_level', total_loss1/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/Loss_inner_sentence', total_loss2/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/Loss_inner_pair', total_loss3/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/Acc_sentence_level', total_acc1/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/Acc_token_level_inner_sentence', total_acc2/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/Acc_token_level_inner_pair', total_acc3/batch_num, idx)
+             
+            pbar.set_description(f'[!] loss: {round(total_loss/batch_num, 4)}; acc: {round(total_acc1/batch_num, 4)}')
+
+        if recoder:
+            recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/Loss_sentence_level', total_loss1/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/Loss_token_level_inner_sentence', total_loss2/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/Loss_token_level_inner_pair', total_loss3/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/Acc_sentence_level', total_acc1/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/Acc_token_level_inner_sentence', total_acc2/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/Acc_token_level_inner_pair', total_acc3/batch_num, idx_)
         return batch_num

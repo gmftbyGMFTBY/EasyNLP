@@ -1,4 +1,5 @@
 from .bert_ft_compare import *
+from .bert_ft_scm import *
 from .bert_ft_compare_multi import *
 from .agent import *
 from .dual_bert_compare import *

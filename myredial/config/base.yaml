@@ -291,11 +291,17 @@ models:
         model_name: BERTDualSCMTopKHNEncoder
         dataset_name: BERTDualBM25SCMDataset
         inference_dataset_name: null
+    dual-bert-scm-sdl: 
+        type: CompareInteraction
+        model_name: BERTDualSCMSDLHNEncoder
+        dataset_name: BERTDualBM25SCMDataset
+        inference_dataset_name: null
     dual-bert-scm-hn: 
         type: CompareInteraction
         model_name: BERTDualSCMHNEncoder
         # model_name: BERTDualSCMHN2Encoder
-        dataset_name: BERTDualBM25SCMDataset
+        # dataset_name: BERTDualBM25SCMDataset
+        dataset_name: HORSETestDataset
         inference_dataset_name: null
     dual-bert-scm-cls: 
         type: CompareInteraction
@@ -310,6 +316,16 @@ models:
     dual-bert-seed: 
         type: Representation
         model_name: BERTDualSEEDEncoder
+        dataset_name: BERTDualFullDataset
+        inference_dataset_name: BERTDualInferenceDataset
+    dual-bert-dcl: 
+        type: Representation
+        model_name: BERTDualDCLEncoder
+        dataset_name: BERTDualFullDataset
+        inference_dataset_name: BERTDualInferenceDataset
+    dual-bert-tacl: 
+        type: Representation
+        model_name: BERTDualTACLEncoder
         dataset_name: BERTDualFullDataset
         inference_dataset_name: BERTDualInferenceDataset
     dual-bert: 
@@ -439,6 +455,11 @@ models:
         type: Interaction
         model_name: BERTRetrieval
         dataset_name: BERTFTIBNSDataset
+        inference_dataset_name: null 
+    bert-ft-scm: 
+        type: CompareInteraction
+        model_name: BERTSCMRetrieval
+        dataset_name: BERTFTSCMDataset
         inference_dataset_name: null 
     bert-ft: 
         type: Interaction
@@ -596,7 +617,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 1001
+version: 0
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
 rank: null
