@@ -57,6 +57,7 @@
 | DR-BERT+SCM(nhead=6,bsz=80)       | 56.59 | 76.88 | 93.3 | 76.5 | 62.93 | 75.13 | 28.19 |
 | DR-BERT+SCM-MCH(nhead=8,fusion_layer=5,gray=2,bsz=80)       | 58.19 | 75.2 | 93.52 | 76.93 | 64.24 | 75.67 | 29.92 |
 | DR-BERT+SCM-MCH(nhead=8,fusion_layer=5,gray=4,bsz=80)       | 58.04 | 75.68 | 92.81 | 76.81 | 63.74 | 75.64 | 30.58 |
+| DR-BERT+SCM+POS(nhead=8,fusion_layer=1,gray=2,bsz=80,full=5,bert-fp-mono,dropout=0.1)       | 80.95 | 90.22 | 95.89 | 93.5 | 88.33 | 90.34 | 24.3 |
 
 <!-- batch size ablation study -->
 | Models             | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   | Time Cost(ms) |

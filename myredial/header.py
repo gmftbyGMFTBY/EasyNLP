@@ -28,7 +28,7 @@ import hashlib
 import logging
 from copy import deepcopy
 import ipdb
-from transformers import BertTokenizer, BertTokenizerFast, XLMRobertaTokenizerFast
+from transformers import BertTokenizer, BertTokenizerFast, XLMRobertaTokenizerFast, AutoModel, AutoTokenizer
 import pickle
 import argparse
 from torch.nn.utils.rnn import pad_sequence

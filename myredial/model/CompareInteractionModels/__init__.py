@@ -5,5 +5,6 @@ from .agent import *
 from .dual_bert_compare import *
 from .dual_bert_comp import *
 from .dual_bert_scm import *
+from .dual_bert_scm_pos import *
 from .dual_bert_scm_2 import *
 from .dual_bert_scm_topk import *

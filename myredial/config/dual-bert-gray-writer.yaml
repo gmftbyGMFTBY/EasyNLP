@@ -1,21 +1,29 @@
 # arxiv: 0; writer: 5
-gray_cand_num: 0
-test_interval: 1.1
+gray_cand_num: 5
+test_interval: 0.1
+valid_during_training: false
+
+# network issue, load locally
+tokenizer:
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
+pretrained_model:
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
 
 # train configuration
 train:
     lr: 0.00005
     grad_clip: 1.0
-    dropout: 0.1
-    smoothing: 0.1
     seed: 0
-    batch_size: 64
-    max_len: 256
+    batch_size: 128
+    max_len: 64
     res_max_len: 64
     epoch: 5
     warmup_ratio: 0.
     checkpoint: 
-        path: bert-post/best_nspmlm.pt
+        # path: bert-post/best_nspmlm.pt
+        path: bert-fp-mono/best_bert-base-chinese.pt
         is_load: false
 
 # test configuration

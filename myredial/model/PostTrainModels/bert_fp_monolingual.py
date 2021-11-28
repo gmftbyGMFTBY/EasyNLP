@@ -18,7 +18,7 @@ class BERTMonolingualPostTrain(nn.Module):
         self.criterion = nn.CrossEntropyLoss(ignore_index=-1)
         self.vocab_size = self.model.config.vocab_size
         # for debug
-        self.vocab = BertTokenizer.from_pretrained('bert-base-uncased')
+        # self.vocab = BertTokenizer.from_pretrained('bert-base-uncased')
 
     def forward(self, batch):
         inpt = batch['ids']

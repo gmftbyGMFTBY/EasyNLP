@@ -24,6 +24,7 @@ def parser_args():
 
 if __name__ == '__main__':
     args = vars(parser_args())
+    full_turn_length = args['full_turn_length']
     bsz = args['batch_size']
     args['mode'] = 'test'
     args['model'] = 'dual-bert'    # useless
@@ -40,7 +41,7 @@ if __name__ == '__main__':
     read_path = f'{args["root_dir"]}/data/{args["dataset"]}/train.txt'
     write_path = f'{args["root_dir"]}/data/{args["dataset"]}/train_bm25_gray.txt'
 
-    dataset = read_text_data_utterances_full(read_path, lang=args['lang'], turn_length=args['full_turn_length'])
+    dataset = read_text_data_utterances_full(read_path, lang=args['lang'], turn_length=full_turn_length)
     # dataset = read_text_data_utterances(read_path, lang=args['lang'])
     data = [(utterances[:-1], utterances[-1]) for label, utterances in dataset if label == 1]
     responses = [utterances[-1] for label, utterances in dataset]

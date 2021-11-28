@@ -941,3 +941,80 @@ class PostTrainMonoSEEDDataset(Dataset):
             'mask_labels': mask_labels, 
             'attn_mask': attn_mask, 
         }
+
+        
+class PostTrainMonoWriterDataset(Dataset):
+
+    def __init__(self, vocab, path, **args):
+        self.args = args
+        self.vocab = vocab
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
+        self.unk = self.vocab.convert_tokens_to_ids('[UNK]')
+        self.mask = self.vocab.convert_tokens_to_ids('[MASK]')
+        self.special_tokens = set([self.pad, self.sep, self.cls, self.unk, self.mask])
+
+        rar_path = f'{args["root_dir"]}/data/{args["dataset"]}/train.rar'
+        if os.path.exists(rar_path):
+            self.reader = torch.load(rar_path)
+        else:
+            self.reader = RandomAccessReader(path)
+            self.reader.init()
+            torch.save(self.reader, rar_path)
+            print(f'[!] save the random access reader file into{rar_path}')
+        self.reader.init_file_handler()
+        self.size = self.reader.size
+        print(f'[!] dataset size: {self.size}')
+
+    def __len__(self):
+        return self.size
+
+    def __getitem__(self, i):
+        while True:
+            sentences = json.loads(self.reader.get_line(i))['q']
+            tokens = self.vocab.batch_encode_plus(sentences, add_special_tokens=False)['input_ids']
+            ids = [self.cls]
+            for item in tokens:
+                ids.extend(item + [self.sep])
+            ids = ids[:self.args['max_len']]
+            if len([token for token in ids if token not in self.special_tokens]) > 5 + self.args['min_mask_num']:
+                break
+            else:
+                # re-sampler a new item
+                i = random.choice(range(0, self.size - 1))
+
+        try:
+            mask_labels = mask_sentence(
+                ids,
+                self.args['min_mask_num'], 
+                self.args['max_mask_num'], 
+                self.args['masked_lm_prob'], 
+                special_tokens=self.special_tokens, 
+                mask=self.mask, 
+                vocab_size=len(self.vocab),
+            )
+        except:
+            ipdb.set_trace()
+        return ids, mask_labels
+
+    def save(self):
+        data = torch.save(self.data, self.pp_path)
+        print(f'[!] save preprocessed dataset into {self.pp_path}; size: {len(self.data)}')
+        
+    def collate(self, batch):
+        ids, mask_labels = [], []
+        for ids_, mask_labels_ in batch:
+            ids.append(ids_)
+            mask_labels.append(mask_labels_)
+        ids = [torch.LongTensor(i) for i in ids]
+        mask_labels = [torch.LongTensor(i) for i in mask_labels]
+        ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+        mask_labels = pad_sequence(mask_labels, batch_first=True, padding_value=-1)    # pad is not calculated for MLM
+        attn_mask = generate_mask(ids)
+        ids, mask_labels, attn_mask = to_cuda(ids, mask_labels, attn_mask)
+        return {
+            'ids': ids, 
+            'mask_labels': mask_labels, 
+            'attn_mask': attn_mask, 
+        }

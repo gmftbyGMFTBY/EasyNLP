@@ -1,10 +1,10 @@
 # basic configuration for building the model
 tokenizer: 
     # zh: /apdcephfs/share_916081/johntianlan/gpt2_model
-    zh: /apdcephfs/share_916081/johntianlan/uer_gpt2_model
+    zh: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
 pretrained_model: 
     # zh: /apdcephfs/share_916081/johntianlan/gpt2_model
-    zh: /apdcephfs/share_916081/johntianlan/uer_gpt2_model
+    zh: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
 test_interval: 0.01
 valid_during_training: false
 gen_max_len: 32 
@@ -23,7 +23,6 @@ train:
     epoch: 20
     warmup_ratio: 0.05
     checkpoint: 
-        # path: bert-post/best_nspmlm.pt
         path: bert-fp/best_bert-base-chinese.pt
         is_load: false
 

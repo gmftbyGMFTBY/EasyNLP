@@ -303,3 +303,90 @@ class BERTDualDCLEncoder(nn.Module):
         loss_ = term_1 + term_2
         loss = loss_.mean()
         return loss, acc
+
+
+class BERTDualWideDPEncoder(nn.Module):
+
+    '''wide dot production'''
+
+    def __init__(self, **args):
+        super(BERTDualWideDPEncoder, self).__init__()
+        model = args['pretrained_model']
+        self.temp = args['temp']
+        self.ctx_encoder = BertFullEmbedding(model=model, add_tokens=1)
+        self.can_encoder = BertFullEmbedding(model=model, add_tokens=1)
+        self.args = args
+
+    def _encode(self, cid, rid, cid_mask, rid_mask):
+        cid_rep = self.ctx_encoder(cid, cid_mask)    # [B, S_c, E]
+        rid_rep = self.can_encoder(rid, rid_mask)    # [B, S_r, E]
+        ctx_batch_size, res_batch_size = len(cid_rep), len(rid_rep)
+
+        # replace the [PAD] token with torch.zeros
+        # mask: [B, S, E]
+        cid_mask_ = cid_mask.unsqueeze(-1).expand(-1, -1, 768)
+        rid_mask_ = rid_mask.unsqueeze(-1).expand(-1, -1, 768)
+        cid_mask_ = torch.where(cid_mask_ == 0, torch.ones_like(cid_mask_), torch.zeros_like(cid_mask_))
+        rid_mask_ = torch.where(rid_mask_ == 0, torch.ones_like(rid_mask_), torch.zeros_like(rid_mask_))
+
+        cid_rep.masked_fill_(cid_mask_.to(torch.bool), torch.tensor(0.))
+        rid_rep.masked_fill_(rid_mask_.to(torch.bool), torch.tensor(-1.))
+        
+        # [B_c*B_r, S_c, E]
+        cid_rep = torch.stack(list(chain(*[[item]*res_batch_size for item in cid_rep])))
+        # [B_r*B_c, S_r, E]
+        rid_rep = torch.cat([rid_rep] * ctx_batch_size)
+        # [B_c*B_r, S_c, S_r]
+        dot_product = torch.bmm(cid_rep, rid_rep.permute(0, 2, 1))
+        # [B_c, B_r, S_c, S_r]
+        dot_product = torch.stack(torch.split(dot_product, res_batch_size))
+        dot_product = dot_product.sum(dim=-1).sum(dim=-1)    # [B_c, B_r]
+        # divide the effective number of the tokens for average
+        cid_effective_num = cid_mask.sum(dim=-1).unsqueeze(-1).expand(-1, res_batch_size)
+        rid_effective_num = rid_mask.sum(dim=-1).unsqueeze(0).expand(ctx_batch_size, -1)
+        effective_num = cid_effective_num * rid_effective_num
+
+        dot_product /= self.temp
+        dot_product /= effective_num
+        return dot_product
+
+    @torch.no_grad()
+    def get_cand(self, ids, attn_mask):
+        rid_rep = self.can_encoder(ids, attn_mask)
+        return rid_rep
+
+    @torch.no_grad()
+    def get_ctx(self, ids, attn_mask):
+        cid_rep = self.ctx_encoder(ids, attn_mask)
+        return cid_rep
+
+    @torch.no_grad()
+    def predict(self, batch):
+        cid = batch['ids']
+        cid_mask = torch.ones_like(cid)
+        rid = batch['rids']
+        rid_mask = batch['rids_mask']
+
+        batch_size = rid.shape[0]
+        dot_product = self._encode(cid, rid, cid_mask, rid_mask)
+        return dot_product.squeeze(0)
+    
+    def forward(self, batch):
+        cid = batch['ids']
+        rid = batch['rids']
+        cid_mask = batch['ids_mask']
+        rid_mask = batch['rids_mask']
+        batch_size = len(cid)
+
+        dot_product = self._encode(cid, rid, cid_mask, rid_mask)
+        # constrastive loss
+        mask = torch.zeros_like(dot_product)
+        mask[range(batch_size), range(batch_size)] = 1. 
+        loss_ = F.log_softmax(dot_product, dim=-1) * mask
+        loss = (-loss_.sum(dim=1)).mean()
+
+        # acc
+        acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
+        acc = acc_num / batch_size
+
+        return loss, acc

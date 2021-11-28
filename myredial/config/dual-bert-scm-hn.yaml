@@ -31,7 +31,7 @@ train:
     batch_size: 64
     max_len: 256
     res_max_len: 64
-    epoch: 5
+    epoch: 10 
     warmup_ratio: 0.
     checkpoint: 
         # path: bert-post/best_nspmlm.pt

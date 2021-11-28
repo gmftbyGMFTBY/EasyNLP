@@ -30,7 +30,7 @@ class RandomAccessReader(object):
                     break
                 else:
                     line_counter += 1
-                if len(lines) % 100000 == 0:
+                if len(lines) % 1000 == 0:
                     print(f'[!] loaded {len(lines)} lines', end='\r')
         self._lines = lines
 

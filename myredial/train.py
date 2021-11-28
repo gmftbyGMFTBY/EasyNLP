@@ -18,10 +18,9 @@ def obtain_steps_parameters(train_data, args):
     if args['model'] in ['bert-ft-compare', 'bert-ft-compare-token']:
         # each context contains `gray_cand_num` random negative and `gray_cand_num` hard negative samples
         args['total_step'] = len(train_data) * args['epoch'] * args['gray_cand_num'] * 2 // args['inner_bsz'] // (args['multi_gpu'].count(',') + 1)
-        args['warmup_step'] = int(args['warmup_ratio'] * args['total_step'])
     else:
         args['total_step'] = len(train_data) * args['epoch'] // args['batch_size'] // (args['multi_gpu'].count(',') + 1)
-        args['warmup_step'] = int(args['warmup_ratio'] * args['total_step'])
+    args['warmup_step'] = int(args['warmup_ratio'] * args['total_step'])
 
 
 def main(**args):
@@ -56,9 +55,6 @@ def main(**args):
     torch.manual_seed(args['seed'])
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(args['seed'])
-
-    obtain_steps_parameters(train_data, args)
-    agent = load_model(args)
     
     pretrained_model_name = args['pretrained_model'].replace('/', '_')
     if args['local_rank'] == 0:
@@ -68,17 +64,45 @@ def main(**args):
         )
     else:
         sum_writer = None
-    batch_num = 0
-    for epoch_i in range(args['epoch']):
-        sampler.set_epoch(epoch_i)    # shuffle for DDP
-        nb = agent.train_model(
-            train_iter, 
-            test_iter,
-            recoder=sum_writer,
-            idx_=epoch_i,
-            whole_batch_num=batch_num,
-        )
-        batch_num += nb
+        
+    if args['is_step_for_training']:
+        args['warmup_step'] = int(args['warmup_ratio'] * args['total_step'])
+        agent = load_model(args)
+        pbar = tqdm(total=args['total_step'])
+        total_loss, total_acc = 0, 0
+        gobal_total_step, current_step, over_train_flag = 0, 0, False
+        # 1000000 is the virtual epoch, only the step are used
+        for _ in range(1000000):
+            for batch in train_iter:
+                loss, acc = agent.train_model(batch, recoder=sum_writer, current_step=current_step)
+                total_loss += loss.item()
+                total_acc += acc
+                if args['local_rank'] == 0 and current_step in args['test_step'] and current_step > 0:
+                    agent.test_now(test_iter, sum_writer)
+                # pbar
+                current_step += 1
+                pbar.update(1)
+                pbar.set_description(f'[!] loss: {round(loss.item(), 4)}|{round(total_loss/current_step, 4)}; acc: {round(acc*100, 2)}|{round(total_acc/current_step*100, 2)}')
+                if current_step > args['total_step']:
+                    over_train_flag = True
+                    break
+            if over_train_flag:
+                print(f'[!] ========== train over ==========')
+                break
+    else:
+        obtain_steps_parameters(train_data, args)
+        agent = load_model(args)
+        batch_num = 0
+        for epoch_i in range(args['epoch']):
+            sampler.set_epoch(epoch_i)    # shuffle for DDP
+            nb = agent.train_model(
+                train_iter, 
+                test_iter,
+                recoder=sum_writer,
+                idx_=epoch_i,
+                whole_batch_num=batch_num,
+            )
+            batch_num += nb
     if sum_writer:
         sum_writer.close()
 

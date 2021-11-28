@@ -26,7 +26,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         if args['mode'] in ['train', 'inference']:
             self.set_optimizer_scheduler_ddp()
 
-        if args['model'] in ['dual-bert-scm', 'dual-bert-scm-hn', 'dual-bert-scm-hn-mch', 'dual-bert-scm-hn-with-easy', 'dual-bert-scm-hn-dist', 'dual-bert-scm-hn-dm', 'dual-bert-scm-hn-topk', 'dual-bert-scm-compare', 'dual-bert-scm-sdl']:
+        if args['model'] in ['dual-bert-scm', 'dual-bert-scm-hn', 'dual-bert-scm-hn-mch', 'dual-bert-scm-hn-with-easy', 'dual-bert-scm-hn-dist', 'dual-bert-scm-hn-dm', 'dual-bert-scm-hn-topk', 'dual-bert-scm-compare', 'dual-bert-scm-sdl', 'dual-bert-scm-hn-pos']:
             self.test_model = self.test_model_dual_bert
             self.test_model_horse_human = self.test_model_horse_human_dual_bert
         elif args['model'] in ['bert-ft-scm']:
@@ -533,7 +533,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
     def load_model(self, path):
         state_dict = torch.load(path, map_location=torch.device('cpu'))
         if self.args['mode'] == 'train':
-            if self.args['model'] in ['dual-bert-comp-hn', 'dual-bert-comp', 'dual-bert-compare', 'dual-bert-scm', 'dual-bert-scm-hn', 'dual-bert-scm-hn-mch', 'dual-bert-scm-hn-with-easy', 'dual-bert-scm-hn-dist', 'dual-bert-scm-hn-dm', 'dual-bert-scm-hn-topk', 'dual-bert-scm-compare', 'dual-bert-scm-sdl']:
+            if self.args['model'] in ['dual-bert-comp-hn', 'dual-bert-comp', 'dual-bert-compare', 'dual-bert-scm', 'dual-bert-scm-hn', 'dual-bert-scm-hn-mch', 'dual-bert-scm-hn-with-easy', 'dual-bert-scm-hn-dist', 'dual-bert-scm-hn-dm', 'dual-bert-scm-hn-topk', 'dual-bert-scm-compare', 'dual-bert-scm-sdl', 'dual-bert-scm-hn-pos']:
                 if self.args['model'] in ['dual-bert-scm-compare']:
                     new_state_dict = OrderedDict()
                     for k, v in state_dict.items():
@@ -774,10 +774,20 @@ class CompareInteractionAgent(RetrievalBaseAgent):
                 else:
                     ctext = self.convert_to_text(batch['ids'].squeeze(0))
                     self.log_save_file.write(f'[CTX] {ctext}\n')
-                    for rid, score in zip(batch['rids'], scores):
+                    
+                    sort_index = np.argsort(scores)[::-1]
+                    for sidx in sort_index:
+                        rid = batch['rids'][sidx]
+                        score = scores[sidx]
+                        l = label[sidx]
                         rtext = self.convert_to_text(rid)
                         score = round(score, 4)
-                        self.log_save_file.write(f'[Score {score}] {rtext}\n')
+                        self.log_save_file.write(f'[Score {score}; Label {l}] {rtext}\n')
+
+                    # for rid, score, l in zip(batch['rids'], scores, label.tolist()):
+                    #     rtext = self.convert_to_text(rid)
+                    #     score = round(score, 4)
+                    #     self.log_save_file.write(f'[Score {score}; Label {l}] {rtext}\n')
                 self.log_save_file.write('\n')
 
             rank_by_pred, pos_index, stack_scores = \

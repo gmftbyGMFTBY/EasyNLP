@@ -16,7 +16,6 @@ class BERTDualHNEncoder(nn.Module):
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
         rid_rep = self.can_encoder(rid, rid_mask)
-        cid_rep, rid_rep = F.normalize(cid_rep), F.normalize(rid_rep)
         return cid_rep, rid_rep
 
     @torch.no_grad()
@@ -68,7 +67,6 @@ class BERTDualHNEncoder(nn.Module):
         # get acc
         acc_num = (dot_product.max(dim=-1)[1] == torch.LongTensor(torch.arange(0, len(rid), self.topk)).cuda()).sum().item()
         acc = acc_num / batch_size
-            
         return loss, acc
 
 
@@ -885,7 +883,6 @@ class BERTDualHNTripletMarginLossEncoder(nn.Module):
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
             
         # margin loss for topk hard negative samples
-        ipdb.set_trace()
         anchor_reps, rid_reps, nid_reps = [], [], []
         for idx in range(batch_size):
             for i in range(idx*self.topk+1, idx*self.topk+self.topk):

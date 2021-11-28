@@ -2,6 +2,7 @@ datasets:
     ecommerce: zh
     douban: zh
     writer: zh
+    writer-rank: zh
     lccc: zh
     ubuntu: en
     # inference dataset
@@ -158,8 +159,8 @@ models:
         # dataset_name: BERTDualCTXHNFullDataset
         # dataset_name: BERTDualHNDataset
         # dataset_name: BERTDualFullDataset
-        # dataset_name: BERTDualBM25HNDataset
-        dataset_name: HORSETestDataset
+        dataset_name: BERTDualBM25HNDataset
+        # dataset_name: HORSETestDataset
         # dataset_name: BERTDualBertMaskHardNegativeDataset
         # dataset_name: BERTDualSimCSEHardNegativeDataset
         # dataset_name: FineGrainedTestDataset
@@ -296,12 +297,18 @@ models:
         model_name: BERTDualSCMSDLHNEncoder
         dataset_name: BERTDualBM25SCMDataset
         inference_dataset_name: null
+    dual-bert-scm-hn-pos: 
+        type: CompareInteraction
+        model_name: BERTDualSCMPOSHNEncoder
+        dataset_name: BERTDualBM25SCMDataset
+        # dataset_name: HORSETestDataset
+        inference_dataset_name: null
     dual-bert-scm-hn: 
         type: CompareInteraction
         model_name: BERTDualSCMHNEncoder
-        # model_name: BERTDualSCMHN2Encoder
         # dataset_name: BERTDualBM25SCMDataset
-        dataset_name: HORSETestDataset
+        dataset_name: BERTDualBM25SCMLiteDataset
+        # dataset_name: HORSETestDataset
         inference_dataset_name: null
     dual-bert-scm-cls: 
         type: CompareInteraction
@@ -327,14 +334,32 @@ models:
         type: Representation
         model_name: BERTDualTACLEncoder
         dataset_name: BERTDualFullDataset
+        # dataset_name: HORSETestDataset
         inference_dataset_name: BERTDualInferenceDataset
+    dual-bert-tacl-hn: 
+        type: Representation
+        model_name: BERTDualTACLWithQRNegEncoder
+        dataset_name: BERTDualBM25HNDataset
+        # dataset_name: HORSETestDataset
+        inference_dataset_name: BERTDualInferenceDataset
+    dual-bert-wdp: 
+        type: Representation
+        model_name: BERTDualWideDPEncoder
+        dataset_name: BERTDualFullDataset
+        # dataset_name: HORSETestDataset
+        inference_dataset_name: null
+    writer-dual-bert: 
+        type: WriterRerank
+        model_name: WriterDualEncoder
+        dataset_name: WriterRankDataset
+        inference_dataset_name: null
     dual-bert: 
         type: Representation
         model_name: BERTDualEncoder
         # dataset_name: BERTDualFullFakeCtxDataset
-        dataset_name: BERTDualDataset
+        # dataset_name: BERTDualDataset
         # dataset_name: BERTDualFullWithHardNegDataset
-        # dataset_name: BERTDualFullDataset
+        dataset_name: BERTDualFullDataset
         # dataset_name: BERTDualDAFullDataset
         # dataset_name: HORSETestDataset
         # dataset_name: BERTDualRandomFullDataset
@@ -461,6 +486,11 @@ models:
         model_name: BERTSCMRetrieval
         dataset_name: BERTFTSCMDataset
         inference_dataset_name: null 
+    bert-ft-writer:
+        type: WriterRerank
+        model_name: WriterBERTRetrieval
+        dataset_name: WriterRankDataset
+        inference_dataset_name: null 
     bert-ft: 
         type: Interaction
         model_name: BERTRetrieval
@@ -582,7 +612,8 @@ models:
     bert-fp-mono: 
         type: PostTrain
         model_name: BERTMonolingualPostTrain
-        dataset_name: PostTrainMonoDataset
+        # dataset_name: PostTrainMonoDataset
+        dataset_name: PostTrainMonoWriterDataset
         inference_dataset_name: null 
     dual-bert-pt: 
         type: Representation
@@ -617,7 +648,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 0
+version: 15
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
 rank: null
@@ -625,6 +656,7 @@ load_param: true
 # default the test set is used during training, because douban, ecommerce has 1:1(pos:neg) settings in the validation set
 # for ubuntu and horse corpus, set this parameter as true, otherwise set false
 valid_during_training: true
+is_step_for_training: false
 # ========= Global configuration ========== #
 
 

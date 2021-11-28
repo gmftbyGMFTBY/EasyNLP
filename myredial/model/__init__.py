@@ -1,4 +1,5 @@
 from .InteractionModels import *
+from .WriterRerank import *
 from .AugmentationModels import *
 from .CompareInteractionModels import *
 from .RepresentationModels import *
@@ -22,6 +23,7 @@ def load_model(args):
         'Evaluation': EvaluationAgent,
         'LanguageModel': LanguageModelsAgent,
         'MutualTrainingModel': MutualTrainingAgent,
+        'WriterRerank': WriterRerankAgent,
     }
     if model_type in MAP:
         agent_t = MAP[model_type]

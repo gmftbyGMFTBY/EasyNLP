@@ -30,7 +30,7 @@ class RepresentationAgent(RetrievalBaseAgent):
                 self.train_model = self.train_model_adv
             elif self.args['model'] in ['dual-bert-seed']:
                 self.train_model = self.train_model_seed
-            elif self.args['model'] in ['dual-bert-tacl']:
+            elif self.args['model'] in ['dual-bert-tacl', 'dual-bert-tacl-hn']:
                 self.train_model = self.train_model_tacl
 
             self.set_test_interval()
@@ -216,12 +216,6 @@ class RepresentationAgent(RetrievalBaseAgent):
             batch['mode'] = 'hard' if hard is True else 'easy'
 
             self.optimizer.zero_grad()
-
-            if self.args['model'] in ['dual-bert-gray-writer']:
-                cid, cid_mask = self.totensor(batch['context'], ctx=True)
-                rid, rid_mask = self.totensor(batch['responses'], ctx=False)
-                batch['cid'], batch['cid_mask'] = cid, cid_mask
-                batch['rid'], batch['rid_mask'] = rid, rid_mask
 
             if self.args['fgm']:
                 with autocast():
