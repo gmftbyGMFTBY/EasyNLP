@@ -62,30 +62,43 @@ class WriterRankDataset(Dataset):
             cids.extend(self.vocab.encode(s, add_special_tokens=False))
         rids.extend(self.vocab.encode(response, add_special_tokens=False))
         # max_length includes the ctx_length and res_length
-        if self.args['model'] in ['bert-ft-writer']:
+        if self.args['model'] in ['bert-ft-writer', 'writer-electra']:
             truncate_pair(cids, rids, self.args['gpt2_max_len'])
         else:
             cids = cids[-self.args['gpt2_max_len']:]
         return cids, rids
 
     def collate(self, batch):
-        cids, rids = [], []
+        gpt2_cids, cids, rids = [], [], []
         max_length = -1
         for a, b in batch:
             cids.append(a)
+            gpt2_cids.extend([a] * self.args['inference_time'])
             rids.append(b)
             max_length = max(max_length, len(a))
         # pad to the max_length
-        gpt2_cids = torch.stack([torch.LongTensor([self.pad] * (max_length - len(i)) + i) for i in cids])
-        gpt2_cids_mask = torch.stack([torch.LongTensor([0]*(max_length-len(i)) + [1]*len(i)) for i in cids])
+        gpt2_cids = torch.stack(
+            [torch.LongTensor([self.pad] * (max_length - len(i)) + i) for i in gpt2_cids]
+        )
+        gpt2_cids_mask = torch.stack(
+            [torch.LongTensor([0]*(max_length-len(i)) + [1]*len(i)) for i in gpt2_cids]
+        )
         gpt2_pos_ids = (gpt2_cids_mask.long().cumsum(-1) - 1).masked_fill(gpt2_cids_mask == 0, 0)
         gpt2_cids, gpt2_cids_mask, gpt2_pos_ids = to_cuda(gpt2_cids, gpt2_cids_mask, gpt2_pos_ids)
+
+        # replace some negative samples
+        random_index = random.sample(range(self.size), 10)
+        easy_rids = []
+        for idx in random_index:
+            sentences = json.loads(self.reader.get_line(idx))['q']
+            easy_rids.append(self.vocab.encode(random.choice(sentences), add_special_tokens=False))
         return {
            'gpt2_cids': gpt2_cids, 
            'gpt2_cids_mask': gpt2_cids_mask, 
            'gpt2_pos_ids': gpt2_pos_ids,
            'cids': cids,
            'rids': rids,
+           'erids': easy_rids,
         }
 
     def filter(self, sentences):

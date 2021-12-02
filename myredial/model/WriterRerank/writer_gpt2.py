@@ -67,7 +67,6 @@ class WriterGPT2Model(nn.Module):
         for g in generated:
             g = [i for i in g if i not in self.special_tokens]
             rest.append(g)
-        ipdb.set_trace()
         return rest
 
     def corrupt(self, logits, current_step):

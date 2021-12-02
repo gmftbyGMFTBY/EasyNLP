@@ -4982,6 +4982,9 @@ class BERTDualBM25SCMLiteDataset(Dataset):
             print(f'[!] dataset size: {self.size}')
         else:
             data = read_text_data_utterances(path, lang=self.args['lang'])
+            # DEBUG for Ubuntu Corpus
+            if args['dataset'] in ['ubuntu'] and args['mode'] == 'valid':
+                data = data[:10000]    # 1000 sampels for ubunut
             for i in tqdm(range(0, len(data), 10)):
                 batch = data[i:i+10]
                 rids = []
@@ -5017,15 +5020,16 @@ class BERTDualBM25SCMLiteDataset(Dataset):
             line = self.reader.get_line(i)
             item = json.loads(line.strip())
 
-            ctx, res, cands = item['q'], item['r'], item['nr']
+            ctx, res = item['q'], item['r']
+            # debug: for ubuntu and douban, remove the q_q_nr
+            # cands = item['q_q_nr'] + item['single_nr']
+            cands = item['single_nr']
+            cands = random.sample(cands, self.args['gray_cand_num'])
             utterances = ctx + [res] + cands
             tokens = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']
             cids = tokens[:len(ctx)]
             rids = tokens[len(ctx)]
             crids = tokens[-len(cands):]
-            # also append the context utterances as the hard negative candidates
-            # crids.extend(cids)
-            # cids
             ids = []
             for u in cids:
                 ids.extend(u + [self.sep])
@@ -5038,11 +5042,10 @@ class BERTDualBM25SCMLiteDataset(Dataset):
             # hard negative
             crids = [i[:(self.args["res_max_len"]-2)] for i in crids]
             crids = [[self.cls] + i + [self.sep] for i in crids]
-            hrids = random.sample(crids, self.args['gray_cand_num'])
             ids = torch.LongTensor(ids)
             rids = torch.LongTensor(rids)
-            hrids = [torch.LongTensor(i) for i in hrids]
-            return ids, [rids] + hrids
+            crids = [torch.LongTensor(i) for i in crids]
+            return ids, [rids] + crids
         else:
             bundle = self.data[i]
             ids = torch.LongTensor(bundle['ids'])

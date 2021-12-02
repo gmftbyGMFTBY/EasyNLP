@@ -46,6 +46,7 @@ class ESBuilder:
     def insert(self, pairs):
         count = self.es.count(index=self.index)['count']
         actions = []
+        
         if self.q_q:
             for i, (q, a) in enumerate(tqdm(pairs)):
                 actions.append({
@@ -55,6 +56,7 @@ class ESBuilder:
                     'response': a,
                 })
         else:
+            # q-r or single mode
             for i, a in enumerate(tqdm(pairs)):
                 actions.append({
                     '_index': self.index,

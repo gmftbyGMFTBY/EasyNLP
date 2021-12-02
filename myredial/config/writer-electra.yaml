@@ -1,12 +1,11 @@
-test_interval: 0.05
+test_interval: 0.1
 valid_during_training: false
 is_step_for_training: true
-inference_time: 1
-total_step: 50010
+dropout: 0.1
 
 # gpt2 configuration
-gpt2_topk: 50
-gpt2_topp: 1.0
+gpt2_topk: 10
+gpt2_topp: 0.9
 gpt2_gen_max_len: 64
 gpt2_gen_max_ctx_len: 128
 gpt2_max_len: 128
@@ -27,22 +26,24 @@ corrupt_max_ratio: 0.0
 corrupt_min_topk: 1
 corrupt_max_topk: 1
 
-ctx_max_len: 128
-res_max_len: 64
-
 # train configuration
 train:
-    load_param: true
     lr: 0.00005
     grad_clip: 5.0
     seed: 0
-    batch_size: 128
+    batch_size: 64
+    max_len: 128
+    total_step: 50010
+    inference_time: 1
+    easy_cand_num: 1
     warmup_ratio: 0.05
+    cutoff_length: 5
     checkpoint: 
-        path: bert-post/best_nspmlm.pt
+        path: bert-fp/best_bert-base-chinese.pt
         is_load: false
 
 # test configuration
 test:
     seed: 0
     batch_size: 1
+    max_len: 128

@@ -9,6 +9,7 @@ def parser_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', default='douban', type=str)
     parser.add_argument('--recall_mode', default='q-r', type=str, help='q-q/q-r')
+    parser.add_argument('--maximum_sentence_num', default=1000000, type=int)
     return parser.parse_args()
 
 def q_q_dataset(args):
@@ -32,6 +33,18 @@ def q_r_dataset(args):
     print(f'[!] collect {len(data)} sentence for BM25 retrieval')
     return data
 
+def single_dataset(args):
+    '''save the single sentences'''
+    train_path = f'{args["root_dir"]}/data/{args["dataset"]}/train.txt'
+    train_data = load_sentences(train_path, lang=args['lang'])
+    data = list(set(train_data))
+    # maximum sentences limitation
+    # too many candidates in the elasticseach will slow down the searching speed
+    if len(data) > args['maximum_sentence_num']:
+        data = random.sample(data, args['maximum_sentence_num'])
+    print(f'[!] collect {len(data)} sentence for single-sentence BM25 retrieval')
+    return data
+
 if __name__ == "__main__":
     args=  vars(parser_args())
     args['mode'] = 'test'
@@ -43,12 +56,13 @@ if __name__ == "__main__":
     random.seed(args['seed'])
     if args['recall_mode'] == 'q-q':
         data = q_q_dataset(args)
-    else:
+    elif args['recall_mode'] == 'q-r':
         data = q_r_dataset(args)
+    elif args['recall_mode'] == 'single':
+        data = single_dataset(args)
     builder = ESBuilder(
         f'{args["dataset"]}_{args["recall_mode"]}',
         create_index=True,
         q_q=True if args['recall_mode'] == 'q-q' else False,
     )
-
     builder.insert(data)

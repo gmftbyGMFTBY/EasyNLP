@@ -36,12 +36,14 @@ class WriterRerankAgent(RetrievalBaseAgent):
         self.gpt2_model.eval()
         batch_size = len(batch['cids'])
         generation_rest = [[batch['rids'][i]] for i in range(batch_size)]
-        for _ in range(inference_t):
-            generated = self.gpt2_model(batch, current_step)
-            generated = [self.gpt2_vocab.decode(i) for i in generated]
-            generated = self.vocab.batch_encode_plus(generated, add_special_tokens=False)['input_ids']
-            for idx, g in enumerate(generated):
-                generation_rest[idx].append(g)
+        generated = self.gpt2_model(batch, current_step)    # [B*inference_time]
+        generated = [self.gpt2_vocab.decode(i) for i in generated]
+        generated = self.vocab.batch_encode_plus(generated, add_special_tokens=False)['input_ids']
+        counter = 0
+        for idx in range(0, len(generated), inference_t):
+            generation_rest[counter].extend(generated[idx:idx+inference_t])
+            counter += 1
+
         batch['rids'] = generation_rest
         return batch
 
@@ -65,18 +67,23 @@ class WriterRerankAgent(RetrievalBaseAgent):
         return loss, acc
    
     @torch.no_grad()
-    def test_model(self, test_iter):
+    def test_model(self, test_iter, print_output=True):
+        ##
+        original_inference_t = test_iter.dataset.args['inference_time']
+        test_iter.dataset.args['inference_time'] = 9
+        ##
         self.model.eval()
         pbar = tqdm(test_iter)
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
         total_examples, total_correct = 0, 0
+        # R20@k
         k_list = [1, 2, 5, 10]
         core_time_rest = 0
 
         for idx, batch in enumerate(pbar):                
-            # 1 + 9 = 10 candidates
+            # 1 + 9 + 10 = 20 candidates
             batch = self.gpt2_batch_inference(batch, 9, self.args['total_step'])
-            label = torch.LongTensor([1] + [0] * 9)
+            label = torch.LongTensor([1] + [0] * 19)
             if self.args['mode'] in ['train']:
                 scores = self.model.module.predict(batch).cpu().tolist()    # [B]
             else:
@@ -87,7 +94,7 @@ class WriterRerankAgent(RetrievalBaseAgent):
 
             ctext = ''.join(self.vocab.convert_ids_to_tokens(batch['cids'][0]))
             self.log_save_file.write(f'[Context] {ctext}\n')
-            for rid, score in zip(batch['rids'][0], scores):
+            for rid, score in zip(batch['rids'][0] + batch['erids'], scores):
                 rtext = ''.join(self.vocab.convert_ids_to_tokens(rid))
                 score = round(score, 4)
                 self.log_save_file.write(f'[Score {score}] {rtext}\n')
@@ -98,26 +105,22 @@ class WriterRerankAgent(RetrievalBaseAgent):
             calculate_candidates_ranking(
                 np.array(scores), 
                 np.array(label.cpu().tolist()),
-                10)
+                20
+            )
             num_correct = logits_recall_at_k(pos_index, k_list)
-            if self.args['dataset'] in ["douban", "restoration-200k"]:
-                total_prec_at_one += precision_at_one(rank_by_pred)
-                total_map += mean_average_precision(pos_index)
-                for pred in rank_by_pred:
-                    if sum(pred) == 0:
-                        total_examples -= 1
             total_mrr += logits_mrr(pos_index)
             total_correct = np.add(total_correct, num_correct)
             total_examples += 1
         avg_mrr = float(total_mrr / total_examples)
         avg_prec_at_one = float(total_prec_at_one / total_examples)
         avg_map = float(total_map / total_examples)
+        ##
+        test_iter.dataset.args['inference_time'] = original_inference_t
+        ##
         return {
-           f'R10@{k_list[0]}': round(((total_correct[0]/total_examples)*100), 2),        
-           f'R10@{k_list[1]}': round(((total_correct[1]/total_examples)*100), 2),        
-           f'R10@{k_list[2]}': round(((total_correct[2]/total_examples)*100), 2),        
+           f'R20@{k_list[0]}': round(((total_correct[0]/total_examples)*100), 2),        
+           f'R20@{k_list[1]}': round(((total_correct[1]/total_examples)*100), 2),        
+           f'R20@{k_list[2]}': round(((total_correct[2]/total_examples)*100), 2),        
            'MRR': round(100*avg_mrr, 2),
-           'P@1': round(100*avg_prec_at_one, 2),
-           'MAP': round(100*avg_map, 2),
            'core_time': core_time_rest,
         }

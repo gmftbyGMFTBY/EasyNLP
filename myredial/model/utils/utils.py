@@ -38,6 +38,19 @@ class GPT2LMIRModel(nn.Module):
         # lm_logits: [B, S, V]; hidden_state: [B, S, E]
         return lm_logits, hidden_state
 
+class AutoBertEmbedding(nn.Module):
+    
+    def __init__(self, model='bert-base-chinese'):
+        super(AutoBertEmbedding, self).__init__()
+        self.model = AutoModel.from_pretrained(pretrained_model_name_or_path=model)
+
+    def forward(self, ids, attn_mask, speaker_type_ids=None, hidden=False):
+        embds = self.model(ids, attention_mask=attn_mask)[0]
+        if hidden:
+            return embds    # [B, S, E]
+        else:
+            return embds[:, 0, :]    # [B, E]
+
 
 class BertFullEmbedding(nn.Module):
     

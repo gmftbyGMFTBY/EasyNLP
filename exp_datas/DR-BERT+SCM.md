@@ -9,7 +9,7 @@
 | SA-BERT+HCL        | 72.1  | 89.6  | 99.3  | -     |
 | BERT-FP            | 87.0  | 95.6  | 99.3  | 92.52 |
 | DR-BERT            | 96.0  | 98.4  | 99.6  | 92.52 |
-| dual-bert-scm(epoch=10,bert-fp-mono,bsz=64,full=9)      |  96.4 | 98.7  | 99.7  | 28.09 |
+| dual-bert-scm-hn(epoch=10,bert-fp-mono,bsz=64,full=9)      |  96.3 | 98.8  | 99.6  | 26.25 |
 
 ### 1.2 Douban Dataset
 
@@ -58,6 +58,7 @@
 | DR-BERT+SCM-MCH(nhead=8,fusion_layer=5,gray=2,bsz=80)       | 58.19 | 75.2 | 93.52 | 76.93 | 64.24 | 75.67 | 29.92 |
 | DR-BERT+SCM-MCH(nhead=8,fusion_layer=5,gray=4,bsz=80)       | 58.04 | 75.68 | 92.81 | 76.81 | 63.74 | 75.64 | 30.58 |
 | DR-BERT+SCM+POS(nhead=8,fusion_layer=1,gray=2,bsz=80,full=5,bert-fp-mono,dropout=0.1)       | 80.95 | 90.22 | 95.89 | 93.5 | 88.33 | 90.34 | 24.3 |
+| DR-BERT+SCM(q-q-and-single-bm25,nhead=12,nlayer=2,gray=5,bsz=64,before_comp)       | 61.12 | 77.23 | 93.06 | 79.08 | 67.81 | 77.98 | 26.13 |
 
 <!-- batch size ablation study -->
 | Models             | R10@1 | R10@2 | R10@5 | MRR   |  P@1  |  MAP   | Time Cost(ms) |
@@ -128,3 +129,4 @@
 | DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=32,before_comp)       | 59.42 | 77.59 |  94.25 | 78.12 |65.45  | 76.89 | 25.4 |
 | DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=16)       | 58.29 | 75.18 | 93.64 | 76.84 | 63.84 | 75.58 | 25.55 |
 | DR-BERT+SCM(nhead=8,nlayer=1,gray=2,bsz=16,before_comp)       | 58.02 | 76.51 | 93.91 | 77.26 | 64.14 | 75.95 | 24.66 |
+| DR-BERT+SCM(q-q-and-single-bm25,nhead=12,nlayer=2,gray=5,bsz=64,before_comp)       | 61.12 | 77.23 | 93.06 | 79.08 | 67.81 | 77.98 | 26.13 |

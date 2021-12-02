@@ -1,8 +1,10 @@
 test_interval: 0.05
 valid_during_training: false
 is_step_for_training: true
-inference_time: 1
+inference_time: 4
 total_step: 50010
+easy_cand_num: 5
+additional_embeddings: 9
 
 # gpt2 configuration
 gpt2_topk: 50
@@ -10,6 +12,7 @@ gpt2_topp: 1.0
 gpt2_gen_max_len: 64
 gpt2_gen_max_ctx_len: 128
 gpt2_max_len: 128
+bert_max_len: 160
 gpt2_tokenizer: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
 gpt2_pretrained_model: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
 
@@ -36,7 +39,7 @@ train:
     lr: 0.00005
     grad_clip: 5.0
     seed: 0
-    batch_size: 128
+    batch_size: 16
     warmup_ratio: 0.05
     checkpoint: 
         path: bert-post/best_nspmlm.pt

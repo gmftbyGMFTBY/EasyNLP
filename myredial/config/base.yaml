@@ -348,6 +348,11 @@ models:
         dataset_name: BERTDualFullDataset
         # dataset_name: HORSETestDataset
         inference_dataset_name: null
+    writer-dual-bert-phrase: 
+        type: WriterRerank
+        model_name: WriterPhraseEncoder
+        dataset_name: WriterRankDataset
+        inference_dataset_name: null
     writer-dual-bert: 
         type: WriterRerank
         model_name: WriterDualEncoder
@@ -485,6 +490,11 @@ models:
         type: CompareInteraction
         model_name: BERTSCMRetrieval
         dataset_name: BERTFTSCMDataset
+        inference_dataset_name: null 
+    writer-electra:
+        type: WriterRerank
+        model_name: WriterELECTRA
+        dataset_name: WriterRankDataset
         inference_dataset_name: null 
     bert-ft-writer:
         type: WriterRerank
@@ -648,7 +658,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 15
+version: 0
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
 rank: null

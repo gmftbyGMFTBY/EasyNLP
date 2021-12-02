@@ -5,14 +5,16 @@ class WriterDualEncoder(nn.Module):
 
     def __init__(self, **args):
         super(WriterDualEncoder, self).__init__()
-        self.ctx_encoder = BertEmbedding(model=args['pretrained_model'])
-        self.can_encoder = BertEmbedding(model=args['pretrained_model'])
+        self.ctx_encoder = AutoBertEmbedding(model=args['pretrained_model'])
+        self.can_encoder = AutoBertEmbedding(model=args['pretrained_model'])
         self.vocab = AutoTokenizer.from_pretrained(args['pretrained_model'])
         self.cls, self.pad, self.sep = self.vocab.convert_tokens_to_ids(['[CLS]', '[PAD]', '[SEP]'])
         self.topk = args['inference_time'] + 1
         self.args = args
 
     def batchify(self, batch):
+        # debug for test mode
+        batch['rids'] = [[batch['rids'][0][0]] + batch['erids']]
         context, responses = batch['cids'], batch['rids']
         cids, rids = [], []
         for c, rs in zip(context, responses):
