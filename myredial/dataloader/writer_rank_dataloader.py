@@ -90,7 +90,13 @@ class WriterRankDataset(Dataset):
         random_index = random.sample(range(self.size), 10)
         easy_rids = []
         for idx in random_index:
-            sentences = json.loads(self.reader.get_line(idx))['q']
+            while True:
+                line = self.reader.get_line(idx)
+                sentences = json.loads(line.strip())['q']
+                sentences = [s.strip() for s in sentences if s.strip()]    # ignore the empty sentence
+                if self.filter(sentences):
+                    break
+                idx = random.choice(range(self.size))
             easy_rids.append(self.vocab.encode(random.choice(sentences), add_special_tokens=False))
         return {
            'gpt2_cids': gpt2_cids, 
