@@ -118,9 +118,11 @@ class WriterRerankAgent(RetrievalBaseAgent):
         test_iter.dataset.args['inference_time'] = original_inference_t
         ##
         return {
-           f'R20@{k_list[0]}': round(((total_correct[0]/total_examples)*100), 2),        
-           f'R20@{k_list[1]}': round(((total_correct[1]/total_examples)*100), 2),        
-           f'R20@{k_list[2]}': round(((total_correct[2]/total_examples)*100), 2),        
+           f'R10@{k_list[0]}': round(((total_correct[0]/total_examples)*100), 2),        
+           f'R10@{k_list[1]}': round(((total_correct[1]/total_examples)*100), 2),        
+           f'R10@{k_list[2]}': round(((total_correct[2]/total_examples)*100), 2),        
            'MRR': round(100*avg_mrr, 2),
+           'P@1': round(100*avg_prec_at_one, 2),
+           'MAP': round(100*avg_map, 2),
            'core_time': core_time_rest,
         }

@@ -147,7 +147,6 @@ class WriterPhraseEncoder(nn.Module):
         for batch_i in range(s1):
             i_idx = [self.topk * batch_i + self.inner_topk * (1 + j) for j in range(self.args['inference_time'])]
             inference_gt_idx[batch_i].extend(i_idx)
-        # only use the first inference sample as the positive
         loss2 = 0
         for i_i in range(self.args['inference_time']):
             # mask other inference samples, only use one as positive
@@ -158,9 +157,10 @@ class WriterPhraseEncoder(nn.Module):
             )
             for_i_idx = []
             for batch_i in range(s1):
-                mask_inference_index = list(set(inference_gt_idx[batch_i]) - set([i_i]))
+                i_i_ = self.topk * batch_i + self.inner_topk * (1 + i_i)
+                mask_inference_index = list(set(inference_gt_idx[batch_i]) - set([i_i_]))
                 dot_product_bck[batch_i, mask_inference_index] = -1000
-                for_i_idx.append(inference_gt_idx[batch_i][i_i])
+                for_i_idx.append(i_i_)
             # calculate the loss
             mask = torch.zeros_like(dot_product_bck)
             mask[range(s1), for_i_idx] = 1.

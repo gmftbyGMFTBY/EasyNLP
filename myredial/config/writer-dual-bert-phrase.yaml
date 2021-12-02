@@ -1,9 +1,9 @@
-test_interval: 0.05
+test_interval: 0.01
 valid_during_training: false
 is_step_for_training: true
-inference_time: 4
+inference_time: 2
 total_step: 50010
-easy_cand_num: 5
+easy_cand_num: 7
 additional_embeddings: 9
 
 # gpt2 configuration
