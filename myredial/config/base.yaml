@@ -303,10 +303,16 @@ models:
         dataset_name: BERTDualBM25SCMDataset
         # dataset_name: HORSETestDataset
         inference_dataset_name: null
+    dual-bert-scm-hn-g: 
+        type: CompareInteraction
+        model_name: BERTDualSCMHNGlobalEncoder
+        dataset_name: BERTDualBM25SCMLiteDataset
+        # dataset_name: HORSETestDataset
+        inference_dataset_name: null
     dual-bert-scm-hn: 
         type: CompareInteraction
-        model_name: BERTDualSCMHNEncoder
-        # dataset_name: BERTDualBM25SCMDataset
+        # model_name: BERTDualSCMHNEncoder
+        model_name: BERTDualSCMHN2Encoder
         dataset_name: BERTDualBM25SCMLiteDataset
         # dataset_name: HORSETestDataset
         inference_dataset_name: null
@@ -658,7 +664,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 0
+version: 20
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
 rank: null
@@ -667,6 +673,8 @@ load_param: true
 # for ubuntu and horse corpus, set this parameter as true, otherwise set false
 valid_during_training: true
 is_step_for_training: false
+# start_save_step only useful when is_step_for_training is true
+start_save_step: 0 
 # ========= Global configuration ========== #
 
 

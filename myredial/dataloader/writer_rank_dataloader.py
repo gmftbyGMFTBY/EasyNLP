@@ -87,7 +87,7 @@ class WriterRankDataset(Dataset):
         gpt2_cids, gpt2_cids_mask, gpt2_pos_ids = to_cuda(gpt2_cids, gpt2_cids_mask, gpt2_pos_ids)
 
         # replace some negative samples
-        random_index = random.sample(range(self.size), 10)
+        random_index = random.sample(range(self.size), self.args['easy_cand_pool_size'])
         easy_rids = []
         for idx in random_index:
             while True:

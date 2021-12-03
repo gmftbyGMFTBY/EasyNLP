@@ -33,7 +33,11 @@ class WriterPhraseEncoder(nn.Module):
                 for i, rr in enumerate(responses):
                     if i != idx:
                         candidates.extend(rr)
-                rs = rs + random.sample(candidates, self.args['easy_cand_num'])
+                if self.args['easy_cand_num'] > len(candidates):
+                    # use the easy cand pool
+                    rs = rs + random.sample(batch['erids'], self.args['easy_cand_num'])
+                else:
+                    rs = rs + random.sample(candidates, self.args['easy_cand_num'])
             else:
                 rs = rs + batch['erids']
 

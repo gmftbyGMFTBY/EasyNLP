@@ -4,7 +4,9 @@ is_step_for_training: true
 inference_time: 2
 total_step: 50010
 easy_cand_num: 7
+easy_cand_pool_size: 10
 additional_embeddings: 9
+start_save_step: 10000
 
 # gpt2 configuration
 gpt2_topk: 50
