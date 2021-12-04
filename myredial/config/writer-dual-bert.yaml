@@ -3,6 +3,7 @@ valid_during_training: false
 is_step_for_training: true
 inference_time: 1
 total_step: 50010
+easy_cand_pool_size: 10
 
 # gpt2 configuration
 gpt2_topk: 50

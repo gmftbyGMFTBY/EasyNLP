@@ -122,6 +122,9 @@ class WriterPhraseEncoder(nn.Module):
         batch = self.batchify(batch, train=False)
         queries, embeddings = self._encode(batch, train=False)
         dot_product = torch.matmul(queries, embeddings.t()).squeeze(0)    # [20]
+        # api normalization
+        dot_product /= np.sqrt(768)
+        dot_product = (dot_product - dot_product.min()) / (1e-3 + dot_product.max() - dot_product.min())
         return dot_product
     
     def forward(self, batch):

@@ -7,14 +7,18 @@ class WriterDualEncoder(nn.Module):
         super(WriterDualEncoder, self).__init__()
         self.ctx_encoder = AutoBertEmbedding(model=args['pretrained_model'])
         self.can_encoder = AutoBertEmbedding(model=args['pretrained_model'])
+
+        # compatible with the former model
+        # self.ctx_encoder.model.resize_token_embeddings(self.ctx_encoder.model.config.vocab_size + 1)
+        # self.can_encoder.model.resize_token_embeddings(self.can_encoder.model.config.vocab_size + 1)
+
         self.vocab = AutoTokenizer.from_pretrained(args['pretrained_model'])
         self.cls, self.pad, self.sep = self.vocab.convert_tokens_to_ids(['[CLS]', '[PAD]', '[SEP]'])
         self.topk = args['inference_time'] + 1
         self.args = args
 
     def batchify(self, batch):
-        # debug for test mode
-        batch['rids'] = [[batch['rids'][0][0]] + batch['erids']]
+        batch['rids'] = [batch['rids'][0] + batch['erids']]
         context, responses = batch['cids'], batch['rids']
         cids, rids = [], []
         for c, rs in zip(context, responses):
@@ -37,11 +41,12 @@ class WriterDualEncoder(nn.Module):
 
     @torch.no_grad()
     def predict(self, batch):
-        self.ctx_encoder.eval()
-        self.can_encoder.eval()
         cids, rids, cids_mask, rids_mask = self.batchify(batch)
         cid_rep, rid_rep = self._encode(cids, rids, cids_mask, rids_mask)
         dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
+        # api normalization
+        dot_product /= np.sqrt(768)
+        dot_product = (dot_product - dot_product.min()) / (1e-3 + dot_product.max() - dot_product.min())
         return dot_product
     
     def forward(self, batch):

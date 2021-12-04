@@ -5021,9 +5021,11 @@ class BERTDualBM25SCMLiteDataset(Dataset):
             item = json.loads(line.strip())
 
             ctx, res = item['q'], item['r']
+
             # debug: for ubuntu and douban, remove the q_q_nr
-            # cands = item['q_q_nr'] + item['single_nr']
-            cands = item['single_nr']
+            cands = item['q_q_nr'] + item['single_nr']
+            # cands = item['single_nr']
+
             cands = random.sample(cands, self.args['gray_cand_num'])
             utterances = ctx + [res] + cands
             tokens = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']

@@ -1,4 +1,4 @@
-test_interval: 0.01
+test_interval: 0.05
 valid_during_training: false
 is_step_for_training: true
 inference_time: 2
