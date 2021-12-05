@@ -33,7 +33,8 @@ class BERTDualSCMHNDMEncoder(nn.Module):
             ngt_rep_rid = []    # [K_-1, B_c, E]
             for batch_i in range(cid_size):
                 # hard negative, at least one hard negative
-                hn_num = random.randint(1, min(self.topk-1, overall_num-1))
+                # hn_num = random.randint(1, min(self.topk-1, overall_num-1))
+                hn_num = random.randint(1, 1)
                 hn_random_index = list(range(self.topk))[1:]
                 random.shuffle(hn_random_index)
                 hn_random_index = hn_random_index[:hn_num]

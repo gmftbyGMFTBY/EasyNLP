@@ -42,6 +42,7 @@ no_test_models:
     - bert-mask-da-dmr
     - bert-mask-da-sep
     - dual-bert-unsup
+    - writer-dual-bert-phrase
 
 no_train_models:
     - bert-fp-original
@@ -664,7 +665,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 0
+version: 1
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
 rank: null
