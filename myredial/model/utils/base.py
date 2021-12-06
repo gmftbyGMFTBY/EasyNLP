@@ -379,29 +379,29 @@ class GenerationBaseAgent:
         # ppl_pos = test_rest['PPL-pos']
         # ppl_neg = test_rest['PPL-neg']
         ppl = test_rest['PPL']
-        b_1 = test_rest['BLEU-1']
-        b_2 = test_rest['BLEU-2']
-        b_3 = test_rest['BLEU-3']
-        b_4 = test_rest['BLEU-4']
-        rouge_l = test_rest['ROUGE-L']
-        meteor = test_rest['METEOR']
-        p = test_rest['BERTScore-P']
-        r = test_rest['BERTScore-R']
-        f = test_rest['BERTScore-F']
+        # b_1 = test_rest['BLEU-1']
+        # b_2 = test_rest['BLEU-2']
+        # b_3 = test_rest['BLEU-3']
+        # b_4 = test_rest['BLEU-4']
+        # rouge_l = test_rest['ROUGE-L']
+        # meteor = test_rest['METEOR']
+        # p = test_rest['BERTScore-P']
+        # r = test_rest['BERTScore-R']
+        # f = test_rest['BERTScore-F']
 
         if recoder:
             # recoder.add_scalar(f'train-test/PPL-pos', ppl_pos, index)
             # recoder.add_scalar(f'train-test/PPL-neg', ppl_neg, index)
             recoder.add_scalar(f'train-test/PPL', ppl, index)
-            recoder.add_scalar(f'train-test/BLEU-1', b_1, index)
-            recoder.add_scalar(f'train-test/BLEU-2', b_2, index)
-            recoder.add_scalar(f'train-test/BLEU-3', b_3, index)
-            recoder.add_scalar(f'train-test/BLEU-4', b_4, index)
-            recoder.add_scalar(f'train-test/ROUGE-L', rouge_l, index)
-            recoder.add_scalar(f'train-test/METEOR', meteor, index)
-            recoder.add_scalar(f'train-test/BERTScore-P', p, index)
-            recoder.add_scalar(f'train-test/BERTScore-R', r, index)
-            recoder.add_scalar(f'train-test/BERTScore-F', f, index)
+            # recoder.add_scalar(f'train-test/BLEU-1', b_1, index)
+            # recoder.add_scalar(f'train-test/BLEU-2', b_2, index)
+            # recoder.add_scalar(f'train-test/BLEU-3', b_3, index)
+            # recoder.add_scalar(f'train-test/BLEU-4', b_4, index)
+            # recoder.add_scalar(f'train-test/ROUGE-L', rouge_l, index)
+            # recoder.add_scalar(f'train-test/METEOR', meteor, index)
+            # recoder.add_scalar(f'train-test/BERTScore-P', p, index)
+            # recoder.add_scalar(f'train-test/BERTScore-R', r, index)
+            # recoder.add_scalar(f'train-test/BERTScore-F', f, index)
         self.test_step_counter += 1
         
         # find the new best model, save

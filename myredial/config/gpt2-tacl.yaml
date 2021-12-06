@@ -1,13 +1,11 @@
-test_interval: 0.05
+test_interval: 0.01
 valid_during_training: false
 is_step_for_training: true
-total_step: 50010
+total_step: 100010
+temp: 0.07
 
 # gpt2 configuration
-gpt2_topk: 50
-gpt2_topp: 1.0
-
-# gpt2 model
+test_max_len: 128
 gpt2_tokenizer: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
 gpt2_pretrained_model: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
 
@@ -35,4 +33,6 @@ train:
 # test configuration
 test:
     seed: 0
-    batch_size: 1
+    batch_size: 128
+    # this means the prefix length
+    max_len: 128

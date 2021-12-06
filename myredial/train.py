@@ -69,25 +69,23 @@ def main(**args):
         args['warmup_step'] = int(args['warmup_ratio'] * args['total_step'])
         agent = load_model(args)
         pbar = tqdm(total=args['total_step'])
-        total_loss, total_acc = 0, 0
         gobal_total_step, current_step, over_train_flag = 0, 0, False
         # 1000000 is the virtual epoch, only the step are used
         for _ in range(1000000):
             for batch in train_iter:
-                loss, acc = agent.train_model(batch, recoder=sum_writer, current_step=current_step)
-                total_loss += loss.item()
-                total_acc += acc
+                agent.train_model(
+                    batch, 
+                    recoder=sum_writer, 
+                    current_step=current_step, 
+                    pbar=pbar
+                )
                 if args['local_rank'] == 0 and current_step in args['test_step'] and current_step > 0:
                     agent.test_now(test_iter, sum_writer)
-                # pbar
                 current_step += 1
-                pbar.update(1)
-                pbar.set_description(f'[!] loss: {round(loss.item(), 4)}|{round(total_loss/current_step, 4)}; acc: {round(acc*100, 2)}|{round(total_acc/current_step*100, 2)}')
                 if current_step > args['total_step']:
                     over_train_flag = True
                     break
             if over_train_flag:
-                print(f'[!] ========== train over ==========')
                 break
     else:
         obtain_steps_parameters(train_data, args)

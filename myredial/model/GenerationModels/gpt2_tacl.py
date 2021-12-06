@@ -2,81 +2,98 @@ from model.utils import *
 
 class GPT2TaCLEncoder(nn.Module):
 
-    '''Phrase-level extraction with GPT-2 LM Head as the query'''
-
     def __init__(self, **args):
         super(GPT2TaCLEncoder, self).__init__()
         model = args['pretrained_model']
-        gpt2_model = args['gpt2_lm_model']
+        gpt2_model = args['gpt2_pretrained_model']
         self.vocab = BertTokenizer.from_pretrained(model)
         self.pad = self.vocab.pad_token_id
+        self.unk = self.vocab.unk_token_id
+        self.cls = self.vocab.cls_token_id
+        self.special_tokens = set([self.pad, self.unk, self.cls])
 
-        self.ctx_encoder = GPT2LMIRModel(model=gpt2_model)
-        self.can_encoder = BertFullEmbedding(model=model)
+        self.gpt2_encoder = GPT2LMIRModel(model=gpt2_model)
+        self.bert_encoder = BertFullEmbedding(model=model)
 
         self.criterion = nn.CrossEntropyLoss(ignore_index=self.pad)
-        self.proj_query = nn.Sequential(
-            nn.Dropout(p=args['dropout']),
-            nn.Linear(768, 768),
-        )
+        self.test_max_len = args['test_max_len']
+        self.temp = args['temp']
 
-        self.topk = args['gpt2_topk']
-        self.topp = args['gpt2_topp']
-
-    def _encode(self, cid, cid_mask):
-        cid_logits, cid_rep = self.ctx_encoder(cid, cid_mask)
-        cid_rep = self.proj_query(cid_proj)
+    def _encode(self, ids, ids_mask, bert_ids, bert_ids_mask):
+        gpt2_logits, gpt2_rep = self.gpt2_encoder(ids, ids_mask)
         # do not train the bert encoder (teacher)
         with torch.no_grad():
-            rid_rep = self.can_encoder(cid, cid_mask)
-        return cid_logits, cid_rep, rid_rep
+            bert_rep = self.bert_encoder(bert_ids, bert_ids_mask)
+            bert_rep = bert_rep[:, 1:-1, :]    # ignore the [CLS] and [SEP] tokens' embeddings
+        return gpt2_logits, gpt2_rep, bert_rep
+
+    @torch.no_grad()
+    def calculate_ppl(self, ids, ids_mask, label):
+        gen_logits = self.gpt2_encoder.model(
+            input_ids=ids, 
+            attention_mask=ids_mask
+        )
+        gen_logits = gen_logits.logits
+        shift_logits = gen_logits[..., :-1, :].contiguous()
+        shift_labels = label[..., 1:].contiguous()
+        loss = self.criterion(
+            shift_logits.view(-1, shift_logits.size(-1)), 
+            shift_labels.view(-1)
+        )
+        ppl = math.exp(loss.item())
+        return ppl
 
     @torch.no_grad()
     def predict(self, batch):
-        '''batch size must be one'''
-        ids = batch['cids']
-        ids_mask = batch['cids_mask']
-        # ids: [1, S]; ids_mask: [1, S]
-        generated = []
+        '''greedy search with batch inference, pad in the left'''
+        ids = batch['ids']
+        ids_mask = batch['ids_mask']
+        ids_pos = batch['pos_ids']
+        batch_size, seqlen = ids.size()
+        generated = [[] for _ in range(batch_size)]
+        past_key_values = None
         while True:
-            output = self.model(
+            output = self.gpt2_encoder.model(
                 input_ids=ids,
                 attention_mask=ids_mask,
-            )[0]    # [1, S, V]
-            next_token_logits = output[-1, -1, :]    # [V]
-            next_token_logits[self.unk] = -np.inf
-            filtered_logits = top_k_top_p_filtering(
-                next_token_logits, 
-                top_k=self.topk, 
-                top_p=self.topp
+                position_ids=ids_pos,
+                past_key_values=past_key_values,
+                use_cache=True
             )
-            next_token = torch.multinomial(
-                F.softmax(filtered_logits, dim=-1),
-                num_samples=1,
-            )
-            if next_token == self.sep or len(generated) > self.test_max_len:
+            logits = output.logits
+            past_key_values = output.past_key_values
+            next_token_logits = logits[:, -1, :]    # [B, V]
+            next_token_logits[:, self.unk] = -np.inf
+            next_token = next_token_logits.max(dim=-1)[1].unsqueeze(1)    # [B, 1]
+            for idx, t in enumerate(next_token.squeeze(-1).tolist()):
+                generated[idx].append(t)
+            if max([len(i) for i in generated]) > self.test_max_len:
                 break
-            generated.append(next_token.item())
             # reconstruct the ids and ids_mask
-            ids = torch.cat((ids, next_token.unsqueeze(0)), dim=1)    # [1, S+1]
-            ids = ids[:, -self.test_max_ctx_len:]
+            ids = next_token
             ids_mask = torch.ones_like(ids)
-        return generated
+            ids_pos = 1 + ids_pos[:, -1].unsqueeze(dim=-1)
+        # remove the special tokens
+        rest = []
+        for g in generated:
+            g = [i for i in g if i not in self.special_tokens]
+            rest.append(g)
+        return rest
     
     def forward(self, batch):
-        cid = batch['ids']
-        cid_mask = batch['ids_mask']    # [B, S]
-        batch_size = cid.shape[0]
+        gpt2_ids, gpt2_ids_mask = batch['ids'], batch['ids_mask']
+        bert_ids, bert_ids_mask = batch['bert_ids'], batch['bert_ids_mask']
+        batch_size, length = gpt2_ids.size()
 
-        cid_logits, cid_rep, rid_rep = self._encode(cid, cid_mask)
-        # context lm loss
-        shift_logits = cid_logits[..., :-1, :].contiguous()
-        shift_labels = cid[..., 1:].contiguous()
+        gpt2_logits, gpt2_rep, bert_rep = self._encode(gpt2_ids, gpt2_ids_mask, bert_ids, bert_ids_mask)
+        # gpt2 lm loss
+        shift_logits = gpt2_logits[..., :-1, :].contiguous()
+        shift_labels = gpt2_ids[..., 1:].contiguous()
         lm_loss = self.criterion(
             shift_logits.view(-1, shift_logits.size(-1)),
             shift_labels.view(-1)
         )
-        # context lm acc
+        # gpt2 token acc
         _, preds = shift_logits.max(dim=-1)
         not_ignore = shift_labels.ne(self.pad)
         num_targets = not_ignore.long().sum().item()
@@ -85,30 +102,34 @@ class GPT2TaCLEncoder(nn.Module):
         token_acc = correct / num_targets
 
         # token-aware contrastive training loss
-        rid_rep = rid_rep[:, 1:, :]   # [B, S-1, E]
-        cid_mask = cid_mask[:, 1:]    # [B, S-1]
-        cid_rep = cid_rep[:, :-1, :]  # [B, S-1, E]
-        # cid_rep: [B, S-1, E]; rid_rep: [B, S-1, E]
-        dot_product = torch.bmm(cid_rep, rid_rep.permute(0, 2, 1))    # [B, S-1, S-1]
-        mask = torch.zeros_like(dot_product)    # [B, S-1, S-1]
-        mask[:, range(batch_size), range(batch_size)] = 1. 
-        # ignore the pad
-        length = len(cid_mask[0])
-        for i in range(len(mask)):
-            num_nonzero = cid_mask[i].nonzero().size(0)
-            # -1 means ignore the last [SEP] token, which is useless
-            mask[i][range(num_nonzero-1, length), range(num_nonzero-1, length)] = 0.
-        loss_ = F.log_softmax(dot_product, dim=-1) * mask    # [B, S-1, S-1]
-        loss = -loss_.sum(dim=2)    # [B, S-1]
-        loss = loss.view(-1).mean()    # [B*(S-1)]
+        # cosine similarity
+        # bert_rep: [B, S, E]; gpt2_rep: [B, S, E]
+        bert_rep = F.normalize(bert_rep, dim=-1)
+        gpt2_rep = F.normalize(gpt2_rep, dim=-1)
+        cosine_sim = torch.bmm(gpt2_rep, bert_rep.permute(0, 2, 1))    # [B, S, S]
+        cosine_sim /= self.temp
+
+        # build the tacl loss
+        mask = torch.zeros_like(cosine_sim)    # [B, S, S]
+        mask[:, range(length), range(length)] = 1. 
+        effective_num = 0
+        # [PAD] must be ignored
+        for i in range(batch_size):
+            num_nonzero = gpt2_ids_mask[i].nonzero().size(0)
+            mask[i][range(num_nonzero, length), range(num_nonzero, length)] = 0.
+            effective_num += num_nonzero
+        loss_ = F.log_softmax(cosine_sim, dim=-1) * mask    # [B, S, S]
+        tacl_loss = -loss_.sum(dim=2)    # [B, S]
+        tacl_loss = tacl_loss.view(-1).sum()    # [B*S]
+        tacl_loss /= effective_num
         
-        # acc
+        # tacl acc
         acc_num, s = 0, 0
-        for dp, mask_, cid_mask_ in zip(dot_product, mask, cid_mask):
-            # dp: [S-1, S-1]; mask_: [S-1, S-1]
-            num_nonzero = cid_mask[i].nonzero().size(0)
+        for dp, mask_ in zip(cosine_sim, mask):
+            # dp: [S, S]; mask_: [S, S]
+            num_nonzero = mask_.nonzero().size(0)
             dp = dp[:num_nonzero, :num_nonzero]
-            acc_num += (F.softmax(dp, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(num_nonzero)).cuda()).sum().item()
+            acc_num += (dp.max(dim=-1)[1] == torch.arange(num_nonzero).cuda()).sum().item()
             s += num_nonzero
-        acc = acc_num / s
-        return lm_loss, loss, token_acc, acc
+        tacl_acc = acc_num / s
+        return lm_loss, tacl_loss, token_acc, tacl_acc

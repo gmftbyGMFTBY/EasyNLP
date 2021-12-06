@@ -27,49 +27,33 @@ class GenerationAgent(GenerationBaseAgent):
         self.nlgeval = NLGEval(no_glove=True, no_skipthoughts=True)
         self.bertscorer = BERTScorer(lang=self.args['lang'], rescale_with_baseline=True)
     
-    def train_model(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
+    def train_model(self, batch, recoder=None, current_step=0, pbar=None):
         self.model.train()
-        total_ppl, total_loss, total_token_acc, batch_num = 0, 0, 0, 0
-        pbar = tqdm(train_iter)
-        for idx, batch in enumerate(pbar):
-            self.optimizer.zero_grad()
-            with autocast():
-                loss, token_acc, ppl = self.model(batch)
-            self.scaler.scale(loss).backward()
-            self.scaler.unscale_(self.optimizer)
-            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
-            self.scheduler.step()
-
-            total_ppl += ppl
-            total_loss += loss.item()
-            total_token_acc += token_acc
-            batch_num += 1
-
-            if whole_batch_num + batch_num in self.args['test_step']:
-                self.test_now(test_iter, recoder)
-           
-            if recoder:
-                recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
-                recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
-                recoder.add_scalar(f'train-epoch-{idx_}/PPL', total_ppl/batch_num, idx)
-                recoder.add_scalar(f'train-epoch-{idx_}/RunPPL', ppl, idx)
-                recoder.add_scalar(f'train-epoch-{idx_}/TokenAcc', total_token_acc/batch_num, idx)
-                recoder.add_scalar(f'train-epoch-{idx_}/RunTokenAcc', token_acc, idx)
-             
-            pbar.set_description(f'[!] loss: {round(total_loss/batch_num, 4)}; ppl: {round(ppl, 2)}; token acc: {round(total_token_acc/batch_num*100, 2)}')
+        self.optimizer.zero_grad()
+        with autocast():
+            lm_loss, tacl_loss, token_acc, tacl_acc = self.model(batch)
+            loss = lm_loss + tacl_loss
+        self.scaler.scale(loss).backward()
+        self.scaler.unscale_(self.optimizer)
+        clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+        self.scaler.step(self.optimizer)
+        self.scaler.update()
+        self.scheduler.step()
         if recoder:
-            recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
-            recoder.add_scalar(f'train-whole/PPL', total_ppl/batch_num, idx_)
-            recoder.add_scalar(f'train-whole/TokenAcc', total_token_acc/batch_num, idx_)
-        return batch_num
+            recoder.add_scalar(f'train/RunLoss', loss.item(), current_step)
+            recoder.add_scalar(f'train/RunLMLoss', lm_loss.item(), current_step)
+            recoder.add_scalar(f'train/RunTaCLLoss', tacl_loss.item(), current_step)
+            recoder.add_scalar(f'train/TokenAcc', token_acc, current_step)
+            recoder.add_scalar(f'train/TaCLAcc', tacl_acc, current_step)
+        pbar.set_description(f'[!] loss: {round(loss.item(), 4)}; token_acc: {round(token_acc*100, 2)}; tacl_acc: {round(tacl_acc*100, 2)}')
+        pbar.update(1)
+        return loss, token_acc
 
     @torch.no_grad()
     def test_model(self, test_iter, print_output=True):
         self.model.eval()
         pbar = tqdm(test_iter)
-        PPL, results = [], []
+        PPL, rest = [], {}
         for idx, batch in enumerate(pbar):
             if self.args['mode'] == 'train':
                 logits = self.model.module.predict(batch)
@@ -78,15 +62,13 @@ class GenerationAgent(GenerationBaseAgent):
                 logits = self.model.predict(batch)
                 ppl = self.model.calculate_ppl(batch['ids'], batch['ids_mask'], batch['ids_label'])
             PPL.append(ppl)
-            results.append((batch['response'], ''.join(self.vocab.convert_ids_to_tokens(logits))))
             if print_output:
-                c, r = batch['context'], batch['response']
-                gen = ''.join(self.vocab.convert_ids_to_tokens(logits))
-                self.log_save_file.write(f'[Prefix     ] {c}\n')
-                self.log_save_file.write(f'[Positive   ] {r}\n')
-                self.log_save_file.write(f'[Generation ] {gen}\n\n')
-                self.log_save_file.flush()
-        rest = self.obtain_automatic_evaluation(results)
+                for c, r in zip(batch['ids'], logits):
+                    ctx = ''.join([i for i in self.vocab.convert_ids_to_tokens(c) if i not in ['[CLS]', '[PAD]', '[SEP]']])
+                    res = ''.join([i for i in self.vocab.convert_ids_to_tokens(r) if i not in ['[CLS]', '[PAD]', '[SEP]']])
+                    self.log_save_file.write(f'[Prefix     ] {ctx}\n')
+                    self.log_save_file.write(f'[Generation ] {res}\n\n')
+                    self.log_save_file.flush()
         rest['PPL'] = np.mean(PPL)
         return rest
     

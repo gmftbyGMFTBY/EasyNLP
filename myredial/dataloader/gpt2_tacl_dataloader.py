@@ -34,7 +34,7 @@ class GPT2TaCLDataset(Dataset):
             line = self.reader.get_line(i)
             sentences = json.loads(line.strip())['q']
             sentences = [s.strip() for s in sentences if s.strip()]
-            if len(sentence) > 0:
+            if len(sentences) > 0:
                 break
             i = random.choice(range(self.size))
 
@@ -45,28 +45,39 @@ class GPT2TaCLDataset(Dataset):
         if len(tokens) > self.args['max_len']:
             sample_range = list(range(0, len(tokens) - self.args['max_len']))
             head = random.choice(sample_range)
-            tail = head += self.args['max_len']
+            tail = head + self.args['max_len']
             tokens = tokens[head:tail]
-        return tokens
+        return tokens, [self.cls] + tokens + [self.sep]
 
     def save(self):
         pass
         
     def collate(self, batch):
         if self.args['mode'] == 'train':
-            batch = [torch.LongTensor(i) for i in batch]
-            ids = pad_sequence(batch, batch_first=True, padding_value=self.pad)
+            ids = [torch.LongTensor(i[0]) for i in batch]
+            bert_ids = [torch.LongTensor(i[1]) for i in batch]
+            ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+            bert_ids = pad_sequence(bert_ids, batch_first=True, padding_value=self.pad)
             ids_mask = generate_mask(ids)
-            ids, ids_mask = to_cuda(ids, ids_mask)
+            bert_ids_mask = generate_mask(bert_ids)
+            ids, ids_mask, bert_ids, bert_ids_mask = to_cuda(ids, ids_mask, bert_ids, bert_ids_mask)
+            return {
+                'ids': ids, 
+                'ids_mask': ids_mask, 
+                'bert_ids': bert_ids,
+                'bert_ids_mask': bert_ids_mask,
+            }
         else:
-            # batch size must be 1 
-            # sample the prefix
-            assert len(batch) == 1
-            tokens = batch[0][:-self.args['prefix_len']]
-            ids = torch.LongTensor(tokens).unsqueeze(0)    # [1, S]
-            ids_mask = torch.ones_like(ids)
-            ids, ids_mask = to_cuda(ids, ids_mask)
-        return {
-            'ids': ids, 
-            'ids_mask': ids_mask, 
-        }
+            # left pad
+            batch = [i[0] for i in batch]
+            max_length = max([len(i) for i in batch])
+            ids = torch.stack([torch.LongTensor([self.pad] * (max_length - len(i)) + i) for i in batch])
+            ids_mask = generate_mask(ids)
+            pos_ids = (ids_mask.long().cumsum(-1) - 1).masked_fill(ids_mask == 0, 0)
+            ids, ids_mask, pos_ids = to_cuda(ids, ids_mask, pos_ids)
+            return {
+                'ids': ids, 
+                'ids_mask': ids_mask, 
+                'ids_label': ids,
+                'pos_ids': pos_ids, 
+            }
