@@ -146,6 +146,54 @@ def load_fake_partial_rerank_data(path, size=1000):
     return data
 
 
+def load_fake_rerank_data_from_writer_rank_corpus(path, size=1000):
+    rar_path = f'{args["root_dir"]}/data/{args["dataset"]}/test.rar'
+    reader = torch.load(rar_path)
+    reader.init_file_handler()
+    dataset = [json.loads(reader.get_line(i)) for i in range(reader.size)]
+    data = []
+    for item in tqdm(dataset):
+        sentences = [''.join(s.split()) for s in item['q']]
+        # build the context and 1 ground-truth
+        if random.random() < 0.5:
+            res_idx = random.randint(1, len(sentences) - 1)
+            context, response = sentences[:res_idx], sentences[res_idx]
+        else:
+            res_idx = random.randint(0 ,len(sentences)-1)
+            length = len(sentences[res_idx])
+            idx = random.randint(int(0.25*length), int(0.5*length))
+            context = sentences[:res_idx] + [sentences[res_idx][:idx]]
+            response = sentences[res_idx][idx:]
+        # build 8 hard negative samples, add or delete tokens before the ground-truth response
+        hard_neg = []
+        for _ in range(9):
+            if random.random() < 0.9:
+                # add (copy)
+                add_num = random.randint(3, 8)
+                hard_neg.append(response[:add_num] + response)
+            else:
+                # delete
+                delete_num = random.randint(3, 8)
+                hard_neg.append(response[delete_num:])
+        # build 10 random negative samples
+        random_neg = []
+        for _ in range(10):
+            rr = random.choice(random.choice(dataset)['q'])
+            rr = ''.join(rr.split())
+            random_neg.append(rr)
+        # overall candaidates
+        candidates = [response] + hard_neg + random_neg
+        data.append({
+            'segment_list': [{
+                'context': context, 
+                'candidates': candidates
+            }],
+            'lang': 'zh',
+        })
+    data = random.sample(data, size)
+    return data
+
+
 def load_fake_rerank_data(path, size=1000):
     # make sure the data reader
     dataset, _ = read_json_data(path, lang='zh')
@@ -285,7 +333,11 @@ def test_partial_rerank(args):
 
 
 def test_rerank(args):
-    data = load_fake_rerank_data(
+    # data = load_fake_rerank_data(
+    #     f'{args["root_dir"]}/data/{args["dataset"]}/test.txt',
+    #     size=args['size'],
+    # )
+    data = load_fake_rerank_data_from_writer_rank_corpus(
         f'{args["root_dir"]}/data/{args["dataset"]}/test.txt',
         size=args['size'],
     )

@@ -126,3 +126,20 @@ class WriterRerankAgent(RetrievalBaseAgent):
            'MAP': round(100*avg_map, 2),
            'core_time': core_time_rest,
         }
+
+    @torch.no_grad()
+    def rerank(self, batches, inner_bsz=2048):
+        self.model.eval()
+        scores = []
+        for idx, batch in enumerate(batches):
+            # `batch` contains on context instance and multiple candidates
+            # tokenize it
+            cids = []
+            for s in batch['context']:
+                cids.extend(self.vocab.encode(s, add_special_tokens=False))
+            cids = cids[-self.args['gpt2_max_len']:]
+            rids = [self.vocab.encode(r, add_special_tokens=False) for r in batch['candidates']]
+            item = {'cids': [cids], 'rids': [rids], 'deploy': True}
+            subscores = self.model.predict(item).tolist()
+            scores.append(subscores)
+        return scores

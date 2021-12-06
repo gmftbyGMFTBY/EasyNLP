@@ -25,16 +25,15 @@ class BERTDualSCMHNDMEncoder(nn.Module):
         gt_rep_rid = rid_rep[:, 0, :].unsqueeze(0)    # [1, B_c, E]
         dps = []
         for _ in range(self.dm_turn_num):
+            overall_num = random.randint(self.dm_min_compare_num, self.dm_max_compare_num)
             ## random select some responses for comparison
             ## the overall comparison number (hard + easy)
             ## rep_rid: [K_, B_c, E]; groundtruth on the position 0th
-            overall_num = random.randint(self.dm_min_compare_num, self.dm_max_compare_num)
             ## collect other responses for each instance
             ngt_rep_rid = []    # [K_-1, B_c, E]
             for batch_i in range(cid_size):
                 # hard negative, at least one hard negative
-                # hn_num = random.randint(1, min(self.topk-1, overall_num-1))
-                hn_num = random.randint(1, 1)
+                hn_num = random.randint(1, min(self.topk-1, overall_num-1))
                 hn_random_index = list(range(self.topk))[1:]
                 random.shuffle(hn_random_index)
                 hn_random_index = hn_random_index[:hn_num]
@@ -48,7 +47,6 @@ class BERTDualSCMHNDMEncoder(nn.Module):
                 en_rid_rep = rid_pool[en_random_index, :]    # [En, E]
                 # negative samples
                 n_rep_rid = torch.cat([hn_rid_rep, en_rid_rep], dim=0)    # [K_-1, E]
-
                 ngt_rep_rid.append(n_rep_rid)
             ngt_rep_rid = torch.stack(ngt_rep_rid).permute(1, 0, 2)    # [K_-1, B_c, E]
             rep_rid = torch.cat([gt_rep_rid, ngt_rep_rid], dim=0)    # [K, B_c, E]
@@ -167,10 +165,10 @@ class BERTDualSCMHNDMEncoder(nn.Module):
         # acc
         acc = (dp.max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).to(torch.float).mean().item()
         # hard negative comparison
-        mask = torch.zeros_like(dp2)
-        mask[:, 0] = 1.
-        loss_ = F.log_softmax(dp2, dim=-1) * mask
-        loss += (-loss_.sum(dim=1)).mean()
+        # mask = torch.zeros_like(dp2)
+        # mask[:, 0] = 1.
+        # loss_ = F.log_softmax(dp2, dim=-1) * mask
+        # loss += (-loss_.sum(dim=1)).mean()
         # dynamic comparison
         dm_loss = 0
         for dp in dp_dm:

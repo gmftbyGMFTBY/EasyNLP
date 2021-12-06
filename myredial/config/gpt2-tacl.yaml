@@ -1,0 +1,38 @@
+test_interval: 0.05
+valid_during_training: false
+is_step_for_training: true
+total_step: 50010
+
+# gpt2 configuration
+gpt2_topk: 50
+gpt2_topp: 1.0
+
+# gpt2 model
+gpt2_tokenizer: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
+gpt2_pretrained_model: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
+
+# teacher roberta model
+tokenizer:
+    zh: /apdcephfs/share_916081/johntianlan/duyu_roberta
+    en: /apdcephfs/share_916081/johntianlan/duyu_roberta
+pretrained_model:
+    zh: /apdcephfs/share_916081/johntianlan/duyu_roberta
+    en: /apdcephfs/share_916081/johntianlan/duyu_roberta
+    
+# train configuration
+train:
+    load_param: true
+    lr: 0.00005
+    grad_clip: 5.0
+    seed: 0
+    batch_size: 32
+    max_len: 384
+    warmup_ratio: 0.01
+    checkpoint: 
+        path: bert-post/best_nspmlm.pt
+        is_load: false
+
+# test configuration
+test:
+    seed: 0
+    batch_size: 1

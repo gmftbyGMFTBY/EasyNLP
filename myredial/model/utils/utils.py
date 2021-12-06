@@ -132,10 +132,14 @@ class BertMLEmbedding(nn.Module):
     def resize(self, num):
         self.model.resize_token_embeddings(self.model.config.vocab_size + num)
 
-    def forward(self, ids, attn_mask, speaker_type_ids=None):
+    def forward(self, ids, attn_mask, hidden=False):
         embds = self.model(ids, attention_mask=attn_mask, output_hidden_states=True)[2]    # 13 * [B, S, E]
-        embds = [embd[:, 0, :] for embd in embds[-self.topk_layer_num:]]
-        embds = torch.cat(embds, dim=-1)    # 3*[B, E] -> [B, 3*E]
+        if hidden is True:
+            embds = [embd for embd in embds[-self.topk_layer_num:]]
+            embds = torch.cat(embds, dim=-1)    # [B, S, 3*E]
+        else:
+            embds = [embd[:, 0, :] for embd in embds[-self.topk_layer_num:]]
+            embds = torch.cat(embds, dim=-1)    # 3*[B, E] -> [B, 3*E]
         return embds
 
 

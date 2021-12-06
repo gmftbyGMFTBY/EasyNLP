@@ -22,7 +22,7 @@ class WriterPhraseEncoder(nn.Module):
         self.inner_topk = 1 + args['easy_cand_num'] + args['inference_time']
         self.args = args
     
-    def batchify(self, batch, train=True):
+    def batchify(self, batch, train=True, deploy=False):
         context, responses = batch['cids'], batch['rids']
         gpt2_ids, bert_ids, bert_tids, labels, gpt2_prefix_length, prefix_length, overall_length = [], [], [], [], [], [], []
         for idx, (c, rs) in enumerate(zip(context, responses)):
@@ -38,7 +38,7 @@ class WriterPhraseEncoder(nn.Module):
                     rs = rs + random.sample(batch['erids'], self.args['easy_cand_num'])
                 else:
                     rs = rs + random.sample(candidates, self.args['easy_cand_num'])
-            else:
+            elif deploy is False:
                 rs = rs + batch['erids']
 
             for r in rs:
@@ -53,6 +53,7 @@ class WriterPhraseEncoder(nn.Module):
             labels.extend([1] + [0] * (len(rs) - 1))
             # gpt2 tokenization
             c_ = deepcopy(c)
+            # TODO: remove the [SEP] token
             gpt2_ids.append([self.cls] + c_ + [self.sep])
             gpt2_prefix_length.append(len(c_))
         gpt2_ids = [torch.LongTensor(i) for i in gpt2_ids]
@@ -119,7 +120,8 @@ class WriterPhraseEncoder(nn.Module):
 
     @torch.no_grad()
     def predict(self, batch):
-        batch = self.batchify(batch, train=False)
+        deploy = batch['deploy'] if 'deploy' in batch else False
+        batch = self.batchify(batch, train=False, deploy=deploy)
         queries, embeddings = self._encode(batch, train=False)
         dot_product = torch.matmul(queries, embeddings.t()).squeeze(0)    # [20]
         # api normalization

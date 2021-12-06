@@ -5022,7 +5022,7 @@ class BERTDualBM25SCMLiteDataset(Dataset):
 
             ctx, res = item['q'], item['r']
 
-            # debug: for ubuntu and douban, remove the q_q_nr
+            # debug: for ubuntu and douban, remove the q_q_nr or single_nr
             cands = item['q_q_nr'] + item['single_nr']
             # cands = item['single_nr']
 

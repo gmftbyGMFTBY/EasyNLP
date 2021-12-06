@@ -42,7 +42,7 @@ no_test_models:
     - bert-mask-da-dmr
     - bert-mask-da-sep
     - dual-bert-unsup
-    - writer-dual-bert-phrase
+#     - writer-dual-bert-phrase
 
 no_train_models:
     - bert-fp-original
@@ -312,8 +312,8 @@ models:
         inference_dataset_name: null
     dual-bert-scm-hn: 
         type: CompareInteraction
-        # model_name: BERTDualSCMHNEncoder
-        model_name: BERTDualSCMHN2Encoder
+        model_name: BERTDualSCMHNEncoder
+        # model_name: BERTDualSCMHN2Encoder
         dataset_name: BERTDualBM25SCMLiteDataset
         # dataset_name: HORSETestDataset
         inference_dataset_name: null
@@ -409,10 +409,15 @@ models:
         model_name: BERTDualBOWEncoder
         dataset_name: BERTDualFullDataset
         inference_dataset_name: BERTDualInferenceDataset
+    gpt2-tacl: 
+        type: Generation
+        model_name: GPT2TaCLEncoder
+        dataset_name: GPT2TaCLDataset
+        inference_dataset_name: BERTDualInferencePhraseDataset
     dual-bert-phrase: 
         type: Generation
         model_name: BERTDualPhraseEncoder
-        dataset_name: BERTDualPhraseDataset
+        dataset_name: GPT2TaCLDataset
         inference_dataset_name: BERTDualInferencePhraseDataset
     dual-bert-one2many-original: 
         type: Representation
@@ -665,7 +670,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 1
+version: 112
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
 rank: null
@@ -683,9 +688,9 @@ start_save_step: 0
 deploy:
     host: '0.0.0.0'
     port: 22351
-    dataset: restoration-200k
-    max_len: 64
-    res_max_len: 32
+    dataset: writer-rank
+    max_len: 128
+    res_max_len: 64
     recall:
         activate: false
         model: full 
@@ -696,10 +701,10 @@ deploy:
         index_nprobe: 5
         dimension: 768
     rerank:
-        activate: false
-        model: bert-ft
+        activate: true
+        model: writer-dual-bert-phrase
     pipeline:
         activate: false
     pipeline_evaluation:
-        activate: true
+        activate: false
 # ========== Deploy configuration ========== #

@@ -5,7 +5,11 @@ valid_during_training: true
 nhead: 12
 num_layers: 2
 gray_cand_num: 5
-before_comp: true
+before_comp: false
+
+# parameters for dual-bert-scm-hn-2
+# dropout: 0.1
+# topk_layer_num: 5
 
 # network issue, load locally
 tokenizer:
@@ -22,7 +26,7 @@ train:
     batch_size: 64
     max_len: 64
     res_max_len: 32
-    epoch: 5 
+    epoch: 5
     warmup_ratio: 0.
     checkpoint: 
         # path: bert-post/best_nspmlm.pt
