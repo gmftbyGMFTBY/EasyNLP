@@ -193,12 +193,13 @@ class GenerationAgent(GenerationBaseAgent):
                 self.model.can_encoder.load_state_dict(new_state_dict)
             else:
                 # test and inference mode
-                self.checkpointadapeter.init(
-                    state_dict.keys(),
-                    self.model.state_dict().keys(),
-                )
-                new_state_dict = self.checkpointadapeter.convert(state_dict)
-                self.model.load_state_dict(new_state_dict)
+                self.model.load_state_dict(state_dict)
+                # self.checkpointadapeter.init(
+                #     state_dict.keys(),
+                #     self.model.state_dict().keys(),
+                # )
+                # new_state_dict = self.checkpointadapeter.convert(state_dict)
+                # self.model.load_state_dict(new_state_dict)
             print(f'[!] load model from {path}')
 
     @torch.no_grad()

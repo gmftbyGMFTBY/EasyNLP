@@ -232,7 +232,60 @@ class GPT2TaCLV2Encoder(nn.Module):
         token_acc = correct / num_targets
         return lm_loss, token_acc
 
-    def get_tacl_and_acc(self, gpt2_rep, da_gpt2_rep, gpt2_ids_mask, da_ids_mask):
+    def get_tacl_and_acc_v2(self, gpt2_rep, da_gpt2_rep, gpt2_ids_mask, da_ids_mask, da_ids, gpt2_ids):
+        '''inner-sentence and inner-batch negative samples'''
+        batch_size, length = gpt2_ids_mask.size()
+        # da_gpt2_rep/gpt2_rep: [B*S, E]
+        da_gpt2_rep = da_gpt2_rep.view(-1, da_gpt2_rep.size(-1))
+        gpt2_rep = gpt2_rep.view(-1, gpt2_rep.size(-1))
+        cosine_sim = torch.matmul(da_gpt2_rep, gpt2_rep.t())    # [B*S, B*S]
+        cosine_sim /= self.temp
+        # build the tacl loss
+        mask = torch.zeros(batch_size, length, batch_size*length).cuda()    # [B, S, B*S]
+        mask[:, range(length), range(length)] = 1. 
+        effective_num = 0
+        valid_flag = []
+        # padding tokens must be ignored
+        for i in range(batch_size):
+            num_nonzero   = gpt2_ids_mask[i].nonzero().size(0)
+            num_effective = da_ids_mask[i].nonzero().size(0)
+            delta_len = num_nonzero - num_effective
+            # ignore right padding tokens 
+            mask[i][range(num_nonzero, length), :] = 0.
+            # reset the right padding tokens similarity as -1 / temperature
+            cosine_sim[
+                length*i+num_nonzero:length*(i+1), 
+                length*i+num_nonzero:length*(i+1)
+            ] = -1. / self.temp
+            # ignore left padding tokens
+            mask[i][range(delta_len), :] = 0.
+            effective_num += num_effective
+            valid_flag.extend([0] * delta_len + [1] * num_effective + [0] * (length - num_nonzero))
+
+        # same token must be ignored: [B*S, B*S]
+        same_token_mask = da_ids.view(-1).unsqueeze(1).expand(-1, batch_size*length) ==\
+            gpt2_ids.view(-1).unsqueeze(0).expand(batch_size*length, -1)
+        same_token_mask[range(length), range(length)] = False
+        same_token_mask = torch.cat([
+            torch.cat([
+                same_token_mask[1:, 1:],
+                torch.BoolTensor([False] * (batch_size*length-1)).unsqueeze(0).cuda(),
+            ], dim=0),    # [S, S]
+            torch.BoolTensor([False] * batch_size * length).unsqueeze(1).cuda(),
+        ], dim=-1)
+        cosine_sim.masked_fill_(same_token_mask, -1./self.temp)
+
+        mask = mask.view(-1, mask.size(-1))    # [B*S, B*S]
+        loss_ = F.log_softmax(cosine_sim, dim=-1) * mask    # [B*S, B*S]
+        tacl_loss = (-loss_.sum(dim=-1)).sum() / effective_num    # [B*S]
+        
+        # tacl acc
+        acc_flag = cosine_sim.max(dim=-1)[1] == torch.arange(length*batch_size).cuda()    # [B*S]
+        valid_flag = torch.LongTensor(valid_flag).to(torch.bool).cuda()
+        tacl_acc = (acc_flag & valid_flag).to(torch.float).mean().item()
+        return tacl_loss, tacl_acc
+    
+    def get_tacl_and_acc(self, gpt2_rep, da_gpt2_rep, gpt2_ids_mask, da_ids_mask, da_ids, gpt2_ids):
         # cosine similarity with small temperature
         # must be da_gpt2_rep multiple gpt2_rep, reverse the order is not good
         cosine_sim = torch.bmm(da_gpt2_rep, gpt2_rep.permute(0, 2, 1))    # [B, S, S]
@@ -250,9 +303,22 @@ class GPT2TaCLV2Encoder(nn.Module):
             # ignore right padding tokens 
             mask[i][range(num_nonzero, length), range(num_nonzero, length)] = 0.
             # reset the right padding tokens similarity as -1 / temperature
-            cosine_sim[i][num_nonzero:, num_nonzero:] = -1. / self.temp
+            cosine_sim[i][num_nonzero:, num_nonzero:] = -1./self.temp
             # ignore left padding tokens
             mask[i][range(0, delta_len), range(0, delta_len)] = 0.
+            # same token must be ignored: [S, S]
+            same_token_mask = da_ids[i].unsqueeze(1).expand(-1, length) ==\
+                gpt2_ids[i].unsqueeze(0).expand(length, -1)
+            # same token mask donot mask it-self
+            same_token_mask[range(length), range(length)] = False
+            same_token_mask = torch.cat([
+                torch.cat([
+                    same_token_mask[1:, 1:],
+                    torch.BoolTensor([False] * (length-1)).unsqueeze(0).cuda(),
+                ], dim=0),    # [S, S]
+                torch.BoolTensor([False] * length).unsqueeze(1).cuda(),
+            ], dim=-1)
+            cosine_sim[i].masked_fill_(same_token_mask, -1./self.temp)
             effective_num += num_effective
         loss_ = F.log_softmax(cosine_sim, dim=-1) * mask    # [B, S, S]
         tacl_loss = -loss_.sum(dim=2)    # [B, S]
@@ -285,8 +351,8 @@ class GPT2TaCLV2Encoder(nn.Module):
         ## lm loss and token acc
         lm_loss_1, token_acc_1 = self.get_lm_loss_and_token_acc(gpt2_logits, gpt2_ids)
         lm_loss_2, token_acc_2 = self.get_lm_loss_and_token_acc(da_gpt2_logits, da_ids)
-        lm_loss = lm_loss_1 + lm_loss_2
+        lm_loss = (lm_loss_1 + lm_loss_2) / 2
         token_acc = (token_acc_1 + token_acc_2) / 2
         ## token-aware contrastive training loss
-        tacl_loss, tacl_acc = self.get_tacl_and_acc(gpt2_rep, da_gpt2_rep, gpt2_ids_mask, da_ids_mask)
+        tacl_loss, tacl_acc = self.get_tacl_and_acc(gpt2_rep, da_gpt2_rep, gpt2_ids_mask, da_ids_mask, da_ids, gpt2_ids)
         return lm_loss, tacl_loss, token_acc, tacl_acc
