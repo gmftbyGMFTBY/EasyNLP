@@ -409,11 +409,21 @@ models:
         model_name: BERTDualBOWEncoder
         dataset_name: BERTDualFullDataset
         inference_dataset_name: BERTDualInferenceDataset
+    gpt2-phrase: 
+        type: Generation
+        model_name: GPT2PhraseEncoder
+        dataset_name: GPT2TaCLDataset
+        inference_dataset_name: null
+    gpt2-tacl-v2: 
+        type: Generation
+        model_name: GPT2TaCLV2Encoder
+        dataset_name: GPT2TaCLV2Dataset
+        inference_dataset_name: null
     gpt2-tacl: 
         type: Generation
         model_name: GPT2TaCLEncoder
         dataset_name: GPT2TaCLDataset
-        inference_dataset_name: BERTDualInferencePhraseDataset
+        inference_dataset_name: null
     dual-bert-phrase: 
         type: Generation
         model_name: BERTDualPhraseEncoder
@@ -670,7 +680,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 0
+version: 6
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
 rank: null

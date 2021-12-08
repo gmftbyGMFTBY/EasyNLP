@@ -328,15 +328,15 @@ class GenerationBaseAgent:
         # ppl_pos = self.best_test['PPL-pos']
         # ppl_neg = self.best_test['PPL-neg']
         ppl = self.best_test['PPL']
-        b_1 = self.best_test['BLEU-1']
-        b_2 = self.best_test['BLEU-2']
-        b_3 = self.best_test['BLEU-3']
-        b_4 = self.best_test['BLEU-4']
-        rouge_l = self.best_test['ROUGE-L']
-        meteor = self.best_test['METEOR']
-        p = self.best_test['BERTScore-P']
-        r = self.best_test['BERTScore-R']
-        f = self.best_test['BERTScore-F']
+        # b_1 = self.best_test['BLEU-1']
+        # b_2 = self.best_test['BLEU-2']
+        # b_3 = self.best_test['BLEU-3']
+        # b_4 = self.best_test['BLEU-4']
+        # rouge_l = self.best_test['ROUGE-L']
+        # meteor = self.best_test['METEOR']
+        # p = self.best_test['BERTScore-P']
+        # r = self.best_test['BERTScore-R']
+        # f = self.best_test['BERTScore-F']
         # now_test_score = b_1 + b_2 + b_3 + b_4 + rouge_l + meteor + p + r + f
         # now_test_score = ppl_neg - ppl_pos
         now_test_score = ppl
@@ -344,15 +344,15 @@ class GenerationBaseAgent:
         # ppl_pos = new_test['PPL-pos']
         # ppl_neg = new_test['PPL-neg']
         ppl = new_test['PPL']
-        b_1 = new_test['BLEU-1']
-        b_2 = new_test['BLEU-2']
-        b_3 = new_test['BLEU-3']
-        b_4 = new_test['BLEU-4']
-        rouge_l = new_test['ROUGE-L']
-        meteor = new_test['METEOR']
-        p = new_test['BERTScore-P']
-        r = new_test['BERTScore-R']
-        f = new_test['BERTScore-F']
+        # b_1 = new_test['BLEU-1']
+        # b_2 = new_test['BLEU-2']
+        # b_3 = new_test['BLEU-3']
+        # b_4 = new_test['BLEU-4']
+        # rouge_l = new_test['ROUGE-L']
+        # meteor = new_test['METEOR']
+        # p = new_test['BERTScore-P']
+        # r = new_test['BERTScore-R']
+        # f = new_test['BERTScore-F']
         # new_test_score = b_1 + b_2 + b_3 + b_4 + rouge_l + meteor + p + r + f
         # new_test_score = ppl_neg - ppl_pos
         new_test_score = ppl
@@ -379,6 +379,7 @@ class GenerationBaseAgent:
         # ppl_pos = test_rest['PPL-pos']
         # ppl_neg = test_rest['PPL-neg']
         ppl = test_rest['PPL']
+        distinct = test_rest['Distinct']
         # b_1 = test_rest['BLEU-1']
         # b_2 = test_rest['BLEU-2']
         # b_3 = test_rest['BLEU-3']
@@ -393,6 +394,7 @@ class GenerationBaseAgent:
             # recoder.add_scalar(f'train-test/PPL-pos', ppl_pos, index)
             # recoder.add_scalar(f'train-test/PPL-neg', ppl_neg, index)
             recoder.add_scalar(f'train-test/PPL', ppl, index)
+            recoder.add_scalar(f'train-test/Distinct', distinct, index)
             # recoder.add_scalar(f'train-test/BLEU-1', b_1, index)
             # recoder.add_scalar(f'train-test/BLEU-2', b_2, index)
             # recoder.add_scalar(f'train-test/BLEU-3', b_3, index)

@@ -14,7 +14,7 @@ class GenerationAgent(GenerationBaseAgent):
 
         # open the test save scores file handler
         pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
-        path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}.txt'
+        path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}_{args["version"]}.txt'
         self.log_save_file = open(path, 'w')
 
         if torch.cuda.is_available():
@@ -24,15 +24,18 @@ class GenerationAgent(GenerationBaseAgent):
         self.show_parameters(self.args)
 
         # metrics
-        self.nlgeval = NLGEval(no_glove=True, no_skipthoughts=True)
-        self.bertscorer = BERTScorer(lang=self.args['lang'], rescale_with_baseline=True)
+        # self.nlgeval = NLGEval(no_glove=True, no_skipthoughts=True)
+        # self.bertscorer = BERTScorer(lang=self.args['lang'], rescale_with_baseline=True)
     
     def train_model(self, batch, recoder=None, current_step=0, pbar=None):
         self.model.train()
         self.optimizer.zero_grad()
         with autocast():
             lm_loss, tacl_loss, token_acc, tacl_acc = self.model(batch)
+            # lm loss and tacl loss
             loss = lm_loss + tacl_loss
+            # only lm loss (gpt2)
+            # loss = lm_loss
         self.scaler.scale(loss).backward()
         self.scaler.unscale_(self.optimizer)
         clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
@@ -45,15 +48,21 @@ class GenerationAgent(GenerationBaseAgent):
             recoder.add_scalar(f'train/RunTaCLLoss', tacl_loss.item(), current_step)
             recoder.add_scalar(f'train/TokenAcc', token_acc, current_step)
             recoder.add_scalar(f'train/TaCLAcc', tacl_acc, current_step)
-        pbar.set_description(f'[!] loss: {round(loss.item(), 4)}; token_acc: {round(token_acc*100, 2)}; tacl_acc: {round(tacl_acc*100, 2)}')
+        pbar.set_description(f'[!] loss(lm|tacl): {round(lm_loss.item(), 4)}|{round(tacl_loss.item(), 4)}; acc(token|tacl): {round(token_acc*100, 2)}|{round(tacl_acc*100, 2)}')
         pbar.update(1)
+
+        # update teacher model
+        if 'update_step' in self.args and \
+            current_step % self.args['update_step'] == 0:
+            self.model.module.update_parameters()
+
         return loss, token_acc
 
     @torch.no_grad()
     def test_model(self, test_iter, print_output=True):
         self.model.eval()
         pbar = tqdm(test_iter)
-        PPL, rest = [], {}
+        PPL, distinct, rest = [], [], {}
         for idx, batch in enumerate(pbar):
             if self.args['mode'] == 'train':
                 logits = self.model.module.predict(batch)
@@ -69,7 +78,11 @@ class GenerationAgent(GenerationBaseAgent):
                     self.log_save_file.write(f'[Prefix     ] {ctx}\n')
                     self.log_save_file.write(f'[Generation ] {res}\n\n')
                     self.log_save_file.flush()
+                    # distinct metric
+                    # distinct.append(distinct_sentence_level(r))
+                    distinct.append(distinct_sentence_level_n_gram(res))
         rest['PPL'] = np.mean(PPL)
+        rest['Distinct'] = np.mean(distinct)
         return rest
     
     @torch.no_grad()

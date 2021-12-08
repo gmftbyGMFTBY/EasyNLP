@@ -27,10 +27,11 @@ class GPT2LMIRModel(nn.Module):
         super(GPT2LMIRModel, self).__init__()
         self.model = GPT2LMHeadModel.from_pretrained(model)
 
-    def forward(self, ids, attn_mask):
+    def forward(self, ids, attn_mask, pos_ids=None):
         output = self.model(
             input_ids=ids,
             attention_mask=attn_mask,
+            position_ids=pos_ids,
             output_hidden_states=True,
         )
         lm_logits = output.logits

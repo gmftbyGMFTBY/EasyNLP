@@ -23,8 +23,9 @@ train:
     lr: 0.00005
     grad_clip: 5.0
     seed: 0
-    batch_size: 32
+    batch_size: 16 
     max_len: 384
+    max_da_len: 128
     warmup_ratio: 0.01
     checkpoint: 
         path: bert-post/best_nspmlm.pt

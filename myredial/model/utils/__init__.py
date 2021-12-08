@@ -7,3 +7,4 @@ from .gen_utils import *
 from .header import *
 from .fg_metric import *
 from .bert_encoder_with_enc_hidden import *
+from .distinct_metric import *
