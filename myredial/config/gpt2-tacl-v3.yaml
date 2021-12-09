@@ -2,7 +2,7 @@ test_interval: 0.01
 valid_during_training: false
 is_step_for_training: true
 total_step: 50010
-temp: 0.01
+temp: 0.07
 
 # gpt2 configuration
 test_max_len: 128

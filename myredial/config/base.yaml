@@ -414,10 +414,20 @@ models:
         model_name: GPT2PhraseEncoder
         dataset_name: GPT2TaCLDataset
         inference_dataset_name: null
+    gpt2-tacl-v3:
+        type: Generation
+        model_name: GPT2TaCLV3Encoder
+        dataset_name: GPT2TaCLDataset
+        inference_dataset_name: null
     gpt2-tacl-v2: 
         type: Generation
         model_name: GPT2TaCLV2Encoder
         dataset_name: GPT2TaCLV2Dataset
+        inference_dataset_name: null
+    gpt2-cl: 
+        type: Generation
+        model_name: GPT2CLEncoder
+        dataset_name: GPT2TaCLDataset
         inference_dataset_name: null
     gpt2-tacl: 
         type: Generation

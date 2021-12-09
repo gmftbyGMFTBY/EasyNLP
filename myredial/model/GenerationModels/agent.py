@@ -31,11 +31,12 @@ class GenerationAgent(GenerationBaseAgent):
         self.model.train()
         self.optimizer.zero_grad()
         with autocast():
-            lm_loss, tacl_loss, token_acc, tacl_acc = self.model(batch)
+            # lm_loss, tacl_loss, token_acc, tacl_acc = self.model(batch)
             # lm loss and tacl loss
-            loss = lm_loss + tacl_loss
+            # loss = lm_loss + tacl_loss
             # only lm loss (gpt2)
             # loss = lm_loss
+            loss, token_acc = self.model(batch)
         self.scaler.scale(loss).backward()
         self.scaler.unscale_(self.optimizer)
         clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
@@ -44,11 +45,12 @@ class GenerationAgent(GenerationBaseAgent):
         self.scheduler.step()
         if recoder:
             recoder.add_scalar(f'train/RunLoss', loss.item(), current_step)
-            recoder.add_scalar(f'train/RunLMLoss', lm_loss.item(), current_step)
-            recoder.add_scalar(f'train/RunTaCLLoss', tacl_loss.item(), current_step)
+            # recoder.add_scalar(f'train/RunLMLoss', lm_loss.item(), current_step)
+            # recoder.add_scalar(f'train/RunTaCLLoss', tacl_loss.item(), current_step)
             recoder.add_scalar(f'train/TokenAcc', token_acc, current_step)
-            recoder.add_scalar(f'train/TaCLAcc', tacl_acc, current_step)
-        pbar.set_description(f'[!] loss(lm|tacl): {round(lm_loss.item(), 4)}|{round(tacl_loss.item(), 4)}; acc(token|tacl): {round(token_acc*100, 2)}|{round(tacl_acc*100, 2)}')
+            # recoder.add_scalar(f'train/TaCLAcc', tacl_acc, current_step)
+        # pbar.set_description(f'[!] loss(lm|tacl): {round(lm_loss.item(), 4)}|{round(tacl_loss.item(), 4)}; acc(token|tacl): {round(token_acc*100, 2)}|{round(tacl_acc*100, 2)}')
+        pbar.set_description(f'[!] loss: {round(loss.item(), 4)}; acc: {round(token_acc*100, 2)}')
         pbar.update(1)
 
         # update teacher model
