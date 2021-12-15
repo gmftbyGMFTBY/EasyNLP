@@ -1,4 +1,5 @@
 from model.utils import *
+from inference_utils import *
 
 
 class GenerationAgent(GenerationBaseAgent):
@@ -23,10 +24,38 @@ class GenerationAgent(GenerationBaseAgent):
             self.set_optimizer_scheduler_ddp()
         self.show_parameters(self.args)
 
-        # metrics
-        # self.nlgeval = NLGEval(no_glove=True, no_skipthoughts=True)
-        # self.bertscorer = BERTScorer(lang=self.args['lang'], rescale_with_baseline=True)
+        if self.args['model'] in ['gpt2-cl']:
+            self.train_model = self.train_model_cl
+
+    def build_offline_index(self, iter_):
+        size = self.model.module.build_offline_index(
+            iter_, 
+            self.args['offline_index_prefix']
+        )
+        print(f'[!] build offline index over, size is: {size}')
     
+    def train_model_cl(self, batch, recoder=None, current_step=0, pbar=None):
+        self.model.train()
+        self.optimizer.zero_grad()
+        with autocast():
+            loss_token, loss_phrase, token_acc, phrase_acc = self.model(batch)
+            loss = loss_token + loss_phrase
+        self.scaler.scale(loss).backward()
+        self.scaler.unscale_(self.optimizer)
+        clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+        self.scaler.step(self.optimizer)
+        self.scaler.update()
+        self.scheduler.step()
+        if recoder:
+            recoder.add_scalar(f'train/RunLoss', loss.item(), current_step)
+            recoder.add_scalar(f'train/RunTokenLoss', loss_token.item(), current_step)
+            recoder.add_scalar(f'train/RunPhraseLoss', loss_phrase.item(), current_step)
+            recoder.add_scalar(f'train/TokenAcc', token_acc, current_step)
+            recoder.add_scalar(f'train/PhraseAcc', phrase_acc, current_step)
+        pbar.set_description(f'[!] loss(token|phrase): {round(loss_token.item(), 4)}|{round(loss_phrase.item(), 4)}; acc(token|phrase): {round(token_acc*100, 2)}|{round(phrase_acc*100, 2)}')
+        pbar.update(1)
+        return loss, token_acc
+
     def train_model(self, batch, recoder=None, current_step=0, pbar=None):
         self.model.train()
         self.optimizer.zero_grad()
@@ -83,6 +112,7 @@ class GenerationAgent(GenerationBaseAgent):
                     # distinct metric
                     # distinct.append(distinct_sentence_level(r))
                     distinct.append(distinct_sentence_level_n_gram(res))
+
         rest['PPL'] = np.mean(PPL)
         rest['Distinct'] = np.mean(distinct)
         return rest
@@ -195,13 +225,13 @@ class GenerationAgent(GenerationBaseAgent):
                 self.model.can_encoder.load_state_dict(new_state_dict)
             else:
                 # test and inference mode
-                self.model.load_state_dict(state_dict)
-                # self.checkpointadapeter.init(
-                #     state_dict.keys(),
-                #     self.model.state_dict().keys(),
-                # )
-                # new_state_dict = self.checkpointadapeter.convert(state_dict)
-                # self.model.load_state_dict(new_state_dict)
+                # self.model.load_state_dict(state_dict)
+                self.checkpointadapeter.init(
+                    state_dict.keys(),
+                    self.model.state_dict().keys(),
+                )
+                new_state_dict = self.checkpointadapeter.convert(state_dict)
+                self.model.load_state_dict(new_state_dict)
             print(f'[!] load model from {path}')
 
     @torch.no_grad()

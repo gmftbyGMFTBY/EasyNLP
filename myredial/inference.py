@@ -42,6 +42,8 @@ def inference(**args):
 
     if work_mode in ['response']:
         agent.inference(data_iter, size=args['cut_size'])
+    elif work_mode in ['phrase-generate']:
+        agent.build_offline_index(data_iter)
     elif work_mode in ['data-filter']:
         agent.inference_data_filter(data_iter, size=args['cut_size'])
     elif work_mode in ['bert-aug']:

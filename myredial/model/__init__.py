@@ -1,5 +1,5 @@
 from .InteractionModels import *
-from .WriterRerank import *
+from .WriterRerankModels import *
 from .AugmentationModels import *
 from .CompareInteractionModels import *
 from .RepresentationModels import *

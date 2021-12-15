@@ -428,10 +428,15 @@ models:
         type: Generation
         model_name: GPT2CLEncoder
         dataset_name: GPT2TaCLDataset
+        inference_dataset_name: WriterInferenceDataset
+    gpt2-un: 
+        type: Generation
+        model_name: GPT2UNModel
+        dataset_name: GPT2TaCLDataset
         inference_dataset_name: null
     gpt2-tacl: 
         type: Generation
-        model_name: GPT2TaCLEncoder
+        model_name: GPT2TaCLV4Encoder
         dataset_name: GPT2TaCLDataset
         inference_dataset_name: null
     dual-bert-phrase: 
@@ -690,7 +695,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 1
+version: 15
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
 rank: null

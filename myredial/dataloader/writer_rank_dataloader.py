@@ -116,3 +116,99 @@ class WriterRankDataset(Dataset):
         if len(sentences) <= 1:
             return False
         return True
+
+
+class WriterInferenceDataset(Dataset):
+
+    def __init__(self, vocab, path, **args):
+        self.args = args
+        self.vocab = vocab
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.eos = self.vocab.convert_tokens_to_ids('[EOS]')
+        self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
+
+        self.data = []
+        # train set is huge, use it as the offline index
+        rar_path = f'{args["root_dir"]}/data/{args["dataset"]}/train.rar'
+        if os.path.exists(rar_path):
+            self.reader = torch.load(rar_path)
+            print(f'[!] load RandomAccessReader Object over')
+        else:
+            self.reader = RandomAccessReader(path)
+            self.reader.init()
+            torch.save(self.reader, rar_path)
+        self.reader.init_file_handler()
+        self.size = self.reader.size
+        print(f'[!] dataset size: {self.size}')
+                
+    def __len__(self):
+        return self.size
+
+    def __getitem__(self, i):
+        '''
+        1. is chinese character
+        2. has the useful label (in jieba)
+        3. equal or longer than the minimum token length'''
+        line = self.reader.get_line(i)
+        sentences = json.loads(line.strip())['q']
+        sentences = [s.strip() for s in sentences if s.strip()]
+        sentences = [''.join(sentence.split()) for sentence in sentences]
+        # convert the text into the token ids
+        tokens, text, einid, eintext = [], [], [], []
+        last_save = False
+        useful_label = ['n', 't', 'a', 'nr', 'ns', 'i']
+        for s in sentences:
+            if 'http' in s:
+                continue
+            if '国庆长假' in s:
+                ipdb.set_trace()
+            for token, label in pseg.cut(s):
+                t = self.vocab.encode(token, add_special_tokens=False)
+                if len(tokens) + len(t) > self.args['inf_max_len']:
+                    # return
+                    return tokens, einid, eintext, ''.join(text)
+                # find potiential phrase to save (only chinese character)
+                if last_save is False \
+                    and self.is_all_chinese(token) \
+                    and label in useful_label:
+                    # test: if the token is the n
+                    einid.append(len(tokens))
+                    eintext.append(len(text))
+                    last_save = True
+                else:
+                    last_save = False
+                tokens.extend(t)
+                text.extend(token)
+        # recheck with the minimum token length
+        einid_, eintext_ = [], []
+        return tokens, einid, eintext, ''.join(text)
+
+    def is_all_chinese(self, strs):
+        for _char in strs:
+            if not '\u4e00' <= _char <= '\u9fa5':
+                return False
+        return True
+
+    def collate(self, batch):
+        ids, einid, eintext, text = [], [], [], []
+        ipdb.set_trace()
+        for a, b, c, d in batch:
+            if b and c:
+                ids.append(torch.LongTensor(ids))
+                einid.append(b)
+                eintext.append(c)
+                text.append(d)
+        if ids:
+            ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+            ids_mask = generate_mask(ids)
+            ids, ids_mask = to_cuda(ids, ids_mask)
+            return {
+                'ids': ids,
+                'ids_mask': ids_mask,
+                'einid': einid,
+                'eintext': eintext,
+                'text': text,
+            }
+        else:
+            return None

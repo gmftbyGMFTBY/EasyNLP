@@ -50,6 +50,7 @@ class GPT2TaCLEncoder(nn.Module):
     @torch.no_grad()
     def predict(self, batch):
         '''greedy search with batch inference, pad in the left'''
+        self.gpt2_encoder.eval()
         ids = batch['ids']
         ids_mask = batch['ids_mask']
         ids_pos = batch['pos_ids']
@@ -486,4 +487,136 @@ class GPT2TaCLV3Encoder(nn.Module):
             dp = dp[:num_nonzero, :num_nonzero]
             acc_num += (dp.max(dim=-1)[1] == torch.arange(num_nonzero).cuda()).sum().item()
         tacl_acc = acc_num / effective_num
+        return lm_loss, tacl_loss, token_acc, tacl_acc
+
+
+class GPT2TaCLV4Encoder(nn.Module):
+
+    '''triplet margin loss and the twice dropout'''
+
+    def __init__(self, **args):
+        super(GPT2TaCLV4Encoder, self).__init__()
+        model = args['pretrained_model']
+        gpt2_model = args['gpt2_pretrained_model']
+        self.vocab = BertTokenizer.from_pretrained(model)
+        self.pad = self.vocab.pad_token_id
+        self.unk = self.vocab.unk_token_id
+        self.cls = self.vocab.cls_token_id
+        self.sep = self.vocab.sep_token_id
+        self.special_tokens = set([self.pad, self.unk, self.cls, self.sep])
+        self.gpt2_encoder = GPT2LMIRModel(model=gpt2_model)
+        self.test_max_len = args['test_max_len']
+        self.criterion = nn.TripletMarginWithDistanceLoss(
+            margin=args['margin'],
+            distance_function=cosine_distance,
+        )
+        self.lm_criterion = nn.CrossEntropyLoss(ignore_index=self.pad)
+        self.topk = args['negative_topk']     # 50
+
+    def _encode(self, ids, ids_mask):
+        gpt2_logits, gpt2_rep = self.gpt2_encoder(ids, ids_mask)
+        # gpt2_logits_2, gpt2_rep_2 = self.gpt2_encoder(ids, ids_mask)
+        # return gpt2_logits_1, gpt2_rep_1, gpt2_logits_2, gpt2_rep_2
+        return gpt2_logits, gpt2_rep
+
+    @torch.no_grad()
+    def calculate_ppl(self, ids, ids_mask, label):
+        gen_logits = self.gpt2_encoder.model(
+            input_ids=ids, 
+            attention_mask=ids_mask
+        )
+        gen_logits = gen_logits.logits
+        shift_logits = gen_logits[..., :-1, :].contiguous()
+        shift_labels = label[..., 1:].contiguous()
+        loss = self.lm_criterion(
+            shift_logits.view(-1, shift_logits.size(-1)), 
+            shift_labels.view(-1)
+        )
+        ppl = math.exp(loss.item())
+        return ppl
+
+    @torch.no_grad()
+    def predict(self, batch):
+        '''greedy search with batch inference, pad in the left'''
+        ids = batch['ids']
+        ids_mask = batch['ids_mask']
+        ids_pos = batch['pos_ids']
+        batch_size, seqlen = ids.size()
+        generated = [[] for _ in range(batch_size)]
+        past_key_values = None
+        while True:
+            output = self.gpt2_encoder.model(
+                input_ids=ids,
+                attention_mask=ids_mask,
+                position_ids=ids_pos,
+                past_key_values=past_key_values,
+                use_cache=True
+            )
+            logits = output.logits
+            past_key_values = output.past_key_values
+            next_token_logits = logits[:, -1, :]    # [B, V]
+            next_token_logits[:, self.unk] = -np.inf
+            next_token = next_token_logits.max(dim=-1)[1].unsqueeze(1)    # [B, 1]
+            for idx, t in enumerate(next_token.squeeze(-1).tolist()):
+                generated[idx].append(t)
+            if max([len(i) for i in generated]) > self.test_max_len:
+                break
+            # reconstruct the ids and ids_mask
+            ids = next_token
+            ids_mask = torch.ones_like(ids)
+            ids_pos = 1 + ids_pos[:, -1].unsqueeze(dim=-1)
+        # remove the special tokens
+        rest = []
+        for g in generated:
+            g = [i for i in g if i not in self.special_tokens]
+            rest.append(g)
+        return rest
+    
+    def get_lm_loss_and_token_acc(self, gpt2_logits, gpt2_ids):
+        # gpt2 lm loss
+        shift_logits = gpt2_logits[..., :-1, :].contiguous()
+        shift_labels = gpt2_ids[..., 1:].contiguous()
+        lm_loss = self.lm_criterion(
+            shift_logits.view(-1, shift_logits.size(-1)),
+            shift_labels.view(-1)
+        )
+        # gpt2 token acc
+        _, preds = shift_logits.max(dim=-1)
+        not_ignore = shift_labels.ne(self.pad)
+        num_targets = not_ignore.long().sum().item()
+        correct = (shift_labels == preds) & not_ignore
+        correct = correct.float().sum().item()
+        token_acc = correct / num_targets
+        return lm_loss, token_acc
+    
+    def forward(self, batch):
+        gpt2_ids, gpt2_ids_mask = batch['ids'], batch['ids_mask']
+        batch_size, length = gpt2_ids.size()
+        gpt2_logits, gpt2_rep = self._encode(gpt2_ids, gpt2_ids_mask)
+        # gpt2_logits_1, gpt2_rep_1, gpt2_logits_2, gpt2_rep_2 = self._encode(gpt2_ids, gpt2_ids_mask)
+        # lm loss and token acc
+        lm_loss, token_acc = self.get_lm_loss_and_token_acc(gpt2_logits, gpt2_ids)
+
+        # token-aware contrastive training loss
+        # samples in the window_size neighboor
+        dp = torch.bmm(gpt2_rep, gpt2_rep.permute(0, 2, 1))    # [B, S, S]
+        dp[:, range(batch_size), range(batch_size)] = -1e3
+        hn_index = torch.topk(dp, self.topk, dim=-1)[1]     # [B, S, K]
+        anchor_reps, n_reps, p_reps = [], [], []
+        for idx in range(batch_size):
+            hn = hn_index[idx].view(-1)    # [S*K]
+            n_reps_ = gpt2_rep[idx, hn, :]    # [S*K, E]
+            anchor_reps_ = gpt2_rep[idx, :, :].unsqueeze(1).expand(-1, self.topk,-1).reshape(-1, 768)    # [S*K, E]
+            # p_reps_ = gpt2_rep_2[idx, :, :].unsqueeze(1).expand(-1, self.topk,-1).reshape(-1, 768)    # [S*K, E]
+            anchor_reps.append(anchor_reps_)
+            p_reps.append(anchor_reps_)
+            n_reps.append(n_reps_)
+        anchor_reps = torch.cat(anchor_reps)
+        p_reps = torch.cat(p_reps)
+        n_reps = torch.cat(n_reps)
+        tacl_loss = self.criterion(anchor_reps, p_reps, n_reps)
+        # acc
+        acc_1 = F.cosine_similarity(anchor_reps, p_reps)    # [B*S*K]
+        acc_2 = F.cosine_similarity(anchor_reps, n_reps)    # [B*S*K]
+        tacl_acc = (acc_1 > acc_2).to(torch.float).mean().item()
         return lm_loss, tacl_loss, token_acc, tacl_acc

@@ -955,8 +955,8 @@ class BertSAModel(BertPreTrainedModel):
 
 
 def cosine_distance(x1, x2):
-    # range from 0 to 2, bigger -> worse 
-    return 1 - F.cosine_similarity(x1, x2, dim=-1)
+    # range from 0 to 1, bigger -> worse 
+    return (1 - F.cosine_similarity(x1, x2, dim=-1))/2
 
 
 # ========== Topo Sort Compatible ========= #

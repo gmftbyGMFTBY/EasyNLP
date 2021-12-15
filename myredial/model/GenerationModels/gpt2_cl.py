@@ -1,4 +1,5 @@
 from model.utils import *
+from inference_utils import *
 
 class GPT2CLEncoder(nn.Module):
 
@@ -11,30 +12,38 @@ class GPT2CLEncoder(nn.Module):
         self.pad = self.vocab.pad_token_id
         self.unk = self.vocab.unk_token_id
         self.cls = self.vocab.cls_token_id
+        self.sep = self.vocab.sep_token_id
         self.special_tokens = set([self.pad, self.unk, self.cls])
-        self.model = GPT2CLHeadModel(model, len(self.vocab), unk=self.unk, pad=self.pad, temp=args['temp'])
+        # or GPT2CLHeadModel or GPT2CLFromLMHeadModel
+        faiss_path = f'{args["root_dir"]}/data/{args["dataset"]}/{args["model"]}/faiss.ckpt'
+        corpus_path = f'{args["root_dir"]}/data/{args["dataset"]}/{args["model"]}/corpus.pkl'
+        self.model = GPT2CLSDModel(
+            model, 
+            args['bert_pretrained_model'],
+            unk=self.unk, 
+            pad=self.pad, 
+            cls=self.cls,
+            sep=self.sep,
+            temp=args['temp'],
+            index_type=args['index_type'] if 'index_type' in args else None,
+            dimension=args['dimension'] if 'dimension' in args else None,
+            nprobe=args['nprobe'] if 'nprobe' in args else None,
+            max_phrase_len=args['max_phrase_len'] if 'max_phrase_len' in args else 10,
+            length_penalty=args['length_penalty'] if 'length_penalty' in args else 1.1,
+            faiss_path=faiss_path,
+            corpus_path=corpus_path
+        )
         self.test_max_len = args['test_max_len']
-        self.criterion = nn.CrossEntropyLoss(ignore_index=self.pad)
 
     @torch.no_grad()
     def calculate_ppl(self, ids, ids_mask, label):
-        rep = self.model.model(
-            input_ids=ids, 
-            attention_mask=ids_mask
-        ).last_hidden_state
-        gen_logits = torch.matmul(rep, self.model.lm)    # [B, S, V]
-        shift_logits = gen_logits[..., :-1, :].contiguous()
-        shift_labels = label[..., 1:].contiguous()
-        loss = self.criterion(
-            shift_logits.view(-1, shift_logits.size(-1)), 
-            shift_labels.view(-1)
-        )
-        ppl = math.exp(loss.item())
-        return ppl
+        self.model.eval()
+        return self.model.calculate_ppl(ids, ids_mask, label)
 
     @torch.no_grad()
     def predict(self, batch):
         '''greedy search with batch inference, pad in the left'''
+        self.model.eval()
         ids = batch['ids']
         ids_mask = batch['ids_mask']
         ids_pos = batch['pos_ids']
@@ -62,8 +71,46 @@ class GPT2CLEncoder(nn.Module):
             g = [i for i in g if i not in self.special_tokens]
             rest.append(g)
         return rest
+
+    @torch.no_grad()
+    def build_offline_index(self, dataloader, output_file):
+        self.model.eval()
+        embd, text, effective_index = [], [], []
+        for batch in tqdm(dataloader):
+            if batch is None:
+                continue
+            e, t, i = self.model.offline_inference(batch)
+            embd.append(e)
+            text.extend(t)
+            effective_index.extend(i)
+        embd = torch.cat(embd).numpy()    # [S, E]
+        torch.save(
+            (embd, text, effective_index), 
+            f'{output_file}_{args["local_rank"]}',
+        )
+
+        # only the first process could build the faiss index
+        torch.distributed.barrirer()
+        # load all of the embeddings
+        embds, texts, effective_indexs = [], [], []
+        for i in tqdm(range(torch.distributed.get_world_size())):
+            embd, text, effective_index = torch.load(
+                f'{output_file}_{i}'        
+            )
+            embds.append(embd)
+            texts.extend(text)
+            effective_indexs.extend(effective_index)
+        embds = np.concatenate(embds)
+        assert len(embds) == len(text) == len(effective_index)
+        self.model.cached_index._build(
+            embds, rest_texts, rest_eintexts, speedup=True
+        )
+        self.model.cached_index.save(
+            self.model.faiss_path, self.model.corpus_path
+        )
+        return len(embds)
     
     def forward(self, batch):
         gpt2_ids, gpt2_ids_mask = batch['ids'], batch['ids_mask']
-        loss, token_acc = self.model(gpt2_ids, gpt2_ids_mask)
-        return loss, token_acc
+        loss_token, loss_phrase, token_acc , phrase_acc = self.model(gpt2_ids, gpt2_ids_mask)
+        return loss_token, loss_phrase, token_acc, phrase_acc

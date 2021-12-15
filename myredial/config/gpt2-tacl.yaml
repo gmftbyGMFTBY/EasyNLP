@@ -3,6 +3,8 @@ valid_during_training: false
 is_step_for_training: true
 total_step: 50010
 temp: 0.01
+margin: 0.5
+negative_topk: 50
 
 # gpt2 configuration
 test_max_len: 128

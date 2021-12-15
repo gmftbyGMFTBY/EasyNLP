@@ -19,6 +19,7 @@ from itertools import chain
 import csv
 import jieba
 from jieba import analyse
+import jieba.posseg as pseg
 import random
 import json
 import ijson
