@@ -15,7 +15,8 @@ class GenerationAgent(GenerationBaseAgent):
 
         # open the test save scores file handler
         pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
-        path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}_{args["version"]}.txt'
+        path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}_{args["version"]}_{args["decoding_method"]}.txt'
+        # path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}_{args["version"]}.txt'
         self.log_save_file = open(path, 'w')
 
         if torch.cuda.is_available():
@@ -93,7 +94,9 @@ class GenerationAgent(GenerationBaseAgent):
     def test_model(self, test_iter, print_output=True):
         self.model.eval()
         pbar = tqdm(test_iter)
-        PPL, distinct, rest = [], [], {}
+        PPL, rest = [], {}
+        distinct_char_1, distinct_char_3, distinct_char_5 = [], [], []
+        distinct_word_1, distinct_word_3, distinct_word_5 = [], [], []
         for idx, batch in enumerate(pbar):
             if self.args['mode'] == 'train':
                 logits = self.model.module.predict(batch)
@@ -110,11 +113,20 @@ class GenerationAgent(GenerationBaseAgent):
                     self.log_save_file.write(f'[Generation ] {res}\n\n')
                     self.log_save_file.flush()
                     # distinct metric
-                    # distinct.append(distinct_sentence_level(r))
-                    distinct.append(distinct_sentence_level_n_gram(res))
+                    distinct_char_1.append(distinct_sentence_level_char(res, n=1))
+                    distinct_char_3.append(distinct_sentence_level_char(res, n=3))
+                    distinct_char_5.append(distinct_sentence_level_char(res, n=5))
+                    distinct_word_1.append(distinct_sentence_level_word(res, n=1))
+                    distinct_word_3.append(distinct_sentence_level_word(res, n=3))
+                    distinct_word_5.append(distinct_sentence_level_word(res, n=5))
 
         rest['PPL'] = np.mean(PPL)
-        rest['Distinct'] = np.mean(distinct)
+        rest['Distinct-char-1'] = np.mean(distinct_char_1)
+        rest['Distinct-char-3'] = np.mean(distinct_char_3)
+        rest['Distinct-char-5'] = np.mean(distinct_char_5)
+        rest['Distinct-word-1'] = np.mean(distinct_word_1)
+        rest['Distinct-word-3'] = np.mean(distinct_word_3)
+        rest['Distinct-word-5'] = np.mean(distinct_word_5)
         return rest
     
     @torch.no_grad()
@@ -199,6 +211,8 @@ class GenerationAgent(GenerationBaseAgent):
         }
 
     def load_model(self, path):
+        if self.args['model'] in self.args['no_train_models']:
+            return
         state_dict = torch.load(path, map_location=torch.device('cpu'))
         if self.args['model'] in ['gpt2']:
             self.checkpointadapeter.init(

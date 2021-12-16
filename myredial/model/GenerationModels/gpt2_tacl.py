@@ -512,6 +512,8 @@ class GPT2TaCLV4Encoder(nn.Module):
         )
         self.lm_criterion = nn.CrossEntropyLoss(ignore_index=self.pad)
         self.topk = args['negative_topk']     # 50
+        self.beam_width = args['beam_width']
+        self.scoring_criterion = args['scoring_criterion']
 
     def _encode(self, ids, ids_mask):
         gpt2_logits, gpt2_rep = self.gpt2_encoder(ids, ids_mask)
@@ -534,9 +536,22 @@ class GPT2TaCLV4Encoder(nn.Module):
         )
         ppl = math.exp(loss.item())
         return ppl
-
+    
     @torch.no_grad()
     def predict(self, batch):
+        '''contrastive decoding method, only support the batch size is 1'''
+        input_ids = batch['ids']
+        for step in range(self.test_max_len):
+            input_ids = ContrastiveDecodingOneStep(
+                self.gpt2_encoder.model,
+                input_ids,
+                self.beam_width, 
+                self.scoring_criterion,
+            )
+        return input_ids.tolist()
+
+    @torch.no_grad()
+    def predict_(self, batch):
         '''greedy search with batch inference, pad in the left'''
         ids = batch['ids']
         ids_mask = batch['ids_mask']

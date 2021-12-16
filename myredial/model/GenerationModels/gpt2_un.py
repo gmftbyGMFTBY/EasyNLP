@@ -13,6 +13,7 @@ class GPT2UNModel(nn.Module):
         self.test_max_len = args['test_max_len']
         self.gen_loss_fct = nn.CrossEntropyLoss(ignore_index=self.pad)
         self.sample_token_num = args['sample_token_num']
+        self.special_tokens = set([self.pad, self.unk, self.cls, self.sep])
 
     @torch.no_grad()
     def calculate_ppl(self, ids, ids_mask, label):

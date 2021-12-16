@@ -1,30 +1,37 @@
 # basic configuration for building the model
 tokenizer: 
-    # zh: /apdcephfs/share_916081/johntianlan/gpt2_model
-    zh: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
+    zh: /apdcephfs/share_916081/johntianlan/uer_gpt2_model
 pretrained_model: 
-    # zh: /apdcephfs/share_916081/johntianlan/gpt2_model
-    zh: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
-test_interval: 0.01
-valid_during_training: false
-gen_max_len: 32 
-gen_max_ctx_len: 128
+    zh: /apdcephfs/share_916081/johntianlan/uer_gpt2_model
+# max_len is the max length of the prefix
+max_len: 128
+# gen_max_len is the max length of the generated sequence
+gen_max_len: 64
+# gen_max_ctx_len is used for cutting the too long context
+gen_max_ctx_len: 256
+# decoding_methods:
+#   1. contrastive_search
+#   2. beam_search
+#   3. greedy_search
+#   4. topk_topp_repetition_penalty_search
+#   5. topk_topp_search
+# decoding_method: contrastive_search
+# decoding_method: greedy_search
+# decoding_method: beam_search
+# decoding_method: topk_topp_repetition_penalty_search
+decoding_method: topk_topp_search
+
+# beam search
+num_beam: 2
+
+# topk-topp sampling
 topk: 50
 topp: 1.0
 repetition_penalty: 3.0
 
-# train configuration
-train:
-    lr: 0.00005
-    grad_clip: 5.0
-    seed: 0
-    batch_size: 128
-    max_len: 128
-    epoch: 20
-    warmup_ratio: 0.05
-    checkpoint: 
-        path: bert-fp/best_bert-base-chinese.pt
-        is_load: false
+# contrastive decoding parameter
+beam_width: 2
+scoring_criterion: maximum
 
 # test configuration
 test:

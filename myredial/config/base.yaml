@@ -49,6 +49,7 @@ no_train_models:
     - bert-mask-da
     - bert-mask-da-dmr
     - bert-mask-da-sep
+    - gpt2
 
 curriculum_learning_models:
     - dual-bert-hn-cl
@@ -488,8 +489,9 @@ models:
         inference_dataset_name: null
     gpt2: 
         type: Generation
-        model_name: MyGPT2Model
-        dataset_name: GPT2Dataset
+        model_name: InferenceGPT2Model
+        # dataset_name: GPT2Dataset
+        dataset_name: GPT2TaCLDataset
         inference_dataset_name: null
     dual-bert-gen: 
         type: Generation
