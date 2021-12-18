@@ -1,10 +1,12 @@
 from model.utils import *
 from inference_utils import *
 
-class GPT2CLEncoder(nn.Module):
+class GPT2MemoryEncoder(nn.Module):
+
+    '''gpt2 model with additional phrase memory'''
 
     def __init__(self, **args):
-        super(GPT2CLEncoder, self).__init__()
+        super(GPT2MemoryEncoder, self).__init__()
         model = args['pretrained_model']
         self.vocab = BertTokenizer.from_pretrained(model)
 
@@ -13,28 +15,11 @@ class GPT2CLEncoder(nn.Module):
         self.unk = self.vocab.unk_token_id
         self.cls = self.vocab.cls_token_id
         self.sep = self.vocab.sep_token_id
-        self.special_tokens = set([self.pad, self.unk, self.cls])
-        # or GPT2CLHeadModel or GPT2CLFromLMHeadModel
-        faiss_path = f'{args["root_dir"]}/data/{args["dataset"]}/{args["model"]}/faiss.ckpt'
-        corpus_path = f'{args["root_dir"]}/data/{args["dataset"]}/{args["model"]}/corpus.pkl'
-        self.model = GPT2CLSDModel(
-            model, 
-            args['bert_pretrained_model'],
-            unk=self.unk, 
-            pad=self.pad, 
-            cls=self.cls,
-            sep=self.sep,
-            temp=args['temp'],
-            index_type=args['index_type'] if 'index_type' in args else None,
-            dimension=args['dimension'] if 'dimension' in args else None,
-            nprobe=args['nprobe'] if 'nprobe' in args else None,
-            max_phrase_len=args['max_phrase_len'] if 'max_phrase_len' in args else 10,
-            length_penalty=args['length_penalty'] if 'length_penalty' in args else 1.1,
-            faiss_path=faiss_path,
-            corpus_path=corpus_path
-        )
+        self.special_tokens = set([self.pad, self.unk, self.cls, self.sep])
         self.test_max_len = args['test_max_len']
         self.args = args
+
+        # model
 
     @torch.no_grad()
     def calculate_ppl(self, ids, ids_mask, label):

@@ -2,20 +2,17 @@ from header import *
 from .randomaccess import *
 from .utils import *
 from .util_func import *
-from .augmentation import *
 
 
-class WriterRankDataset(Dataset):
+class GPT2MemoryDataset(Dataset):
 
     '''for gpt2 inference'''
 
     def __init__(self, vocab, path, **args):
         self.args = args
         self.vocab = vocab
-        self.vocab.add_tokens(['[EOS]'])
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
-        self.eos = self.vocab.convert_tokens_to_ids('[EOS]')
         self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
         self.gray_cand_num = args['gray_cand_num']
 
@@ -31,6 +28,55 @@ class WriterRankDataset(Dataset):
         self.reader.init_file_handler()
         self.size = self.reader.size
         print(f'[!] dataset size: {self.size}')
+
+        # load the stopwords
+        with open(f'{args["root_dir"]}/data/stop_word.txt') as f:
+            stop_words = [line.strip() for line in f.readlines()]
+            stop_words = set(stop_words)
+            print(f'[!] obtain {len(stop_words)} stop words')
+
+        # texsmart engine
+        engine = NluEngine('/home/johntianlan/sources/texsmart-sdk-0.3.0-m-zh/data/nlu/kb', 1)
+        useful_pos_tag = set([
+            'NN', 'NR', 'NT',     # noun
+            'VV', 'VA', 
+            'CD',
+            'AD',
+        ])
+        # collect the phrase
+        memory_path = f'{args["root_dir"]}/data/{args["dataset"]}/gpt2_memory_phrases.pt'
+        if args['mode'] != 'train':
+            return
+        if os.path.exists(memory_path):
+            self.memory = torch.load(memory_path)
+            return
+        memory = Counter()
+        ignore_num = 0
+        pbar = tqdm(range(self.size))
+        for i in pbar:
+            line = json.loads(self.reader.get_line(i))
+            line = ''.join([''.join(s.strip().split()) for s in line['q']])
+            try:
+                phrase = texsmart_segmentation(
+                    engine,
+                    line, 
+                    useful_pos_tag=useful_pos_tag
+                )
+            except:
+                ignore_num += 1
+                continue
+            n_phrase = []
+            for p in phrase:
+                if p not in stop_words and \
+                    args['min_phrase_len'] <= len(p) <= args['max_phrase_len']:
+                    n_phrase.append(p)
+            memory.update(n_phrase)
+            pbar.set_description(f'[!] find {len(memory)} phrases; {ignore_num} errors.')
+        # memory_phrases = [n for n, _ in memory.most_common(args['max_memory_size'])]
+        # print(f'[!] got {len(memory_phrases)} phrases as the additional memory for gpt2')
+        torch.save(memory, memory_path)
+        print(f'[!] save the phrases into {memory_path}')
+        self.memory = memory
                 
     def __len__(self):
         return self.size
@@ -116,97 +162,3 @@ class WriterRankDataset(Dataset):
         if len(sentences) <= 1:
             return False
         return True
-
-
-class WriterInferenceDataset(Dataset):
-
-    def __init__(self, vocab, path, **args):
-        self.args = args
-        self.vocab = vocab
-        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
-        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
-        self.eos = self.vocab.convert_tokens_to_ids('[EOS]')
-        self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
-
-        self.data = []
-        # train set is huge, use it as the offline index
-        rar_path = f'{args["root_dir"]}/data/{args["dataset"]}/train.rar'
-        if os.path.exists(rar_path):
-            self.reader = torch.load(rar_path)
-            print(f'[!] load RandomAccessReader Object over')
-        else:
-            self.reader = RandomAccessReader(path)
-            self.reader.init()
-            torch.save(self.reader, rar_path)
-        self.reader.init_file_handler()
-        self.size = self.reader.size
-
-        # for debug
-        self.size = 50000
-        print(f'[!] dataset size: {self.size}')
-                
-    def __len__(self):
-        return self.size
-
-    def __getitem__(self, i):
-        '''
-        1. is chinese character
-        2. has the useful label (in jieba)
-        3. equal or longer than the minimum token length'''
-        line = self.reader.get_line(i)
-        sentences = json.loads(line.strip())['q']
-        sentences = [s.strip() for s in sentences if s.strip()]
-        sentences = [''.join(sentence.split()) for sentence in sentences]
-        # convert the text into the token ids
-        tokens, text, einid, eintext = [], [], [], []
-        last_save = False
-        # useful_label = ['n', 't', 'a', 'nr', 'ns', 'i']
-        useful_label = ['n']
-        interval_counter = self.args['min_phrase_interval'] + 1
-        for s in sentences:
-            for token, label in pseg.cut(s):
-                t = self.vocab.encode(token, add_special_tokens=False)
-                if len(tokens) + len(t) > self.args['inf_max_len']:
-                    # return
-                    return tokens, einid, eintext, ''.join(text)
-                # find potiential phrase to save (only chinese character)
-                if interval_counter > self.args['min_phrase_interval'] \
-                    and self.is_all_chinese(token) \
-                    and label in useful_label:
-                    # test: if the token is the n
-                    einid.append(len(tokens))
-                    eintext.append(len(text))
-                    interval_counter = len(token)
-                else:
-                    interval_counter += len(token)
-                tokens.extend(t)
-                text.extend(token)
-        return tokens, einid, eintext, ''.join(text)
-
-    def is_all_chinese(self, strs):
-        for _char in strs:
-            if not '\u4e00' <= _char <= '\u9fa5':
-                return False
-        return True
-
-    def collate(self, batch):
-        ids, einid, eintext, text = [], [], [], []
-        for a, b, c, d in batch:
-            if b and c:
-                ids.append(torch.LongTensor(a))
-                einid.append(b)
-                eintext.append(c)
-                text.append(d)
-        if ids:
-            ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
-            ids_mask = generate_mask(ids)
-            ids, ids_mask = to_cuda(ids, ids_mask)
-            return {
-                'ids': ids,
-                'ids_mask': ids_mask,
-                'einid': einid,
-                'eintext': eintext,
-                'text': text,
-            }
-        else:
-            return None

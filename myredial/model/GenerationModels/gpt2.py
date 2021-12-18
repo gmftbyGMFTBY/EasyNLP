@@ -29,6 +29,10 @@ class InferenceGPT2Model(nn.Module):
             self.predict = self.predict_topk_topp_repetition_penalty
         elif args['decoding_method'] == 'topk_topp_search':
             self.predict = self.predict_topk_topp
+        elif args['decoding_method'] == 'topk_search':
+            self.predict = self.predict_topk
+        elif args['decoding_method'] == 'topp_search':
+            self.predict = self.predict_topp
         else:
             raise Exception(f'[!] cannot find the deocidng method: {args["decoding_method"]}')
         self.args = args
@@ -57,6 +61,7 @@ class InferenceGPT2Model(nn.Module):
                 input_ids,
                 self.args['beam_width'],
                 self.args['scoring_criterion'],
+                threshold=self.args['contrastive_threshold'],
             )
         # input_ids contains the prefix, cut it
         input_ids = input_ids[:, prefix_length:]
@@ -131,27 +136,49 @@ class InferenceGPT2Model(nn.Module):
     @torch.no_grad()
     def predict_topk_topp(self, batch):
         '''batch_size is 1'''
-        self.model.eval()
         ids = batch['ids']
-        generated = []
-        while True:
-            output = self.model(
-                input_ids=ids,
-            )[0]    # [1, S, V]
-            next_token_logits = output[-1, -1, :]    # [V]
-            next_token_logits[self.unk] = -np.inf
-            filtered_logits = top_k_top_p_filtering(
-                next_token_logits, 
-                top_k=self.topk, 
-                top_p=self.topp
-            )
-            next_token = torch.multinomial(
-                F.softmax(filtered_logits, dim=-1),
-                num_samples=1,
-            )
-            if len(generated) > self.test_max_len:
-                break
-            generated.append(next_token.item())
-            # reconstruct the ids and ids_mask
-            ids = torch.cat((ids, next_token.unsqueeze(0)), dim=1)    # [1, S+1]
-        return [generated]
+        _, prefix_length = ids.size()
+        beam_output = self.model.generate(
+            ids, 
+            prefix_length+self.test_max_len, 
+            pad_token_id=self.vocab.pad_token_id,
+            eos_token_id=self.vocab.eos_token_id,
+            top_p=self.topp,
+            top_k=self.topk,
+            do_sample=True,
+        )
+        beam_output = beam_output[:, prefix_length:]
+        return beam_output.tolist()
+    
+    @torch.no_grad()
+    def predict_topp(self, batch):
+        '''batch_size is 1'''
+        ids = batch['ids']
+        _, prefix_length = ids.size()
+        beam_output = self.model.generate(
+            ids, 
+            prefix_length+self.test_max_len, 
+            pad_token_id=self.vocab.pad_token_id,
+            eos_token_id=self.vocab.eos_token_id,
+            top_p=self.topp,
+            top_k=0,
+            do_sample=True,
+        )
+        beam_output = beam_output[:, prefix_length:]
+        return beam_output.tolist()
+    
+    @torch.no_grad()
+    def predict_topk(self, batch):
+        '''batch_size is 1'''
+        ids = batch['ids']
+        _, prefix_length = ids.size()
+        beam_output = self.model.generate(
+            ids, 
+            prefix_length+self.test_max_len, 
+            pad_token_id=self.vocab.pad_token_id,
+            eos_token_id=self.vocab.eos_token_id,
+            top_k=self.topk,
+            do_sample=True,
+        )
+        beam_output = beam_output[:, prefix_length:]
+        return beam_output.tolist()

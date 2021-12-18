@@ -2,7 +2,7 @@ from header import *
 from model import *
 from config import *
 from dataloader import *
-from inference import Searcher
+from inference_utils import Searcher
 from es.es_utils import *
 from .utils import *
 

@@ -213,13 +213,13 @@ class GPT2CLSDModel(nn.Module):
     @torch.no_grad()
     def offline_inference(self, batch):
         '''generate the offline represetations'''
-        self.retrieal.eval()
+        self.retrieval.eval()
         ids, ids_mask = batch['ids'], batch['ids_mask']
         text, index_in_ids, index_in_text = batch['text'], batch['einid'], batch['eintext']
         rep = self.retrieval(ids, ids_mask).last_hidden_state    # [B, S, E]
         # rest:
         embd, rest_text, rest_eintext = [], [], []
-        for rep_, einid, eintext, t in zip(rep, index_in_id, index_in_text, text):
+        for rep_, einid, eintext, t in zip(rep, index_in_ids, index_in_text, text):
             # rep_: [S, E]
             embd.append(rep_[einid, :])
             rest_text.extend([t] * len(einid))
@@ -378,3 +378,58 @@ class GPT2CLSDModel(nn.Module):
         )
         ppl = math.exp(loss.item())
         return ppl
+
+
+class GPT2MmeoryHeadModel(nn.Module):
+
+    '''static embeddings and dynamic embeddings'''
+
+    def __init__(self, model_name, memory_size):
+        super(GPT2MemoryHeadModel, self).__init__()
+        self.model = GPT2LMHeadModel.from_pretrained(model_name)
+        self.vocab = AutoTokenizer.from_pretrained(model_name)
+        self.vocab_head = nn.Parameter(
+            self.model.lm_head.state_dict()['weight'].t()
+        )    # [E, V]
+        self.vocab_size = len(self.vocab)
+        self.memory_size = memory_size
+
+        self.memory_head = nn.Parameter(torch.randn(768, memory_size))
+        self.vocab_criterion = nn.CrossEntropyLoss(ignore_index=self.pad)
+        self.memory_criterion = nn.CrossEntropyLoss()
+
+    def forward(self, ids, ids_mask, memory_index, memory_label):
+        '''ids/ids_mask: [B, S];
+        memory_index/memory_label: [B, K]'''
+        rep = self.model(
+            input_ids=ids,
+            attention_mask=ids_mask,
+            output_hidden_states=True,
+        ).hidden_states[-1]    # [B, S, E]
+        # vocab loss
+        gen_logits = torch.matmul(rep, self.vocab_head)    # [B, S, V]
+        shift_logits = gen_logits[..., :-1, :].contiguous() 
+        shift_labels = ids[..., 1:].contiguous()
+        loss_vocab = self.criterion(
+            shift_logits.view(-1, shift_logits.size(-1)),
+            shift_labels.view(-1),
+        )
+
+        # vocab acc
+        _, preds = shift_logits.max(dim=-1)
+        not_ignore = shift_labels.ne(self.pad)
+        num_targets = not_ignore.long().sum().item()
+        correct = (shift_labels == preds) & not_ignore
+        correct = correct.float().sum().item()
+        vocab_acc = correct / num_targets
+        
+        # memory loss
+        gen_logits = torch.matmul(rep, self.memory_head)    # [B, S, VV]
+        # phrase acc
+        _, preds = gen_logits.max(dim=-1)    # [B, S-1]
+        not_ignore = gen_labels != -100    # [B, S-1]
+        num_targets = not_ignore.long().sum().item()
+        correct = (gen_labels == preds) & not_ignore
+        correct = correct.float().sum().item()
+        phrase_acc = correct / num_targets
+        return loss_vocab, loss_memory, vocab_acc, memory_acc

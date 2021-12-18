@@ -7,6 +7,11 @@ max_phrase_len: 10
 length_penalty: 1.1
 min_effective_token_len: 2
 
+# memory
+min_phrase_len: 2
+max_phrase_len: 7
+max_memory_size: 500000
+
 # gpt2 configuration
 test_max_len: 128
 tokenizer:
@@ -14,8 +19,6 @@ tokenizer:
 pretrained_model:
     zh: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
 
-bert_pretrained_model: /apdcephfs/share_916081/johntianlan/duyu_roberta
-    
 # train configuration
 train:
     load_param: true
@@ -35,16 +38,3 @@ test:
     batch_size: 128
     # this means the prefix length
     max_len: 128
-
-# inferen e configuration
-inference:
-    seed: 0
-    temp: 0.07
-    batch_size: 256
-    inf_max_len: 384
-    topk: 10
-    index_type: IVF3722,Flat 
-    index_nprobe: 1
-    dimension: 768
-    offline_index_prefix: phrase_generation_index
-    min_phrase_interval: 10

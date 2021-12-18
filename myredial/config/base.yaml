@@ -425,6 +425,11 @@ models:
         model_name: GPT2TaCLV2Encoder
         dataset_name: GPT2TaCLV2Dataset
         inference_dataset_name: null
+    gpt2-memory: 
+        type: Generation
+        model_name: GPT2MemoryEncoder
+        dataset_name: GPT2MemoryDataset
+        inference_dataset_name: null
     gpt2-cl: 
         type: Generation
         model_name: GPT2CLEncoder
@@ -697,7 +702,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 15
+version: 0
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
 rank: null

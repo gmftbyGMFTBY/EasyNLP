@@ -8,6 +8,7 @@ from .time_evaluation_dataloader import *
 from .fine_grained_test_dataloader import *
 from .bert_mask_augmentation_dataloader import *
 from .gpt2_dataloader import *
+from .gpt2_memory_dataloader import *
 from .simcse_dataloader import *
 from .post_train_dataloader import *
 from .dual_bert_dataloader import *

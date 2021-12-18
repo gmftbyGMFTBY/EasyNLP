@@ -15,23 +15,27 @@ gen_max_ctx_len: 256
 #   3. greedy_search
 #   4. topk_topp_repetition_penalty_search
 #   5. topk_topp_search
-# decoding_method: contrastive_search
+decoding_method: contrastive_search
 # decoding_method: greedy_search
 # decoding_method: beam_search
 # decoding_method: topk_topp_repetition_penalty_search
-decoding_method: topk_topp_search
+# decoding_method: topk_topp_search
+# decoding_method: topk_search
+# decoding_method: topp_search
 
 # beam search
 num_beam: 2
 
 # topk-topp sampling
-topk: 50
-topp: 1.0
+topk: 2
+topp: 0.95
+topk_topp_beam_num: 2
 repetition_penalty: 3.0
 
 # contrastive decoding parameter
 beam_width: 2
 scoring_criterion: maximum
+contrastive_threshold: 0.8
 
 # test configuration
 test:

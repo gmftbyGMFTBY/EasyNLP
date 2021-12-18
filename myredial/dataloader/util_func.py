@@ -2,6 +2,8 @@ import torch
 import ipdb
 from copy import deepcopy
 import random
+import requests
+import json
 
 
 def modify_sentence(ids, min_change=2, prob=0.1, k=2):
@@ -303,3 +305,13 @@ def random_insert_context(context_utterances, pool):
     idx = random.choice(range(len(context_utterances)))
     context_utterances.insert(idx, u)
     return context_utterances
+
+
+# texsmart chinese tokenization
+def texsmart_segmentation(engine, text, useful_pos_tag=None):
+    output = engine.parse_text(text)
+    seg_sentence = []
+    for each_word in output.phrases():
+        if each_word.tag in useful_pos_tag:
+            seg_sentence.append(each_word.str)
+    return seg_sentence
