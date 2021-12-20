@@ -1,0 +1,31 @@
+test_interval: 0.01
+valid_during_training: false
+is_step_for_training: true
+total_step: 50010
+
+# gpt2 configuration
+test_max_len: 128
+tokenizer: 
+    zh: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
+pretrained_model: 
+    zh: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
+
+# train configuration
+train:
+    load_param: true
+    lr: 0.00005
+    grad_clip: 5.0
+    seed: 0
+    batch_size: 16
+    max_len: 384
+    warmup_ratio: 0.01
+    checkpoint: 
+        path: bert-post/best_nspmlm.pt
+        is_load: false
+
+# test configuration
+test:
+    seed: 0
+    batch_size: 128
+    # this means the prefix length
+    max_len: 128

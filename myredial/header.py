@@ -41,8 +41,8 @@ import torch.multiprocessing
 import linecache
 
 # texsmart
-sys.path.append('/home/johntianlan/sources/texsmart-sdk-0.3.0-m-zh/lib')
-from tencent_ai_texsmart import *
+# sys.path.append('/home/johntianlan/sources/texsmart-sdk-0.3.0-m-zh/lib')
+# from tencent_ai_texsmart import *
 
 logging.getLogger("transformers").setLevel(logging.WARNING)
 logging.getLogger("transformers.tokenization_utils").setLevel(logging.ERROR)

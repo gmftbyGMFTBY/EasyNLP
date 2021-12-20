@@ -15,8 +15,10 @@ class GenerationAgent(GenerationBaseAgent):
 
         # open the test save scores file handler
         pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
-        path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}_{args["version"]}_{args["decoding_method"]}.txt'
-        # path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}_{args["version"]}.txt'
+        if args['model'] in ['gpt2']:
+            path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}_{args["version"]}_{args["decoding_method"]}.txt'
+        else:
+            path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}_{args["version"]}.txt'
         self.log_save_file = open(path, 'w')
 
         if torch.cuda.is_available():
