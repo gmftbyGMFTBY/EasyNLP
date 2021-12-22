@@ -66,19 +66,34 @@ class GPT2UNModel(nn.Module):
         return rest
 
     def token_unlikelyhood(self, ids, logits):
+        # slow but more effective
         # ids: [B, S], logits: [B, S, V], remvove the the last token
-        sub_logits = F.softmax(logits, dim=-1)    # [B, S, V]
-        loss = []
-        bsz, seqlen = ids.size()
-        for i in range(bsz):
-            sampled_index = random.sample(range(seqlen), self.sample_token_num)
-            for j in sampled_index:
-                if ids[i,j].item() == self.pad:
-                    continue
-                # candidates
-                candidates = list(set(ids[i, :j].tolist()))
-                loss.append((-torch.log(1e-3 + 1 - sub_logits[i, j, candidates])).sum())
-        loss = torch.stack(loss).mean()
+        # sub_logits = F.softmax(logits, dim=-1)    # [B, S, V]
+        # loss = []
+        # bsz, seqlen = ids.size()
+        # for i in range(bsz):
+        #     sampled_index = random.sample(range(seqlen), self.sample_token_num)
+        #     for j in sampled_index:
+        #         if ids[i,j].item() == self.pad:
+        #             continue
+        #         candidates = list(set(ids[i, :j].tolist()))
+        #         loss.append((-torch.log(1e-3 + 1 - sub_logits[i, j, candidates])).sum())
+        # loss = torch.stack(loss).mean()
+        # return loss
+
+        # fast mode but not effective
+        logits = logits[:, :-1, :]
+        target = ids[:, 1:]
+        bsz, seqlen = target.size()
+        logits = F.softmax(logits, dim=-1)    # [B, S, V]
+        cands = target.unsqueeze(1).expand(-1, target.size(-1), -1)    # [B, S, S]
+        cands = cands.tril(-1)    # [B, S, S]
+
+        # donot include it self
+        cands = cands.masked_fill(cands == target.unsqueeze(2), self.pad)
+        negative_cands = torch.zeros_like(logits).scatter(2, cands, 1)    # [B, S, V]
+        loss = -torch.log(1e-5 + 1 - logits) * negative_cands    # [B, S, V]
+        loss = loss.sum(dim=-1).mean()
         return loss
 
     def forward(self, batch):

@@ -135,22 +135,6 @@ class GPT2UNSeqModel(nn.Module):
             rest.append(g)
         return rest
 
-    def token_unlikelyhood(self, ids, logits):
-        # ids: [B, S], logits: [B, S, V], remvove the the last token
-        sub_logits = F.softmax(logits, dim=-1)    # [B, S, V]
-        loss = []
-        bsz, seqlen = ids.size()
-        for i in range(bsz):
-            sampled_index = random.sample(range(seqlen), self.sample_token_num)
-            for j in sampled_index:
-                if ids[i,j].item() == self.pad:
-                    continue
-                # candidates
-                candidates = list(set(ids[i, :j].tolist()))
-                loss.append((-torch.log(1e-3 + 1 - sub_logits[i, j, candidates])).sum())
-        loss = torch.stack(loss).mean()
-        return loss
-
     def sequence_unlikelyhood(self, batch):
         # sample the squence
         gen_tokens, gen_logits = self.sample_sequence(batch)
@@ -161,7 +145,8 @@ class GPT2UNSeqModel(nn.Module):
         loss = -torch.log(1 - gen_logits + 1e-3) * ngram_repeat_mask    # [B, S]
         loss = loss.sum()
         effective_tokens_num = torch.sum(ngram_repeat_mask).item()
-        loss /= effective_tokens_num
+        if effective_tokens_num > 0:
+            loss /= effective_tokens_num
         return loss
     
     def token_unlikelyhood(self, ids, logits):

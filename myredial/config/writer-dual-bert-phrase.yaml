@@ -13,8 +13,10 @@ gpt2_topk: 50
 gpt2_topp: 1.0
 gpt2_gen_max_len: 64
 gpt2_gen_max_ctx_len: 128
-gpt2_max_len: 128
-bert_max_len: 160
+# gpt2_max_len: 128
+# bert_max_len: 160
+gpt2_max_len: 32
+bert_max_len: 64
 gpt2_tokenizer: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
 gpt2_pretrained_model: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
 

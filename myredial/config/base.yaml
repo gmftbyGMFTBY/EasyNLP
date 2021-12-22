@@ -440,6 +440,11 @@ models:
         model_name: GPT2OriginalModel
         dataset_name: GPT2TaCLDataset
         inference_dataset_name: null
+    gpt2-rerank: 
+        type: Generation
+        model_name: GPT2RerankModel
+        dataset_name: GPT2TaCLV3Dataset
+        inference_dataset_name: null
     gpt2-un-seq: 
         type: Generation
         model_name: GPT2UNSeqModel
@@ -712,7 +717,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 15
+version: 5
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
 rank: null

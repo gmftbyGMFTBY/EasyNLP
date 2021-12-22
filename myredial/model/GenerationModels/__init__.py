@@ -4,6 +4,7 @@ from .seq2seq import *
 from .gpt2 import *
 from .gpt2_un import *
 from .gpt2_un_seq import *
+from .gpt2_rerank import *
 from .gpt2_original import *
 from .gpt2_cl import *
 from .gpt2_grl import *

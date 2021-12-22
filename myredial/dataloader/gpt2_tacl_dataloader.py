@@ -233,7 +233,6 @@ class GPT2TaCLV3Dataset(Dataset):
             }
         else:
             # left pad
-            batch = [i[0] for i in batch]
             max_length = max([len(i) for i in batch])
             ids = torch.stack([torch.LongTensor([self.pad] * (max_length - len(i)) + i) for i in batch])
             ids_mask = generate_mask(ids)

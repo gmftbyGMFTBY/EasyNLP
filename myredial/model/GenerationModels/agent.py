@@ -29,6 +29,8 @@ class GenerationAgent(GenerationBaseAgent):
 
         if self.args['model'] in ['gpt2-cl']:
             self.train_model = self.train_model_cl
+        elif self.args['model'] in ['gpt2-rerank']:
+            self.train_model = self.train_model_rerank
 
     def build_offline_index(self, iter_):
         size = self.model.module.build_offline_index(
@@ -56,6 +58,41 @@ class GenerationAgent(GenerationBaseAgent):
             recoder.add_scalar(f'train/TokenAcc', token_acc, current_step)
             recoder.add_scalar(f'train/PhraseAcc', phrase_acc, current_step)
         pbar.set_description(f'[!] loss(token|phrase): {round(loss_token.item(), 4)}|{round(loss_phrase.item(), 4)}; acc(token|phrase): {round(token_acc*100, 2)}|{round(phrase_acc*100, 2)}')
+        pbar.update(1)
+        return loss, token_acc
+    
+    def train_model_rerank(self, batch, recoder=None, current_step=0, pbar=None):
+        self.model.train()
+        self.optimizer.zero_grad()
+        # coarse-grained loss and mle loss
+        with autocast():
+            lm_loss, cg_loss, token_acc = self.model(batch)
+            loss = lm_loss + cg_loss
+        self.scaler.scale(loss).backward()
+        self.scaler.unscale_(self.optimizer)
+        clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+        self.scaler.step(self.optimizer)
+        self.scaler.update()
+
+        # fine-grained loss
+        # with autocast():
+        #     fg_loss = self.model(batch)
+        # self.scaler.scale(fg_loss).backward()
+        # self.scaler.unscale_(self.optimizer)
+        # clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+        # self.scaler.step(self.optimizer)
+        # self.scaler.update()
+
+        # update the scheduler
+        self.scheduler.step()
+
+        if recoder:
+            recoder.add_scalar(f'train/RunLoss', loss.item(), current_step)
+            recoder.add_scalar(f'train/RunLMLoss', lm_loss.item(), current_step)
+            recoder.add_scalar(f'train/RunCGLoss', cg_loss.item(), current_step)
+            # recoder.add_scalar(f'train/RunFGLoss', fg_loss.item(), current_step)
+            recoder.add_scalar(f'train/TokenAcc', token_acc, current_step)
+        pbar.set_description(f'[!] loss(lm|cg): {round(lm_loss.item(), 4)}|{round(cg_loss.item(), 4)}; acc: {round(token_acc*100, 2)}')
         pbar.update(1)
         return loss, token_acc
 

@@ -182,7 +182,8 @@ def load_fake_rerank_data_from_writer_rank_corpus(path, size=1000):
             rr = ''.join(rr.split())
             random_neg.append(rr)
         # overall candaidates
-        candidates = [response] + hard_neg + random_neg
+        # candidates = [response] + hard_neg + random_neg
+        candidates = [response] + random_neg[:9]
         data.append({
             'segment_list': [{
                 'context': context, 
