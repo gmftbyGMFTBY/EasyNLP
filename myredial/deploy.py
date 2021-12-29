@@ -17,7 +17,7 @@ def create_app():
     if recall_args['activate']:
         recallagent = RecallAgent(recall_args)
         print(f'[!] Recall agent activate')
-        recall_loggeer = init_logging(recall_args)
+        recall_logger = init_logging(recall_args)
     if pipeline_args['activate']:
         pipelineagent = PipelineAgent(pipeline_args)
         print(f'[!] Pipeline agent activate')
@@ -269,7 +269,7 @@ def create_app():
         }
         '''
         try:
-            data = request.json
+            data = json.loads(request.data)
             topk = data['topk'] if 'topk' in data else None
             candidates, core_time = recallagent.work(data['segment_list'], topk=topk)
             succ = True

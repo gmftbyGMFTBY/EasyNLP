@@ -1,4 +1,5 @@
 datasets: 
+    wz_game: zh
     ecommerce: zh
     douban: zh
     writer: zh
@@ -38,6 +39,7 @@ no_test_models:
     - bert-fp-mono-seed
     - bert-fp-mono-plus
     - simcse
+    - wz-simcse
     - bert-mask-da
     - bert-mask-da-dmr
     - bert-mask-da-sep
@@ -78,13 +80,18 @@ models:
         model_name: BERTDualUnsupervisedEncoder
         dataset_name: BERTDualUnsupervisedDataset
         inference_dataset_name: null
+    wz-simcse:
+        type: PostTrain
+        model_name: WZSimCSE
+        dataset_name: InferenceWZSimCSEDataset
+        inference_dataset_name: InferenceWZSimCSEDataset
     simcse: 
         type: PostTrain
         model_name: SimCSE
-        dataset_name: SimCSEDataset
-        # dataset_name: SimCSEUnlikelyhoodDataset
+        # dataset_name: SimCSEDataset
+        dataset_name: SimCSEUnlikelyhoodDataset
         # inference_dataset_name: BERTSimCSEInferenceDataset
-        inference_dataset_name: BERTSimCSEInferenceContextDataset
+        # inference_dataset_name: BERTSimCSEInferenceContextDataset
         # inference_dataset_name: BERTSimCSEUnlikelyhoodInferenceDataset
         # inference_dataset_name: BERTSimCSEUnlikelyhoodInferenceContextDataset
     dual-bert-mixup: 
@@ -358,7 +365,8 @@ models:
         inference_dataset_name: null
     writer-dual-bert-phrase: 
         type: WriterRerank
-        model_name: WriterPhraseEncoder
+        # model_name: WriterPhraseEncoder
+        model_name: WriterPhraseForDeployEncoder
         dataset_name: WriterRankDataset
         inference_dataset_name: null
     writer-dual-bert: 
@@ -433,7 +441,7 @@ models:
     gpt2-cl: 
         type: Generation
         model_name: GPT2CLEncoder
-        dataset_name: GPT2TaCLDataset
+        dataset_name: GPT2CLDataset
         inference_dataset_name: WriterInferenceDataset
     gpt2-original: 
         type: Generation
@@ -717,7 +725,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 5
+version: 10
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
 rank: null
@@ -734,21 +742,21 @@ start_save_step: 0
 # ========== Deploy configuration ========== #
 deploy:
     host: '0.0.0.0'
-    port: 22351
-    dataset: writer-rank
+    port: 8082
+    # dataset: writer-rank
+    dataset: wz_game
     max_len: 128
     res_max_len: 64
     recall:
-        activate: false
-        model: full 
-        topk: 100
-        # only the arxiv, writer dataset need the with_source
+        activate: true
+        model: wz-simcse
+        topk: 200
         with_source: false
-        index_type: Flat
-        index_nprobe: 5
+        index_type: LSH
+        index_nprobe: 1
         dimension: 768
     rerank:
-        activate: true
+        activate: false
         model: writer-dual-bert-phrase
     pipeline:
         activate: false

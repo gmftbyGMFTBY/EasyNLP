@@ -156,57 +156,102 @@ class WriterInferenceDataset(Dataset):
         line = self.reader.get_line(i)
         sentences = json.loads(line.strip())['q']
         sentences = [s.strip() for s in sentences if s.strip()]
-        sentences = [''.join(sentence.split()) for sentence in sentences]
-        # convert the text into the token ids
-        tokens, text, einid, eintext = [], [], [], []
-        last_save = False
-        # useful_label = ['n', 't', 'a', 'nr', 'ns', 'i']
-        useful_label = ['n']
-        interval_counter = self.args['min_phrase_interval'] + 1
-        for s in sentences:
-            for token, label in pseg.cut(s):
-                t = self.vocab.encode(token, add_special_tokens=False)
-                if len(tokens) + len(t) > self.args['inf_max_len']:
-                    # return
-                    return tokens, einid, eintext, ''.join(text)
-                # find potiential phrase to save (only chinese character)
-                if interval_counter > self.args['min_phrase_interval'] \
-                    and self.is_all_chinese(token) \
-                    and label in useful_label:
-                    # test: if the token is the n
-                    einid.append(len(tokens))
-                    eintext.append(len(text))
-                    interval_counter = len(token)
-                else:
-                    interval_counter += len(token)
-                tokens.extend(t)
-                text.extend(token)
-        return tokens, einid, eintext, ''.join(text)
-
-    def is_all_chinese(self, strs):
-        for _char in strs:
-            if not '\u4e00' <= _char <= '\u9fa5':
-                return False
-        return True
+        sentences = ''.join([''.join(sentence.split()) for sentence in sentences])
+        tokens = [self.cls] + self.vocab.encode(sentences, add_special_tokens=False)
+        tokens = tokens[:self.args['inf_max_len']]
+        text = ''.join(self.vocab.convert_ids_to_tokens(tokens[1:]))
+        return tokens, text
 
     def collate(self, batch):
-        ids, einid, eintext, text = [], [], [], []
-        for a, b, c, d in batch:
-            if b and c:
-                ids.append(torch.LongTensor(a))
-                einid.append(b)
-                eintext.append(c)
-                text.append(d)
-        if ids:
+        ids, text = [], []
+        for a, b in batch:
+            ids.append(torch.LongTensor(a))
+            text.append(b)
+        ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+        ids_mask = generate_mask(ids)
+        ids, ids_mask = to_cuda(ids, ids_mask)
+        return {
+            'ids': ids,
+            'ids_mask': ids_mask,
+            'text': text,
+        }
+
+
+class GPT2CLDataset(Dataset):
+
+    '''gpt2 and roberta has must share the same vocabulary'''
+    
+    def __init__(self, vocab, path, **args):
+        self.args = args
+        self.vocab = vocab
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
+
+        rar_path = f'{args["root_dir"]}/data/{args["dataset"]}/{args["mode"]}.rar'
+        if os.path.exists(rar_path):
+            self.reader = torch.load(rar_path)
+            print(f'[!] load RandomAccessReader Object over')
+        else:
+            self.reader = RandomAccessReader(path)
+            self.reader.init()
+            torch.save(self.reader, rar_path)
+        self.size = self.reader.size
+        self.reader.init_file_handler()
+        print(f'[!] dataset size: {self.size}')
+                
+    def __len__(self):
+        return self.size
+
+    def __getitem__(self, i):
+        while True:
+            line = self.reader.get_line(i)
+            sentences = json.loads(line.strip())['q']
+            sentences = [s.strip() for s in sentences if s.strip()]
+            if len(sentences) > 0:
+                break
+            i = random.choice(range(self.size))
+
+        sentences = [''.join(sentence.split()) for sentence in sentences]
+        tokens = self.vocab.batch_encode_plus(sentences, add_special_tokens=False)['input_ids']
+        tokens = list(chain(*tokens))
+        # sample the max_length sequence from it
+        if len(tokens) > self.args['max_len']:
+            sample_range = list(range(0, len(tokens) - self.args['max_len']))
+            head = random.choice(sample_range)
+            tail = head + self.args['max_len']
+            tokens = tokens[head:tail]
+        return tokens, [self.cls] + tokens 
+
+    def save(self):
+        pass
+        
+    def collate(self, batch):
+        if self.args['mode'] == 'train':
+            ids = [torch.LongTensor(i[0]) for i in batch]
+            bert_ids = [torch.LongTensor(i[1]) for i in batch]
             ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+            bert_ids = pad_sequence(bert_ids, batch_first=True, padding_value=self.pad)
             ids_mask = generate_mask(ids)
-            ids, ids_mask = to_cuda(ids, ids_mask)
+            bert_ids_mask = generate_mask(bert_ids)
+            ids, ids_mask, bert_ids, bert_ids_mask = to_cuda(ids, ids_mask, bert_ids, bert_ids_mask)
             return {
-                'ids': ids,
-                'ids_mask': ids_mask,
-                'einid': einid,
-                'eintext': eintext,
-                'text': text,
+                'ids': ids, 
+                'ids_mask': ids_mask, 
+                'bert_ids': bert_ids,
+                'bert_ids_mask': bert_ids_mask,
             }
         else:
-            return None
+            # left pad
+            batch = [i[0] for i in batch]
+            max_length = max([len(i) for i in batch])
+            ids = torch.stack([torch.LongTensor([self.pad] * (max_length - len(i)) + i) for i in batch])
+            ids_mask = generate_mask(ids)
+            pos_ids = (ids_mask.long().cumsum(-1) - 1).masked_fill(ids_mask == 0, 0)
+            ids, ids_mask, pos_ids = to_cuda(ids, ids_mask, pos_ids)
+            return {
+                'ids': ids, 
+                'ids_mask': ids_mask, 
+                'ids_label': ids,
+                'pos_ids': pos_ids, 
+            }

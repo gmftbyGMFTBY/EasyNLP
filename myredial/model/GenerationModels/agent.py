@@ -33,18 +33,16 @@ class GenerationAgent(GenerationBaseAgent):
             self.train_model = self.train_model_rerank
 
     def build_offline_index(self, iter_):
-        size = self.model.module.build_offline_index(
-            iter_, 
-            self.args['offline_index_prefix']
-        )
+        size = self.model.module.build_offline_index(iter_)
         print(f'[!] build offline index over, size is: {size}')
     
     def train_model_cl(self, batch, recoder=None, current_step=0, pbar=None):
         self.model.train()
         self.optimizer.zero_grad()
         with autocast():
-            loss_token, loss_phrase, token_acc, phrase_acc = self.model(batch)
-            loss = loss_token + loss_phrase
+            (mle_loss, mle_acc), (doc_level_cl_loss, doc_level_cl_acc), (token_level_cl_loss, token_level_cl_acc) = self.model(batch)
+            alpha_ratio = min(self.args['max_ratio'], current_step / self.args['total_step'])
+            loss = mle_loss + alpha_ratio * doc_level_cl_loss + alpha_ratio * token_level_cl_loss
         self.scaler.scale(loss).backward()
         self.scaler.unscale_(self.optimizer)
         clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
@@ -53,21 +51,24 @@ class GenerationAgent(GenerationBaseAgent):
         self.scheduler.step()
         if recoder:
             recoder.add_scalar(f'train/RunLoss', loss.item(), current_step)
-            recoder.add_scalar(f'train/RunTokenLoss', loss_token.item(), current_step)
-            recoder.add_scalar(f'train/RunPhraseLoss', loss_phrase.item(), current_step)
-            recoder.add_scalar(f'train/TokenAcc', token_acc, current_step)
-            recoder.add_scalar(f'train/PhraseAcc', phrase_acc, current_step)
-        pbar.set_description(f'[!] loss(token|phrase): {round(loss_token.item(), 4)}|{round(loss_phrase.item(), 4)}; acc(token|phrase): {round(token_acc*100, 2)}|{round(phrase_acc*100, 2)}')
+            recoder.add_scalar(f'train/RunMLELoss', mle_loss.item(), mle_acc)
+            recoder.add_scalar(f'train/RunDocCLLoss', doc_level_cl_loss.item(), current_step)
+            recoder.add_scalar(f'train/RunTokenCLLoss', token_level_cl_loss.item(), current_step)
+            recoder.add_scalar(f'train/TokenAcc', mle_acc, current_step)
+            recoder.add_scalar(f'train/DocCLAcc', doc_level_cl_acc, current_step)
+            recoder.add_scalar(f'train/TokenCLAcc', token_level_cl_acc, current_step)
+        pbar.set_description(f'[!] loss(mle|doc|token): {round(mle_loss.item(), 4)}|{round(doc_level_cl_loss.item(), 4)}|{round(token_level_cl_loss.item(), 4)}; acc(mle|doc|token): {round(mle_acc*100, 2)}|{round(doc_level_cl_acc*100, 2)}|{round(token_level_cl_acc*100, 2)}')
         pbar.update(1)
-        return loss, token_acc
     
     def train_model_rerank(self, batch, recoder=None, current_step=0, pbar=None):
         self.model.train()
         self.optimizer.zero_grad()
         # coarse-grained loss and mle loss
         with autocast():
+            batch['mode'] = 'coarse-grained'
             lm_loss, cg_loss, token_acc = self.model(batch)
             loss = lm_loss + cg_loss
+            # loss = lm_loss
         self.scaler.scale(loss).backward()
         self.scaler.unscale_(self.optimizer)
         clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
@@ -75,13 +76,14 @@ class GenerationAgent(GenerationBaseAgent):
         self.scaler.update()
 
         # fine-grained loss
-        # with autocast():
-        #     fg_loss = self.model(batch)
-        # self.scaler.scale(fg_loss).backward()
-        # self.scaler.unscale_(self.optimizer)
-        # clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
-        # self.scaler.step(self.optimizer)
-        # self.scaler.update()
+        with autocast():
+            batch['mode'] = 'fine-grained'
+            fg_loss, fg_acc = self.model(batch)
+        self.scaler.scale(fg_loss).backward()
+        self.scaler.unscale_(self.optimizer)
+        clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+        self.scaler.step(self.optimizer)
+        self.scaler.update()
 
         # update the scheduler
         self.scheduler.step()
@@ -90,9 +92,10 @@ class GenerationAgent(GenerationBaseAgent):
             recoder.add_scalar(f'train/RunLoss', loss.item(), current_step)
             recoder.add_scalar(f'train/RunLMLoss', lm_loss.item(), current_step)
             recoder.add_scalar(f'train/RunCGLoss', cg_loss.item(), current_step)
-            # recoder.add_scalar(f'train/RunFGLoss', fg_loss.item(), current_step)
+            recoder.add_scalar(f'train/RunFGLoss', fg_loss.item(), current_step)
             recoder.add_scalar(f'train/TokenAcc', token_acc, current_step)
-        pbar.set_description(f'[!] loss(lm|cg): {round(lm_loss.item(), 4)}|{round(cg_loss.item(), 4)}; acc: {round(token_acc*100, 2)}')
+            recoder.add_scalar(f'train/FGAcc', fg_acc, current_step)
+        pbar.set_description(f'[!] loss(lm|cg|fg): {round(lm_loss.item(), 4)}|{round(cg_loss.item(), 4)}|{round(fg_loss.item(), 4)}; acc(lm|fg): {round(token_acc*100, 2)}|{round(fg_acc*100, 2)}')
         pbar.update(1)
         return loss, token_acc
 

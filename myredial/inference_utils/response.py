@@ -13,7 +13,8 @@ def response_strategy(args):
         for idx in range(100):
             try:
                 embd, text = torch.load(
-                    f'{args["root_dir"]}/data/{args["dataset"]}/inference_{args["model"]}_{i}_{idx}.pt'
+                    # f'{args["root_dir"]}/data/{args["dataset"]}/inference_{args["model"]}_{i}_{idx}.pt'
+                    f'{args["root_dir"]}/data/{args["dataset"]}/inference_wz_simcse_{args["model"]}_{i}_{idx}.pt'
                 )
                 print(f'[!] load {args["root_dir"]}/data/{args["dataset"]}/inference_{args["model"]}_{i}_{idx}.pt')
             except:
@@ -44,7 +45,7 @@ def response_strategy(args):
     print(f'[!] total samples: {searcher.searcher.ntotal}')
 
     model_name = args['model']
-    pretrained_model_name = args['pretrained_model']
+    pretrained_model_name = args['pretrained_model'].replace('/', '_')
     searcher.save(
         f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_faiss.ckpt',
         f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt',

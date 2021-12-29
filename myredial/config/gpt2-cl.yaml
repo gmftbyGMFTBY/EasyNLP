@@ -1,11 +1,11 @@
-test_interval: 0.01
+test_interval: 0.1
 valid_during_training: false
 is_step_for_training: true
-total_step: 50010
+total_step: 5010
 temp: 0.07
-max_phrase_len: 10
-length_penalty: 1.1
-min_effective_token_len: 2
+phrase_length: 10
+dropout: 0.1
+max_ratio: 0.5
 
 # gpt2 configuration
 test_max_len: 128
@@ -22,8 +22,8 @@ train:
     lr: 0.00005
     grad_clip: 5.0
     seed: 0
-    batch_size: 16
-    max_len: 384
+    batch_size: 64
+    max_len: 128
     warmup_ratio: 0.01
     checkpoint: 
         path: bert-post/best_nspmlm.pt
@@ -32,19 +32,20 @@ train:
 # test configuration
 test:
     seed: 0
-    batch_size: 128
-    # this means the prefix length
+    batch_size: 1
     max_len: 128
+    inf_max_len: 128
+    inf_topk: 10
+    index_type: IVF900,Flat 
+    nprobe: 1
+    dimension: 768
 
-# inferen e configuration
+# inference configuration
 inference:
     seed: 0
-    temp: 0.07
     batch_size: 256
-    inf_max_len: 384
-    topk: 10
-    index_type: IVF3722,Flat 
-    index_nprobe: 1
+    inf_max_len: 128
+    inf_topk: 10
+    index_type: IVF900,Flat 
+    nprobe: 1
     dimension: 768
-    offline_index_prefix: phrase_generation_index
-    min_phrase_interval: 10

@@ -237,47 +237,33 @@ class PhraseSearcher:
         self.searcher = faiss.index_factory(dimension, index_type)
         self.nprobe = nprobe
 
-    def _build(self, matrix, corpus, effective_index, speedup=False):
-        # squeeze saving of the corpus (remove the duplication)
-        self.corpus, self.lookup_table = [], {}
-        pause = set([])
-        for idx, sentence in enumerate(corpus):
-            self.lookup_table[idx] = len(self.corpus)
-            if sentence not in pause:
-                self.corpus.append(sentence)
-                pause.add(sentence)
-        self.effective_index = effective_index
+    def _build(self, matrix, corpus, speedup=False):
+        self.corpus = corpus
         if speedup:
             self.move_to_gpu()
         self.searcher.train(matrix)
         self.searcher.add(matrix)
         if speedup:
             self.move_to_cpu()
+        assert self.searcher.ntotal == len(self.corpus)
         print(f'[!] build collection with {self.searcher.ntotal} samples')
     
-    def _search(self, vector, topk=20, max_phrase_len=5):
+    def _search(self, vector, topk=20):
         self.searcher.nprobe = self.nprobe
         D, I = self.searcher.search(vector, topk)
         # pack up the source information and return tuple(text, effective_index)
-        rest = [
-            [
-                self.corpus[
-                    self.lookup_table[i]][self.effective_index[i]:self.effective_index[i]+max_phrase_len
-                ] for i in N] 
-            for N in I
-        ]
-        # rest: [B, K]
+        rest = [[self.corpus[i] for i in N] for N in I]
         return rest
 
     def save(self, path_faiss, path_corpus):
         faiss.write_index(self.searcher, path_faiss)
         with open(path_corpus, 'wb') as f:
-            joblib.dump((self.corpus, self.effective_index), f)
+            joblib.dump(self.corpus, f)
 
     def load(self, path_faiss, path_corpus):
         self.searcher = faiss.read_index(path_faiss)
         with open(path_corpus, 'rb') as f:
-            self.corpus, self.effective_index = joblib.load(f)
+            self.corpus = joblib.load(f)
         print(f'[!] load {len(self.corpus)} samples from {path_faiss} and {path_corpus}')
 
     def move_to_gpu(self, device=0):

@@ -71,6 +71,7 @@ def main(**args):
         pbar = tqdm(total=args['total_step'])
         gobal_total_step, current_step, over_train_flag = 0, 0, False
         # 1000000 is the virtual epoch, only the step are used
+        sampler.set_epoch(0)    # shuffle for DDP
         for _ in range(1000000):
             for batch in train_iter:
                 agent.train_model(

@@ -23,7 +23,7 @@ class PostTrainAgent(RetrievalBaseAgent):
             self.model.cuda()
         if args['mode'] in ['train', 'inference']:
             self.set_optimizer_scheduler_ddp()
-        if args['model'] in ['simcse']:
+        if args['model'] in ['simcse', 'wz-simcse']:
             self.train_model = self.train_model_simcse
         elif args['model'] in ['bert-fp-mono-seed']:
             self.train_model = self.train_model_seed
@@ -90,7 +90,7 @@ class PostTrainAgent(RetrievalBaseAgent):
                 self.save_model(save_path)
         return batch_num
     
-    def train_model_simcse(self, train_iter, test_iter, recoder=None, idx_=0):
+    def train_model_simcse(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
         self.model.train()
         total_loss, total_acc, batch_num = 0, 0, 0
         total_tloss, total_bloss = 0, 0
@@ -112,7 +112,7 @@ class PostTrainAgent(RetrievalBaseAgent):
             total_acc += acc
             batch_num += 1
 
-            if batch_num in self.args['test_step']:
+            if whole_batch_num + batch_num in self.args['test_step']:
                 self.test_now(test_iter, recoder)
 
             if recoder:
@@ -136,7 +136,7 @@ class PostTrainAgent(RetrievalBaseAgent):
         total_examples, total_correct = 0, 0
         k_list = [1, 2, 5, 10]
 
-        if self.args['model'] in ['simcse']:
+        if self.args['model'] in ['simcse', 'wz-simcse']:
             return
 
         for idx, batch in enumerate(pbar):                
@@ -243,6 +243,29 @@ class PostTrainAgent(RetrievalBaseAgent):
             )
     
     @torch.no_grad()
+    def inference_wz_simcse(self, inf_iter, size=500000):
+        self.model.eval()
+        pbar = tqdm(inf_iter)
+        embds, texts, indexes = [], [], []
+        for batch in pbar:
+            ids = batch['ids']
+            tids = batch['tids']
+            ids_mask = batch['ids_mask']
+            text = batch['text']
+            res = self.model.module.get_embedding(ids, tids, ids_mask).cpu()
+            embds.append(res)
+            texts.extend(text)
+        embds = torch.cat(embds, dim=0).numpy()
+
+        for idx, i in enumerate(range(0, len(embds), size)):
+            embd = embds[i:i+size]
+            text = texts[i:i+size]
+            torch.save(
+                (embd, text), 
+                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_wz_simcse_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
+            )
+    
+    @torch.no_grad()
     def inference_simcse_ctx(self, inf_iter, size=500000):
         self.model.eval()
         pbar = tqdm(inf_iter)
@@ -290,7 +313,11 @@ class PostTrainAgent(RetrievalBaseAgent):
 
     def load_model(self, path):
         if self.args['mode'] == 'train':
-            if self.args['model'] in ['simcse']:
+            if self.args['model'] in ['wz-simcse']:
+                state_dict = torch.load(path, map_location=torch.device('cpu'))
+                self.model.encoder.load_state_dict(state_dict)
+                print(f'[!] wz-simcse loads pre-trained model from {path}')
+            elif self.args['model'] in ['simcse']:
                 state_dict = torch.load(path, map_location=torch.device('cpu'))
                 self.checkpointadapeter.init(
                     state_dict.keys(),
@@ -414,6 +441,12 @@ class PostTrainAgent(RetrievalBaseAgent):
                 save_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_{pretrained_model_name}_{self.args["version"]}.pt'
                 self.save_model(save_path)
         return batch_num
-    
-    def train_model_simcse(self, train_iter, test_iter, recoder=None, idx_=0):
-        self.model.train()
+
+    @torch.no_grad()
+    def encode_queries(self, texts):
+        self.model.eval()
+        output = self.vocab(texts, padding=True, max_length=self.args['max_len'], truncation=True, return_tensors='pt')
+        ids, ids_mask, tids = output['input_ids'], output['attention_mask'], output['token_type_ids']
+        ids, ids_mask, tids = to_cuda(ids, ids_mask, tids)
+        vectors = self.model.get_embedding(ids, tids, ids_mask)    # [B, E]
+        return vectors.cpu().numpy()

@@ -70,17 +70,19 @@ class RecallAgent:
             rest_ = [self.searcher]
         else:
             vectors = self.agent.encode_queries(batch)    # [B, E]
-            rest_ = self.searcher._search(vectors, topk=topk)
+            # rest_ = self.searcher._search(vectors, topk=topk)
+            rest_, distance = self.searcher._search_dis(vectors, topk=topk)
         rest = []
-        for item in rest_:
+        for item, dis in zip(rest_, distance):
             cache = []
-            for i in item:
+            for i, j in zip(item, dis):
                 if type(i) == str:
                     # with_source is False
                     assert self.args['with_source'] is False
                     cache.append({
                         'text': i,
                         'source': {'title': None, 'url': None},
+                        'similarity': str(j),
                     })
                 elif type(i) == tuple:
                     # with_source is True

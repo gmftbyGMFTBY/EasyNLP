@@ -24,7 +24,8 @@ def parser_args():
 
 def inference(**args):
     work_mode = args['work_mode']
-    data, data_iter, _ = load_dataset(args)
+    data, data_iter, sampler = load_dataset(args)
+    sampler.set_epoch(0)
 
     random.seed(args['seed'])
     torch.manual_seed(args['seed'])
@@ -48,6 +49,9 @@ def inference(**args):
         agent.inference_data_filter(data_iter, size=args['cut_size'])
     elif work_mode in ['bert-aug']:
         agent.inference(data_iter, size=args['cut_size'])
+    elif work_mode in ['wz-simcse']:
+        # agent.inference_wz_simcse(data_iter, size=args['cut_size'])
+        pass
     elif work_mode in ['simcse-ctx']:
         agent.inference_simcse_ctx(data_iter, size=args['cut_size'])
     elif work_mode in ['simcse-ctx-unlikelyhood']:
@@ -96,7 +100,7 @@ if __name__ == "__main__":
         gray_test_strategy(args)
     elif args['work_mode'] in ['bert-aug']:
         da_strategy(args)
-    elif args['work_mode'] in ['response']:
+    elif args['work_mode'] in ['response', 'wz-simcse']:
         response_strategy(args)
     elif args['work_mode'] in ['response-with-src']:
         response_with_source_strategy(args)

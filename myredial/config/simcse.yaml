@@ -14,10 +14,14 @@ train:
         # path: bert-fp/best_bert-base-chinese.pt
         is_load: true
 
+test:
+    seed: 0
+    batch_size: 1
+
 inference:
     seed: 0
-    batch_size: 128
-    max_len: 64
+    batch_size: 256
+    max_len: 128
     topk: 20
     index_type: Flat
     index_nprobe: 1

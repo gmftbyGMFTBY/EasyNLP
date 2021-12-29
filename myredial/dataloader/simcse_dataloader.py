@@ -1,6 +1,7 @@
 from header import *
 from .utils import *
 from .util_func import *
+from .randomaccess import *
 
 
 class SimCSEDataset(Dataset):
@@ -350,3 +351,45 @@ class BERTSimCSEUnlikelyhoodInferenceDataset(Dataset):
             'text': rid_text,
         }
 
+class InferenceWZSimCSEDataset(Dataset):
+    
+    def __init__(self, vocab, path, **args):
+        self.args = args
+        self.vocab = vocab
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
+
+        rar_path = f'{args["root_dir"]}/data/{args["dataset"]}/{args["mode"]}.rar'
+        if os.path.exists(rar_path):
+            self.reader = torch.load(rar_path)
+            print(f'[!] load RandomAccesReader Object over')
+        else:
+            self.reader = RandomAccessReader(path)
+            self.reader.init()
+            torch.save(self.reader, rar_path)
+        self.reader.init_file_handler()
+        self.size = self.reader.size
+
+    def __len__(self):
+        return self.size
+
+    def __getitem__(self, i):
+        line = self.reader.get_line(i).strip()
+        return line
+
+    def save(self):
+        pass
+        
+    def collate(self, batch):
+        output = self.vocab(batch, padding=True, max_length=self.args['max_len'], truncation=True, return_tensors='pt')
+        ids = output['input_ids']
+        ids_mask = output['attention_mask']
+        tids = output['token_type_ids']
+        ids, tids, ids_mask = to_cuda(ids, tids, ids_mask)
+        return {
+            'ids': ids, 
+            'tids': tids,
+            'ids_mask': ids_mask, 
+            'text': batch
+        }

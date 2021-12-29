@@ -3,10 +3,10 @@
 mode=$1
 dataset=$2
 prefix_name=$3
-# --url 11.161.48.51 \
+# --url 11.145.186.4 \
 python test_api.py \
     --size 100 \
-    --port 22351 \
+    --port 8082 \
     --url 9.91.66.241 \
     --mode $mode \
     --dataset $dataset \

@@ -1,0 +1,35 @@
+temp: 0.07
+dropout: 0.1
+test_interval: 0.01
+
+pretrained_model: 
+    zh: /apdcephfs/share_916081/johntianlan/chinese-bert-wwm-ext
+tokenizer: 
+    zh: /apdcephfs/share_916081/johntianlan/chinese-bert-wwm-ext
+
+# train configuration
+train:
+    lr: 0.00003
+    grad_clip: 5.0
+    seed: 0
+    batch_size: 128
+    max_len: 128
+    epoch: 1
+    warmup_ratio: 0.05
+    checkpoint: 
+        path: wz-simcse/best_simcse.pt
+        is_load: true
+
+test:
+    seed: 0
+    batch_size: 1
+    max_len: 128
+
+inference:
+    seed: 0
+    batch_size: 1024
+    max_len: 128
+    topk: 200
+    index_type: LSH
+    index_nprobe: 1
+    dimension: 768

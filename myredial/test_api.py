@@ -220,6 +220,22 @@ def load_fake_rerank_data(path, size=1000):
     data = random.sample(data, size)
     return data
 
+def load_wz_recall_data(path, size=1000):
+    '''for pipeline and recall test'''
+    dataset = read_text_data_line_by_line(path)
+    data = []
+    for i in tqdm(dataset):
+        data.append({
+            'segment_list': [{
+                'str': i, 
+                'status': 'editing'
+            }],
+            'lang': 'zh',
+            'topk': args['topk'],
+        })
+    print(f'[!] collect {len(data)} samples for pipeline agent')
+    return data
+
 def load_fake_recall_data(path, size=1000):
     '''for pipeline and recall test'''
     if args['dataset'] in ['douban', 'ecommerce', 'ubuntu', 'lccc', 'lccc-large', 'restoration-200k']:
@@ -277,17 +293,17 @@ def SendPOST(url, port, method, params):
         4. params: json dumps string
     '''
     headers = {"Content-type": "application/json"}
-    conn = http.client.HTTPConnection(url, port)
-    conn.request('POST', method, params, headers)
-    response = conn.getresponse()
-    code = response.status
-    reason = response.reason
-    data = json.loads(response.read().decode('utf-8'))
-    conn.close()
+    url = f'http://{url}:{port}{method}'
+    data = requests.post(url, params)
+    data = json.loads(data.text)
     return data
 
 def test_recall(args):
-    data = load_fake_recall_data(
+    # data = load_fake_recall_data(
+    #     f'{args["root_dir"]}/data/{args["dataset"]}/test.txt',
+    #     size=args['size'],
+    # )
+    data = load_wz_recall_data(
         f'{args["root_dir"]}/data/{args["dataset"]}/test.txt',
         size=args['size'],
     )
@@ -305,6 +321,7 @@ def test_recall(args):
             collections.append(rest)
             avg_times.append(rest['header']['core_time_cost_ms'])
         pbar.set_description(f'[!] time: {round(np.mean(avg_times), 2)} ms; error: {error_counter}')
+        ipdb.set_trace()
     avg_t = round(np.mean(avg_times), 4)
     print(f'[!] avg recall time cost: {avg_t} ms; error ratio: {round(error_counter/len(data), 4)}')
     return collections

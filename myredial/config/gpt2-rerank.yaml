@@ -4,14 +4,13 @@ is_step_for_training: true
 total_step: 50010
 sequence_ngram_n: 4
 sample_token_num: 20 
-# coarse-grained topk_lower ~ topk_upper will be used as the hard negative samples for coarse-grained retrieval
-cg_topk_upper: 5000
-cg_topk_lower: 10
-cg_alpha: 10.
-# fine-grained topk_lower ~ topk_upper will be used as the hard negative samples for coarse-grained retrieval
-fg_topk_upper: 100
-fg_topk_lower: 50
 dropout: 0.1
+# coarse-grained topk_lower ~ topk_upper will be used as the hard negative samples for coarse-grained retrieval
+cg_topk_upper: 1000
+cg_topk_lower: 20
+cg_alpha: 10.
+cg_sample_ratio: 0.15
+rerank_k: 10
 
 # gpt2 configuration
 test_max_len: 128
@@ -20,8 +19,12 @@ tokenizer:
 pretrained_model: 
     zh: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
 
-bert_tokenizer: /apdcephfs/share_916081/johntianlan/duyu_roberta
+# mlm model parameters
 bert_pretrained_model: /apdcephfs/share_916081/johntianlan/duyu_roberta
+min_mask_num: 1 
+max_mask_num: 80 
+masked_lm_prob: 0.2
+# ignore_topk: 2
 
 # train configuration
 train:
