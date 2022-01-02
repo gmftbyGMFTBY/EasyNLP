@@ -1,20 +1,24 @@
 # basic configuration for building the model
 tokenizer: 
-    zh: /apdcephfs/share_916081/johntianlan/uer_gpt2_model
+    zh: /apdcephfs/share_916081/johntianlan/gpt2-chinese-cluecorpussmall
+    # zh: /apdcephfs/share_916081/johntianlan/gpt2-distil-chinese-cluecorpussmall
+    # zh: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
 pretrained_model: 
-    zh: /apdcephfs/share_916081/johntianlan/uer_gpt2_model
+    zh: /apdcephfs/share_916081/johntianlan/gpt2-chinese-cluecorpussmall
+    # zh: /apdcephfs/share_916081/johntianlan/gpt2-distil-chinese-cluecorpussmall
+    # zh: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
 # max_len is the max length of the prefix
 max_len: 128
 # gen_max_len is the max length of the generated sequence
-gen_max_len: 64
+gen_max_len: 128
 # gen_max_ctx_len is used for cutting the too long context
-gen_max_ctx_len: 256
-# decoding_methods:
-#   1. contrastive_search
-#   2. beam_search
-#   3. greedy_search
-#   4. topk_topp_repetition_penalty_search
-#   5. topk_topp_search
+gen_max_ctx_len: 128
+
+# file name: novel or news
+# file_name: novel
+file_name: news
+
+# decoding methods
 decoding_method: contrastive_search
 # decoding_method: greedy_search
 # decoding_method: beam_search
@@ -24,18 +28,20 @@ decoding_method: contrastive_search
 # decoding_method: topp_search
 
 # beam search
-num_beam: 2
+num_beam: 5
 
 # topk-topp sampling
-topk: 2
-topp: 0.95
+topk: 8
+topp: 0.93
 topk_topp_beam_num: 2
-repetition_penalty: 3.0
+repetition_penalty: 1.0
 
 # contrastive decoding parameter
-beam_width: 2
-scoring_criterion: maximum
-contrastive_threshold: 0.8
+beam_width: 3
+model_prediction_confidence: 0.4
+contrastive_topk: 8
+contrastive_topp: 0.93
+sampling_probability: 0.
 
 # test configuration
 test:

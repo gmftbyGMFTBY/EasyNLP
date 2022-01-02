@@ -16,6 +16,8 @@ datasets:
     essay: zh
     unlikelyhood-gen: zh
     ext_douban: zh
+    # writer-gen-test only has the test file for generation testing
+    writer-gen-test: zh
 
 # pretrained model and tokenizer
 tokenizer:
@@ -39,7 +41,6 @@ no_test_models:
     - bert-fp-mono-seed
     - bert-fp-mono-plus
     - simcse
-    - wz-simcse
     - bert-mask-da
     - bert-mask-da-dmr
     - bert-mask-da-sep
@@ -80,13 +81,18 @@ models:
         model_name: BERTDualUnsupervisedEncoder
         dataset_name: BERTDualUnsupervisedDataset
         inference_dataset_name: null
+    wz-simcse-seed:
+        type: SemanticSimilarity
+        model_name: SimCSESEEDEncoder
+        dataset_name: InferenceWZSimCSEDataset
+        inference_dataset_name: InferenceWZSimCSEDataset
     wz-simcse:
-        type: PostTrain
+        type: SemanticSimilarity
         model_name: WZSimCSE
         dataset_name: InferenceWZSimCSEDataset
         inference_dataset_name: InferenceWZSimCSEDataset
     simcse: 
-        type: PostTrain
+        type: SemanticSimilarity
         model_name: SimCSE
         # dataset_name: SimCSEDataset
         dataset_name: SimCSEUnlikelyhoodDataset
@@ -365,8 +371,8 @@ models:
         inference_dataset_name: null
     writer-dual-bert-phrase: 
         type: WriterRerank
-        # model_name: WriterPhraseEncoder
-        model_name: WriterPhraseForDeployEncoder
+        model_name: WriterPhraseEncoder
+        # model_name: WriterPhraseForDeployEncoder
         dataset_name: WriterRankDataset
         inference_dataset_name: null
     writer-dual-bert: 
@@ -518,8 +524,9 @@ models:
     gpt2: 
         type: Generation
         model_name: InferenceGPT2Model
+        dataset_name: GPT2InferenceDataset
         # dataset_name: GPT2Dataset
-        dataset_name: GPT2TaCLDataset
+        # dataset_name: GPT2TaCLDataset
         inference_dataset_name: null
     dual-bert-gen: 
         type: Generation
@@ -720,12 +727,12 @@ models:
 
 # ========= Global configuration ========== #
 # huge file are saved in the root dir
-root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
-# root_dir: /home/johntianlan/sources/MyReDial
+# root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
+root_dir: /home/johntianlan/sources/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 10
+version: 1
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
 rank: null
@@ -742,7 +749,7 @@ start_save_step: 0
 # ========== Deploy configuration ========== #
 deploy:
     host: '0.0.0.0'
-    port: 8082
+    port: 8085
     # dataset: writer-rank
     dataset: wz_game
     max_len: 128

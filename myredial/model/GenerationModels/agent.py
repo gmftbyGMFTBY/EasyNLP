@@ -16,7 +16,7 @@ class GenerationAgent(GenerationBaseAgent):
         # open the test save scores file handler
         pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
         if args['model'] in ['gpt2']:
-            path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}_{args["version"]}_{args["decoding_method"]}.txt'
+            path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}_{args["version"]}_{args["decoding_method"]}_{args["file_name"]}.txt'
         else:
             path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}_{args["version"]}.txt'
         self.log_save_file = open(path, 'w')
@@ -31,6 +31,8 @@ class GenerationAgent(GenerationBaseAgent):
             self.train_model = self.train_model_cl
         elif self.args['model'] in ['gpt2-rerank']:
             self.train_model = self.train_model_rerank
+        elif self.args['model'] in ['gpt2']:
+            self.test_model = self.test_model_inference
 
     def build_offline_index(self, iter_):
         size = self.model.module.build_offline_index(iter_)
@@ -309,3 +311,26 @@ class GenerationAgent(GenerationBaseAgent):
                 (embd, text), 
                 f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
             )
+    
+    @torch.no_grad()
+    def test_model_inference(self, test_iter, print_output=True):
+        self.model.eval()
+        pbar = tqdm(test_iter)
+        for idx, batch in enumerate(pbar):
+            rest = self.model.predict(batch)
+            for r, t in zip(rest, batch['text']):
+                r = ''.join(self.vocab.convert_ids_to_tokens(r))
+                self.log_save_file.write(f'[Prefix     ] {t}\n')
+                self.log_save_file.write(f'[Generation ] {r}\n\n')
+                self.log_save_file.flush()
+        return {}
+    
+    @torch.no_grad()
+    def test_model_compare(self, test_iter, print_output=True):
+        self.model.eval()
+        pbar = tqdm(test_iter)
+        ppl_pos, ppl_neg, p, r, f, bleu_1, bleu_2, bleu_3, bleu_4, rouge_l, meteor = [], [], [], [], [], [], [], [], [], [], []
+        results = []
+        for idx, batch in enumerate(pbar):            
+            if self.args['mode'] == 'train':
+                logits = self.model.module.predict(batch)     # [B, S, V]

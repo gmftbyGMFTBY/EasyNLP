@@ -8,6 +8,7 @@ from .EvaluationModels import *
 from .GenerationModels import *
 from .PostTrainModels import *
 from .LanguageModels import *
+from .SemanticSimilarityModels import *
 from .MutualTrainingModels import *
 
 def load_model(args):
@@ -24,6 +25,7 @@ def load_model(args):
         'LanguageModel': LanguageModelsAgent,
         'MutualTrainingModel': MutualTrainingAgent,
         'WriterRerank': WriterRerankAgent,
+        'SemanticSimilarity': SemanticSimilarityAgent,
     }
     if model_type in MAP:
         agent_t = MAP[model_type]
@@ -32,8 +34,6 @@ def load_model(args):
 
     vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
     vocab.add_tokens(['[EOS]'])
-    if 'fake_activate' in args and args['fake_activate']:
-        vocab.add_tokens(['[CTX]'])
     args['vocab_size'] = vocab.vocab_size
 
     if model_type in ['MutualTrainingModel']:

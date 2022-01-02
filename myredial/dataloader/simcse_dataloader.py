@@ -360,36 +360,68 @@ class InferenceWZSimCSEDataset(Dataset):
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
         self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
 
-        rar_path = f'{args["root_dir"]}/data/{args["dataset"]}/{args["mode"]}.rar'
-        if os.path.exists(rar_path):
-            self.reader = torch.load(rar_path)
-            print(f'[!] load RandomAccesReader Object over')
+        if self.args['mode'] in ['train', 'inference']:
+            rar_path = f'{args["root_dir"]}/data/{args["dataset"]}/{args["mode"]}.rar'
+            if os.path.exists(rar_path):
+                self.reader = torch.load(rar_path)
+                print(f'[!] load RandomAccesReader Object over')
+            else:
+                self.reader = RandomAccessReader(path)
+                self.reader.init()
+                torch.save(self.reader, rar_path)
+            self.reader.init_file_handler()
+            self.size = self.reader.size
         else:
-            self.reader = RandomAccessReader(path)
-            self.reader.init()
-            torch.save(self.reader, rar_path)
-        self.reader.init_file_handler()
-        self.size = self.reader.size
+            # test use the cnsd-sts-b-test set
+            dataset = []
+            with open(path) as f:
+                for line in f.readlines():
+                    items = line.strip().split('||')[1:]
+                    assert len(items) == 3
+                    s1, s2, l = items
+                    dataset.append((s1, s2, int(l)))
+            self.data = dataset
+            self.size = len(self.data)
 
     def __len__(self):
         return self.size
 
     def __getitem__(self, i):
-        line = self.reader.get_line(i).strip()
-        return line
+        if self.args['mode'] in ['train', 'inference']:
+            line = self.reader.get_line(i).strip()
+            return line
+        else:
+            s1, s2, l = self.data[i]
+            return s1, s2, l
 
     def save(self):
         pass
         
     def collate(self, batch):
-        output = self.vocab(batch, padding=True, max_length=self.args['max_len'], truncation=True, return_tensors='pt')
-        ids = output['input_ids']
-        ids_mask = output['attention_mask']
-        tids = output['token_type_ids']
-        ids, tids, ids_mask = to_cuda(ids, tids, ids_mask)
-        return {
-            'ids': ids, 
-            'tids': tids,
-            'ids_mask': ids_mask, 
-            'text': batch
-        }
+        if self.args['mode'] in ['train', 'inference']:
+            output = self.vocab(batch, padding=True, max_length=self.args['max_len'], truncation=True, return_tensors='pt')
+            ids = output['input_ids']
+            ids_mask = output['attention_mask']
+            tids = output['token_type_ids']
+            ids, tids, ids_mask = to_cuda(ids, tids, ids_mask)
+            return {
+                'ids': ids, 
+                'tids': tids,
+                'ids_mask': ids_mask, 
+                'text': batch
+            }
+        else:
+            assert len(batch) == 1
+            s1, s2, l = batch[0]
+            output = self.vocab([s1, s2], padding=True, max_length=self.args['max_len'], truncation=True, return_tensors='pt')
+            ids = output['input_ids']
+            ids_mask = output['attention_mask']
+            tids = output['token_type_ids']
+            ids, tids, ids_mask = to_cuda(ids, tids, ids_mask)
+            return {
+                'ids': ids,
+                'tids': tids,
+                'ids_mask': ids_mask,
+                'text': batch,
+                'label': l
+            }

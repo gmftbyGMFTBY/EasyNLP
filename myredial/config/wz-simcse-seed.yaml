@@ -1,5 +1,8 @@
 temp: 0.05
 dropout: 0.3
+nhead: 12
+nlayer: 3
+attention_span: 2
 test_interval: 0.01
 
 pretrained_model: 
@@ -9,16 +12,16 @@ tokenizer:
 
 # train configuration
 train:
-    lr: 0.00001
+    lr: 0.00003
     grad_clip: 5.0
     seed: 0
     batch_size: 128
-    max_len: 128
+    max_len: 64
     epoch: 1
-    warmup_ratio: 0.05
+    warmup_ratio: 0.01
     checkpoint: 
         path: wz-simcse/best_simcse.pt
-        is_load: false
+        is_load: true
 
 test:
     seed: 0
@@ -30,6 +33,6 @@ inference:
     batch_size: 1024
     max_len: 128
     topk: 200
-    index_type: IVF20000,PQ64
+    index_type: LSH
     index_nprobe: 1
     dimension: 768

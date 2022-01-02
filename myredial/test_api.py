@@ -363,7 +363,40 @@ def test_rerank(args):
     avg_times = []
     collections = []
     error_counter = 0
+
+    # debug
+    data= [
+        {
+            'segment_list': [{
+                'context': '马东阳是一个帅哥', 
+                'candidates': [
+                    '，他是一个演员，他是一个歌手，他是一个演员，他是一个演员',
+                    '，他是一个很有趣的人，他是一个很有魅力的人',
+                    '，也是一个美女',
+                    '。他的演技也是得到了大家的认可。他是一个很低调的演员',
+                    '，也是一位演员，在《乡村爱情》里饰演的是刘能的父亲',
+                    '，你觉得可能吗',
+                    '，而且非常的有女人缘'
+                ]
+            }],
+            'lang': 'zh',
+        },
+        {
+            'segment_list': [{
+                'context': '马东阳是一个帅哥', 
+                'candidates': [
+                    '，也是一个帅哥，也是一个帅哥，也是一个帅哥',
+                    '，他在《天龙八部》中饰演的段誉是最经典的一个角色',
+                    '，也是一个有魅力的男孩子，他有一个非常帅气的女朋友',
+                    '，他是一个好人，他的好人品更是受到了很多人的喜欢，他是一个好人',
+                    '，他也是一位演员，而且他也是一位很有才华的男演员'
+                ]
+            }],
+            'lang': 'zh',
+        }
+    ]
     pbar = tqdm(data)
+
     for data in pbar:
         data = json.dumps(data)
         rest = SendPOST(args['url'], args['port'], '/rerank', data)
@@ -373,6 +406,7 @@ def test_rerank(args):
             collections.append(rest)
             avg_times.append(rest['header']['core_time_cost_ms'])
         pbar.set_description(f'[!] time: {round(np.mean(avg_times), 2)} ms; error: {error_counter}')
+        pprint.pprint(rest)
     avg_t = round(np.mean(avg_times), 4)
     print(f'[!] avg rerank time cost: {avg_t} ms; error ratio: {round(error_counter/len(data), 4)}')
     return collections

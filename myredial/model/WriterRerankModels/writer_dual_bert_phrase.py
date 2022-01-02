@@ -53,7 +53,6 @@ class WriterPhraseEncoder(nn.Module):
             labels.extend([1] + [0] * (len(rs) - 1))
             # gpt2 tokenization
             c_ = deepcopy(c)
-            # TODO: remove the [SEP] token
             gpt2_ids.append([self.cls] + c_ + [self.sep])
             gpt2_prefix_length.append(len(c_))
         gpt2_ids = [torch.LongTensor(i) for i in gpt2_ids]
@@ -99,10 +98,11 @@ class WriterPhraseEncoder(nn.Module):
         ).last_hidden_state
         # gpt2_rep, bert_rep: [B, S, E], [B*K, S, E]
         # collect the queries
-        queries = []
-        for item, l in zip(gpt2_rep, batch['gpt2_prefix_length']):
-            queries.append(item[l])    # [E]
-        queries = torch.stack(queries)    # [B, E]
+        # queries = []
+        # for item, l in zip(gpt2_rep, batch['gpt2_prefix_length']):
+        #     queries.append(item[l])    # [E]
+        # queries = torch.stack(queries)    # [B, E]
+        queries = gpt2_rep[range(len(gpt2_rep)), batch['gpt2_prefix_length'], :]    # [B, E]
         # collect the embedings
         embeddings = []
         for item, l, ol in zip(bert_rep, batch['prefix_length'], batch['overall_length']):
@@ -125,8 +125,7 @@ class WriterPhraseEncoder(nn.Module):
         queries, embeddings = self._encode(batch, train=False)
         dot_product = torch.matmul(queries, embeddings.t()).squeeze(0)    # [20]
         # api normalization
-        dot_product /= np.sqrt(768)
-        dot_product = (dot_product - dot_product.min()) / (1e-3 + dot_product.max() - dot_product.min())
+        dot_product = (dot_product + 1)/2
         return dot_product
     
     def forward(self, batch):

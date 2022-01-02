@@ -60,8 +60,10 @@ class InferenceGPT2Model(nn.Module):
                 self.model,
                 input_ids,
                 self.args['beam_width'],
-                self.args['scoring_criterion'],
-                threshold=self.args['contrastive_threshold'],
+                self.args['model_prediction_confidence'],
+                self.args['contrastive_topk'],
+                self.args['contrastive_topp'],
+                self.args['sampling_probability'],
             )
         # input_ids contains the prefix, cut it
         input_ids = input_ids[:, prefix_length:]
@@ -129,7 +131,6 @@ class InferenceGPT2Model(nn.Module):
             if len(generated) > self.test_max_len:
                 break
             generated.append(next_token.item())
-            # reconstruct the ids and ids_mask
             ids = torch.cat((ids, next_token.unsqueeze(0)), dim=1)    # [1, S+1]
         return [generated]
     

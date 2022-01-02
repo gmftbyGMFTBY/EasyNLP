@@ -1,4 +1,5 @@
 test_interval: 0.05
+temp: 0.05
 valid_during_training: false
 is_step_for_training: true
 inference_time: 2
@@ -13,10 +14,10 @@ gpt2_topk: 50
 gpt2_topp: 1.0
 gpt2_gen_max_len: 64
 gpt2_gen_max_ctx_len: 128
-# gpt2_max_len: 128
-# bert_max_len: 160
-gpt2_max_len: 32
-bert_max_len: 64
+gpt2_max_len: 128
+bert_max_len: 192
+# gpt2_max_len: 32
+# bert_max_len: 64
 gpt2_tokenizer: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
 gpt2_pretrained_model: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
 
@@ -29,8 +30,8 @@ pretrained_model:
     
 # corrupt parameters   
 # from easy to hard, curriculumn learning strategy
-corrupt_min_ratio: 0.0
-corrupt_max_ratio: 0.0
+corrupt_min_ratio: 0.05
+corrupt_max_ratio: 0.2
 corrupt_min_topk: 1
 corrupt_max_topk: 1
 

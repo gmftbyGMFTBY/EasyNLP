@@ -66,6 +66,14 @@ class WZSimCSE(nn.Module):
     def get_embedding(self, ids, tids, ids_mask):
         return F.normalize(self.encoder(ids, ids_mask, tids), dim=-1)
 
+    @torch.no_grad()
+    def predict(self, ids, tids, ids_mask):
+        self.encoder.eval()
+        rest = self.get_embedding(ids, tids, ids_mask)    # [2, 768]
+        s1, s2 = rest[0], rest[1]
+        scores = (s1 * s2).sum()
+        return scores.item()
+
     def forward(self, batch):
         ids = batch['ids']
         tids = batch['tids']

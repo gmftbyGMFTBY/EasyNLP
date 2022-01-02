@@ -47,7 +47,7 @@ class WriterRerankAgent(RetrievalBaseAgent):
         batch['rids'] = generation_rest
         return batch
 
-    def train_model(self, batch, recoder=None, current_step=0):
+    def train_model(self, batch, recoder=None, current_step=0, pbar=None):
         self.model.train()
         # gpt2 batch inference
         batch = self.gpt2_batch_inference(batch, self.args['inference_time'], current_step)
@@ -64,6 +64,8 @@ class WriterRerankAgent(RetrievalBaseAgent):
         if recoder:
             recoder.add_scalar(f'train/RunLoss', loss.item(), current_step)
             recoder.add_scalar(f'train/RunAcc', acc, current_step)
+        pbar.update(1)
+        pbar.set_description(f'[!] loss: {round(loss.item(), 4)}; acc: {round(acc*100, 2)}')
         return loss, acc
    
     @torch.no_grad()

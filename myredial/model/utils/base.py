@@ -498,3 +498,137 @@ class GenerationBaseAgent:
         new_state_dict = self.checkpointadapeter.convert(state_dict)
         self.model.load_state_dict(new_state_dict)
         print(f'[!] load model from {path}')
+
+
+class SimCSEBaseAgent:
+
+    def __init__(self):
+        # open the test save scores file handler
+        self.best_test = None 
+        self.checkpointadapeter = CheckpointAdapter()
+
+    def show_parameters(self, args):
+        print(f'========== Model Parameters ==========')
+        for key, value in args.items():
+            if key in ['models', 'deploy', 'datasets', 'no_test_models', 'no_train_models']:
+                # too long don't show
+                continue
+            print(f'{key}: {value}')
+        print(f'========== Model Parameters ==========')
+
+    def save_model(self, path):
+        try:
+            state_dict = self.model.module.state_dict()
+        except:
+            state_dict = self.model.state_dict()
+        torch.save(state_dict, path)
+        print(f'[!] save model into {path}')
+    
+    def train_model(self, train_iter, mode='train'):
+        raise NotImplementedError
+
+    def test_model(self, test_iter):
+        raise NotImplementedError
+
+    def set_test_interval(self):
+        self.args['test_step'] = [int(self.args['total_step']*i) for i in np.arange(0, 1+self.args['test_interval'], self.args['test_interval'])]
+        self.test_step_counter = 0
+        print(f'[!] test interval steps: {self.args["test_step"]}')
+
+    def compare_performance(self, new_test):
+        if self.best_test is None:
+            self.best_test = new_test
+            return True
+
+        now_test_score = self.best_test['corrcoef']
+        new_test_score = new_test['corrcoef']
+
+        if new_test_score > now_test_score:
+            self.best_test = new_test
+            return True
+        else:
+            return False
+
+    def test_now(self, test_iter, recoder):
+        # if the model is the no-test-model, save the checkpoint and return
+        if self.args['model'] in self.args['no_test_models']:
+            if self.args['local_rank'] == 0:
+                pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
+                save_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_{pretrained_model_name}_{self.args["version"]}.pt'
+                self.save_model(save_path)
+            return
+
+        index = self.test_step_counter
+        test_rest = self.test_model(test_iter)
+
+        print(test_rest)
+
+        corrcoef = test_rest['corrcoef']
+        if recoder:
+            recoder.add_scalar(f'train-test/corrcoef', corrcoef, index)
+        self.test_step_counter += 1
+        
+        # find the new best model, save
+        if self.args['local_rank'] == 0:
+            # check the performance
+            if self.compare_performance(test_rest):
+                pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
+                save_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_{pretrained_model_name}_{self.args["version"]}.pt'
+                self.save_model(save_path)
+                print(f'[!] find new best model at test step: {index}')
+
+        self.model.train()    # reset the train mode
+
+    def load_checkpoint(self):
+        if 'checkpoint' in self.args:
+            if self.args['checkpoint']['is_load']:
+                path = self.args['checkpoint']['path']
+                path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{path}'
+                self.load_model(path)
+            else:
+                print(f'[!] DONOT load checkpoint')
+        else:
+            print(f'[!] No checkpoint information found')
+
+    def set_optimizer_scheduler_ddp(self):
+        if self.args['mode'] in ['train']:
+            self.optimizer = transformers.AdamW(
+                self.model.parameters(), 
+                lr=self.args['lr'],
+            )
+            self.scaler = GradScaler()
+            self.scheduler = transformers.get_linear_schedule_with_warmup(
+                self.optimizer, 
+                num_warmup_steps=self.args['warmup_step'], 
+                num_training_steps=self.args['total_step'],
+            )
+            self.model = nn.parallel.DistributedDataParallel(
+                self.model, 
+                device_ids=[self.args['local_rank']], 
+                output_device=self.args['local_rank'],
+                find_unused_parameters=True,
+            )
+        elif self.args['mode'] in ['inference']:
+            self.model = nn.parallel.DistributedDataParallel(
+                self.model, 
+                device_ids=[self.args['local_rank']], 
+                output_device=self.args['local_rank'],
+                find_unused_parameters=True,
+            )
+        else:
+            pass
+
+    def load_model(self, path):
+        # for test and inference, just load them all
+        state_dict = torch.load(path, map_location=torch.device('cpu'))
+        self.checkpointadapeter.init(
+            state_dict.keys(),
+            self.model.state_dict().keys(),
+        )
+        new_state_dict = self.checkpointadapeter.convert(state_dict)
+        self.model.load_state_dict(new_state_dict)
+        print(f'[!] load model from {path}')
+
+    @torch.no_grad()
+    def rerank(self, contexts, candidates):
+        raise NotImplementedError

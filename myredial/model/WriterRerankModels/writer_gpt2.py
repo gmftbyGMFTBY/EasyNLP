@@ -22,6 +22,7 @@ class WriterGPT2Model(nn.Module):
         self.corrupt_min_topk = args['corrupt_min_topk']
         self.corrupt_max_topk = args['corrupt_max_topk']
         self.total_step = args['total_step']
+        self.args = args
 
     def forward(self, batch, current_step):
         '''batch inference, pad in the left'''
@@ -46,8 +47,7 @@ class WriterGPT2Model(nn.Module):
             next_token_logits = logits[:, -1, :]    # [B, V]
             next_token_logits[:, self.unk] = -np.inf
 
-            # corrupt
-            # next_token_logits = self.corrupt(next_token_logits, current_step)
+            self.corrupt(next_token_logits, current_step)
             next_token_logits = top_k_top_p_filtering_batch(next_token_logits, top_k=self.topk, top_p=self.topp)
             next_token = torch.multinomial(
                 F.softmax(next_token_logits, dim=-1),
@@ -74,8 +74,8 @@ class WriterGPT2Model(nn.Module):
             y = (y_{min} - y_{max})/total_step * current_step + y_{max}'''
         current_corrupt_ratio = (self.corrupt_min_ratio-self.corrupt_max_ratio)/self.total_step * current_step + self.corrupt_max_ratio
         current_corrupt_topk  = (self.corrupt_min_topk - self.corrupt_max_topk)/self.total_step * current_step + self.corrupt_max_topk
-        current_corrupt_topk = max(self.corrupt_min_topk, int(current_corrupt_topk))
+        current_corrupt_topk = int(current_corrupt_topk)
         if random.random() < current_corrupt_ratio: 
             topk_idx = torch.topk(logits, current_corrupt_topk)[1]
-            logits[torch.arange(len(logits)).unsqueeze(1), topk_idx] = 0.
+            logits[torch.arange(len(logits)).unsqueeze(1), topk_idx] = -1e3
         return logits

@@ -419,3 +419,50 @@ class GPT2UnlikelyhoodDataset(Dataset):
                 'response': response,
                 'context': context,
             }
+
+            
+class GPT2InferenceDataset(Dataset):
+
+    '''only for gpt2 inference dataset and writer-gen-test dataset'''
+    
+    def __init__(self, vocab, path, **args):
+        self.args = args
+        self.vocab = vocab
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
+        self.unk = self.vocab.convert_tokens_to_ids('[UNK]')
+
+        path = f'{os.path.split(path)[0]}/{args["file_name"]}.txt'
+        with open(path) as f:
+            data = []
+            for line in f.readlines():
+                line = json.loads(line.strip())
+                data.append(line['prefix'])
+        print(f'[!] load {len(data)} samples for inference from {path}')
+        
+        self.data = []
+        for ctx in tqdm(data):
+            ids = self.vocab.encode(ctx, add_special_tokens=False)
+            ids = ids[-self.args['gen_max_ctx_len']+1:]
+            text = ''.join(self.vocab.convert_ids_to_tokens(ids))
+            self.data.append({'ids': ids, 'text': text})
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, i):
+        bundle = self.data[i]
+        return torch.LongTensor(bundle['ids']), bundle['text']
+
+    def save(self):
+        pass
+        
+    def collate(self, batch):
+        assert len(batch) == 1
+        ids, text = batch[0]
+        ids = ids.cuda().unsqueeze(0)
+        return {
+           'ids': ids,
+           'text': [text],
+        }

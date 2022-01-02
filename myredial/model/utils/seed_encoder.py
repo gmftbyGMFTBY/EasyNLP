@@ -21,7 +21,7 @@ class WeakTrsDecoder(nn.Module):
             self.attn_span_mask[i, :index] = 0.
         self.attn_span_mask = self.attn_span_mask.to(torch.bool)
 
-    def forward(self, ids, memory, ids_mask):
+    def forward(self, ids, memory):
         # ids: [B, S]
         embedding = self.embedding(ids).permute(1, 0, 2)    # [S, B, E]
         # memory: [1, B, E]; only the [CLS] token is used

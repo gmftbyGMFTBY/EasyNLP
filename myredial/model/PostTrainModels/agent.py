@@ -23,8 +23,6 @@ class PostTrainAgent(RetrievalBaseAgent):
             self.model.cuda()
         if args['mode'] in ['train', 'inference']:
             self.set_optimizer_scheduler_ddp()
-        if args['model'] in ['simcse', 'wz-simcse']:
-            self.train_model = self.train_model_simcse
         elif args['model'] in ['bert-fp-mono-seed']:
             self.train_model = self.train_model_seed
         self.show_parameters(self.args)
@@ -90,44 +88,6 @@ class PostTrainAgent(RetrievalBaseAgent):
                 self.save_model(save_path)
         return batch_num
     
-    def train_model_simcse(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
-        self.model.train()
-        total_loss, total_acc, batch_num = 0, 0, 0
-        total_tloss, total_bloss = 0, 0
-        pbar = tqdm(train_iter)
-        correct, s, oom_t = 0, 0, 0
-        for idx, batch in enumerate(pbar):
-            self.optimizer.zero_grad()
-            with autocast():
-                loss, acc = self.model(batch)
-            self.scaler.scale(loss).backward()
-            self.scaler.unscale_(self.optimizer)
-            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
-            
-            self.scheduler.step()
-
-            total_loss += loss.item()
-            total_acc += acc
-            batch_num += 1
-
-            if whole_batch_num + batch_num in self.args['test_step']:
-                self.test_now(test_iter, recoder)
-
-            if recoder:
-                recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
-                recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
-                recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
-                recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
-             
-            pbar.set_description(f'[!] loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
-
-        if recoder:
-            recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
-            recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
-        return round(total_loss / batch_num, 4)
-
     @torch.no_grad()
     def test_model(self, test_iter, print_output=False, rerank_agent=None):
         self.model.eval()
@@ -135,9 +95,6 @@ class PostTrainAgent(RetrievalBaseAgent):
         total_mrr, total_prec_at_one, total_map = 0, 0, 0
         total_examples, total_correct = 0, 0
         k_list = [1, 2, 5, 10]
-
-        if self.args['model'] in ['simcse', 'wz-simcse']:
-            return
 
         for idx, batch in enumerate(pbar):                
             label = batch['label']
@@ -218,78 +175,6 @@ class PostTrainAgent(RetrievalBaseAgent):
         }
     
     @torch.no_grad()
-    def inference_simcse_unlikelyhood_ctx(self, inf_iter, size=500000):
-        self.model.eval()
-        pbar = tqdm(inf_iter)
-        embds, texts, indexes, responses = [], [], [], []
-        for batch in pbar:
-            ids = batch['ids']
-            ids_mask = batch['mask']
-            res = self.model.module.get_embedding(ids, ids_mask).cpu()
-            embds.append(res)
-            texts.extend(batch['context'])
-            responses.extend(batch['response'])
-            indexes.extend(batch['index'])
-        embds = torch.cat(embds, dim=0).numpy()
-
-        for idx, i in enumerate(range(0, len(embds), size)):
-            embd = embds[i:i+size]
-            text = texts[i:i+size]
-            res = responses[i:i+size]
-            index = indexes[i:i+size]
-            torch.save(
-                (embd, text, res, index), 
-                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_simcse_ctx_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
-            )
-    
-    @torch.no_grad()
-    def inference_wz_simcse(self, inf_iter, size=500000):
-        self.model.eval()
-        pbar = tqdm(inf_iter)
-        embds, texts, indexes = [], [], []
-        for batch in pbar:
-            ids = batch['ids']
-            tids = batch['tids']
-            ids_mask = batch['ids_mask']
-            text = batch['text']
-            res = self.model.module.get_embedding(ids, tids, ids_mask).cpu()
-            embds.append(res)
-            texts.extend(text)
-        embds = torch.cat(embds, dim=0).numpy()
-
-        for idx, i in enumerate(range(0, len(embds), size)):
-            embd = embds[i:i+size]
-            text = texts[i:i+size]
-            torch.save(
-                (embd, text), 
-                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_wz_simcse_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
-            )
-    
-    @torch.no_grad()
-    def inference_simcse_ctx(self, inf_iter, size=500000):
-        self.model.eval()
-        pbar = tqdm(inf_iter)
-        embds, texts, indexes = [], [], []
-        for batch in pbar:
-            ids = batch['ids']
-            ids_mask = batch['mask']
-            text = batch['text']
-            res = self.model.module.get_embedding(ids, ids_mask).cpu()
-            embds.append(res)
-            texts.extend(text)
-            indexes.extend(batch['index'])
-        embds = torch.cat(embds, dim=0).numpy()
-
-        for idx, i in enumerate(range(0, len(embds), size)):
-            embd = embds[i:i+size]
-            text = texts[i:i+size]
-            index = indexes[i:i+size]
-            torch.save(
-                (embd, text, index), 
-                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_simcse_ctx_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
-            )
-    
-    @torch.no_grad()
     def inference(self, inf_iter, size=500000):
         self.model.eval()
         pbar = tqdm(inf_iter)
@@ -313,20 +198,7 @@ class PostTrainAgent(RetrievalBaseAgent):
 
     def load_model(self, path):
         if self.args['mode'] == 'train':
-            if self.args['model'] in ['wz-simcse']:
-                state_dict = torch.load(path, map_location=torch.device('cpu'))
-                self.model.encoder.load_state_dict(state_dict)
-                print(f'[!] wz-simcse loads pre-trained model from {path}')
-            elif self.args['model'] in ['simcse']:
-                state_dict = torch.load(path, map_location=torch.device('cpu'))
-                self.checkpointadapeter.init(
-                    state_dict.keys(),
-                    self.model.encoder.state_dict().keys(),
-                )
-                new_state_dict = self.checkpointadapeter.convert(state_dict)
-                self.model.encoder.load_state_dict(new_state_dict)
-                print(f'[!] simcse loads pre-trained model from {path}')
-            elif self.args['model'] in ['bert-fp-mono']:
+            if self.args['model'] in ['bert-fp-mono']:
                 if self.args['dataset'] in ['restoration-200k']:
                     state_dict = torch.load(path, map_location=torch.device('cpu'))
                     self.checkpointadapeter.init(
@@ -383,7 +255,7 @@ class PostTrainAgent(RetrievalBaseAgent):
             )
             new_state_dict = self.checkpointadapeter.convert(state_dict)
             self.model.load_state_dict(new_state_dict)
-            print(f'[!] Inference mode: simcse loads pre-trained model from {path}')
+            print(f'[!] Inference mode: loads pre-trained model from {path}')
     
     def train_model_seed(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
         self.model.train()
