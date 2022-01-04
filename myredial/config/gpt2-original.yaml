@@ -1,7 +1,8 @@
-test_interval: 0.01
+test_interval: 0.0001
 valid_during_training: false
 is_step_for_training: true
 total_step: 50010
+iter_to_accumulate: 8
 
 # gpt2 configuration
 test_max_len: 128
@@ -26,6 +27,5 @@ train:
 # test configuration
 test:
     seed: 0
-    batch_size: 128
-    # this means the prefix length
-    max_len: 128
+    batch_size: 1
+    max_len: 32

@@ -49,7 +49,7 @@ class InferenceGPT2Model(nn.Module):
         )
         ppl = math.exp(loss.item())
         return ppl
-
+    
     @torch.no_grad()
     def predict_contrastive_search(self, batch):
         self.model.eval()

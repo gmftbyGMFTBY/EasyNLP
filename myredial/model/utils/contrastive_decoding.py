@@ -84,9 +84,9 @@ def ContrastiveDecodingOneStep(model, input_ids, beam_width, model_prediction_co
 # ========== batch version ========= #
 def ranking_batch(context_hidden, next_hidden, next_top_k_probs, model_prediction_confidence, beam_width):
     '''
-        context_hidden: bsz*beam_width x seqlen x embed_dim
-        next_hidden: bsz*beam_width x 1 x embed_dim
-        next_top_k_probs: bsz*beam_width
+        context_hidden: bsz*beam x seqlen x embed_dim
+        next_hidden: bsz*beam x 1 x embed_dim
+        next_top_k_probs: bsz x beam
     '''
     _, context_len, embed_dim = context_hidden.size()
     norm_context_hidden = context_hidden / context_hidden.norm(dim=2, keepdim=True)
@@ -101,7 +101,7 @@ def ranking_batch(context_hidden, next_hidden, next_top_k_probs, model_predictio
 
 def ContrastiveDecodingOneStepBatch(
     model, 
-    input_ids, 
+    ids, 
     ids_mask,
     ids_pos,
     beam_width, 
@@ -115,8 +115,14 @@ def ContrastiveDecodingOneStepBatch(
     last_hidden_states,
     vocab,
     ):
+    # input_ids: [B, S] -> [B*K, S]
+    _, seqlen = ids.size()
+    ids = ids.unsqueeze(1).expand(-1, beam_width, -1).reshape(-1, seqlen)
+    ids_pos = ids_pos.unsqueeze(1).expand(-1, beam_width, -1).reshape(-1, seqlen)
+    ids_mask = ids_mask.unsqueeze(1).expand(-1, beam_width, -1).reshape(-1, seqlen)
+
     output = model(
-        input_ids=input_ids, 
+        input_ids=ids, 
         attention_mask=ids_mask,
         position_ids=ids_pos,
         past_key_values=past_key_values,
@@ -124,45 +130,40 @@ def ContrastiveDecodingOneStepBatch(
         output_hidden_states=True
     )
     past_key_values = output.past_key_values
-    current_hidden_states = output.hidden_states[-1]    # [B, S, E]
+    current_hidden_states = output.hidden_states[-1]    # [B*K, S, E]
     if last_hidden_states is not None:
         last_hidden_states = torch.cat([last_hidden_states, current_hidden_states], dim=1)
     else:
         last_hidden_states = current_hidden_states
     bsz, seqlen, embed_dim = last_hidden_states.size()
-    logits = output.logits    # [B, S, V]
+    logits = output.logits    # [B*K, S, V]
     _, _, vocab_size = logits.size()
     p = random.uniform(0, 1)
     if p >= sampling_probability:
-        logit_for_next_step = logits[:, -1, :]    # [B, V]
+        logit_for_next_step = logits[range(0, bsz, beam_width), -1, :]    # [B, V]
         logit_for_next_step[:, sep_idx] *= sep_smooth_length
         next_probs = F.softmax(logit_for_next_step, dim=-1)
         _, top_k_ids = torch.topk(logit_for_next_step, dim=-1, k=beam_width)    # [B, K]
         top_k_probs = torch.gather(next_probs, dim=1, index=top_k_ids)    # [B, K]
         # compute new hidden
-        new_hidden_states = []
-        for i in range(beam_width):
-            new_ids = top_k_ids[:, i].unsqueeze(dim=-1)    # [B, 1]
-            output = model(
-                input_ids=new_ids, 
-                attention_mask=torch.ones_like(new_ids),
-                position_ids=1+ids_pos[:, -1].unsqueeze(dim=-1),
-                past_key_values=past_key_values,
-                output_hidden_states=True
-            )
-            new_hidden_states.append(output.hidden_states[-1].squeeze(dim=1))    # [B, E]
-        context_hidden = last_hidden_states.unsqueeze(1).expand(-1, beam_width, -1, -1)    # [B, K, S, E]
-        context_hidden = context_hidden.reshape(bsz*beam_width, seqlen, embed_dim)
-        next_hidden = torch.stack(new_hidden_states).permute(1, 0, 2).reshape(-1, embed_dim).unsqueeze(1)    # [B*K, 1, E]
+        output = model(
+            input_ids=top_k_ids.view(-1, 1), 
+            attention_mask=torch.ones_like(top_k_ids.view(-1, 1)),
+            position_ids=1+ids_pos[:, -1].unsqueeze(dim=-1),
+            past_key_values=past_key_values,
+            output_hidden_states=True
+        )
+        next_hidden = output.hidden_states[-1]    # [B*K, 1, E]
+        context_hidden = last_hidden_states.clone()    # [B*K, S, E]
 
         selected_idx = ranking_batch(
             context_hidden, 
             next_hidden, 
-            top_k_probs, 
+            top_k_probs,    # [B, K] 
             model_prediction_confidence,
             beam_width,
         )     # [B]
-        next_id = top_k_ids[range(bsz), selected_idx].unsqueeze(-1)    # [B, 1]
+        next_id = top_k_ids[range(len(top_k_ids)), selected_idx].unsqueeze(-1)    # [B, 1]
     else:
         logit_for_next_step = logits[0, -1, :]
         filtered_logits = top_k_top_p_filtering(logits[0, -1, :], top_k=top_k, top_p=top_p)

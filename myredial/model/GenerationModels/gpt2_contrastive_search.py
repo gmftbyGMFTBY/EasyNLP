@@ -34,32 +34,12 @@ class ContrastiveGPT2Encoder(nn.Module):
     @torch.no_grad()
     def predict(self, batch):
         self.model.eval()
-
-        # input_ids = batch['ids']
-        # ids = input_ids.clone()
-        # _, prefix_length = input_ids.size()
-        # for step in range(self.test_max_len):
-        #     input_ids = ContrastiveDecodingOneStep(
-        #         self.model,
-        #         input_ids,
-        #         self.args['beam_width'],
-        #         self.args['model_prediction_confidence'],
-        #         self.args['contrastive_topk'],
-        #         self.args['contrastive_topp'],
-        #         self.args['sampling_probability'],
-        #         self.pad,
-        #         min(1., (step+1)/self.args['sep_smooth_length']),
-        #     )
-        # input_ids = input_ids[:, prefix_length:]
-        # ipdb.set_trace()
-        # return input_ids.tolist()
-
         ids = batch['ids']
-        o_ids = ids.clone()
         ids_mask = batch['ids_mask']
         ids_pos = batch['pos_ids']
         batch_size, seqlen = ids.size()
         generated = [[] for _ in range(batch_size)]
+
         past_key_values = None
         last_hidden_states = None
         for step in range(self.test_max_len):
@@ -82,8 +62,9 @@ class ContrastiveGPT2Encoder(nn.Module):
             ids_pos = 1 + ids_pos[:, -1].unsqueeze(dim=-1)
             ids_mask = torch.ones_like(ids)
             # collect ids: [B, 1]
-            for idx, t in enumerate(ids.squeeze().tolist()):
-                generated[idx].append(t)
+            tokens = ids.squeeze(dim=-1).tolist()
+            for idx, t in enumerate(range(0, len(tokens), self.args['beam_width'])):
+                generated[idx].append(tokens[t])
             if max([len(i) for i in generated]) > self.test_max_len:
                 break
         # ignore the special tokens
