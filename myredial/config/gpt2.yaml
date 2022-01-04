@@ -6,7 +6,7 @@ tokenizer:
 pretrained_model: 
     zh: /apdcephfs/share_916081/johntianlan/gpt2-chinese-cluecorpussmall
     # zh: /apdcephfs/share_916081/johntianlan/gpt2-distil-chinese-cluecorpussmall
-    # zh: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
+    #  zh: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
 # max_len is the max length of the prefix
 max_len: 128
 # gen_max_len is the max length of the generated sequence
@@ -19,11 +19,11 @@ gen_max_ctx_len: 128
 file_name: news
 
 # decoding methods
-decoding_method: contrastive_search
+# decoding_method: contrastive_search
 # decoding_method: greedy_search
 # decoding_method: beam_search
 # decoding_method: topk_topp_repetition_penalty_search
-# decoding_method: topk_topp_search
+decoding_method: topk_topp_search
 # decoding_method: topk_search
 # decoding_method: topp_search
 
@@ -42,6 +42,7 @@ model_prediction_confidence: 0.4
 contrastive_topk: 8
 contrastive_topp: 0.93
 sampling_probability: 0.
+sep_smooth_length: 50
 
 # test configuration
 test:

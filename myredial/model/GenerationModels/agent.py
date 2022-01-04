@@ -16,7 +16,8 @@ class GenerationAgent(GenerationBaseAgent):
         # open the test save scores file handler
         pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
         if args['model'] in ['gpt2']:
-            path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}_{args["version"]}_{args["decoding_method"]}_{args["file_name"]}.txt'
+            # path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}_{args["version"]}_{args["decoding_method"]}_{args["file_name"]}.txt'
+            path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}_{args["version"]}_{args["decoding_method"]}_{args["file_name"]}_{args["beam_width"]}_{args["model_prediction_confidence"]}.txt'
         else:
             path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}_{args["version"]}.txt'
         self.log_save_file = open(path, 'w')
@@ -33,18 +34,43 @@ class GenerationAgent(GenerationBaseAgent):
             self.train_model = self.train_model_rerank
         elif self.args['model'] in ['gpt2']:
             self.test_model = self.test_model_inference
+        elif self.args['model'] in ['gpt2-contrastive-search']:
+            self.train_model = self.train_model_contrastive_search
 
     def build_offline_index(self, iter_):
         size = self.model.module.build_offline_index(iter_)
         print(f'[!] build offline index over, size is: {size}')
     
+    def train_model_contrastive_search(self, batch, recoder=None, current_step=0, pbar=None):
+        self.model.train()
+        self.optimizer.zero_grad()
+        with autocast():
+            mle_loss, mle_acc, cl_loss = self.model(batch)
+            loss = mle_loss + cl_loss
+            loss /= self.args['iter_to_accumulate']
+        self.scaler.scale(loss).backward()
+        if (current_step + 1) % self.args['iter_to_accumulate'] == 0:
+            self.scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+        self.scheduler.step()
+        if recoder:
+            recoder.add_scalar(f'train/RunLoss', loss.item(), current_step)
+            recoder.add_scalar(f'train/RunMLELoss', mle_loss.item(), mle_acc)
+            recoder.add_scalar(f'train/RunCLLoss', cl_loss.item(), current_step)
+            recoder.add_scalar(f'train/TokenAcc', mle_acc, current_step)
+        pbar.set_description(f'[!] loss(mle|cl): {round(mle_loss.item(), 4)}|{round(cl_loss.item(), 4)}; token_acc: {round(mle_acc*100, 2)}')
+        pbar.update(1)
+        return
+    
     def train_model_cl(self, batch, recoder=None, current_step=0, pbar=None):
         self.model.train()
         self.optimizer.zero_grad()
         with autocast():
-            (mle_loss, mle_acc), (doc_level_cl_loss, doc_level_cl_acc), (token_level_cl_loss, token_level_cl_acc) = self.model(batch)
+            (mle_loss, mle_acc), (doc_level_cl_loss, doc_level_cl_acc) = self.model(batch)
             alpha_ratio = min(self.args['max_ratio'], current_step / self.args['total_step'])
-            loss = mle_loss + alpha_ratio * doc_level_cl_loss + alpha_ratio * token_level_cl_loss
+            loss = mle_loss + alpha_ratio * doc_level_cl_loss
         self.scaler.scale(loss).backward()
         self.scaler.unscale_(self.optimizer)
         clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
@@ -55,11 +81,9 @@ class GenerationAgent(GenerationBaseAgent):
             recoder.add_scalar(f'train/RunLoss', loss.item(), current_step)
             recoder.add_scalar(f'train/RunMLELoss', mle_loss.item(), mle_acc)
             recoder.add_scalar(f'train/RunDocCLLoss', doc_level_cl_loss.item(), current_step)
-            recoder.add_scalar(f'train/RunTokenCLLoss', token_level_cl_loss.item(), current_step)
             recoder.add_scalar(f'train/TokenAcc', mle_acc, current_step)
             recoder.add_scalar(f'train/DocCLAcc', doc_level_cl_acc, current_step)
-            recoder.add_scalar(f'train/TokenCLAcc', token_level_cl_acc, current_step)
-        pbar.set_description(f'[!] loss(mle|doc|token): {round(mle_loss.item(), 4)}|{round(doc_level_cl_loss.item(), 4)}|{round(token_level_cl_loss.item(), 4)}; acc(mle|doc|token): {round(mle_acc*100, 2)}|{round(doc_level_cl_acc*100, 2)}|{round(token_level_cl_acc*100, 2)}')
+        pbar.set_description(f'[!] loss(mle|doc): {round(mle_loss.item(), 4)}|{round(doc_level_cl_loss.item(), 4)}; acc(mle|doc): {round(mle_acc*100, 2)}|{round(doc_level_cl_acc*100, 2)}')
         pbar.update(1)
     
     def train_model_rerank(self, batch, recoder=None, current_step=0, pbar=None):
@@ -104,34 +128,25 @@ class GenerationAgent(GenerationBaseAgent):
     def train_model(self, batch, recoder=None, current_step=0, pbar=None):
         self.model.train()
         self.optimizer.zero_grad()
-        with autocast():
-            # lm_loss, tacl_loss, token_acc, tacl_acc = self.model(batch)
-            # lm loss and tacl loss
-            # loss = lm_loss + tacl_loss
-            # only lm loss (gpt2)
-            # loss = lm_loss
-            loss, token_acc = self.model(batch)
+        # with autocast():
+        if self.args['model'] in ['gpt2-un-seq'] and current_step >= self.args['seq_un_begin_step']:
+            batch['token_un'] = False
+        else:
+            batch['token_un'] = True
+        loss, token_acc = self.model(batch)
+        loss /= self.args['iter_to_accumulate']
         self.scaler.scale(loss).backward()
-        self.scaler.unscale_(self.optimizer)
-        clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
-        self.scaler.step(self.optimizer)
-        self.scaler.update()
+        if (current_step + 1) % self.args['iter_to_accumulate'] == 0:
+            self.scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
         self.scheduler.step()
         if recoder:
             recoder.add_scalar(f'train/RunLoss', loss.item(), current_step)
-            # recoder.add_scalar(f'train/RunLMLoss', lm_loss.item(), current_step)
-            # recoder.add_scalar(f'train/RunTaCLLoss', tacl_loss.item(), current_step)
             recoder.add_scalar(f'train/TokenAcc', token_acc, current_step)
-            # recoder.add_scalar(f'train/TaCLAcc', tacl_acc, current_step)
-        # pbar.set_description(f'[!] loss(lm|tacl): {round(lm_loss.item(), 4)}|{round(tacl_loss.item(), 4)}; acc(token|tacl): {round(token_acc*100, 2)}|{round(tacl_acc*100, 2)}')
         pbar.set_description(f'[!] loss: {round(loss.item(), 4)}; acc: {round(token_acc*100, 2)}')
         pbar.update(1)
-
-        # update teacher model
-        if 'update_step' in self.args and \
-            current_step % self.args['update_step'] == 0:
-            self.model.module.update_parameters()
-
         return loss, token_acc
 
     @torch.no_grad()

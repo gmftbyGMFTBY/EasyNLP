@@ -1,9 +1,8 @@
 test_interval: 0.1
 valid_during_training: false
 is_step_for_training: true
-total_step: 5010
-temp: 0.07
-phrase_length: 10
+total_step: 50010
+phrase_window_size: 3
 dropout: 0.1
 max_ratio: 0.5
 
@@ -24,7 +23,7 @@ train:
     seed: 0
     batch_size: 64
     max_len: 128
-    warmup_ratio: 0.01
+    warmup_ratio: 0.
     checkpoint: 
         path: bert-post/best_nspmlm.pt
         is_load: false

@@ -12,3 +12,4 @@ from .gpt2_unlikely import *
 from .gpt2_tacl import *
 from .gpt2_phrase import *
 from .gpt2_memory import *
+from .gpt2_contrastive_search import *

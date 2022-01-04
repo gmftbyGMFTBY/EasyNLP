@@ -18,6 +18,7 @@ datasets:
     ext_douban: zh
     # writer-gen-test only has the test file for generation testing
     writer-gen-test: zh
+    wikitext103: en
 
 # pretrained model and tokenizer
 tokenizer:
@@ -444,6 +445,11 @@ models:
         model_name: GPT2MemoryEncoder
         dataset_name: GPT2MemoryDataset
         inference_dataset_name: null
+    gpt2-contrastive-search: 
+        type: Generation
+        model_name: ContrastiveGPT2Encoder
+        dataset_name: GPT2ForContrastiveDataset
+        inference_dataset_name: WriterInferenceDataset
     gpt2-cl: 
         type: Generation
         model_name: GPT2CLEncoder
@@ -462,12 +468,14 @@ models:
     gpt2-un-seq: 
         type: Generation
         model_name: GPT2UNSeqModel
-        dataset_name: GPT2TaCLV3Dataset
+        # dataset_name: GPT2TaCLV3Dataset
+        dataset_name: GPT2WikiTextV2Dataset
         inference_dataset_name: null
     gpt2-un: 
         type: Generation
         model_name: GPT2UNModel
-        dataset_name: GPT2TaCLDataset
+        # dataset_name: GPT2TaCLDataset
+        dataset_name: GPT2WikiTextDataset
         inference_dataset_name: null
     gpt2-tacl: 
         type: Generation
@@ -727,8 +735,8 @@ models:
 
 # ========= Global configuration ========== #
 # huge file are saved in the root dir
-# root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
-root_dir: /home/johntianlan/sources/MyReDial
+root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
+# root_dir: /home/johntianlan/sources/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
@@ -749,13 +757,13 @@ start_save_step: 0
 # ========== Deploy configuration ========== #
 deploy:
     host: '0.0.0.0'
-    port: 8085
-    # dataset: writer-rank
-    dataset: wz_game
+    port: 22335
+    dataset: writer-rank
+    # dataset: wz_game
     max_len: 128
     res_max_len: 64
     recall:
-        activate: true
+        activate: false
         model: wz-simcse
         topk: 200
         with_source: false
@@ -763,7 +771,7 @@ deploy:
         index_nprobe: 1
         dimension: 768
     rerank:
-        activate: false
+        activate: true
         model: writer-dual-bert-phrase
     pipeline:
         activate: false

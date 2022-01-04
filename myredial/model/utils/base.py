@@ -346,6 +346,7 @@ class GenerationBaseAgent:
         dis_word_3 = self.best_test['Distinct-word-3']
         dis_word_5 = self.best_test['Distinct-word-5']
         now_test_score = dis_char_1 + dis_char_3 + dis_char_5 + dis_word_1 + dis_word_3 + dis_word_5
+        now_test_score = self.best_test['PPL']
         
         # ppl_pos = new_test['PPL-pos']
         # ppl_neg = new_test['PPL-neg']
@@ -368,6 +369,7 @@ class GenerationBaseAgent:
         dis_word_3 = new_test['Distinct-word-3']
         dis_word_5 = new_test['Distinct-word-5']
         new_test_score = dis_char_1 + dis_char_3 + dis_char_5 + dis_word_1 + dis_word_3 + dis_word_5
+        new_test_score = new_test['PPL']
         if new_test_score > now_test_score:
         # if new_test_score < now_test_score:
             self.best_test = new_test

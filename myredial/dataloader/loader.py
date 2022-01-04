@@ -1,4 +1,5 @@
 from header import *
+from .gpt2_contrastive_search_dataloader import *
 from .writer_rank_dataloader import *
 from .mutual_dataloader import *
 from .dual_bert_hier_dataloader import *
@@ -43,7 +44,8 @@ def load_dataset(args):
         path = f'{args["root_dir"]}/data/{args["dataset"]}/train.txt'
     else:
         path = f'{args["root_dir"]}/data/{args["dataset"]}/{args["mode"]}.txt'
-    vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
+    # vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
+    vocab = AutoTokenizer.from_pretrained(args['tokenizer'])
     data = dataset_t(vocab, path, **args)
 
     if args['mode'] in ['train', 'inference']:

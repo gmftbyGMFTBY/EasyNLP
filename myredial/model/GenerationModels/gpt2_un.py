@@ -8,11 +8,12 @@ class GPT2UNModel(nn.Module):
         super(GPT2UNModel, self).__init__()
         model = args['pretrained_model']
         self.model = GPT2LMHeadModel.from_pretrained(model)
-        self.vocab = BertTokenizerFast.from_pretrained(model)
-        self.unk, self.pad, self.cls, self.sep = self.vocab.convert_tokens_to_ids(['[UNK]', '[PAD]', '[CLS]', '[SEP]'])
+        # self.vocab = BertTokenizerFast.from_pretrained(model)
+        self.vocab = AutoTokenizer.from_pretrained(model)
+        self.unk, self.pad, self.cls, self.sep = [self.vocab.eos_token_id] * 4
         self.test_max_len = args['test_max_len']
+        self.sample_ratio = args['sample_ratio']
         self.gen_loss_fct = nn.CrossEntropyLoss(ignore_index=self.pad)
-        self.sample_token_num = args['sample_token_num']
         self.special_tokens = set([self.pad, self.unk, self.cls, self.sep])
 
     @torch.no_grad()
@@ -65,7 +66,8 @@ class GPT2UNModel(nn.Module):
             rest.append(g)
         return rest
 
-    def token_unlikelyhood(self, ids, logits):
+    def token_unlikelyhood(self, ids, logits, ids_mask):
+        '''more tokens that are penatlyed, worse performance'''
         # slow but more effective
         # ids: [B, S], logits: [B, S, V], remvove the the last token
         # sub_logits = F.softmax(logits, dim=-1)    # [B, S, V]
@@ -84,15 +86,27 @@ class GPT2UNModel(nn.Module):
         # fast mode but not effective
         logits = logits[:, :-1, :]
         target = ids[:, 1:]
-        bsz, seqlen = target.size()
+        target_ids_mask = ids_mask[:, 1:]
+        bsz, seqlen, vsz = logits.size()
         logits = F.softmax(logits, dim=-1)    # [B, S, V]
         cands = target.unsqueeze(1).expand(-1, target.size(-1), -1)    # [B, S, S]
         cands = cands.tril(-1)    # [B, S, S]
-
         # donot include it self
         cands = cands.masked_fill(cands == target.unsqueeze(2), self.pad)
-        negative_cands = torch.zeros_like(logits).scatter(2, cands, 1)    # [B, S, V]
-        loss = -torch.log(1e-5 + 1 - logits) * negative_cands    # [B, S, V]
+        negative_cands = torch.zeros_like(logits).scatter(2, cands, 1).to(torch.long)    # [B, S, V]
+        # ignore the padding tokens
+        padding_mask = target_ids_mask.unsqueeze(-1).expand(-1, -1, vsz)
+        negative_cands = negative_cands & padding_mask
+        # only update partial tokens
+        ignore_mask = torch.rand_like(negative_cands.to(torch.float16))
+        negative_cands = torch.where(
+            torch.logical_and(
+                ignore_mask < self.sample_ratio,
+                negative_cands.to(torch.bool)
+            ),
+            negative_cands, 0
+        )
+        loss = -torch.log(torch.clamp(1 - logits, min=1e-5)) * negative_cands    # [B, S, V]
         loss = loss.sum(dim=-1).mean()
         return loss
 
@@ -121,6 +135,6 @@ class GPT2UNModel(nn.Module):
         gen_acc = valid_tokens.sum().item() / valid_mask.sum().item()
         
         # unlikelyhood loss
-        un_loss = self.token_unlikelyhood(ids, gen_logits)
+        un_loss = self.token_unlikelyhood(ids, gen_logits, ids_mask)
         loss += un_loss
         return loss, gen_acc

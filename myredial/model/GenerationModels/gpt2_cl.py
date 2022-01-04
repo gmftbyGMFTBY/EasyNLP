@@ -18,7 +18,6 @@ class GPT2CLEncoder(nn.Module):
         faiss_path = f'{args["root_dir"]}/data/{args["dataset"]}/{args["model"]}/faiss.ckpt'
         corpus_path = f'{args["root_dir"]}/data/{args["dataset"]}/{args["model"]}/corpus.pkl'
         self.test_max_len = args['test_max_len']
-        self.temp = args['temp']
         self.args = args
 
         # criterion
@@ -34,12 +33,17 @@ class GPT2CLEncoder(nn.Module):
             nn.Dropout(p=args['dropout']),
             nn.Linear(768, 768),
         )
-        self.token_query_head = nn.Sequential(
+        self.phrase_query_head = nn.Sequential(
             nn.Dropout(p=args['dropout']),
             nn.Linear(768, 768),
             nn.Tanh(),
             nn.Dropout(p=args['dropout']),
             nn.Linear(768, 768),
+        )
+        # gate conditioned on: document bert_cls and gpt2 hidden state
+        self.gate = nn.Sequential(
+            nn.Dropout(p=args['dropout']) ,
+            nn.Linear(768*2, 1),
         )
 
         # cache index
@@ -89,7 +93,6 @@ class GPT2CLEncoder(nn.Module):
         # gpt2_query: [B, E]; bert_hidden: [B*K, S, E]
         bsz, esz = gpt2_query.size()
         _, seqlen = bert_ids.size()
-        gpt2_query = self.token_query_head(gpt2_query)
 
         bert_hidden = self.bert_encoder(input_ids=bert_ids, attention_mask=bert_ids_mask).last_hidden_state[:, 1:, :]
         bert_ids = bert_ids[:, 1:]
@@ -234,21 +237,56 @@ class GPT2CLEncoder(nn.Module):
         bsz, seqlen = gpt2_ids.size()
 
         bert_hidden = self.bert_encoder(bert_ids, bert_ids_mask).last_hidden_state    # [B, S+1, E]
-        # with torch.no_grad():
+        bert_cls, bert_hidden = bert_hidden[:, 0, :], bert_hidden[:, 1:-1, :]
         gpt2_output = self.gpt2_encoder(
             input_ids=gpt2_ids, attention_mask=gpt2_ids_mask, output_hidden_states=True
         )
         gpt2_hidden, gpt2_logits = gpt2_output.hidden_states[-1], gpt2_output.logits
 
-        ## 1. gpt2 mle loss
+        ## 1. gpt2 mle loss + phrase
         # mle loss
-        shift_logits = gpt2_logits[..., :-1, :].contiguous()
+        gpt2_logits = gpt2_logits[..., :-1, :].contiguous()    # [B, S, V]
+        gpt2_hidden = gpt2_hidden[..., :-1, :]
         shift_labels = gpt2_ids[..., 1:].contiguous()
+        ## 1.1 p_gen: [B, S, 2*E] -> [B, S, 1]
+        bert_cls_gate = bert_cls.unsqueeze(1).expand(-1, seqlen-1, -1)    # [B, S, E]
+        p_gen = torch.sigmoid(
+            self.gate(
+                torch.cat([bert_cls_gate, gpt2_hidden], dim=-1)
+            )
+        )    # [B, S, 1]
+        ## 1.2 document phrase logits
+        collector = []
+        for i in range(1, self.args['phrase_window_size']+1):
+            # weight: y = -log(x+1)+1
+            weight = -np.log(i/(1+self.args['phrase_window_size'])+1) + 1
+            # right part
+            bert_hidden_r = torch.cat([
+                bert_hidden.clone()[:, i:, :],
+                torch.zeros(bsz, i, 768).cuda(),
+            ], dim=1)
+            # left part
+            bert_hidden_l = torch.cat([
+                torch.zeros(bsz, i, 768).cuda(),
+                bert_hidden.clone()[:, :-i, :],
+            ], dim=1)
+            collector.extend([weight*bert_hidden_r, weight*bert_hidden_l])
+        collector.append(bert_hidden)
+        collector = torch.stack(collector)    # [K, B, S, E]
+        bert_hidden = collector.mean(dim=0)    # [B, S, E] 
+        bert_score = torch.bmm(gpt2_hidden, bert_hidden.permute(0, 2, 1))   # [B, S, S]
+        bert_score = F.softmax(bert_score, dim=-1) * (1 - p_gen)    # [B, S, S]
+        ## 1.3 combine the logits
+        shift_logits = p_gen * gpt2_logits    # [B, S, V]
+        bert_score = bert_score.to(torch.float16)
+        index = gpt2_ids[:, :-1].unsqueeze(1).expand(-1, seqlen-1, -1)    # [B, S, S]
+        shift_logits.scatter_add(2, index, bert_score)
+        ## 1.4 language modeling
         mle_loss = self.gen_loss_fct(
             shift_logits.view(-1, shift_logits.size(-1)),
             shift_labels.view(-1),
         )
-        # token acc
+        ## 1.5 token acc
         chosen_tokens = torch.max(shift_logits, dim=-1)[1]    # [B, S-1]
         gen_acc = (chosen_tokens.view(-1) == shift_labels.view(-1)).to(torch.long)
         valid_mask = (shift_labels != 0).view(-1)
@@ -257,30 +295,14 @@ class GPT2CLEncoder(nn.Module):
 
         ## 2. bert doc-level contrastive loss
         # loss: [B, S, E] x [B, 1, E] -> [B, S]
-        bert_cls = bert_hidden[:, 0, :]    # [B, E]
         gpt2_hidden_ = self.doc_query_head(gpt2_hidden.permute(1, 0, 2))    # [S, B, E]
         bert_cls = bert_cls.unsqueeze(0).expand(len(gpt2_hidden_), -1, -1)    # [S, B, E]
         logits = torch.bmm(gpt2_hidden_, bert_cls.permute(0, 2, 1))    # [S, B, B]
-        logits /= self.temp
         mask = torch.zeros_like(logits)
         mask[:, range(bsz), range(bsz)] = 1.
         loss_ = F.log_softmax(logits, dim=-1) * mask
         doc_level_cl_loss = (-loss_.sum(dim=1)).mean()
         # acc
-        doc_level_cl_acc = (logits.max(dim=-1)[1] == torch.arange(bsz).unsqueeze(0).expand(seqlen, -1).cuda()).to(torch.float).mean().item()
+        doc_level_cl_acc = (logits.max(dim=-1)[1] == torch.arange(bsz).unsqueeze(0).expand(seqlen-1, -1).cuda()).to(torch.float).mean().item()
 
-        ## 3. bert token-level contrastive loss
-        gpt2_hidden = self.token_query_head(gpt2_hidden)    # [B, S, E]
-        gpt2_hidden = gpt2_hidden.reshape(-1, 768)
-        bert_hidden = bert_hidden[:, 1:, :]    # [B, S, E]
-        bert_hidden = bert_hidden.reshape(-1, 768)
-        token_level_logits = torch.matmul(gpt2_hidden, bert_hidden.t())    # [B*S, B*S]
-        token_level_logits /= self.temp
-        mask = torch.zeros_like(token_level_logits)
-        mask[range(len(token_level_logits)), range(len(token_level_logits))] = 1.
-        loss_ = F.log_softmax(token_level_logits, dim=-1) * mask
-        token_level_cl_loss = (-loss_.sum(dim=1)).mean()
-        # acc
-        token_level_cl_acc = (token_level_logits.max(dim=-1)[1] == torch.arange(len(token_level_logits)).cuda()).to(torch.float).mean().item()
-
-        return (mle_loss, mle_acc), (doc_level_cl_loss, doc_level_cl_acc), (token_level_cl_loss, token_level_cl_acc)
+        return (mle_loss, mle_acc), (doc_level_cl_loss, doc_level_cl_acc)

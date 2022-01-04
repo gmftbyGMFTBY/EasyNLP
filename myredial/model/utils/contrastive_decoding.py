@@ -25,7 +25,7 @@ def ranking(context_hidden, next_hidden, next_top_k_ids, next_top_k_probs, model
     assert next_id.size() == torch.Size([1,1])
     return next_id
 
-def ContrastiveDecodingOneStep(model, input_ids, beam_width, model_prediction_confidence, top_k, top_p, sampling_probability):
+def ContrastiveDecodingOneStep(model, input_ids, beam_width, model_prediction_confidence, top_k, top_p, sampling_probability, sep_idx, sep_smooth_length):
     '''
         model: the generation model, e.g., gpt2
         input_ids: 1 x seqlen
@@ -39,6 +39,8 @@ def ContrastiveDecodingOneStep(model, input_ids, beam_width, model_prediction_co
     p = random.uniform(0, 1)
     if p >= sampling_probability:
         logit_for_next_step = logits[:,-1,:]
+        # ignore sep
+        logit_for_next_step[:, sep_idx] *= sep_smooth_length
         assert logit_for_next_step.size() == torch.Size([1, vocab_size])
 
         next_probs = F.softmax(logit_for_next_step, dim = -1)
@@ -78,3 +80,93 @@ def ContrastiveDecodingOneStep(model, input_ids, beam_width, model_prediction_co
     next_input_ids = torch.cat([input_ids, next_id], dim = -1)
     assert next_input_ids.size() == torch.Size([1, seqlen+1])
     return next_input_ids
+
+# ========== batch version ========= #
+def ranking_batch(context_hidden, next_hidden, next_top_k_probs, model_prediction_confidence, beam_width):
+    '''
+        context_hidden: bsz*beam_width x seqlen x embed_dim
+        next_hidden: bsz*beam_width x 1 x embed_dim
+        next_top_k_probs: bsz*beam_width
+    '''
+    _, context_len, embed_dim = context_hidden.size()
+    norm_context_hidden = context_hidden / context_hidden.norm(dim=2, keepdim=True)
+    norm_next_hidden = next_hidden / next_hidden.norm(dim=2, keepdim=True)
+    cosine_matrix = torch.matmul(norm_context_hidden, norm_next_hidden.transpose(1,2)).squeeze(-1)    # [B*K, S]
+    scores, _ = torch.max(cosine_matrix, dim=-1)    # [B*K]
+    next_top_k_probs = next_top_k_probs.view(-1)    # [B*K]
+    scores = model_prediction_confidence * next_top_k_probs - (1.0 - model_prediction_confidence) * scores 
+    scores = torch.stack(torch.split(scores, beam_width))    # [B, K]
+    selected_idx = scores.max(dim=-1)[1]    # [B]
+    return selected_idx
+
+def ContrastiveDecodingOneStepBatch(
+    model, 
+    input_ids, 
+    ids_mask,
+    ids_pos,
+    beam_width, 
+    model_prediction_confidence, 
+    top_k, 
+    top_p, 
+    sampling_probability, 
+    sep_idx, 
+    sep_smooth_length,
+    past_key_values,
+    last_hidden_states,
+    vocab,
+    ):
+    output = model(
+        input_ids=input_ids, 
+        attention_mask=ids_mask,
+        position_ids=ids_pos,
+        past_key_values=past_key_values,
+        use_cache=True,
+        output_hidden_states=True
+    )
+    past_key_values = output.past_key_values
+    current_hidden_states = output.hidden_states[-1]    # [B, S, E]
+    if last_hidden_states is not None:
+        last_hidden_states = torch.cat([last_hidden_states, current_hidden_states], dim=1)
+    else:
+        last_hidden_states = current_hidden_states
+    bsz, seqlen, embed_dim = last_hidden_states.size()
+    logits = output.logits    # [B, S, V]
+    _, _, vocab_size = logits.size()
+    p = random.uniform(0, 1)
+    if p >= sampling_probability:
+        logit_for_next_step = logits[:, -1, :]    # [B, V]
+        logit_for_next_step[:, sep_idx] *= sep_smooth_length
+        next_probs = F.softmax(logit_for_next_step, dim=-1)
+        _, top_k_ids = torch.topk(logit_for_next_step, dim=-1, k=beam_width)    # [B, K]
+        top_k_probs = torch.gather(next_probs, dim=1, index=top_k_ids)    # [B, K]
+        # compute new hidden
+        new_hidden_states = []
+        for i in range(beam_width):
+            new_ids = top_k_ids[:, i].unsqueeze(dim=-1)    # [B, 1]
+            output = model(
+                input_ids=new_ids, 
+                attention_mask=torch.ones_like(new_ids),
+                position_ids=1+ids_pos[:, -1].unsqueeze(dim=-1),
+                past_key_values=past_key_values,
+                output_hidden_states=True
+            )
+            new_hidden_states.append(output.hidden_states[-1].squeeze(dim=1))    # [B, E]
+        context_hidden = last_hidden_states.unsqueeze(1).expand(-1, beam_width, -1, -1)    # [B, K, S, E]
+        context_hidden = context_hidden.reshape(bsz*beam_width, seqlen, embed_dim)
+        next_hidden = torch.stack(new_hidden_states).permute(1, 0, 2).reshape(-1, embed_dim).unsqueeze(1)    # [B*K, 1, E]
+
+        selected_idx = ranking_batch(
+            context_hidden, 
+            next_hidden, 
+            top_k_probs, 
+            model_prediction_confidence,
+            beam_width,
+        )     # [B]
+        next_id = top_k_ids[range(bsz), selected_idx].unsqueeze(-1)    # [B, 1]
+    else:
+        logit_for_next_step = logits[0, -1, :]
+        filtered_logits = top_k_top_p_filtering(logits[0, -1, :], top_k=top_k, top_p=top_p)
+        probabilities = F.softmax(filtered_logits, dim=-1)
+        next_id = torch.multinomial(probabilities, 1)
+    # next_id: [B, 1]
+    return next_id, past_key_values, last_hidden_states 

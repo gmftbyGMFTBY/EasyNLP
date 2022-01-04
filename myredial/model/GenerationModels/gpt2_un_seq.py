@@ -12,13 +12,14 @@ class GPT2UNSeqModel(nn.Module):
         super(GPT2UNSeqModel, self).__init__()
         model = args['pretrained_model']
         self.model = GPT2LMHeadModel.from_pretrained(model)
-        self.vocab = BertTokenizerFast.from_pretrained(model)
-        self.unk, self.pad, self.cls, self.sep = self.vocab.convert_tokens_to_ids(['[UNK]', '[PAD]', '[CLS]', '[SEP]'])
+        # self.vocab = BertTokenizerFast.from_pretrained(model)
+        self.vocab = AutoTokenizer.from_pretrained(model)
+        self.unk, self.pad, self.cls, self.sep = [self.vocab.eos_token_id] * 4
         self.test_max_len = args['test_max_len']
         self.gen_loss_fct = nn.CrossEntropyLoss(ignore_index=self.pad)
         self.special_tokens = set([self.pad, self.unk, self.cls, self.sep])
         self.sequence_ngram_n = args['sequence_ngram_n']
-        self.sample_token_num = args['sample_token_num']
+        self.sample_ratio = args['sample_ratio']
         self.args = args
 
     def ngram_repeat_mask(self, xs, n):
@@ -142,27 +143,39 @@ class GPT2UNSeqModel(nn.Module):
         # sequence unlikelyhood traininig loss
         gen_logits = F.softmax(gen_logits, dim=-1)    # [B, S, V]
         gen_logits = gen_logits.gather(2, gen_tokens.unsqueeze(-1)).squeeze(-1)    # [B, S]
-        loss = -torch.log(1 - gen_logits + 1e-3) * ngram_repeat_mask    # [B, S]
+        loss = -torch.log(torch.clamp(1 - gen_logits, min=1e-5)) * ngram_repeat_mask    # [B, S]
         loss = loss.sum()
         effective_tokens_num = torch.sum(ngram_repeat_mask).item()
         if effective_tokens_num > 0:
             loss /= effective_tokens_num
         return loss
     
-    def token_unlikelyhood(self, ids, logits):
-        # ids: [B, S], logits: [B, S, V], remvove the the last token
-        sub_logits = F.softmax(logits, dim=-1)    # [B, S, V]
-        loss = []
-        bsz, seqlen = ids.size()
-        for i in range(bsz):
-            sampled_index = random.sample(range(seqlen), self.sample_token_num)
-            for j in sampled_index:
-                if ids[i,j].item() == self.pad:
-                    continue
-                # candidates
-                candidates = list(set(ids[i, :j].tolist()))
-                loss.append((-torch.log(1e-3 + 1 - sub_logits[i, j, candidates])).sum())
-        loss = torch.stack(loss).mean()
+    def token_unlikelyhood(self, ids, logits, ids_mask):
+        logits = logits[:, :-1, :]
+        target = ids[:, 1:]
+        target_ids_mask = ids_mask[:, 1:]
+        bsz, seqlen, vsz = logits.size()
+        logits = F.softmax(logits, dim=-1)    # [B, S, V]
+        cands = target.unsqueeze(1).expand(-1, target.size(-1), -1)    # [B, S, S]
+        cands = cands.tril(-1)    # [B, S, S]
+        # donot include it self
+        cands = cands.masked_fill(cands == target.unsqueeze(2), self.pad)
+        negative_cands = torch.zeros_like(logits).scatter(2, cands, 1).to(torch.long)    # [B, S, V]
+        # ignore the padding tokens
+        padding_mask = target_ids_mask.unsqueeze(-1).expand(-1, -1, vsz)
+        negative_cands = negative_cands & padding_mask
+        # only update partial tokens
+        # ignore_mask = torch.rand_like(negative_cands.to(torch.float16))
+        # negative_cands = torch.where(
+        #     torch.logical_and(
+        #         ignore_mask < self.sample_ratio,
+        #         negative_cands.to(torch.bool)
+        #     ),
+        #     negative_cands, 0
+        # )
+        loss = -torch.log(torch.clamp(1 - logits, min=1e-5)) * negative_cands    # [B, S, V]
+        # loss = loss.sum(dim=-1).mean()
+        loss = loss.mean()
         return loss
 
     def forward(self, batch):
@@ -194,10 +207,11 @@ class GPT2UNSeqModel(nn.Module):
         valid_tokens = gen_acc & valid_mask
         gen_acc = valid_tokens.sum().item() / valid_mask.sum().item()
 
-        # token-level unlikelyhood loss
-        token_un_loss = self.token_unlikelyhood(ids, gen_logits)
-        
-        # sequence-level unlikelyhood loss
-        seq_un_loss = self.sequence_unlikelyhood(batch)
-        loss = loss + token_un_loss + seq_un_loss
+        if batch['token_un'] is True:
+            # token-level unlikelyhood loss
+            un_loss = self.token_unlikelyhood(ids, gen_logits, ids_mask)
+        else:
+            # sequence-level unlikelyhood loss
+            un_loss = self.sequence_unlikelyhood(batch)
+        loss = loss + un_loss
         return loss, gen_acc

@@ -32,7 +32,8 @@ def load_model(args):
     else:
         raise Exception(f'[!] Unknown type {model_type} for {model_name}')
 
-    vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
+    # vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
+    vocab = AutoTokenizer.from_pretrained(args['tokenizer'])
     vocab.add_tokens(['[EOS]'])
     args['vocab_size'] = vocab.vocab_size
 

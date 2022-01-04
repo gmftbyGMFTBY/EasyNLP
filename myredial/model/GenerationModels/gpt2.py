@@ -64,6 +64,8 @@ class InferenceGPT2Model(nn.Module):
                 self.args['contrastive_topk'],
                 self.args['contrastive_topp'],
                 self.args['sampling_probability'],
+                self.sep,
+                min(1., (step+1)/self.args['sep_smooth_length']),
             )
         # input_ids contains the prefix, cut it
         input_ids = input_ids[:, prefix_length:]
@@ -117,6 +119,7 @@ class InferenceGPT2Model(nn.Module):
             )[0]    # [1, S, V]
             next_token_logits = output[-1, -1, :]    # [V]
             next_token_logits[self.unk] = -np.inf
+            next_token_logits[self.sep] *= min(1., len(generated)/self.args['sep_smooth_length'])
             if generated:
                 next_token_logits[list(set(generated))] /= self.repetition_penalty
             filtered_logits = top_k_top_p_filtering(
