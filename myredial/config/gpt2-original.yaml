@@ -1,8 +1,10 @@
-test_interval: 0.0001
+test_interval: 0.01
 valid_during_training: false
 is_step_for_training: true
 total_step: 50010
-iter_to_accumulate: 8
+test_max_len: 128 
+sep_smooth_length: 50
+prefix_len: 32
 
 # gpt2 configuration
 test_max_len: 128
@@ -14,12 +16,13 @@ pretrained_model:
 # train configuration
 train:
     load_param: true
-    lr: 0.00005
-    grad_clip: 5.0
+    lr: 0.00002
+    grad_clip: 1.0
     seed: 0
     batch_size: 16
-    max_len: 384
-    warmup_ratio: 0.01
+    max_len: 256
+    warmup_ratio: 0.
+    iter_to_accumulate: 8
     checkpoint: 
         path: bert-post/best_nspmlm.pt
         is_load: false
@@ -27,5 +30,5 @@ train:
 # test configuration
 test:
     seed: 0
-    batch_size: 1
-    max_len: 32
+    batch_size: 128
+    max_len: 256

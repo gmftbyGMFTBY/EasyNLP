@@ -139,10 +139,11 @@ def ContrastiveDecodingOneStepBatch(
         top_k_probs = torch.gather(next_probs, dim=1, index=top_k_ids)    # [B, K]
         # compute new hidden
         past_key_values = enlarge_past_key_values(past_key_values, beam_width)
+        ids_pos_new = ids_pos.unsqueeze(1).expand(-1, beam_width, -1).reshape(bsz*beam_width, -1)[:, -1].unsqueeze(dim=-1) + 1
         output = model(
             input_ids=top_k_ids.view(-1, 1), 
             attention_mask=torch.ones_like(top_k_ids.view(-1, 1)),
-            position_ids=1+ids_pos[:, -1].unsqueeze(dim=-1),
+            position_ids=ids_pos_new,
             past_key_values=past_key_values,
             output_hidden_states=True,
             use_cache=True,

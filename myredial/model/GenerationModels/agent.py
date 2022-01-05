@@ -128,13 +128,13 @@ class GenerationAgent(GenerationBaseAgent):
     def train_model(self, batch, recoder=None, current_step=0, pbar=None):
         self.model.train()
         self.optimizer.zero_grad()
-        # with autocast():
-        if self.args['model'] in ['gpt2-un-seq'] and current_step >= self.args['seq_un_begin_step']:
-            batch['token_un'] = False
-        else:
-            batch['token_un'] = True
-        loss, token_acc = self.model(batch)
-        loss /= self.args['iter_to_accumulate']
+        with autocast():
+            if self.args['model'] in ['gpt2-un-seq'] and current_step >= self.args['seq_un_begin_step']:
+                batch['token_un'] = False
+            else:
+                batch['token_un'] = True
+            loss, token_acc = self.model(batch)
+            loss /= self.args['iter_to_accumulate']
         self.scaler.scale(loss).backward()
         if (current_step + 1) % self.args['iter_to_accumulate'] == 0:
             self.scaler.unscale_(self.optimizer)

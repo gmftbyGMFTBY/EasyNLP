@@ -24,7 +24,8 @@ file_name: news
 # decoding_method: greedy_search
 # decoding_method: beam_search
 # decoding_method: topk_topp_repetition_penalty_search
-decoding_method: topk_topp_search
+decoding_method: topk_topp_repetition_penalty_fast_search
+# decoding_method: topk_topp_search
 # decoding_method: topk_search
 # decoding_method: topp_search
 

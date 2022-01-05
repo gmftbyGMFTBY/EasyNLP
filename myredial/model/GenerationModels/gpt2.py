@@ -29,6 +29,8 @@ class InferenceGPT2Model(nn.Module):
             self.predict = self.predict_beam_search
         elif args['decoding_method'] == 'topk_topp_repetition_penalty_search':
             self.predict = self.predict_topk_topp_repetition_penalty
+        elif args['decoding_method'] == 'topk_topp_repetition_penalty_fast_search':
+            self.predict = self.predict_topk_topp_repetition_penalty_fast
         elif args['decoding_method'] == 'topk_topp_search':
             self.predict = self.predict_topk_topp
         elif args['decoding_method'] == 'topk_search':
@@ -89,8 +91,8 @@ class InferenceGPT2Model(nn.Module):
             first_step += 1
             # collect ids: [B, 1]
             tokens = ids.squeeze(dim=-1).tolist()
-            for idx, t in enumerate(range(0, len(tokens), self.args['beam_width'])):
-                generated[idx].append(tokens[t])
+            for idx, t in enumerate(tokens):
+                generated[idx].append(t)
             if max([len(i) for i in generated]) > self.test_max_len:
                 break
         # batch size is 1
@@ -151,6 +153,40 @@ class InferenceGPT2Model(nn.Module):
             # reconstruct the ids and ids_mask
             ids = torch.cat((ids, next_token.unsqueeze(0)), dim=1)    # [1, S+1]
             ids = ids[:, -self.test_max_ctx_len:]
+        return [generated]
+    
+    @torch.no_grad()
+    def predict_topk_topp_repetition_penalty_fast(self, batch):
+        ids = batch['ids']
+        generated = []
+        past_key_values = None
+        while True:
+            output = self.model(
+                input_ids=ids,
+                past_key_values=past_key_values,
+                use_cache=True
+            )
+            logits = output.logits
+            past_key_values = output.past_key_values
+            next_token_logits = logits[-1, -1, :]    # [V]
+            next_token_logits[self.unk] = -np.inf
+            next_token_logits[self.sep] *= min(1., len(generated)/self.args['sep_smooth_length'])
+            if generated:
+                next_token_logits[list(set(generated))] /= self.repetition_penalty
+            filtered_logits = top_k_top_p_filtering(
+                next_token_logits, 
+                top_k=self.topk, 
+                top_p=self.topp
+            )
+            next_token = torch.multinomial(
+                F.softmax(filtered_logits, dim=-1),
+                num_samples=1,
+            )
+            if len(generated) > self.test_max_len:
+                break
+            generated.append(next_token.item())
+            # reconstruct the ids and ids_mask
+            ids = next_token.unsqueeze(0)
         return [generated]
 
     @torch.no_grad()

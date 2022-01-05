@@ -13,29 +13,26 @@ class GPT2OriginalModel(nn.Module):
         self.test_max_len = args['test_max_len']
         self.gen_loss_fct = nn.CrossEntropyLoss(ignore_index=self.pad)
         self.special_tokens = set([self.pad, self.unk, self.cls, self.sep])
+        self.args = args
 
     @torch.no_grad()
     def calculate_ppl(self, ids, ids_mask, label):
-        gen_logits = self.model(input_ids=ids, attention_mask=ids_mask)
-        gen_logits = gen_logits.logits
-        shift_logits = gen_logits[..., :-1, :].contiguous()
-        shift_labels = label[..., 1:].contiguous()
-        loss = self.gen_loss_fct(
-            shift_logits.view(-1, shift_logits.size(-1)), 
-            shift_labels.view(-1)
-        )
-        ppl = math.exp(loss.item())
-        return ppl
+        output = self.model(input_ids=ids, attention_mask=ids_mask)
+        logits = output.logits
+        loss = self.gen_loss_fct(logits.view(-1, logits.size(-1)), label.view(-1))
+        return math.exp(loss.item())
 
     @torch.no_grad()
     def predict(self, batch):
         '''greedy search with batch inference, pad in the left'''
+        self.model.eval()
         ids = batch['ids']
         ids_mask = batch['ids_mask']
         ids_pos = batch['pos_ids']
         batch_size, seqlen = ids.size()
         generated = [[] for _ in range(batch_size)]
         past_key_values = None
+        step = 0
         while True:
             output = self.model(
                 input_ids=ids,
@@ -48,6 +45,7 @@ class GPT2OriginalModel(nn.Module):
             past_key_values = output.past_key_values
             next_token_logits = logits[:, -1, :]    # [B, V]
             next_token_logits[:, self.unk] = -np.inf
+            next_token_logits[:, self.sep] /= min(1.0, (step+1)/self.args['sep_smooth_length']) 
             next_token = next_token_logits.max(dim=-1)[1].unsqueeze(1)    # [B, 1]
             for idx, t in enumerate(next_token.squeeze(-1).tolist()):
                 generated[idx].append(t)
@@ -57,6 +55,7 @@ class GPT2OriginalModel(nn.Module):
             ids = next_token
             ids_mask = torch.ones_like(ids)
             ids_pos = 1 + ids_pos[:, -1].unsqueeze(dim=-1)
+            step += 1
         # remove the special tokens
         rest = []
         for g in generated:
@@ -67,24 +66,17 @@ class GPT2OriginalModel(nn.Module):
     def forward(self, batch):
         ids = batch['ids']
         ids_mask = batch['ids_mask']
-
-        batch_size = ids.shape[0]
-        gen_logits = self.model(input_ids=ids, attention_mask=ids_mask)
-        gen_logits = gen_logits.logits
-
-        # generative loss
-        # gen_logits: [B, S, V]; label: [B, S]
-        shift_logits = gen_logits[..., :-1, :].contiguous()
-        shift_labels = ids[..., 1:].contiguous()
+        ods = batch['ods']
+        output = self.model(input_ids=ids, attention_mask=ids_mask)
+        gen_logits = output.logits
         loss = self.gen_loss_fct(
-            shift_logits.view(-1, shift_logits.size(-1)), 
-            shift_labels.view(-1)
+            gen_logits.view(-1, gen_logits.size(-1)), 
+            ods.view(-1)
         )
-
         # token acc
-        chosen_tokens = torch.max(shift_logits, dim=-1)[1]    # [B, S-1]
-        gen_acc = (chosen_tokens.view(-1) == shift_labels.view(-1)).to(torch.long)
-        valid_mask = (shift_labels != 0).view(-1)
+        chosen_tokens = torch.max(gen_logits, dim=-1)[1]    # [B, S-1]
+        gen_acc = (chosen_tokens.view(-1) == ods.view(-1)).to(torch.long)
+        valid_mask = (ods != self.pad).view(-1)
         valid_tokens = gen_acc & valid_mask
         gen_acc = valid_tokens.sum().item() / valid_mask.sum().item()
         return loss, gen_acc

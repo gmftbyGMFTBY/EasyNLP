@@ -458,7 +458,8 @@ models:
     gpt2-original: 
         type: Generation
         model_name: GPT2OriginalModel
-        dataset_name: GPT2TaCLDataset
+        # dataset_name: GPT2TaCLDataset
+        dataset_name: GPT2ForContrastiveDataset
         inference_dataset_name: null
     gpt2-rerank: 
         type: Generation

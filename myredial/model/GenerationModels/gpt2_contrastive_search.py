@@ -24,7 +24,6 @@ class ContrastiveGPT2Encoder(nn.Module):
         # model
         self.model = GPT2LMHeadModel.from_pretrained(model_name)
         self.embed_dim = self.model.config.hidden_size
-        self.logsftmax = nn.LogSoftmax(dim=-1)
         # decoding length
         self.test_max_len = args['test_gen_max_len']
         # ignore the pad_token (-100)
@@ -68,8 +67,8 @@ class ContrastiveGPT2Encoder(nn.Module):
             first_step += 1
             # collect ids: [B, 1]
             tokens = ids.squeeze(dim=-1).tolist()
-            for idx, t in enumerate(range(0, len(tokens), self.args['beam_width'])):
-                generated[idx].append(tokens[t])
+            for idx, t in enumerate(tokens):
+                generated[idx].append(t)
             if max([len(i) for i in generated]) > self.test_max_len:
                 break
         # ignore the special tokens
