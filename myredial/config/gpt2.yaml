@@ -20,6 +20,7 @@ file_name: news
 
 # decoding methods
 # decoding_method: contrastive_search
+# decoding_method: contrastive_search_batch
 # decoding_method: greedy_search
 # decoding_method: beam_search
 # decoding_method: topk_topp_repetition_penalty_search
@@ -37,8 +38,8 @@ topk_topp_beam_num: 2
 repetition_penalty: 1.0
 
 # contrastive decoding parameter
-beam_width: 3
-model_prediction_confidence: 0.4
+beam_width: 5
+model_prediction_confidence: 0.6
 contrastive_topk: 8
 contrastive_topp: 0.93
 sampling_probability: 0.

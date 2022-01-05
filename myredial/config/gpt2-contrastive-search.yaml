@@ -4,7 +4,7 @@ is_step_for_training: true
 total_step: 50010
 test_gen_max_len: 128
 beam_width: 5
-model_prediction_confidence: 0.5
+model_prediction_confidence: 0.6
 sampling_probability: 0.
 sep_smooth_length: 50
 contrastive_topk: 8

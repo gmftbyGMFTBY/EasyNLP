@@ -114,47 +114,43 @@ def ContrastiveDecodingOneStepBatch(
     past_key_values,
     last_hidden_states,
     vocab,
+    logit_for_next_step,
+    first_step=False,
     ):
-    # input_ids: [B, S] -> [B*K, S]
-    _, seqlen = ids.size()
-    ids = ids.unsqueeze(1).expand(-1, beam_width, -1).reshape(-1, seqlen)
-    ids_pos = ids_pos.unsqueeze(1).expand(-1, beam_width, -1).reshape(-1, seqlen)
-    ids_mask = ids_mask.unsqueeze(1).expand(-1, beam_width, -1).reshape(-1, seqlen)
-
-    output = model(
-        input_ids=ids, 
-        attention_mask=ids_mask,
-        position_ids=ids_pos,
-        past_key_values=past_key_values,
-        use_cache=True,
-        output_hidden_states=True
-    )
-    past_key_values = output.past_key_values
-    current_hidden_states = output.hidden_states[-1]    # [B*K, S, E]
-    if last_hidden_states is not None:
-        last_hidden_states = torch.cat([last_hidden_states, current_hidden_states], dim=1)
-    else:
-        last_hidden_states = current_hidden_states
+    # input_ids: [B, S]
+    if first_step:
+        output = model(
+            input_ids=ids, 
+            attention_mask=ids_mask,
+            position_ids=ids_pos,
+            past_key_values=past_key_values,
+            use_cache=True,
+            output_hidden_states=True
+        )
+        past_key_values = output.past_key_values
+        last_hidden_states = output.hidden_states[-1]    # [B, S, E]
+        logit_for_next_step = output.logits[:, -1, :]    # [B, V]
     bsz, seqlen, embed_dim = last_hidden_states.size()
-    logits = output.logits    # [B*K, S, V]
-    _, _, vocab_size = logits.size()
     p = random.uniform(0, 1)
     if p >= sampling_probability:
-        logit_for_next_step = logits[range(0, bsz, beam_width), -1, :]    # [B, V]
         logit_for_next_step[:, sep_idx] *= sep_smooth_length
         next_probs = F.softmax(logit_for_next_step, dim=-1)
         _, top_k_ids = torch.topk(logit_for_next_step, dim=-1, k=beam_width)    # [B, K]
         top_k_probs = torch.gather(next_probs, dim=1, index=top_k_ids)    # [B, K]
         # compute new hidden
+        past_key_values = enlarge_past_key_values(past_key_values, beam_width)
         output = model(
             input_ids=top_k_ids.view(-1, 1), 
             attention_mask=torch.ones_like(top_k_ids.view(-1, 1)),
             position_ids=1+ids_pos[:, -1].unsqueeze(dim=-1),
             past_key_values=past_key_values,
-            output_hidden_states=True
+            output_hidden_states=True,
+            use_cache=True,
         )
+        past_key_values = output.past_key_values
+        logits = output.logits[:, -1, :]    # [B*K, V]
         next_hidden = output.hidden_states[-1]    # [B*K, 1, E]
-        context_hidden = last_hidden_states.clone()    # [B*K, S, E]
+        context_hidden = last_hidden_states.unsqueeze(1).expand(-1, beam_width, -1, -1).reshape(bsz*beam_width, seqlen, embed_dim)    # [B*K, S, E]
 
         selected_idx = ranking_batch(
             context_hidden, 
@@ -163,11 +159,44 @@ def ContrastiveDecodingOneStepBatch(
             model_prediction_confidence,
             beam_width,
         )     # [B]
+        # prepare for the next step
         next_id = top_k_ids[range(len(top_k_ids)), selected_idx].unsqueeze(-1)    # [B, 1]
+        next_hidden = torch.stack(torch.split(next_hidden.squeeze(dim=1), beam_width))    # [B, K, E]
+        next_hidden = next_hidden[range(bsz), selected_idx, :]    # [B, E]
+        last_hidden_states = torch.cat([last_hidden_states, next_hidden.unsqueeze(1)], dim=1)    # [B, S, E]
+        past_key_values = select_past_key_values(past_key_values, beam_width, selected_idx)
+        logits = torch.stack(torch.split(logits, beam_width))[range(bsz), selected_idx, :]    # [B, V]
     else:
         logit_for_next_step = logits[0, -1, :]
         filtered_logits = top_k_top_p_filtering(logits[0, -1, :], top_k=top_k, top_p=top_p)
         probabilities = F.softmax(filtered_logits, dim=-1)
         next_id = torch.multinomial(probabilities, 1)
     # next_id: [B, 1]
-    return next_id, past_key_values, last_hidden_states 
+    return next_id, past_key_values, last_hidden_states, logits 
+
+def enlarge_past_key_values(past_key_values, beam_width):
+    # from [B, num_head, seq_len, esz] to [B*K, num_head, seq_len, esz]
+    new_key_values = []
+    for layer in past_key_values:
+        items = []
+        for item in layer:
+            # item is the key and value matrix
+            bsz, num_head, seq_len, esz = item.size()
+            item = item.unsqueeze(1).expand(-1, beam_width, -1, -1, -1).reshape(bsz*beam_width, num_head, seq_len, esz)    # [bsz*beam, num_head, seq_len, esz]
+            items.append(item)
+        new_key_values.append(items)
+    return new_key_values
+
+def select_past_key_values(past_key_values, beam_width, selected_idx):
+    '''select_idx: [B]'''
+    new_key_values = []
+    for layer in past_key_values:
+        items = []
+        for item in layer:
+            bsz_and_beam, num_head, seq_len, esz = item.size()
+            bsz = int(bsz_and_beam//beam_width)
+            item = torch.stack(torch.split(item, beam_width, dim=0))    # [B, K, num_head, seq_len, esz] 
+            item = item[range(bsz), selected_idx, :, :, :]   # [B, num_head, seq_len, esz]
+            items.append(item)
+        new_key_values.append(items)
+    return new_key_values

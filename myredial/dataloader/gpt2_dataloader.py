@@ -453,16 +453,22 @@ class GPT2InferenceDataset(Dataset):
 
     def __getitem__(self, i):
         bundle = self.data[i]
-        return torch.LongTensor(bundle['ids']), bundle['text']
+        return bundle['ids'], bundle['text']
 
     def save(self):
         pass
         
     def collate(self, batch):
-        assert len(batch) == 1
-        ids, text = batch[0]
-        ids = ids.cuda().unsqueeze(0)
+        max_length = max([len(i[0]) for i in batch])
+        tokens = [i[0] for i in batch]
+        texts = [i[1] for i in batch]
+        ids = torch.LongTensor([[self.pad] * (max_length - len(i)) + i for i in tokens])
+        ids_mask = generate_mask(ids, pad_token_idx=self.pad)
+        pos_ids = (ids_mask.long().cumsum(-1) - 1).masked_fill(ids_mask == 0, 0)
+        ids, ids_mask, pos_ids = to_cuda(ids, ids_mask, pos_ids)
         return {
            'ids': ids,
-           'text': [text],
+           'pos_ids': pos_ids,
+           'ids_mask': ids_mask,
+           'text': texts,
         }

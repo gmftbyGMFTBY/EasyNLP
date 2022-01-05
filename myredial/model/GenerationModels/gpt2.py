@@ -21,6 +21,8 @@ class InferenceGPT2Model(nn.Module):
         self.repetition_penalty = args['repetition_penalty']
         if args['decoding_method'] == 'contrastive_search':
             self.predict = self.predict_contrastive_search
+        elif args['decoding_method'] == 'contrastive_search_batch':
+            self.predict = self.predict_contrastive_search_batch
         elif args['decoding_method'] == 'greedy_search':
             self.predict = self.predict_greedy_search
         elif args['decoding_method'] == 'beam_search':
@@ -49,6 +51,50 @@ class InferenceGPT2Model(nn.Module):
         )
         ppl = math.exp(loss.item())
         return ppl
+    
+    @torch.no_grad()
+    def predict_contrastive_search_batch(self, batch):
+        self.model.eval()
+        ids = batch['ids']
+        ids_mask = batch['ids_mask']
+        ids_pos = batch['pos_ids']
+        batch_size, seqlen = ids.size()
+        generated = [[] for _ in range(batch_size)]
+
+        past_key_values = None
+        last_hidden_states = None
+        first_step = 0
+        logits = None
+        for step in range(self.test_max_len):
+            ids, past_key_values, last_hidden_states, logits = ContrastiveDecodingOneStepBatch(
+                self.model,
+                ids,
+                ids_mask,
+                ids_pos,
+                self.args['beam_width'],
+                self.args['model_prediction_confidence'],
+                self.args['contrastive_topk'],
+                self.args['contrastive_topp'],
+                self.args['sampling_probability'],
+                self.sep,
+                min(1., (step+1)/self.args['sep_smooth_length']),
+                past_key_values,
+                last_hidden_states,
+                self.vocab,
+                logits,
+                first_step=first_step == 0,
+            )
+            ids_pos = 1 + ids_pos[:, -1].unsqueeze(dim=-1)
+            ids_mask = torch.ones_like(ids)
+            first_step += 1
+            # collect ids: [B, 1]
+            tokens = ids.squeeze(dim=-1).tolist()
+            for idx, t in enumerate(range(0, len(tokens), self.args['beam_width'])):
+                generated[idx].append(tokens[t])
+            if max([len(i) for i in generated]) > self.test_max_len:
+                break
+        # batch size is 1
+        return generated
     
     @torch.no_grad()
     def predict_contrastive_search(self, batch):
