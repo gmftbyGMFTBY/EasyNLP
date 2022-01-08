@@ -314,6 +314,7 @@ def create_app():
             'decoding_method': 'contrastive_batch_search',    # defualt is the contrastive_search_batch
             'generation_num': 3,    # default generation_num is 3
             'max_gen_len': 64,
+            'sampling_prefix_len': 5,
             'lang': 'zh',
             'uuid': '',
             'user': '',
@@ -329,10 +330,18 @@ def create_app():
             'item_list': [
                 {
                     'context': 'context sentence1',
-                    'generations': [ 
+                    'contrastive_search_reference': [ 
                         {'str': 'generation_result_1'},
                         ...
-                    ]
+                    ],
+                    'contrastive_search_diverse': [ 
+                        {'str': 'generation_result_1'},
+                        ...
+                    ],
+                    'topk_topp_sampling': [ 
+                        {'str': 'generation_result_1'},
+                        ...
+                    ],
                 }
             ]
         }
@@ -340,7 +349,7 @@ def create_app():
         try:
             # data = request.json
             data = json.loads(request.data)
-            rest, core_time = generationagent.work(data)
+            (g1, g2, g3), core_time = generationagent.work(data)
             succ = True
         except Exception as error:
             core_time = 0
@@ -357,9 +366,11 @@ def create_app():
         }
         if succ:
             rest_ = []
-            for generations, batch in zip(rest, data['segment_list']):
+            for g1_, g2_, g3_, batch in zip(g1, g2, g3, data['segment_list']):
                 item = {'context': batch['context']}
-                item['generations'] = [{'str': s} for s in generations]
+                item['contrastive_search_reference'] = [{'str': s} for s in g2_]
+                item['contrastive_search_diverse'] = [{'str': s} for s in g1_]
+                item['topk_topp_sampling'] = [{'str': s} for s in g3_]
                 rest_.append(item)
             result['item_list'] = rest_
         else:

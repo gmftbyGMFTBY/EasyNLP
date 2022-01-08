@@ -85,7 +85,7 @@ def file_retrieve(filename):
     while True:
         if idx % 500 == 0:
             print(idx)
-        if idx > 5000:
+        if idx > 65:
             break
         line = file.readline()
         if len(line.strip()) > 300:
@@ -94,7 +94,9 @@ def file_retrieve(filename):
             idx += 1
             batch_data.append(line.strip())
             if idx % 64 == 0:
+                start = time.time()
                 resp = sementic_retrieval_batch(batch_data, 10)
+                print("1time cost:", time.time() - start)
                 for query, candidates in resp.items():
                     if candidates[1][1] >= 100:
                         fail_cnt += 1

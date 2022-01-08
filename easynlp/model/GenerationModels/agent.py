@@ -396,13 +396,19 @@ class GenerationAgent(GenerationBaseAgent):
     def generate(self, batch):
         '''work with the deploy/genetation.py'''
         self.model.eval()
+        sentences = [item['context'] for item in batch['segment_list']]
         if 'decoding_method' in batch:
             self.model.switch_decoding_method(batch['decoding_method'])
         else:
             self.model.switch_decoding_method(self.args['default_decoding_method'])
-        generation_num = batch['generation_num'] if 'generation_num' in batch else self.args['default_generation_num']
+        if 'generation_num' not in batch:
+            generation_num = self.args['default_generation_num']
+        else:
+            generation_num = batch['generation_num']
         self.model.test_max_len = batch['max_gen_len'] if 'max_gen_len' in batch else self.args['max_gen_len']
-        sentences = [item['context'] for item in batch['segment_list']]
+        if 'sampling_prefix_len' in batch:
+            default_sampling_prefix_len = self.args['sampling_prefix_len']
+            self.model.args['sampling_prefix_len'] = batch['sampling_prefix_len']
         rests = []
         for sub in range(0, len(sentences), self.args['inner_bsz']):
             bsz = len(sentences[sub:sub+self.args['inner_bsz']]) 
@@ -419,7 +425,7 @@ class GenerationAgent(GenerationBaseAgent):
             ids_mask = ids_mask.unsqueeze(1).expand(-1, generation_num, -1).reshape(bsz*generation_num, -1)
             pos_ids = pos_ids.unsqueeze(1).expand(-1, generation_num, -1).reshape(bsz*generation_num, -1)
             generations = self.model.predict({
-                'ids': ids, 'ids_mask': ids_mask, 'pos_ids': pos_ids,  
+                'ids': ids, 'ids_mask': ids_mask, 'pos_ids': pos_ids,
             })
             # convert the generations from the ids to tokens
             for i in range(0, len(generations), generation_num):
@@ -432,4 +438,7 @@ class GenerationAgent(GenerationBaseAgent):
                     instance = instance.replace('[UNK]', '')
                     new_rests.append(instance)
                 rests.append(new_rests)
+        # fallback the smapling_prefix_len
+        if 'sampling_prefix_len' in batch:
+            self.model.args['sampling_prefix_len'] = default_sampling_prefix_len
         return rests

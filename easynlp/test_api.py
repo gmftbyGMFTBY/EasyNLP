@@ -504,6 +504,9 @@ def test_generation(args):
             },
         ],
         'decoding_method': 'contrastive_batch_search',
+        'beam_width': 5,
+        'model_prediction_confidence': 0.6,
+        'generation_num': 5,
         # 'decoding_method': 'topk_topp_repetition_penalty_batch_fast_search',
     }]
 
