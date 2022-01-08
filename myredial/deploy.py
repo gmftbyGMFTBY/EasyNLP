@@ -7,6 +7,7 @@ def create_app():
     app = Flask(__name__)
 
     rerank_args = load_deploy_config('rerank')
+    generation_args = load_deploy_config('generation')
     recall_args = load_deploy_config('recall')
     pipeline_args = load_deploy_config('pipeline')
     pipeline_evaluation_args = load_deploy_config('pipeline_evaluation')
@@ -14,6 +15,10 @@ def create_app():
         rerankagent = RerankAgent(rerank_args)
         print(f'[!] Rerank agent activate')
         rerank_logger = init_logging(rerank_args)
+    if generation_args['activate']:
+        generationagent = DeployGenerationAgent(generation_args)
+        print(f'[!] Generation agent activate')
+        generation_logger = init_logging(generation_args)
     if recall_args['activate']:
         recallagent = RecallAgent(recall_args)
         print(f'[!] Recall agent activate')
@@ -294,6 +299,72 @@ def create_app():
             result['item_list'] = None
         # log
         push_to_log(result, recall_logger)
+     
+    @app.route('/generation', methods=['POST'])
+    def generation_api():
+        '''
+        {
+            'segment_list': [
+                {
+                    'context': 'context1', 
+                    'status': 'editing'
+                },
+                ...
+            ],
+            'decoding_method': 'contrastive_search_batch',    # defualt is the contrastive_search_batch
+            'generation_num': 3,    # default generation_num is 3
+            'max_gen_len': 64,
+            'lang': 'zh',
+            'uuid': '',
+            'user': '',
+        }
+        {
+            'header': {
+                'time_cost_ms': 0.01,
+                'time_cost': 0.01,
+                'core_time_cost_ms': 0.01,
+                'core_time_cost': 0.01,
+                'ret_code': 'succ'
+            },
+            'item_list': [
+                {
+                    'context': 'context sentence1',
+                    'generations': [ 
+                        {'str': 'generation_result_1'},
+                        ...
+                    ]
+                }
+            ]
+        }
+        '''
+        try:
+            # data = request.json
+            data = json.loads(request.data)
+            rest, core_time = generationagent.work(data['segment_list'])
+            succ = True
+        except Exception as error:
+            core_time = 0
+            print(error)
+            succ = False
+
+        # packup
+        result = {
+            'header': {
+                'core_time_cost_ms': 1000 * core_time,
+                'core_time_cost': core_time,
+                'ret_code': 'succ' if succ else 'fail',
+            }, 
+        }
+        if succ:
+            rest_ = []
+            for generations, batch in zip(rest, data['segment_list']):
+                item = {'context': batch['context']}
+                item['generations'] = [{'str': s} for s in generations]
+                rest_.append(item)
+            result['item_list'] = rest_
+        else:
+            result['item_list'] = None
+        push_to_log(result, generation_logger)
         return jsonify(result)
 
     return app

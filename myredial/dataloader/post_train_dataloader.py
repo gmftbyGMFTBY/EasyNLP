@@ -1018,3 +1018,66 @@ class PostTrainMonoWriterDataset(Dataset):
             'mask_labels': mask_labels, 
             'attn_mask': attn_mask, 
         }
+
+        
+class WZPostTrainMonoDataset(Dataset):
+
+    def __init__(self, vocab, path, **args):
+        self.args = args
+        self.vocab = vocab
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
+        self.unk = self.vocab.convert_tokens_to_ids('[UNK]')
+        self.mask = self.vocab.convert_tokens_to_ids('[MASK]')
+
+        self.special_tokens = set([self.pad, self.sep, self.cls, self.unk, self.mask])
+        rar_path = f'{args["root_dir"]}/data/{args["dataset"]}/{args["mode"]}.rar'
+        if os.path.exists(rar_path):
+            self.reader = torch.load(rar_path)
+            print(f'[!] load RandomAccesReader Object over')
+        else:
+            self.reader = RandomAccessReader(path)
+            self.reader.init()
+            torch.save(self.reader, rar_path)
+        self.reader.init_file_handler()
+        self.size = self.reader.size
+        print(f'[!] dataset size: {self.size}')
+
+    def __len__(self):
+        return self.size
+
+    def __getitem__(self, i):
+        line = self.reader.get_line(i).strip()
+        tokens = self.vocab.encode(line, add_special_tokens=False)[:self.args['max_len']]
+        ids = [self.cls] + tokens + [self.sep]
+        mask_labels = mask_sentence(
+            ids,
+            self.args['min_mask_num'], 
+            self.args['max_mask_num'], 
+            self.args['masked_lm_prob'], 
+            special_tokens=self.special_tokens, 
+            mask=self.mask, 
+            vocab_size=len(self.vocab),
+        )
+        return ids, mask_labels
+
+    def save(self):
+        pass
+        
+    def collate(self, batch):
+        ids, mask_labels = [], []
+        for ids_, mask_labels_ in batch:
+            ids.append(ids_)
+            mask_labels.append(mask_labels_)
+        ids = [torch.LongTensor(i) for i in ids]
+        mask_labels = [torch.LongTensor(i) for i in mask_labels]
+        ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+        mask_labels = pad_sequence(mask_labels, batch_first=True, padding_value=-1)    # pad is not calculated for MLM
+        attn_mask = generate_mask(ids)
+        ids, mask_labels, attn_mask = to_cuda(ids, mask_labels, attn_mask)
+        return {
+            'ids': ids, 
+            'mask_labels': mask_labels, 
+            'attn_mask': attn_mask, 
+        }

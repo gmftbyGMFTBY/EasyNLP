@@ -145,6 +145,29 @@ def load_fake_partial_rerank_data(path, size=1000):
     data = random.sample(data, size)
     return data
 
+def load_fake_generation_data_from_writer_rank_corpus(path, size=1000):
+    rar_path = f'{args["root_dir"]}/data/{args["dataset"]}/test.rar'
+    reader = torch.load(rar_path)
+    reader.init_file_handler()
+    dataset = [json.loads(reader.get_line(i)) for i in range(reader.size)]
+    data = []
+    for item in tqdm(dataset):
+        sentences = [''.join(s.split()) for s in item['q']]
+        # build the context and 1 ground-truth
+        res_idx = random.randint(0 ,len(sentences)-1)
+        length = len(sentences[res_idx])
+        idx = random.randint(int(0.25*length), int(0.5*length))
+        context = sentences[:res_idx] + [sentences[res_idx][:idx]]
+        context = ''.join(context)
+        data.append({
+            'segment_list': [{
+                'context': context, 
+            }],
+            'lang': 'zh',
+        })
+    data = random.sample(data, size)
+    return data
+
 
 def load_fake_rerank_data_from_writer_rank_corpus(path, size=1000):
     rar_path = f'{args["root_dir"]}/data/{args["dataset"]}/test.rar'
@@ -223,6 +246,7 @@ def load_fake_rerank_data(path, size=1000):
 def load_wz_recall_data(path, size=1000):
     '''for pipeline and recall test'''
     dataset = read_text_data_line_by_line(path)
+    dataset = set([line.strip().split('\t')[0] for line in dataset])
     data = []
     for i in tqdm(dataset):
         data.append({
@@ -462,6 +486,69 @@ def test_pipeline(args):
     print(f'[!] avg time cost: {avg_t} ms; avg recall time cost: {avg_recall_t} ms; avg rerank time cost {avg_rerank_t} ms; error ratio: {round(error_counter/len(data), 4)}')
     return collections
 
+def test_generation(args):
+    data = load_fake_generation_data_from_writer_rank_corpus(
+        f'{args["root_dir"]}/data/{args["dataset"]}/test.txt',
+        size=args['size'],
+    )
+    # rerank test begin
+    avg_times = []
+    collections = []
+    error_counter = 0
+    pbar = tqdm(data)
+    for data in pbar:
+        data = json.dumps(data)
+        rest = SendPOST(args['url'], args['port'], '/generation', data)
+        if rest['header']['ret_code'] == 'fail':
+            error_counter += 1
+        else:
+            collections.append(rest)
+            avg_times.append(rest['header']['core_time_cost_ms'])
+        pbar.set_description(f'[!] time: {round(np.mean(avg_times), 2)} ms; error: {error_counter}')
+        pprint.pprint(rest)
+        ipdb.set_trace()
+    avg_t = round(np.mean(avg_times), 4)
+    print(f'[!] avg rerank time cost: {avg_t} ms; error ratio: {round(error_counter/len(data), 4)}')
+    return collections
+
+def test_pipeline(args):
+    data = load_pipeline_data_with_worker_id(
+        f'{args["root_dir"]}/data/{args["dataset"]}/test.txt',
+        size=args['size'],
+    )
+    # pipeline test begin
+    avg_times = []
+    avg_recall_times = []
+    avg_rerank_times = []
+    collections = []
+    error_counter = 0
+    pbar = tqdm(list(enumerate(data)))
+    for idx, data in pbar:
+        data = json.dumps(data)
+        rest = SendPOST(args['url'], args['port'], '/pipeline_evaluation', data)
+        # rest = SendPOST(args['url'], args['port'], '/pipeline', data)
+        if rest['header']['ret_code'] == 'fail':
+            error_counter += 1
+            print(f'[!] ERROR happens in sample {idx}')
+        else:
+            collections.append(rest)
+            avg_times.append(rest['header']['core_time_cost_ms'])
+            avg_recall_times.append(rest['header']['recall_core_time_cost_ms'])
+            avg_rerank_times.append(rest['header']['rerank_core_time_cost_ms'])
+        pbar.set_description(f'[!] time: {round(np.mean(avg_times), 2)} ms; error: {error_counter}')
+        # for debug
+        print(rest)
+    # show the result
+    for name in ['R@1000', 'R@500', 'R@100', 'R@50', 'MRR']:
+        print(f'{name}: {rest["results"][name]}')
+    avg_t = round(np.mean(avg_times), 4)
+    avg_recall_t = round(np.mean(avg_recall_times), 4)
+    avg_rerank_t = round(np.mean(avg_rerank_times), 4)
+    print(f'[!] avg time cost: {avg_t} ms; avg recall time cost: {avg_recall_t} ms; avg rerank time cost {avg_rerank_t} ms; error ratio: {round(error_counter/len(data), 4)}')
+    return collections
+
+
+
 
 if __name__ == '__main__':
     # topk rewrite
@@ -476,6 +563,7 @@ if __name__ == '__main__':
         'rerank': test_rerank,
         'partial_rerank': test_partial_rerank,
         'pipeline': test_pipeline,
+        'generation': test_generation,
     }
     collections = MAP[args['mode']](args)
     
@@ -503,6 +591,12 @@ if __name__ == '__main__':
                     f.write(f'[Context] {item["context"]}\n')
                     for i in item['candidates']:
                         f.write(f'[Score {round(i["score"], 2)}] {i["str"]}\n')
+                    f.write('\n')
+            elif args['mode'] in ['generation']:
+                for item in data:
+                    f.write(f'[Context] {item["context"]}\n')
+                    for i in item['generations']:
+                        f.write(f'[Candidates] {i["str"]}\n')
                     f.write('\n')
             else:
                 raise Exception(f'[!] Unkown mode: {args["mode"]}')

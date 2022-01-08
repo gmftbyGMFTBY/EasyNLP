@@ -36,6 +36,8 @@ class GenerationAgent(GenerationBaseAgent):
             self.test_model = self.test_model_inference
         elif self.args['model'] in ['gpt2-contrastive-search']:
             self.train_model = self.train_model_contrastive_search
+        elif self.args['model'] in ['gpt2-un', 'gpt-un-seq']:
+            self.train_model = self.train_model_un
 
     def build_offline_index(self, iter_):
         size = self.model.module.build_offline_index(iter_)
@@ -46,6 +48,7 @@ class GenerationAgent(GenerationBaseAgent):
         self.optimizer.zero_grad()
         with autocast():
             mle_loss, mle_acc, cl_loss = self.model(batch)
+            cl_loss *= self.args['cl_loss_alpha']
             loss = mle_loss + cl_loss
             loss /= self.args['iter_to_accumulate']
         self.scaler.scale(loss).backward()
@@ -124,15 +127,11 @@ class GenerationAgent(GenerationBaseAgent):
         pbar.set_description(f'[!] loss(lm|cg|fg): {round(lm_loss.item(), 4)}|{round(cg_loss.item(), 4)}|{round(fg_loss.item(), 4)}; acc(lm|fg): {round(token_acc*100, 2)}|{round(fg_acc*100, 2)}')
         pbar.update(1)
         return loss, token_acc
-
+    
     def train_model(self, batch, recoder=None, current_step=0, pbar=None):
         self.model.train()
         self.optimizer.zero_grad()
         with autocast():
-            if self.args['model'] in ['gpt2-un-seq'] and current_step >= self.args['seq_un_begin_step']:
-                batch['token_un'] = False
-            else:
-                batch['token_un'] = True
             loss, token_acc = self.model(batch)
             loss /= self.args['iter_to_accumulate']
         self.scaler.scale(loss).backward()
@@ -145,7 +144,38 @@ class GenerationAgent(GenerationBaseAgent):
         if recoder:
             recoder.add_scalar(f'train/RunLoss', loss.item(), current_step)
             recoder.add_scalar(f'train/TokenAcc', token_acc, current_step)
-        pbar.set_description(f'[!] loss: {round(loss.item(), 4)}; acc: {round(token_acc*100, 2)}')
+        pbar.set_description(f'[!] loss(mle): {round(loss.item(), 4)}; acc: {round(token_acc*100, 2)}')
+        pbar.update(1)
+        return loss, token_acc
+
+
+    def train_model_un(self, batch, recoder=None, current_step=0, pbar=None):
+        self.model.train()
+        self.optimizer.zero_grad()
+        with autocast():
+            # unlikelyhood training
+            if self.args['model'] in ['gpt2-un-seq'] and current_step >= self.args['seq_un_begin_step']:
+                batch['token_un'] = False
+            else:
+                batch['token_un'] = True
+            mle_loss, un_loss, token_acc = self.model(batch)
+
+
+            loss = mle_loss + un_loss
+            loss /= self.args['iter_to_accumulate']
+        self.scaler.scale(loss).backward()
+        if (current_step + 1) % self.args['iter_to_accumulate'] == 0:
+            self.scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+        self.scheduler.step()
+        if recoder:
+            recoder.add_scalar(f'train/RunLoss', loss.item(), current_step)
+            recoder.add_scalar(f'train/RunMLELoss', mle_loss.item(), current_step)
+            recoder.add_scalar(f'train/RunUNLoss', un_loss.item(), current_step)
+            recoder.add_scalar(f'train/TokenAcc', token_acc, current_step)
+        pbar.set_description(f'[!] loss(mle|un): {round(mle_loss.item(), 4)}|{round(un_loss.item(), 4)}; acc: {round(token_acc*100, 2)}')
         pbar.update(1)
         return loss, token_acc
 
@@ -157,17 +187,32 @@ class GenerationAgent(GenerationBaseAgent):
         distinct_char_1, distinct_char_3, distinct_char_5 = [], [], []
         distinct_word_1, distinct_word_3, distinct_word_5 = [], [], []
         for idx, batch in enumerate(pbar):
+            # gpt2 batch inference need the positional ids and the left padding mechanism
             if self.args['mode'] == 'train':
                 logits = self.model.module.predict(batch)
-                ppl = self.model.module.calculate_ppl(batch['ids'], batch['ids_mask'], batch['ids_label'])
+                ppl = self.model.module.calculate_ppl(
+                    batch['ids'], 
+                    batch['ids_mask'], 
+                    batch['pos_ids'],
+                    batch['ids_label']
+                )
             else:
                 logits = self.model.predict(batch)
-                ppl = self.model.calculate_ppl(batch['ids'], batch['ids_mask'], batch['ids_label'])
+                ppl = self.model.calculate_ppl(
+                    batch['ids'], 
+                    batch['ids_mask'], 
+                    batch['pos_ids'],
+                    batch['ids_label']
+                )
             PPL.append(ppl)
             if print_output:
                 for c, r in zip(batch['ids'], logits):
-                    ctx = ''.join([i for i in self.vocab.convert_ids_to_tokens(c) if i not in ['[CLS]', '[PAD]', '[SEP]']])
-                    res = ''.join([i for i in self.vocab.convert_ids_to_tokens(r) if i not in ['[CLS]', '[PAD]', '[SEP]']])
+                    if self.args['lang'] == 'en':
+                        ctx = ' '.join([i for i in self.vocab.convert_ids_to_tokens(c) if i not in ['[CLS]', '[PAD]', '[SEP]', '<|endoftext|>']])
+                        res = ' '.join([i for i in self.vocab.convert_ids_to_tokens(r) if i not in ['[CLS]', '[PAD]', '[SEP]', '<|endoftext|>']])
+                    else:
+                        ctx = ''.join([i for i in self.vocab.convert_ids_to_tokens(c) if i not in ['[CLS]', '[PAD]', '[SEP]']])
+                        res = ''.join([i for i in self.vocab.convert_ids_to_tokens(r) if i not in ['[CLS]', '[PAD]', '[SEP]']])
                     self.log_save_file.write(f'[Prefix     ] {ctx}\n')
                     self.log_save_file.write(f'[Generation ] {res}\n\n')
                     self.log_save_file.flush()
@@ -349,3 +394,42 @@ class GenerationAgent(GenerationBaseAgent):
         for idx, batch in enumerate(pbar):            
             if self.args['mode'] == 'train':
                 logits = self.model.module.predict(batch)     # [B, S, V]
+
+    @torch.no_grad()
+    def generate(self, batch):
+        '''work with the deploy/genetation.py'''
+        self.model.eval()
+        if 'decoding_method' in batch:
+            self.model.switch_decoding_method(batch['decoding_method'])
+        else:
+            self.model.switch_decoding_method(self.args['default_decoding_method'])
+        generation_num = batch['generation_num'] if 'generation_num' in batch else self.args['default_generation_num']
+        self.model.test_max_len = batch['max_gen_len'] if 'max_gen_len' in batch else self.args['max_gen_len']
+        sentences = [item['context'] for item in batch]
+        rests = []
+        for sub in range(0, len(sentences), self.args['inner_bsz']):
+            bsz = len(sentences[sub:sub+self.args['inner_bsz']]) 
+            # prepare the inputs: ids, ids_mask, pos_ids; make sure the left padding
+            tokens = [self.vocab.encode(s)[-self.args['max_prefix_len']:] for s in sentences[sub:sub+self.args['inner_bsz']]]
+            max_length = max([len(item) for item in tokens])
+            tokens = [[self.model.pad] * (max_length - len(item)) + item for item in tokens]
+            ids = torch.LongTensor(tokens)
+            ids_mask = generate_mask(ids, pad_token_idx=self.model.pad)
+            pos_ids = (ids_mask.long().cumsum(-1) - 1).masked_fill(ids_mask == self.model.pad, 0) 
+            ids, ids_mask, pos_ids = to_cuda(ids, ids_mask, pos_ids)
+            # expand for the top-k results
+            ids = ids.unsqueeze(1).expand(-1, generation_num, -1).reshape(bsz*generation_num, -1)
+            ids_mask = ids_mask.unsqueeze(1).expand(-1, generation_num, -1).reshape(bsz*generation_num, -1)
+            pos_ids = pos_ids.unsqueeze(1).expand(-1, generation_num, -1).reshape(bsz*generation_num, -1)
+            generations = self.model.predict({
+                'ids': ids, 'ids_mask': ids_mask, 'pos_ids': pos_ids,  
+            })
+            # convert the generations from the ids to tokens
+            for i in range(0, len(generations), generation_num):
+                sep = '' if self.args['lang'] == 'zh' else ' '
+                rest_for_one_instance = [sep.join(self.vocab.convert_ids_to_tokens(generations[i+j])) for j in range(generation_num)]
+                if '[SEP]' in rest_for_one_instance:
+                    rest_for_one_instance = rest_for_one_instance[:rest_for_one_instance.index('[SEP]')]
+                rest_for_one_instance = [item.replace('[UNK]', '') for item in rest_for_one_instance]
+                rests.append(rest_for_one_instance)
+        return rests

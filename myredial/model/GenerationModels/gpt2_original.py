@@ -14,17 +14,68 @@ class GPT2OriginalModel(nn.Module):
         self.gen_loss_fct = nn.CrossEntropyLoss(ignore_index=self.pad)
         self.special_tokens = set([self.pad, self.unk, self.cls, self.sep])
         self.args = args
+        self.topk = args['topk']
+        self.topp = args['topp']
 
     @torch.no_grad()
-    def calculate_ppl(self, ids, ids_mask, label):
-        output = self.model(input_ids=ids, attention_mask=ids_mask)
+    def calculate_ppl(self, ids, ids_mask, pos_ids, label):
+        output = self.model(input_ids=ids, attention_mask=ids_mask, position_ids=pos_ids)
         logits = output.logits
         loss = self.gen_loss_fct(logits.view(-1, logits.size(-1)), label.view(-1))
         return math.exp(loss.item())
 
     @torch.no_grad()
     def predict(self, batch):
-        '''greedy search with batch inference, pad in the left'''
+        '''contrastive search'''
+        self.model.eval()
+        ids = batch['ids']
+        ids_mask = batch['ids_mask']
+        ids_pos = batch['pos_ids']
+        batch_size, seqlen = ids.size()
+        generated = [[] for _ in range(batch_size)]
+
+        past_key_values = None
+        last_hidden_states = None
+        first_step = 0
+        logits = None
+        for step in range(self.test_max_len):
+            ids, past_key_values, last_hidden_states, logits = ContrastiveDecodingOneStepBatch(
+                self.model,
+                ids,
+                ids_mask,
+                ids_pos,
+                self.args['beam_width'],
+                self.args['model_prediction_confidence'],
+                self.args['contrastive_topk'],
+                self.args['contrastive_topp'],
+                self.args['sampling_probability'],
+                self.pad,
+                min(1., (step+1)/self.args['sep_smooth_length']),
+                past_key_values,
+                last_hidden_states,
+                self.vocab,
+                logits,
+                first_step=first_step == 0,
+            )
+            ids_pos = 1 + ids_pos[:, -1].unsqueeze(dim=-1)
+            ids_mask = torch.ones_like(ids)
+            first_step += 1
+            # collect ids: [B, 1]
+            tokens = ids.squeeze(dim=-1).tolist()
+            for idx, t in enumerate(tokens):
+                generated[idx].append(t)
+            if max([len(i) for i in generated]) > self.test_max_len:
+                break
+        # ignore the special tokens
+        rest = []
+        for g in generated:
+            g = [i for i in g if i not in self.special_tokens]
+            rest.append(g)
+        return rest
+
+    @torch.no_grad()
+    def _predict(self, batch):
+        '''topk-topp search with batch inference, pad in the left'''
         self.model.eval()
         ids = batch['ids']
         ids_mask = batch['ids_mask']
@@ -46,7 +97,15 @@ class GPT2OriginalModel(nn.Module):
             next_token_logits = logits[:, -1, :]    # [B, V]
             next_token_logits[:, self.unk] = -np.inf
             next_token_logits[:, self.sep] /= min(1.0, (step+1)/self.args['sep_smooth_length']) 
-            next_token = next_token_logits.max(dim=-1)[1].unsqueeze(1)    # [B, 1]
+            filtered_logits = top_k_top_p_filtering_batch(
+                next_token_logits,
+                top_k=self.topk,
+                top_p=self.topp
+            )
+            next_token = torch.multinomial(
+                F.softmax(filtered_logits, dim=-1),
+                num_samples=1
+            )
             for idx, t in enumerate(next_token.squeeze(-1).tolist()):
                 generated[idx].append(t)
             if max([len(i) for i in generated]) > self.test_max_len:

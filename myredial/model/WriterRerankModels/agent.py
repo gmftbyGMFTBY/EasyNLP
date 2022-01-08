@@ -51,10 +51,10 @@ class WriterRerankAgent(RetrievalBaseAgent):
         self.model.train()
         # gpt2 batch inference
         batch = self.gpt2_batch_inference(batch, self.args['inference_time'], current_step)
-        # discriminator
         self.optimizer.zero_grad()
         with autocast():
-            loss, acc = self.model(batch)
+            loss1, loss2, loss3, acc1, acc2, acc3 = self.model(batch)
+            loss = loss1 + loss2 + loss3
         self.scaler.scale(loss).backward()
         self.scaler.unscale_(self.optimizer)
         clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
@@ -63,10 +63,14 @@ class WriterRerankAgent(RetrievalBaseAgent):
         self.scheduler.step()
         if recoder:
             recoder.add_scalar(f'train/RunLoss', loss.item(), current_step)
-            recoder.add_scalar(f'train/RunAcc', acc, current_step)
+            recoder.add_scalar(f'train/RunLoss_en', loss1.item(), current_step)
+            recoder.add_scalar(f'train/RunLoss_hn', loss2.item(), current_step)
+            recoder.add_scalar(f'train/RunLoss_en_hn', loss3.item(), current_step)
+            recoder.add_scalar(f'train/RunAcc_en', acc1, current_step)
+            recoder.add_scalar(f'train/RunAcc_hn', acc2, current_step)
+            recoder.add_scalar(f'train/RunAcc_en_hn', acc3, current_step)
         pbar.update(1)
-        pbar.set_description(f'[!] loss: {round(loss.item(), 4)}; acc: {round(acc*100, 2)}')
-        return loss, acc
+        pbar.set_description(f'[!] loss: {round(loss.item(), 4)}; acc(en|hn|en+hn): {round(acc1*100, 2)}|{round(100*acc2, 2)}|{round(100*acc3, 2)}')
    
     @torch.no_grad()
     def test_model(self, test_iter, print_output=True):

@@ -70,7 +70,8 @@ class SemanticSimilarityAgent(SimCSEBaseAgent):
     def inference_wz_simcse(self, inf_iter, size=500000):
         self.model.eval()
         pbar = tqdm(inf_iter)
-        embds, texts, indexes = [], [], []
+        embds, texts = [], []
+        idx = 0
         for batch in pbar:
             ids = batch['ids']
             tids = batch['tids']
@@ -79,15 +80,16 @@ class SemanticSimilarityAgent(SimCSEBaseAgent):
             res = self.model.module.get_embedding(ids, tids, ids_mask).cpu()
             embds.append(res)
             texts.extend(text)
-        embds = torch.cat(embds, dim=0).numpy()
 
-        for idx, i in enumerate(range(0, len(embds), size)):
-            embd = embds[i:i+size]
-            text = texts[i:i+size]
-            torch.save(
-                (embd, text), 
-                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_wz_simcse_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
-            )
+            if len(texts) > size:
+                # writer
+                embds = torch.cat(embds, dim=0).numpy()
+                torch.save(
+                    (embds, texts), 
+                    f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_wz_simcse_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
+                )
+                embds, texts = [], []
+                idx += 1
     
     def load_model(self, path):
         if self.args['mode'] == 'train':
@@ -128,7 +130,7 @@ class SemanticSimilarityAgent(SimCSEBaseAgent):
             self.optimizer.zero_grad()
             with autocast():
                 cl_loss, de_loss, cl_acc, de_acc = self.model(batch)
-                loss = cl_loss + de_loss
+                loss = cl_loss + de_loss * self.args['alpha_weight']
             self.scaler.scale(loss).backward()
             self.scaler.unscale_(self.optimizer)
             clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
@@ -185,13 +187,20 @@ class SemanticSimilarityAgent(SimCSEBaseAgent):
             return
         label_list, sim_list = [], []
         for idx, batch in enumerate(pbar):                
-            label_list.append(batch['label'])
-            ids, tids, ids_mask = batch['ids'], batch['tids'], batch['ids_mask']
+            label_list.extend(batch['label'])
+            ids, tids, ids_mask = batch['s1_ids'], batch['s1_tids'], batch['s1_ids_mask']
+            ids_1, tids_1, ids_mask_1 = batch['s2_ids'], batch['s2_tids'], batch['s2_ids_mask']
             if self.args['mode'] in ['train']:
-                scores = self.model.module.predict(ids, tids, ids_mask)    # [B]
+                scores = self.model.module.predict(
+                    ids, tids, ids_mask,
+                    ids_1, tids_1, ids_mask_1,    
+                )    # [B]
             else:
-                scores = self.model.predict(ids, tids, ids_mask)    # [B]
-            sim_list.append(scores)
+                scores = self.model.predict(
+                    ids, tids, ids_mask,
+                    ids_1, tids_1, ids_mask_1,    
+                )    # [B]
+            sim_list.extend(scores)
         corrcoef = scipy.stats.spearmanr(label_list, sim_list).correlation
         return {
             'corrcoef': round(corrcoef, 4),

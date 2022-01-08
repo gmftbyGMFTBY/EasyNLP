@@ -46,7 +46,7 @@ def load_deploy_config(api_name):
     # base config
     args = load_base_config()
 
-    if api_name in ['recall', 'rerank']:
+    if api_name in ['recall', 'rerank', 'generation']:
         # load deploy parameters from base config
         args.update(args['deploy'])
         args.update(args['deploy'][api_name])
@@ -82,3 +82,5 @@ def load_deploy_config(api_name):
         args['rerank'] = rerank_args
         args['recall'] = recall_args
         return args
+    else:
+        raise Exception(f'[!] Unknow deploy mode: {api_name}')

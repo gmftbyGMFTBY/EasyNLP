@@ -12,15 +12,15 @@ pretrained_model:
 # train configuration
 train:
     lr: 0.00003
-    grad_clip: 5.0
+    grad_clip: 1.0
     seed: 0
-    batch_size: 128
-    max_len: 128
+    batch_size: 256
+    max_len: 64
     min_len: 5
     min_mask_num: 1
     max_mask_num: 20
     masked_lm_prob: 0.15
-    epoch: 1
+    epoch: 10
     warmup_ratio: 0.01
     checkpoint: 
         path: bert-fp/best_bert-base-chinese.pt

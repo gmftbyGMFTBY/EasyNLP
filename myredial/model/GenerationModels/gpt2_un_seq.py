@@ -12,8 +12,8 @@ class GPT2UNSeqModel(nn.Module):
         super(GPT2UNSeqModel, self).__init__()
         model = args['pretrained_model']
         self.model = GPT2LMHeadModel.from_pretrained(model)
-        # self.vocab = BertTokenizerFast.from_pretrained(model)
         self.vocab = AutoTokenizer.from_pretrained(model)
+        # wikitext103 all the special tokens are the same
         self.unk, self.pad, self.cls, self.sep = [self.vocab.eos_token_id] * 4
         self.test_max_len = args['test_max_len']
         self.gen_loss_fct = nn.CrossEntropyLoss(ignore_index=self.pad)
@@ -37,8 +37,9 @@ class GPT2UNSeqModel(nn.Module):
         return mask 
 
     @torch.no_grad()
-    def calculate_ppl(self, ids, ids_mask, label):
-        gen_logits = self.model(input_ids=ids, attention_mask=ids_mask)
+    def calculate_ppl(self, ids, ids_mask, pos_ids, label):
+        self.model.eval()
+        gen_logits = self.model(input_ids=ids, position_ids=pos_ids, attention_mask=ids_mask)
         gen_logits = gen_logits.logits
         shift_logits = gen_logits[..., :-1, :].contiguous()
         shift_labels = label[..., 1:].contiguous()
@@ -157,7 +158,9 @@ class GPT2UNSeqModel(nn.Module):
         bsz, seqlen, vsz = logits.size()
         logits = F.softmax(logits, dim=-1)    # [B, S, V]
         cands = target.unsqueeze(1).expand(-1, target.size(-1), -1)    # [B, S, S]
-        cands = cands.tril(-1)    # [B, S, S]
+        pad_matrix = torch.zeros_like(cands).to(torch.long)
+        pad_matrix.fill_(self.pad)
+        cands = cands.tril(-1) + pad_matrix.triu()
         # donot include it self
         cands = cands.masked_fill(cands == target.unsqueeze(2), self.pad)
         negative_cands = torch.zeros_like(logits).scatter(2, cands, 1).to(torch.long)    # [B, S, V]
@@ -174,20 +177,16 @@ class GPT2UNSeqModel(nn.Module):
         #     negative_cands, 0
         # )
         loss = -torch.log(torch.clamp(1 - logits, min=1e-5)) * negative_cands    # [B, S, V]
-        # loss = loss.sum(dim=-1).mean()
-        loss = loss.mean()
-        return loss
+        return loss.sum(dim=-1).mean()
 
     def forward(self, batch):
         ids = batch['ids']
         ids_mask = batch['ids_mask']
-        pos_ids = batch['pos_ids']
 
         batch_size = ids.shape[0]
         gen_logits = self.model(
             input_ids=ids, 
             attention_mask=ids_mask,
-            position_ids=pos_ids
         )
         gen_logits = gen_logits.logits
 
@@ -203,7 +202,7 @@ class GPT2UNSeqModel(nn.Module):
         # token acc
         chosen_tokens = torch.max(shift_logits, dim=-1)[1]    # [B, S-1]
         gen_acc = (chosen_tokens.view(-1) == shift_labels.view(-1)).to(torch.long)
-        valid_mask = (shift_labels != 0).view(-1)
+        valid_mask = (shift_labels != self.pad).view(-1)
         valid_tokens = gen_acc & valid_mask
         gen_acc = valid_tokens.sum().item() / valid_mask.sum().item()
 
@@ -213,5 +212,4 @@ class GPT2UNSeqModel(nn.Module):
         else:
             # sequence-level unlikelyhood loss
             un_loss = self.sequence_unlikelyhood(batch)
-        loss = loss + un_loss
-        return loss, gen_acc
+        return loss, un_loss, gen_acc

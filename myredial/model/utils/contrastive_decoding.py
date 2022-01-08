@@ -1,5 +1,5 @@
 from .header import *
-from .gen_utils import top_k_top_p_filtering
+from .gen_utils import *
 
 def ranking(context_hidden, next_hidden, next_top_k_ids, next_top_k_probs, model_prediction_confidence):
     '''
@@ -137,7 +137,7 @@ def ContrastiveDecodingOneStepBatch(
         next_probs = F.softmax(logit_for_next_step, dim=-1)
         _, top_k_ids = torch.topk(logit_for_next_step, dim=-1, k=beam_width)    # [B, K]
         top_k_probs = torch.gather(next_probs, dim=1, index=top_k_ids)    # [B, K]
-        # compute new hidden
+        # next stage: move forward one step to rerank the tokens by the motivation of the contrastive search
         past_key_values = enlarge_past_key_values(past_key_values, beam_width)
         ids_pos_new = ids_pos.unsqueeze(1).expand(-1, beam_width, -1).reshape(bsz*beam_width, -1)[:, -1].unsqueeze(dim=-1) + 1
         output = model(
@@ -168,10 +168,22 @@ def ContrastiveDecodingOneStepBatch(
         past_key_values = select_past_key_values(past_key_values, beam_width, selected_idx)
         logits = torch.stack(torch.split(logits, beam_width))[range(bsz), selected_idx, :]    # [B, V]
     else:
-        logit_for_next_step = logits[0, -1, :]
-        filtered_logits = top_k_top_p_filtering(logits[0, -1, :], top_k=top_k, top_p=top_p)
+        filtered_logits = top_k_top_p_filtering_batch(logit_for_next_step, top_k=top_k, top_p=top_p)
         probabilities = F.softmax(filtered_logits, dim=-1)
-        next_id = torch.multinomial(probabilities, 1)
+        next_id = torch.multinomial(F.softmax(filtered_logits, dim=-1), num_samples=1)
+        # also move forward one step: inactivate the enlarge_past_key_values
+        output = model(
+            input_ids=next_id, 
+            attention_mask=torch.ones_like(next_id.view(-1, 1)),
+            position_ids=ids_pos[:, -1].unsqueeze(dim=-1) + 1,
+            past_key_values=past_key_values,
+            output_hidden_states=True,
+            use_cache=True,
+        )
+        past_key_values = output.past_key_values
+        logits = output.logits[:, -1, :]    # [B, V]
+        next_hidden = output.hidden_states[-1]    # [B, 1, E]
+        last_hidden_states = torch.cat([last_hidden_states, next_hidden], dim=1)    # [B, S, E]
     # next_id: [B, 1]
     return next_id, past_key_values, last_hidden_states, logits 
 

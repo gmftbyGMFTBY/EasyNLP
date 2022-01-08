@@ -370,24 +370,29 @@ class InferenceWZSimCSEDataset(Dataset):
                 self.reader.init()
                 torch.save(self.reader, rar_path)
             self.reader.init_file_handler()
-            self.size = self.reader.size
+            self.overall_size = self.reader.size
+
+            # squeeze the dataset size
+            self.size = 300000
         else:
-            # test use the cnsd-sts-b-test set
             dataset = []
             with open(path) as f:
                 for line in f.readlines():
-                    items = line.strip().split('||')[1:]
+                    items = line.strip().split('\t')
                     assert len(items) == 3
                     s1, s2, l = items
                     dataset.append((s1, s2, int(l)))
             self.data = dataset
+            self.data = self.data[:10000]
             self.size = len(self.data)
 
     def __len__(self):
         return self.size
 
     def __getitem__(self, i):
+        # random sample a data point
         if self.args['mode'] in ['train', 'inference']:
+            i = random.choice(range(self.overall_size))
             line = self.reader.get_line(i).strip()
             return line
         else:
@@ -411,17 +416,26 @@ class InferenceWZSimCSEDataset(Dataset):
                 'text': batch
             }
         else:
-            assert len(batch) == 1
-            s1, s2, l = batch[0]
-            output = self.vocab([s1, s2], padding=True, max_length=self.args['max_len'], truncation=True, return_tensors='pt')
-            ids = output['input_ids']
-            ids_mask = output['attention_mask']
-            tids = output['token_type_ids']
-            ids, tids, ids_mask = to_cuda(ids, tids, ids_mask)
+            s1, s2, l = [], [], []
+            for a, b, c in batch:
+                s1.append(a)
+                s2.append(b)
+                l.append(c)
+            output = self.vocab(s1, padding=True, max_length=self.args['max_len'], truncation=True, return_tensors='pt')
+            s1_ids = output['input_ids']
+            s1_ids_mask = output['attention_mask']
+            s1_tids = output['token_type_ids']
+            output = self.vocab(s2, padding=True, max_length=self.args['max_len'], truncation=True, return_tensors='pt')
+            s2_ids = output['input_ids']
+            s2_ids_mask = output['attention_mask']
+            s2_tids = output['token_type_ids']
+            s1_ids, s1_tids, s1_ids_mask, s2_ids, s2_tids, s2_ids_mask = to_cuda(s1_ids, s1_tids, s1_ids_mask, s2_ids, s2_tids, s2_ids_mask)
             return {
-                'ids': ids,
-                'tids': tids,
-                'ids_mask': ids_mask,
-                'text': batch,
+                's1_ids': s1_ids,
+                's1_tids': s1_tids,
+                's1_ids_mask': s1_ids_mask,
+                's2_ids': s2_ids,
+                's2_tids': s2_tids,
+                's2_ids_mask': s2_ids_mask,
                 'label': l
             }

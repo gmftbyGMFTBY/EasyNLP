@@ -20,11 +20,12 @@ file_name: news
 
 # decoding methods
 # decoding_method: contrastive_search
-# decoding_method: contrastive_search_batch
+# decoding_method: contrastive_batch_search
 # decoding_method: greedy_search
 # decoding_method: beam_search
 # decoding_method: topk_topp_repetition_penalty_search
 decoding_method: topk_topp_repetition_penalty_fast_search
+# decoding_method: topk_topp_repetition_penalty_batch_fast_search
 # decoding_method: topk_topp_search
 # decoding_method: topk_search
 # decoding_method: topp_search

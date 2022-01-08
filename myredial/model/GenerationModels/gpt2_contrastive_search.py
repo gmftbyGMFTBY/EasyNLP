@@ -20,6 +20,8 @@ class ContrastiveGPT2Encoder(nn.Module):
             self.pad = self.tokenizer.bos_token_id
             self.special_tokens = set([self.tokenizer.bos_token_id])
         self.vocab_size = len(self.tokenizer)
+        self.unk = self.tokenizer.unk_token_id
+        self.sep = self.tokenizer.sep_token_id
 
         # model
         self.model = GPT2LMHeadModel.from_pretrained(model_name)
@@ -30,8 +32,62 @@ class ContrastiveGPT2Encoder(nn.Module):
         self.criterion = nn.CrossEntropyLoss(ignore_index=self.pad)
         self.margin = args['margin']
 
+        self.topk = self.args['contrastive_topk']
+        self.topp = self.args['contrastive_topp']
+    
+    @torch.no_grad()
+    def _predict(self, batch):
+        '''topk-topp search with batch inference, pad in the left'''
+        self.model.eval()
+        ids = batch['ids']
+        ids_mask = batch['ids_mask']
+        ids_pos = batch['pos_ids']
+        batch_size, seqlen = ids.size()
+        generated = [[] for _ in range(batch_size)]
+        past_key_values = None
+        step = 0
+        while True:
+            output = self.model(
+                input_ids=ids,
+                attention_mask=ids_mask,
+                position_ids=ids_pos,
+                past_key_values=past_key_values,
+                use_cache=True
+            )
+            logits = output.logits
+            past_key_values = output.past_key_values
+            next_token_logits = logits[:, -1, :]    # [B, V]
+            next_token_logits[:, self.unk] = -np.inf
+            next_token_logits[:, self.sep] /= min(1.0, (step+1)/self.args['sep_smooth_length']) 
+            filtered_logits = top_k_top_p_filtering_batch(
+                next_token_logits,
+                top_k=self.topk,
+                top_p=self.topp
+            )
+            next_token = torch.multinomial(
+                F.softmax(filtered_logits, dim=-1) ,
+                num_samples=1,
+            )
+            # next_token = next_token_logits.max(dim=-1)[1].unsqueeze(1)    # [B, 1]
+            for idx, t in enumerate(next_token.squeeze(-1).tolist()):
+                generated[idx].append(t)
+            if max([len(i) for i in generated]) > self.test_max_len:
+                break
+            # reconstruct the ids and ids_mask
+            ids = next_token
+            ids_mask = torch.ones_like(ids)
+            ids_pos = 1 + ids_pos[:, -1].unsqueeze(dim=-1)
+            step += 1
+        # remove the special tokens
+        rest = []
+        for g in generated:
+            g = [i for i in g if i not in self.special_tokens]
+            rest.append(g)
+        return rest
+
     @torch.no_grad()
     def predict(self, batch):
+        '''contrastive search'''
         self.model.eval()
         ids = batch['ids']
         ids_mask = batch['ids_mask']
@@ -98,8 +154,8 @@ class ContrastiveGPT2Encoder(nn.Module):
         cl_loss = contrastive_loss(self.margin, cosine_scores, input_ids, self.pad, prefix_len=0)
         return mle_loss, gen_acc, cl_loss
 
-    def calculate_ppl(self, input_ids, ids_mask, labels):
-        outputs = self.model(input_ids=input_ids, attention_mask=ids_mask)
+    def calculate_ppl(self, input_ids, ids_mask, pos_ids, labels):
+        outputs = self.model(input_ids=input_ids, attention_mask=ids_mask, position_ids=pos_ids)
         logits = outputs.logits
         mle_loss = self.criterion(logits.view(-1, self.vocab_size), labels.view(-1))
         return math.exp(mle_loss.item())

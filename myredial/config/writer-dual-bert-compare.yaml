@@ -1,23 +1,20 @@
-test_interval: 0.0001
+test_interval: 0.05
 temp: 0.05
 valid_during_training: false
 is_step_for_training: true
-inference_time: 2
+inference_time: 3
 total_step: 50010
-easy_cand_num: 7
+nhead: 12
+num_layers: 2
 easy_cand_pool_size: 10
-additional_embeddings: 9
-start_save_step: 10000
 
 # gpt2 configuration
-gpt2_topk: 50
-gpt2_topp: 1.0
+gpt2_topk: 8
+gpt2_topp: 0.93
 gpt2_gen_max_len: 64
 gpt2_gen_max_ctx_len: 128
 gpt2_max_len: 128
 bert_max_len: 192
-# gpt2_max_len: 32
-# bert_max_len: 64
 gpt2_tokenizer: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
 gpt2_pretrained_model: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
 
@@ -30,10 +27,10 @@ pretrained_model:
     
 # corrupt parameters   
 # from easy to hard, curriculumn learning strategy
-corrupt_min_ratio: 0.05
-corrupt_max_ratio: 0.2
-corrupt_min_topk: 1
-corrupt_max_topk: 1
+corrupt_min_ratio: 0.2
+corrupt_max_ratio: 0.4
+corrupt_min_topk: 10
+corrupt_max_topk: 20
 
 ctx_max_len: 128
 res_max_len: 64
@@ -46,8 +43,8 @@ train:
     seed: 0
     test_seed: 0
     batch_size: 16
-    warmup_ratio: 0.05
-    checkpoint: 
+    warmup_ratio: 0.
+    ceckpoint: 
         path: bert-post/best_nspmlm.pt
         is_load: false
 

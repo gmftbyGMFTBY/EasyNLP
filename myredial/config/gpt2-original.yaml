@@ -5,6 +5,15 @@ total_step: 50010
 test_max_len: 128 
 sep_smooth_length: 50
 prefix_len: 32
+topk: 8
+topp: 0.93
+# contrastive search params
+beam_width: 5
+model_prediction_confidence: 0.6
+contrastive_topk: 8
+contrastive_topp: 0.93
+sampling_probability: 0.
+sep_smooth_length: 50
 
 # gpt2 configuration
 test_max_len: 128
@@ -22,7 +31,7 @@ train:
     batch_size: 16
     max_len: 256
     warmup_ratio: 0.
-    iter_to_accumulate: 8
+    iter_to_accumulate: 1
     checkpoint: 
         path: bert-post/best_nspmlm.pt
         is_load: false

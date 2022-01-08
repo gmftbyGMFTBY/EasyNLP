@@ -10,6 +10,8 @@ sep_smooth_length: 50
 contrastive_topk: 8
 contrastive_topp: 0.93
 prefix_len: 32
+margin: 0.5
+cl_loss_alpha: 1.
 
 # gpt2 configuration load locally
 tokenizer: 
@@ -29,7 +31,6 @@ train:
     max_len: 256
     warmup_ratio: 0.
     iter_to_accumulate: 8
-    margin: 0.5
     checkpoint: 
         path: bert-post/best_nspmlm.pt
         is_load: false

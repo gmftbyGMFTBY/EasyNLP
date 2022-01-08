@@ -25,12 +25,11 @@ class SimCSESEEDEncoder(nn.Module):
         attn_mask = batch['ids_mask']
 
         # semantic contrastive learning
-        hidden1 = self.encoder(inpt, attn_mask, tids)
-        hidden2 = self.encoder(inpt, attn_mask, tids)
-        rep1 = hidden1[:, 0, :] / hidden1[:, 0, :].norm(dim=-1, keepdim=True)
-        rep2 = hidden2[:, 0, :] / hidden2[:, 0, :].norm(dim=-1, keepdim=True)
+        rep1 = self.encoder(inpt, attn_mask, tids)
+        rep2 = self.encoder(inpt, attn_mask, tids)
+        # rep1 = hidden1[:, 0, :] / hidden1[:, 0, :].norm(dim=-1, keepdim=True)
+        # rep2 = hidden2[:, 0, :] / hidden2[:, 0, :].norm(dim=-1, keepdim=True)
         dp = torch.matmul(rep1, rep2.t())
-        dp /= self.args['temp']
 
         mask = torch.zeros_like(dp)
         mask[range(len(dp)), range(len(dp))] = 1.
@@ -61,9 +60,10 @@ class SimCSESEEDEncoder(nn.Module):
         return rep
 
     @torch.no_grad()
-    def predict(self, ids, tids, ids_mask):
+    def predict(self, ids, tids, ids_mask, ids_1, tids_1, ids_mask_1):
         self.encoder.eval()
-        rest = self.get_embedding(ids, tids, ids_mask)    # [2, 768]
-        s1, s2 = rest[0], rest[1]
-        scores = (s1 * s2).sum()
-        return scores.item()
+        bsz, _ = ids.size()
+        s1 = self.get_embedding(ids, tids, ids_mask)
+        s2 = self.get_embedding(ids_1, tids_1, ids_mask_1) 
+        scores = torch.matmul(s1, s2.t())[range(bsz), range(bsz)]
+        return scores.tolist()

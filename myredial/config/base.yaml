@@ -370,6 +370,11 @@ models:
         dataset_name: BERTDualFullDataset
         # dataset_name: HORSETestDataset
         inference_dataset_name: null
+    writer-dual-bert-compare: 
+        type: WriterRerank
+        model_name: WriterDualCompareEncoder
+        dataset_name: WriterRankDataset
+        inference_dataset_name: null
     writer-dual-bert-phrase: 
         type: WriterRerank
         model_name: WriterPhraseEncoder
@@ -706,7 +711,8 @@ models:
         type: PostTrain
         model_name: BERTMonolingualPostTrain
         # dataset_name: PostTrainMonoDataset
-        dataset_name: PostTrainMonoWriterDataset
+        # dataset_name: PostTrainMonoWriterDataset
+        dataset_name: WZPostTrainMonoDataset
         inference_dataset_name: null 
     dual-bert-pt: 
         type: Representation
@@ -741,7 +747,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 1
+version: 100
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
 rank: null
@@ -758,7 +764,7 @@ start_save_step: 0
 # ========== Deploy configuration ========== #
 deploy:
     host: '0.0.0.0'
-    port: 22335
+    port: 23336
     dataset: writer-rank
     # dataset: wz_game
     max_len: 128
@@ -772,10 +778,19 @@ deploy:
         index_nprobe: 1
         dimension: 768
     rerank:
-        activate: true
+        activate: false
         model: writer-dual-bert-phrase
     pipeline:
         activate: false
     pipeline_evaluation:
         activate: false
+    generation:
+        activate: true
+        model: gpt2
+        default_generation_num: 3
+        max_prefix_len: 128
+        max_gen_len: 64
+        # the maximum innert batch size for processing
+        inner_bsz: 16
+        default_decoding_method: contrastive_batch_search
 # ========== Deploy configuration ========== #

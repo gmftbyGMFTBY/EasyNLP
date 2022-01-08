@@ -991,3 +991,7 @@ class GraphC:
         # the valid status can be accessed by self.valid
         return stack
 
+# activate dropout mode during inference time
+def apply_dropout(m):
+    if type(m) == nn.Dropout:
+        m.train()

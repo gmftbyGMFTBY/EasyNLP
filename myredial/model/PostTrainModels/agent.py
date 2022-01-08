@@ -68,7 +68,7 @@ class PostTrainAgent(RetrievalBaseAgent):
                 recoder.add_scalar(f'train-epoch-{idx_}/RunTokenAcc', token_acc, idx)
                 recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_cls_acc/batch_num, idx)
                 recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', cls_acc, idx)
-            pbar.set_description(f'[!] loss: {round(total_cls_loss/batch_num, 2)}|{round(total_mlm_loss/batch_num, 2)}; acc: {round(100*total_cls_acc/batch_num, 2)}|{round(100*total_mlm_acc/batch_num, 2)}')
+            pbar.set_description(f'[!] loss: {round(total_cls_loss/batch_num, 4)}|{round(total_mlm_loss/batch_num, 4)}; acc: {round(100*total_cls_acc/batch_num, 2)}|{round(100*total_mlm_acc/batch_num, 2)}')
 
         if recoder:
             recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)

@@ -40,7 +40,7 @@ class GPT2WikiTextDataset(Dataset):
         if self.args['mode'] == 'train':
             ids = [torch.LongTensor(i) for i in batch]
             ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
-            ids_mask = generate_mask(ids)
+            ids_mask = generate_mask(ids, pad_token_idx=self.pad)
             ids, ids_mask = to_cuda(ids, ids_mask)
             return {
                 'ids': ids, 
@@ -49,7 +49,7 @@ class GPT2WikiTextDataset(Dataset):
         else:
             max_length = max([len(i) for i in batch])
             ids = torch.stack([torch.LongTensor([self.pad] * (max_length - len(i)) + i) for i in batch])
-            ids_mask = generate_mask(ids)
+            ids_mask = generate_mask(ids, pad_token_idx=self.pad)
             pos_ids = (ids_mask.long().cumsum(-1) - 1).masked_fill(ids_mask == 0, 0)
             ids, ids_mask, pos_ids = to_cuda(ids, ids_mask, pos_ids)
             return {
@@ -92,21 +92,19 @@ class GPT2WikiTextV2Dataset(Dataset):
         
     def collate(self, batch):
         if self.args['mode'] == 'train':
-            max_length = max([len(i) for i in batch])
-            ids = torch.stack([torch.LongTensor([self.pad] * (max_length - len(i)) + i) for i in batch])
-            ids_mask = torch.stack([torch.LongTensor([0] * (max_length - len(i)) + [1] * len(i)) for i in batch])
-            pos_ids = (ids_mask.long().cumsum(-1) - 1).masked_fill(ids_mask == 0, 0)
-            ids, ids_mask, pos_ids = to_cuda(ids, ids_mask, pos_ids)
+            ids = [torch.LongTensor(i) for i in batch]
+            ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+            ids_mask = generate_mask(ids, pad_token_idx=self.pad)
+            ids, ids_mask = to_cuda(ids, ids_mask)
             return {
                 'ids': ids, 
                 'ids_mask': ids_mask, 
-                'pos_ids': pos_ids,
             }
         else:
             # left pad
             max_length = max([len(i) for i in batch])
             ids = torch.stack([torch.LongTensor([self.pad] * (max_length - len(i)) + i) for i in batch])
-            ids_mask = generate_mask(ids)
+            ids_mask = generate_mask(ids, pad_token_idx=self.pad)
             pos_ids = (ids_mask.long().cumsum(-1) - 1).masked_fill(ids_mask == 0, 0)
             ids, ids_mask, pos_ids = to_cuda(ids, ids_mask, pos_ids)
             return {

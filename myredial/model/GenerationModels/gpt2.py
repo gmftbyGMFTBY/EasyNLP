@@ -19,27 +19,32 @@ class InferenceGPT2Model(nn.Module):
         self.test_max_len = args['gen_max_len']
         self.test_max_ctx_len = args['gen_max_ctx_len']
         self.repetition_penalty = args['repetition_penalty']
-        if args['decoding_method'] == 'contrastive_search':
+        self.args = args
+        self.switch_decoding_method(self.args['decoding_method'])
+
+    def switch_decoding_method(self, method_name):
+        if method_name == 'contrastive_search':
             self.predict = self.predict_contrastive_search
-        elif args['decoding_method'] == 'contrastive_search_batch':
-            self.predict = self.predict_contrastive_search_batch
-        elif args['decoding_method'] == 'greedy_search':
+        elif method_name == 'contrastive_batch_search':
+            self.predict = self.predict_contrastive_batch_search
+        elif method_name == 'greedy_search':
             self.predict = self.predict_greedy_search
-        elif args['decoding_method'] == 'beam_search':
+        elif method_name == 'beam_search':
             self.predict = self.predict_beam_search
-        elif args['decoding_method'] == 'topk_topp_repetition_penalty_search':
+        elif method_name == 'topk_topp_repetition_penalty_search':
             self.predict = self.predict_topk_topp_repetition_penalty
-        elif args['decoding_method'] == 'topk_topp_repetition_penalty_fast_search':
+        elif method_name == 'topk_topp_repetition_penalty_fast_search':
             self.predict = self.predict_topk_topp_repetition_penalty_fast
-        elif args['decoding_method'] == 'topk_topp_search':
+        elif method_name == 'topk_topp_repetition_penalty_batch_fast_search':
+            self.predict = self.predict_topk_topp_repetition_penalty_batch_fast
+        elif method_name == 'topk_topp_search':
             self.predict = self.predict_topk_topp
-        elif args['decoding_method'] == 'topk_search':
+        elif method_name == 'topk_search':
             self.predict = self.predict_topk
-        elif args['decoding_method'] == 'topp_search':
+        elif method_name == 'topp_search':
             self.predict = self.predict_topp
         else:
-            raise Exception(f'[!] cannot find the deocidng method: {args["decoding_method"]}')
-        self.args = args
+            raise Exception(f'[!] cannot find the deocidng method: {method_name}')
 
     @torch.no_grad()
     def calculate_ppl(self, ids, ids_mask, label):
@@ -55,7 +60,7 @@ class InferenceGPT2Model(nn.Module):
         return ppl
     
     @torch.no_grad()
-    def predict_contrastive_search_batch(self, batch):
+    def predict_contrastive_batch_search(self, batch):
         self.model.eval()
         ids = batch['ids']
         ids_mask = batch['ids_mask']
@@ -153,7 +158,56 @@ class InferenceGPT2Model(nn.Module):
             # reconstruct the ids and ids_mask
             ids = torch.cat((ids, next_token.unsqueeze(0)), dim=1)    # [1, S+1]
             ids = ids[:, -self.test_max_ctx_len:]
-        return [generated]
+        return generated
+
+    @torch.no_grad()
+    def predict_topk_topp_repetition_penalty_batch_fast(self, batch):
+        '''topk-topp search with batch inference, pad in the left'''
+        self.model.eval()
+        ids = batch['ids']
+        ids_mask = batch['ids_mask']
+        ids_pos = batch['pos_ids']
+        batch_size, seqlen = ids.size()
+        generated = [[] for _ in range(batch_size)]
+        past_key_values = None
+        step = 0
+        while True:
+            output = self.model(
+                input_ids=ids,
+                attention_mask=ids_mask,
+                position_ids=ids_pos,
+                past_key_values=past_key_values,
+                use_cache=True
+            )
+            logits = output.logits
+            past_key_values = output.past_key_values
+            next_token_logits = logits[:, -1, :]    # [B, V]
+            next_token_logits[:, self.unk] = -np.inf
+            next_token_logits[:, self.sep] /= min(1.0, (step+1)/self.args['sep_smooth_length']) 
+            filtered_logits = top_k_top_p_filtering_batch(
+                next_token_logits,
+                top_k=self.topk,
+                top_p=self.topp
+            )
+            next_token = torch.multinomial(
+                F.softmax(filtered_logits, dim=-1),
+                num_samples=1
+            )
+            for idx, t in enumerate(next_token.squeeze(-1).tolist()):
+                generated[idx].append(t)
+            if max([len(i) for i in generated]) > self.test_max_len:
+                break
+            # reconstruct the ids and ids_mask
+            ids = next_token
+            ids_mask = torch.ones_like(ids)
+            ids_pos = 1 + ids_pos[:, -1].unsqueeze(dim=-1)
+            step += 1
+        # remove the special tokens
+        rest = []
+        for g in generated:
+            g = [i for i in g if i not in self.special_tokens]
+            rest.append(g)
+        return rest
     
     @torch.no_grad()
     def predict_topk_topp_repetition_penalty_fast(self, batch):
