@@ -82,7 +82,6 @@ class InferenceGPT2Model(nn.Module):
                 self.args['model_prediction_confidence'],
                 self.args['contrastive_topk'],
                 self.args['contrastive_topp'],
-                self.args['sampling_probability'],
                 self.sep,
                 min(1., (step+1)/self.args['sep_smooth_length']),
                 past_key_values,
@@ -90,6 +89,7 @@ class InferenceGPT2Model(nn.Module):
                 self.vocab,
                 logits,
                 step,
+                step < self.args['sampling_prefix_len'],
             )
             ids_pos = 1 + ids_pos[:, -1].unsqueeze(dim=-1)
             ids_mask = torch.ones_like(ids)

@@ -108,7 +108,6 @@ def ContrastiveDecodingOneStepBatch(
     model_prediction_confidence, 
     top_k, 
     top_p, 
-    sampling_probability, 
     sep_idx, 
     sep_smooth_length,
     past_key_values,
@@ -116,6 +115,7 @@ def ContrastiveDecodingOneStepBatch(
     vocab,
     logit_for_next_step,
     step,
+    is_sampling
     ):
     # input_ids: [B, S]
     if step == 0:
@@ -131,9 +131,7 @@ def ContrastiveDecodingOneStepBatch(
         last_hidden_states = output.hidden_states[-1]    # [B, S, E]
         logit_for_next_step = output.logits[:, -1, :]    # [B, V]
     bsz, seqlen, embed_dim = last_hidden_states.size()
-    # multiple the sampling decay
-    sp = sampling_probability * (1+2*step)
-    if random.uniform(0, 1) >= sp:
+    if is_sampling is False:
         logit_for_next_step[:, sep_idx] *= sep_smooth_length
         next_probs = F.softmax(logit_for_next_step, dim=-1)
         _, top_k_ids = torch.topk(logit_for_next_step, dim=-1, k=beam_width)    # [B, K]
