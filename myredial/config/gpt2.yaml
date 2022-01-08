@@ -44,7 +44,7 @@ beam_width: 5
 model_prediction_confidence: 0.6
 contrastive_topk: 8
 contrastive_topp: 0.93
-sampling_probability: 0.
+sampling_probability: 0.1
 sep_smooth_length: 50
 
 # test configuration

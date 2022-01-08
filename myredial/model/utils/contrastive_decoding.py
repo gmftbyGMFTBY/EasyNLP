@@ -115,10 +115,10 @@ def ContrastiveDecodingOneStepBatch(
     last_hidden_states,
     vocab,
     logit_for_next_step,
-    first_step=False,
+    step,
     ):
     # input_ids: [B, S]
-    if first_step:
+    if step == 0:
         output = model(
             input_ids=ids, 
             attention_mask=ids_mask,
@@ -131,8 +131,9 @@ def ContrastiveDecodingOneStepBatch(
         last_hidden_states = output.hidden_states[-1]    # [B, S, E]
         logit_for_next_step = output.logits[:, -1, :]    # [B, V]
     bsz, seqlen, embed_dim = last_hidden_states.size()
-    p = random.uniform(0, 1)
-    if p >= sampling_probability:
+    # multiple the sampling decay
+    sp = sampling_probability * (1+step)
+    if random.uniform(0, 1) >= sp:
         logit_for_next_step[:, sep_idx] *= sep_smooth_length
         next_probs = F.softmax(logit_for_next_step, dim=-1)
         _, top_k_ids = torch.topk(logit_for_next_step, dim=-1, k=beam_width)    # [B, K]
@@ -169,12 +170,11 @@ def ContrastiveDecodingOneStepBatch(
         logits = torch.stack(torch.split(logits, beam_width))[range(bsz), selected_idx, :]    # [B, V]
     else:
         filtered_logits = top_k_top_p_filtering_batch(logit_for_next_step, top_k=top_k, top_p=top_p)
-        probabilities = F.softmax(filtered_logits, dim=-1)
         next_id = torch.multinomial(F.softmax(filtered_logits, dim=-1), num_samples=1)
         # also move forward one step: inactivate the enlarge_past_key_values
         output = model(
             input_ids=next_id, 
-            attention_mask=torch.ones_like(next_id.view(-1, 1)),
+            attention_mask=torch.ones_like(next_id),
             position_ids=ids_pos[:, -1].unsqueeze(dim=-1) + 1,
             past_key_values=past_key_values,
             output_hidden_states=True,

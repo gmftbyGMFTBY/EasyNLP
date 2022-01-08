@@ -70,7 +70,6 @@ class InferenceGPT2Model(nn.Module):
 
         past_key_values = None
         last_hidden_states = None
-        first_step = 0
         logits = None
         for step in range(self.test_max_len):
             ids, past_key_values, last_hidden_states, logits = ContrastiveDecodingOneStepBatch(
@@ -89,11 +88,10 @@ class InferenceGPT2Model(nn.Module):
                 last_hidden_states,
                 self.vocab,
                 logits,
-                first_step=first_step == 0,
+                step,
             )
             ids_pos = 1 + ids_pos[:, -1].unsqueeze(dim=-1)
             ids_mask = torch.ones_like(ids)
-            first_step += 1
             # collect ids: [B, 1]
             tokens = ids.squeeze(dim=-1).tolist()
             for idx, t in enumerate(tokens):
