@@ -14,11 +14,19 @@ class DeployGenerationAgent:
         # self.agent.load_model(save_path)
         self.args = args
 
+    def set_seed(self, seed):
+        random.seed(seed)
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+
     @timethis
     def work(self, batches):
+        seed = 1000 * random.uniform(0, 1)
         # contrastive search diversity
+        self.set_seed(seed)
         g1 = self.agent.generate(batches)
         # topk topp sampling
+        self.set_seed(seed)
         batches['decoding_method'] = 'topk_topp_repetition_penalty_batch_fast_search'
         g3 = self.agent.generate(batches)
         # contrastive search reference
