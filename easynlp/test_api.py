@@ -164,6 +164,7 @@ def load_fake_generation_data_from_writer_rank_corpus(path, size=1000):
                 'context': context, 
             }],
             'lang': 'zh',
+            'decoding_method': 'topk_topp_repetition_penalty_batch_fast_search'
         })
     data = random.sample(data, size)
     return data
@@ -495,6 +496,17 @@ def test_generation(args):
     avg_times = []
     collections = []
     error_counter = 0
+
+    data = [{
+        'segment_list': [
+            {
+                'context': '兰天是个帅哥但他25岁才谈恋爱',
+            },
+        ],
+        'decoding_method': 'contrastive_batch_search',
+        # 'decoding_method': 'topk_topp_repetition_penalty_batch_fast_search',
+    }]
+
     pbar = tqdm(data)
     for data in pbar:
         data = json.dumps(data)

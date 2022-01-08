@@ -370,10 +370,7 @@ class InferenceWZSimCSEDataset(Dataset):
                 self.reader.init()
                 torch.save(self.reader, rar_path)
             self.reader.init_file_handler()
-            self.overall_size = self.reader.size
-
-            # squeeze the dataset size
-            self.size = 300000
+            self.size = self.reader.size
         else:
             dataset = []
             with open(path) as f:
@@ -392,7 +389,6 @@ class InferenceWZSimCSEDataset(Dataset):
     def __getitem__(self, i):
         # random sample a data point
         if self.args['mode'] in ['train', 'inference']:
-            i = random.choice(range(self.overall_size))
             line = self.reader.get_line(i).strip()
             return line
         else:

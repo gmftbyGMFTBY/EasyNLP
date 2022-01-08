@@ -4,6 +4,8 @@ mode=$1
 dataset=$2
 prefix_name=$3
 # --url 11.145.186.4 \
+# --url 9.91.66.241 \
+# --url 11.145.186.37 \
 python test_api.py \
     --size 100 \
     --port 23336 \

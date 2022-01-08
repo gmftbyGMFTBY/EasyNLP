@@ -182,11 +182,13 @@ class GPT2UNSeqModel(nn.Module):
     def forward(self, batch):
         ids = batch['ids']
         ids_mask = batch['ids_mask']
+        pos_ids = batch['pos_ids']
 
         batch_size = ids.shape[0]
         gen_logits = self.model(
             input_ids=ids, 
             attention_mask=ids_mask,
+            position_ids=pos_ids,
         )
         gen_logits = gen_logits.logits
 

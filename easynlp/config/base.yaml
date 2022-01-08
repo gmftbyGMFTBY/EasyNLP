@@ -747,7 +747,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 100
+version: 101
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
 rank: null
@@ -788,8 +788,8 @@ deploy:
         activate: true
         model: gpt2
         default_generation_num: 3
-        max_prefix_len: 128
-        max_gen_len: 64
+        max_prefix_len: 64
+        max_gen_len: 32
         # the maximum innert batch size for processing
         inner_bsz: 16
         default_decoding_method: contrastive_batch_search

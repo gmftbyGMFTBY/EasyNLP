@@ -90,6 +90,13 @@ class SemanticSimilarityAgent(SimCSEBaseAgent):
                 )
                 embds, texts = [], []
                 idx += 1
+        # save the last datasets
+        if len(texts) > 0:
+            embds = torch.cat(embds, dim=0).numpy()
+            torch.save(
+                (embds, texts), 
+                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_wz_simcse_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
+            )
     
     def load_model(self, path):
         if self.args['mode'] == 'train':

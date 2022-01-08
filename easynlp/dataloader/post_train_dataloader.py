@@ -1048,8 +1048,15 @@ class WZPostTrainMonoDataset(Dataset):
         return self.size
 
     def __getitem__(self, i):
-        line = self.reader.get_line(i).strip()
-        tokens = self.vocab.encode(line, add_special_tokens=False)[:self.args['max_len']]
+        while True:
+            line = self.reader.get_line(i).strip()
+            tokens = self.vocab.encode(line, add_special_tokens=False)[:self.args['max_len']]
+            valid_token = [i for i in tokens if i not in self.special_tokens]
+            # minimum length
+            if len(valid_token) > self.args['min_len']:
+                break
+            else:
+                i = random.choice(range(self.size))
         ids = [self.cls] + tokens + [self.sep]
         mask_labels = mask_sentence(
             ids,

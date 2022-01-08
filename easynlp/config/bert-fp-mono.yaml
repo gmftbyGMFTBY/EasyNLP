@@ -16,10 +16,11 @@ train:
     seed: 0
     batch_size: 256
     max_len: 64
+    # minimum valid tokens number
     min_len: 5
-    min_mask_num: 1
-    max_mask_num: 20
-    masked_lm_prob: 0.15
+    min_mask_num: 2
+    max_mask_num: 10
+    masked_lm_prob: 0.2
     epoch: 10
     warmup_ratio: 0.01
     checkpoint: 

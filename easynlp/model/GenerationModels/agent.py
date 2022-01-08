@@ -36,7 +36,7 @@ class GenerationAgent(GenerationBaseAgent):
             self.test_model = self.test_model_inference
         elif self.args['model'] in ['gpt2-contrastive-search']:
             self.train_model = self.train_model_contrastive_search
-        elif self.args['model'] in ['gpt2-un', 'gpt-un-seq']:
+        elif self.args['model'] in ['gpt2-un', 'gpt2-un-seq']:
             self.train_model = self.train_model_un
 
     def build_offline_index(self, iter_):
@@ -148,7 +148,6 @@ class GenerationAgent(GenerationBaseAgent):
         pbar.update(1)
         return loss, token_acc
 
-
     def train_model_un(self, batch, recoder=None, current_step=0, pbar=None):
         self.model.train()
         self.optimizer.zero_grad()
@@ -159,8 +158,6 @@ class GenerationAgent(GenerationBaseAgent):
             else:
                 batch['token_un'] = True
             mle_loss, un_loss, token_acc = self.model(batch)
-
-
             loss = mle_loss + un_loss
             loss /= self.args['iter_to_accumulate']
         self.scaler.scale(loss).backward()
@@ -405,12 +402,12 @@ class GenerationAgent(GenerationBaseAgent):
             self.model.switch_decoding_method(self.args['default_decoding_method'])
         generation_num = batch['generation_num'] if 'generation_num' in batch else self.args['default_generation_num']
         self.model.test_max_len = batch['max_gen_len'] if 'max_gen_len' in batch else self.args['max_gen_len']
-        sentences = [item['context'] for item in batch]
+        sentences = [item['context'] for item in batch['segment_list']]
         rests = []
         for sub in range(0, len(sentences), self.args['inner_bsz']):
             bsz = len(sentences[sub:sub+self.args['inner_bsz']]) 
             # prepare the inputs: ids, ids_mask, pos_ids; make sure the left padding
-            tokens = [self.vocab.encode(s)[-self.args['max_prefix_len']:] for s in sentences[sub:sub+self.args['inner_bsz']]]
+            tokens = [self.vocab.encode(s, add_special_tokens=False)[-self.args['max_prefix_len']:] for s in sentences[sub:sub+self.args['inner_bsz']]]
             max_length = max([len(item) for item in tokens])
             tokens = [[self.model.pad] * (max_length - len(item)) + item for item in tokens]
             ids = torch.LongTensor(tokens)
@@ -427,9 +424,12 @@ class GenerationAgent(GenerationBaseAgent):
             # convert the generations from the ids to tokens
             for i in range(0, len(generations), generation_num):
                 sep = '' if self.args['lang'] == 'zh' else ' '
-                rest_for_one_instance = [sep.join(self.vocab.convert_ids_to_tokens(generations[i+j])) for j in range(generation_num)]
-                if '[SEP]' in rest_for_one_instance:
-                    rest_for_one_instance = rest_for_one_instance[:rest_for_one_instance.index('[SEP]')]
-                rest_for_one_instance = [item.replace('[UNK]', '') for item in rest_for_one_instance]
-                rests.append(rest_for_one_instance)
+                rs = [sep.join(self.vocab.convert_ids_to_tokens(generations[i+j])) for j in range(generation_num)]
+                new_rests = []
+                for instance in rs:
+                    if '[SEP]' in instance:
+                        instance = instance[:instance.index('[SEP]')]
+                    instance = instance.replace('[UNK]', '')
+                    new_rests.append(instance)
+                rests.append(new_rests)
         return rests

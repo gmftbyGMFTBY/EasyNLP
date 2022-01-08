@@ -45,6 +45,7 @@ class InferenceGPT2Model(nn.Module):
             self.predict = self.predict_topp
         else:
             raise Exception(f'[!] cannot find the deocidng method: {method_name}')
+        print(f'[!] switch model to {method_name}')
 
     @torch.no_grad()
     def calculate_ppl(self, ids, ids_mask, label):
@@ -168,7 +169,6 @@ class InferenceGPT2Model(nn.Module):
         batch_size, seqlen = ids.size()
         generated = [[] for _ in range(batch_size)]
         past_key_values = None
-        step = 0
         while True:
             output = self.model(
                 input_ids=ids,
@@ -181,7 +181,6 @@ class InferenceGPT2Model(nn.Module):
             past_key_values = output.past_key_values
             next_token_logits = logits[:, -1, :]    # [B, V]
             next_token_logits[:, self.unk] = -np.inf
-            next_token_logits[:, self.sep] /= min(1.0, (step+1)/self.args['sep_smooth_length']) 
             filtered_logits = top_k_top_p_filtering_batch(
                 next_token_logits,
                 top_k=self.topk,
@@ -199,13 +198,7 @@ class InferenceGPT2Model(nn.Module):
             ids = next_token
             ids_mask = torch.ones_like(ids)
             ids_pos = 1 + ids_pos[:, -1].unsqueeze(dim=-1)
-            step += 1
-        # remove the special tokens
-        rest = []
-        for g in generated:
-            g = [i for i in g if i not in self.special_tokens]
-            rest.append(g)
-        return rest
+        return generated
     
     @torch.no_grad()
     def predict_topk_topp_repetition_penalty_fast(self, batch):
@@ -222,7 +215,6 @@ class InferenceGPT2Model(nn.Module):
             past_key_values = output.past_key_values
             next_token_logits = logits[-1, -1, :]    # [V]
             next_token_logits[self.unk] = -np.inf
-            next_token_logits[self.sep] *= min(1., len(generated)/self.args['sep_smooth_length'])
             if generated:
                 next_token_logits[list(set(generated))] /= self.repetition_penalty
             filtered_logits = top_k_top_p_filtering(
@@ -253,7 +245,6 @@ class InferenceGPT2Model(nn.Module):
             )[0]    # [1, S, V]
             next_token_logits = output[-1, -1, :]    # [V]
             next_token_logits[self.unk] = -np.inf
-            next_token_logits[self.sep] *= min(1., len(generated)/self.args['sep_smooth_length'])
             if generated:
                 next_token_logits[list(set(generated))] /= self.repetition_penalty
             filtered_logits = top_k_top_p_filtering(

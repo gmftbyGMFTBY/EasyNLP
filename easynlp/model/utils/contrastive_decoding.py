@@ -132,7 +132,7 @@ def ContrastiveDecodingOneStepBatch(
         logit_for_next_step = output.logits[:, -1, :]    # [B, V]
     bsz, seqlen, embed_dim = last_hidden_states.size()
     # multiple the sampling decay
-    sp = sampling_probability * (1+step)
+    sp = sampling_probability * (1+2*step)
     if random.uniform(0, 1) >= sp:
         logit_for_next_step[:, sep_idx] *= sep_smooth_length
         next_probs = F.softmax(logit_for_next_step, dim=-1)

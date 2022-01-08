@@ -42,8 +42,8 @@ repetition_penalty: 1.0
 # contrastive decoding parameter
 beam_width: 5
 model_prediction_confidence: 0.6
-contrastive_topk: 8
-contrastive_topp: 0.93
+contrastive_topk: 5
+contrastive_topp: 0.9
 sampling_probability: 0.1
 sep_smooth_length: 50
 

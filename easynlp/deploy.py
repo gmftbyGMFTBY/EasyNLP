@@ -311,7 +311,7 @@ def create_app():
                 },
                 ...
             ],
-            'decoding_method': 'contrastive_search_batch',    # defualt is the contrastive_search_batch
+            'decoding_method': 'contrastive_batch_search',    # defualt is the contrastive_search_batch
             'generation_num': 3,    # default generation_num is 3
             'max_gen_len': 64,
             'lang': 'zh',
@@ -340,7 +340,7 @@ def create_app():
         try:
             # data = request.json
             data = json.loads(request.data)
-            rest, core_time = generationagent.work(data['segment_list'])
+            rest, core_time = generationagent.work(data)
             succ = True
         except Exception as error:
             core_time = 0
