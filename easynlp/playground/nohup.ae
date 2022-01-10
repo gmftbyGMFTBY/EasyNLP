@@ -1,0 +1,53 @@
+nohup: ignoring input
+prefix:ae    port:8086
+0
+last 1k data cost time:4.458427429199219e-05
+1000
+last 1k data cost time:289.6606991291046
+2000
+last 1k data cost time:329.64882707595825
+succ_cnt:1000
+3000
+last 1k data cost time:308.01168608665466
+4000
+last 1k data cost time:328.24633145332336
+succ_cnt:2000
+5000
+last 1k data cost time:332.83029198646545
+6000
+last 1k data cost time:309.59045457839966
+7000
+last 1k data cost time:324.4863624572754
+succ_cnt:3000
+8000
+last 1k data cost time:322.64648389816284
+9000
+last 1k data cost time:302.5708110332489
+succ_cnt:4000
+10000
+last 1k data cost time:328.4891974925995
+11000
+last 1k data cost time:303.8231236934662
+succ_cnt:5000
+12000
+last 1k data cost time:324.3295741081238
+13000
+last 1k data cost time:324.8445909023285
+14000
+last 1k data cost time:304.9004271030426
+succ_cnt:6000
+15000
+last 1k data cost time:327.96294808387756
+16000
+last 1k data cost time:333.168824672699
+succ_cnt:7000
+17000
+last 1k data cost time:306.9142653942108
+18000
+last 1k data cost time:325.5139615535736
+succ_cnt:8000
+19000
+last 1k data cost time:307.66919231414795
+20000
+last 1k data cost time:328.7777855396271
+succ_cnt:9000

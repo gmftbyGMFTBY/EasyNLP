@@ -24,11 +24,10 @@ class WriterDualCompareEncoder(nn.Module):
                 # test model (not deploy mode)
                 rs = rs + batch['erids']
             for r in rs:
-                c_bert = deepcopy(c)
                 r_ = deepcopy(r)
-                truncate_pair(c_bert, r_, self.args['bert_max_len'])
-                bert_ids.append([self.cls] + c_bert + r_ + [self.sep])
-                bert_tids.append([0] * (1 + len(c_bert)) + [1] * (1 + len(r_)))
+                r_ = r_[:self.args['bert_max_len']]
+                bert_ids.append([self.cls] + r_ + [self.sep])
+                bert_tids.append([1] * (2 + len(r_)))
             # gpt2 tokenization
             c_ = deepcopy(c)
             gpt2_ids.append(c_)

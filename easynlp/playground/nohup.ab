@@ -1,0 +1,55 @@
+nohup: ignoring input
+prefix:ab    port:8083
+0
+last 1k data cost time:9.5367431640625e-06
+1000
+last 1k data cost time:177.0754840373993
+2000
+last 1k data cost time:331.52961349487305
+succ_cnt:1000
+3000
+last 1k data cost time:308.80379724502563
+4000
+last 1k data cost time:326.13283586502075
+5000
+last 1k data cost time:333.3351972103119
+succ_cnt:2000
+6000
+last 1k data cost time:309.05664706230164
+7000
+last 1k data cost time:331.066529750824
+succ_cnt:3000
+8000
+last 1k data cost time:325.3633143901825
+9000
+last 1k data cost time:304.50229048728943
+succ_cnt:4000
+10000
+last 1k data cost time:326.01254892349243
+11000
+last 1k data cost time:308.3207218647003
+succ_cnt:5000
+12000
+last 1k data cost time:324.59076738357544
+13000
+last 1k data cost time:324.6214828491211
+succ_cnt:6000
+14000
+last 1k data cost time:302.917818069458
+15000
+last 1k data cost time:326.587206363678
+succ_cnt:7000
+16000
+last 1k data cost time:330.1059603691101
+succ_cnt:8000
+17000
+last 1k data cost time:314.43905544281006
+18000
+last 1k data cost time:326.5123715400696
+19000
+last 1k data cost time:306.67458033561707
+succ_cnt:9000
+20000
+last 1k data cost time:327.5440230369568
+21000
+last 1k data cost time:324.9083397388458

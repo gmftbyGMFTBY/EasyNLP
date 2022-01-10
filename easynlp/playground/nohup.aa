@@ -1,0 +1,74 @@
+nohup: ignoring input
+prefix:aa    port:8082
+0
+last 1k data cost time:2.2172927856445312e-05
+1000
+last 1k data cost time:62.09419274330139
+succ_cnt:1000
+2000
+last 1k data cost time:66.85641264915466
+3000
+last 1k data cost time:59.76286506652832
+4000
+last 1k data cost time:64.42775130271912
+succ_cnt:2000
+5000
+last 1k data cost time:71.71716237068176
+6000
+last 1k data cost time:63.91512846946716
+succ_cnt:3000
+7000
+last 1k data cost time:112.86193609237671
+succ_cnt:4000
+8000
+last 1k data cost time:322.5415484905243
+9000
+last 1k data cost time:310.1032361984253
+succ_cnt:5000
+10000
+last 1k data cost time:326.05200457572937
+11000
+last 1k data cost time:309.6597626209259
+12000
+last 1k data cost time:333.1828968524933
+succ_cnt:6000
+13000
+last 1k data cost time:331.6637382507324
+14000
+last 1k data cost time:305.3484706878662
+succ_cnt:7000
+15000
+last 1k data cost time:325.62407875061035
+16000
+last 1k data cost time:325.2958242893219
+17000
+last 1k data cost time:308.2237596511841
+succ_cnt:8000
+18000
+last 1k data cost time:324.2673761844635
+19000
+last 1k data cost time:303.687926530838
+20000
+last 1k data cost time:324.5904550552368
+succ_cnt:9000
+21000
+last 1k data cost time:325.1881558895111
+22000
+last 1k data cost time:304.9505000114441
+23000
+last 1k data cost time:333.32797288894653
+succ_cnt:10000
+24000
+last 1k data cost time:327.191862821579
+25000
+last 1k data cost time:306.54119205474854
+succ_cnt:11000
+26000
+last 1k data cost time:329.02721190452576
+27000
+last 1k data cost time:307.460608959198
+28000
+last 1k data cost time:192.67080903053284
+succ_cnt:12000
+29000
+last 1k data cost time:68.9454562664032

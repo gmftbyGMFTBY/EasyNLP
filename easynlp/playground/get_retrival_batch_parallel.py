@@ -1,9 +1,10 @@
 '''
 验证分析基于sementic retrival的paraphrase效果
 '''
-import requests
+import sys
 import json
 import time
+import requests
 import Levenshtein
 
 def cal_sent_overlap(sent1, sent2):
@@ -42,7 +43,7 @@ def sementic_retrieval(text, k):
     print("cost time:", time.time()-start_time)
     return resp
 
-def sementic_retrieval_batch(texts, k):
+def sementic_retrieval_batch(texts, k, port):
     # start_time = time.time()
     resp = dict()
     request_data = []
@@ -50,11 +51,10 @@ def sementic_retrieval_batch(texts, k):
         request_data.append({"str": text, "status": "editing"})
     params = {"segment_list": request_data, "topk": k, "lang": "zh"}
     headers = {"Content-type": "application/json"}
-    url = 'http://9.91.66.241:8083/recall'
+    url = 'http://9.91.66.241:{}/recall'.format(port)
     # data = requests.post(url, params)
     data = requests.post(url, headers=headers, json=params)
     data = json.loads(data.text)
-    # print(data)
 
     for item in data['item_list']:
         query = item['context']
@@ -70,23 +70,26 @@ def sementic_retrieval_batch(texts, k):
     return resp
 
 
-def file_retrieve(filename):
+def file_retrieve(filename, outfile, port):
     '''
     对输入文件语料进行batch语义检索
     :return:
     '''
-    out = open("./retrieval_res_5k—2.txt", "w", encoding="utf-8")
+    out = open(outfile, "w", encoding="utf-8")
     batch_data = []
     file = open(filename, encoding="utf-8")
     succ_cnt = 0
     idx = 0
     fail_cnt = 0
     candidate_cnt = 0
+    last_1k_time = time.time()
     while True:
-        if idx % 500 == 0:
+        if idx % 1000 == 0:
             print(idx)
-        if idx > 65:
-            break
+            print("last 1k data cost time:{}".format(time.time() - last_1k_time))
+            last_1k_time = time.time()
+        # if idx > 1000:
+        #     break
         line = file.readline()
         if len(line.strip()) > 300:
             continue
@@ -94,9 +97,9 @@ def file_retrieve(filename):
             idx += 1
             batch_data.append(line.strip())
             if idx % 64 == 0:
-                start = time.time()
-                resp = sementic_retrieval_batch(batch_data, 10)
-                print("1time cost:", time.time() - start)
+                # start = time.time()
+                resp = sementic_retrieval_batch(batch_data, 10, port)
+                # print("1time cost:", time.time() - start)
                 for query, candidates in resp.items():
                     if candidates[1][1] >= 100:
                         fail_cnt += 1
@@ -124,6 +127,8 @@ def file_retrieve(filename):
                         if overlap < 0.85 and common_str_ratio < 0.7 and levenshtein_ratio > 0.25 and levenshtein_ratio < 0.9:
                             out.write(str(similarity) + "\t" + str(round(overlap, 2)) + "\t" + str(common_str_ratio) + "\t" + str(levenshtein_ratio) + "\t" + query + "\t" + retrieve_text + "\n")
                             succ_cnt += 1
+                            if succ_cnt % 1000 == 0:
+                                print("succ_cnt:{}".format(succ_cnt))
                         c_id += 1
                     # if candidates[1][1] < 100 and candidates[1][1] != 0:
                     #     overlap = cal_sent_overlap(query, candidates[1][0])
@@ -139,19 +144,20 @@ def file_retrieve(filename):
 
 
 if __name__ == '__main__':
-    # while (True):
-    #     print('\n\n ---请输入文本： ')
-    #     input_text = input()
-    #     text_batch = []
-    #     for i in range(64):
-    #         text_batch.append(input_text + str(i))
-    #     # resp = sementic_retrival(input_text, 10)
-    #     resp = sementic_retrieval_batch(text_batch, 10)
-    #
-    #     for item in resp:
-    #         print(item[1] + "\t" + item[0])
+    if len(sys.argv) != 3:
+        print("error argv")
+        exit()
+    prefix = sys.argv[1]
+    port = sys.argv[2]
+
+    print("prefix:{}    port:{}".format(prefix, port))
+
+    # prefix = "aa"
+    # port = "8082"
+    filename = "/apdcephfs/share_916081/willzychen/wz_data/esports_v2_split16/esports_v2_split_{}".format(prefix)
+    outfile = "/apdcephfs/share_916081/willzychen/wz_paraphrase/data/esports_paraphrase/esports_paraphrase_test_{}.txt".format(prefix)
     start_time = time.time()
-    filename = "/apdcephfs/share_916081/willzychen/wz_data/esports_v1.txt"
-    file_retrieve(filename)
+    # filename = "/apdcephfs/share_916081/willzychen/wz_data/esports_v1.txt"
+    file_retrieve(filename, outfile, port)
     print("cost time:", time.time()-start_time)
 

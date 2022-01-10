@@ -9,6 +9,7 @@ Read the candidate embeddings and save it into the faiss index
 def response_strategy(args):
     embds, texts = [], []
     already_added = []
+    current_num = 0
     for i in tqdm(range(args['nums'])):
         for idx in range(100):
             try:
@@ -17,12 +18,14 @@ def response_strategy(args):
                     f'{args["root_dir"]}/data/{args["dataset"]}/inference_wz_simcse_{args["model"]}_{i}_{idx}.pt'
                 )
                 print(f'[!] load {args["root_dir"]}/data/{args["dataset"]}/inference_{args["model"]}_{i}_{idx}.pt')
+                current_num += len(embd)
             except:
                 break
             embds.append(embd)
             texts.extend(text)
             already_added.append((i, idx))
-        if len(embds) > 10000000:
+            print(f'[!] collect embeddings: {current_num}')
+        if current_num > 10000000:
             break
     embds = np.concatenate(embds) 
     searcher = Searcher(args['index_type'], dimension=args['dimension'])
@@ -36,9 +39,9 @@ def response_strategy(args):
                 continue
             try:
                 embd, text = torch.load(
-                    f'{args["root_dir"]}/data/{args["dataset"]}/inference_{i}_{idx}.pt'
+                    f'{args["root_dir"]}/data/{args["dataset"]}/inference_wz_simcse_{args["model"]}_{i}_{idx}.pt'
                 )
-                print(f'[!] load {args["root_dir"]}/data/{args["dataset"]}/inference_{i}_{idx}.pt')
+                print(f'[!] load {args["root_dir"]}/data/{args["dataset"]}/inference_wz_simcse_{i}_{idx}.pt')
             except:
                 break
             searcher.add(embd, text)

@@ -8,9 +8,9 @@ prefix_name=$3
 # --url 11.145.186.37 \
 python test_api.py \
     --size 100 \
-    --port 23336 \
-    --mode $mode \
+    --port 8082 \
     --url 9.91.66.241 \
+    --mode $mode \
     --dataset $dataset \
     --topk 10 \
     --seed 0 \

@@ -54,12 +54,13 @@ class WZSimCSE(nn.Module):
         self.temp = args['temp']
         model = args['pretrained_model']
         self.encoder = simcse_model(pretrained_model=model, dropout=args['dropout'])
+        self.supervised = args['is_supervised']
         self.args = args
 
     def _encode(self, ids, tids, ids_mask):
         rep_1 = self.encoder(ids, ids_mask, tids)[:, 0, :]
         rep_2 = self.encoder(ids, ids_mask, tids)[:, 0, :]
-        # rep_1, rep_2 = F.normalize(rep_1, dim=-1), F.normalize(rep_2, dim=-1)
+        rep_1, rep_2 = F.normalize(rep_1, dim=-1), F.normalize(rep_2, dim=-1)
         return rep_1, rep_2
 
     @torch.no_grad()
@@ -77,13 +78,24 @@ class WZSimCSE(nn.Module):
         return scores.tolist()
 
     def forward(self, batch):
-        ids = batch['ids']
-        tids = batch['tids']
-        ids_mask = batch['ids_mask']
-
-        rep_1, rep_2 = self._encode(ids, tids, ids_mask)
-        dot_product = torch.matmul(rep_1, rep_2.t())     # [B, B]
-        batch_size = len(rep_1)
+        if self.supervised:
+            ids = batch['ids']
+            tids = batch['tids']
+            ids_mask = batch['ids_mask']
+            ids_2 = batch['ids_2']
+            tids_2 = batch['tids_2']
+            ids_mask_2 = batch['ids_mask_2']
+            rep_1 = self.encoder(ids, tids, ids_mask)[:, 0, :]
+            rep_2 = self.encoder(ids_2, tids_2, ids_mask_2)[:, 0, :]
+            dot_product = torch.matmul(rep_1, rep_2.t())     # [B, B]
+            batch_size = len(rep_1)
+        else:
+            ids = batch['ids']
+            tids = batch['tids']
+            ids_mask = batch['ids_mask']
+            rep_1, rep_2 = self._encode(ids, tids, ids_mask)
+            dot_product = torch.matmul(rep_1, rep_2.t())     # [B, B]
+            batch_size = len(rep_1)
 
         # constrastive loss
         mask = torch.zeros_like(dot_product)

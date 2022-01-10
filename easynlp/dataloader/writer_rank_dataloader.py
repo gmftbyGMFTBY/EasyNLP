@@ -40,32 +40,38 @@ class WriterRankDataset(Dataset):
             line = self.reader.get_line(i)
             sentences = json.loads(line.strip())['q']
             sentences = [s.strip() for s in sentences if s.strip()]    # ignore the empty sentence
-            if self.filter(sentences):
-                break
-            i = random.choice(range(self.size))
+            if self.filter(sentences) is False:
+                i = random.choice(range(self.size))
+                continue
 
-        sentences = [''.join(sentence.split()) for sentence in sentences]
-        if random.random() < 0.5:
-            # half of the possibility: use the context-response pair
-            res_idx = random.randint(1, len(sentences)-1)
-            context, response = sentences[:res_idx], sentences[res_idx]
-        else:
-            # half of the possibility: uncomplete context-response pair
-            res_idx = random.randint(0, len(sentences)-1)
-            length = len(sentences[res_idx])
-            idx = random.randint(int(0.25 * length), int(0.5 * length))
-            context = sentences[:res_idx] + [sentences[res_idx][:idx]]
-            response = sentences[res_idx][idx:]
-        # convert the text into the token ids
-        cids, rids = [], []
-        for s in context:
-            cids.extend(self.vocab.encode(s, add_special_tokens=False))
-        rids.extend(self.vocab.encode(response, add_special_tokens=False))
-        # max_length includes the ctx_length and res_length
-        if self.args['model'] in ['bert-ft-writer', 'writer-electra']:
-            truncate_pair(cids, rids, self.args['gpt2_max_len'])
-        else:
-            cids = cids[-self.args['gpt2_max_len']:]
+            sentences = [''.join(sentence.split()) for sentence in sentences]
+            if random.random() < 0.5:
+                # half of the possibility: use the context-response pair
+                res_idx = random.randint(1, len(sentences)-1)
+                context, response = sentences[:res_idx], sentences[res_idx]
+            else:
+                # half of the possibility: uncomplete context-response pair
+                res_idx = random.randint(0, len(sentences)-1)
+                length = len(sentences[res_idx])
+                idx = random.randint(int(0.25 * length), int(0.5 * length))
+                context = sentences[:res_idx] + [sentences[res_idx][:idx]]
+                response = sentences[res_idx][idx:]
+            # convert the text into the token ids
+            cids, rids = [], []
+            for s in context:
+                cids.extend(self.vocab.encode(s, add_special_tokens=False))
+            rids.extend(self.vocab.encode(response, add_special_tokens=False))
+            if len(cids) == 0 or len(rids) == 0:
+                i = random.choice(range(self.size))
+                continue
+
+            # rids = rids[:self.args['gpt2_max_res_len']]
+            # max_length includes the ctx_length and res_length
+            if self.args['model'] in ['bert-ft-writer', 'writer-electra']:
+                truncate_pair(cids, rids, self.args['gpt2_max_len'])
+            else:
+                cids = cids[-self.args['gpt2_max_len']:]
+            break
         return cids, rids
 
     def collate(self, batch):
@@ -114,6 +120,9 @@ class WriterRankDataset(Dataset):
         if line.count('http') > 0:
             return False
         if len(sentences) <= 1:
+            return False
+        if len(line) < 10:
+            # short session are ignored
             return False
         return True
 

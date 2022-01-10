@@ -50,7 +50,8 @@ def inference(**args):
     elif work_mode in ['bert-aug']:
         agent.inference(data_iter, size=args['cut_size'])
     elif work_mode in ['wz-simcse']:
-        agent.inference_wz_simcse(data_iter, size=args['cut_size'])
+        # agent.inference_wz_simcse(data_iter, size=args['cut_size'])
+        pass
     elif work_mode in ['simcse-ctx']:
         agent.inference_simcse_ctx(data_iter, size=args['cut_size'])
     elif work_mode in ['simcse-ctx-unlikelyhood']:

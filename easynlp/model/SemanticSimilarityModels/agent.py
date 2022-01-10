@@ -64,7 +64,7 @@ class SemanticSimilarityAgent(SimCSEBaseAgent):
         if recoder:
             recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
             recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
-        return round(total_loss / batch_num, 4)
+        return batch_num
 
     @torch.no_grad()
     def inference_wz_simcse(self, inf_iter, size=500000):

@@ -299,6 +299,7 @@ def create_app():
             result['item_list'] = None
         # log
         push_to_log(result, recall_logger)
+        return jsonify(result)
      
     @app.route('/generation', methods=['POST'])
     def generation_api():

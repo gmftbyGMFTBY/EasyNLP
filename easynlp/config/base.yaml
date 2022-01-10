@@ -90,7 +90,8 @@ models:
     wz-simcse:
         type: SemanticSimilarity
         model_name: WZSimCSE
-        dataset_name: InferenceWZSimCSEDataset
+        # dataset_name: InferenceWZSimCSEDataset
+        dataset_name: SupervisedInferenceWZSimCSEDataset
         inference_dataset_name: InferenceWZSimCSEDataset
     simcse: 
         type: SemanticSimilarity
@@ -747,7 +748,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 100
+version: 99
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
 rank: null
@@ -764,13 +765,13 @@ start_save_step: 0
 # ========== Deploy configuration ========== #
 deploy:
     host: '0.0.0.0'
-    port: 23336
+    port: 8089
     # dataset: writer-rank
     dataset: wz_game
     max_len: 128
     res_max_len: 64
     recall:
-        activate: false
+        activate: true
         model: wz-simcse
         topk: 200
         with_source: false
@@ -785,7 +786,7 @@ deploy:
     pipeline_evaluation:
         activate: false
     generation:
-        activate: true
+        activate: false
         model: gpt2
         default_generation_num: 3
         max_prefix_len: 64

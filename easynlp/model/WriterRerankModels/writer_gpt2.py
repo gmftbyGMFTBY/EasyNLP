@@ -35,13 +35,16 @@ class WriterGPT2Model(nn.Module):
         over_flag = [0] * batch_size
         past_key_values = None
         while True:
-            output = self.model(
-                input_ids=cids,
-                attention_mask=cids_mask,
-                position_ids=cids_pos,
-                past_key_values=past_key_values,
-                use_cache=True
-            )
+            try:
+                output = self.model(
+                    input_ids=cids,
+                    attention_mask=cids_mask,
+                    position_ids=cids_pos,
+                    past_key_values=past_key_values,
+                    use_cache=True
+                )
+            except:
+                ipdb.set_trace()
             logits = output.logits
             past_key_values = output.past_key_values
             next_token_logits = logits[:, -1, :]    # [B, V]

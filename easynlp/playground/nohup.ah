@@ -1,0 +1,52 @@
+nohup: ignoring input
+prefix:ah    port:8089
+0
+last 1k data cost time:3.266334533691406e-05
+1000
+last 1k data cost time:308.8080997467041
+2000
+last 1k data cost time:329.8684706687927
+succ_cnt:1000
+3000
+last 1k data cost time:304.7251660823822
+4000
+last 1k data cost time:329.4838676452637
+5000
+last 1k data cost time:333.1905221939087
+succ_cnt:2000
+6000
+last 1k data cost time:309.68588376045227
+7000
+last 1k data cost time:325.09869837760925
+succ_cnt:3000
+8000
+last 1k data cost time:325.6484658718109
+9000
+last 1k data cost time:304.76567697525024
+succ_cnt:4000
+10000
+last 1k data cost time:328.07696652412415
+11000
+last 1k data cost time:302.80373787879944
+succ_cnt:5000
+12000
+last 1k data cost time:325.33717584609985
+13000
+last 1k data cost time:324.1512804031372
+succ_cnt:6000
+14000
+last 1k data cost time:304.38711524009705
+15000
+last 1k data cost time:328.7139799594879
+succ_cnt:7000
+16000
+last 1k data cost time:333.75651931762695
+17000
+last 1k data cost time:305.67472076416016
+18000
+last 1k data cost time:326.7741985321045
+succ_cnt:8000
+19000
+last 1k data cost time:307.01805233955383
+20000
+last 1k data cost time:327.8597228527069

@@ -33,11 +33,21 @@ def q_r_dataset(args):
     print(f'[!] collect {len(data)} sentence for BM25 retrieval')
     return data
 
+def phrase_dataset(args):
+    '''save the single sentences'''
+    train_path = f'{args["root_dir"]}/data/{args["dataset"]}/train.txt'
+    data = load_sentences_phrase(train_path, lang=args['lang'])
+    # maximum sentences limitation
+    # too many candidates in the elasticseach will slow down the searching speed
+    if len(data) > args['maximum_sentence_num']:
+        data = random.sample(data, args['maximum_sentence_num'])
+    print(f'[!] collect {len(data)} sentence for single-sentence BM25 retrieval')
+    return data
+
 def single_dataset(args):
     '''save the single sentences'''
     train_path = f'{args["root_dir"]}/data/{args["dataset"]}/train.txt'
     train_data = load_sentences(train_path, lang=args['lang'])
-    data = list(set(train_data))
     # maximum sentences limitation
     # too many candidates in the elasticseach will slow down the searching speed
     if len(data) > args['maximum_sentence_num']:
@@ -60,9 +70,11 @@ if __name__ == "__main__":
         data = q_r_dataset(args)
     elif args['recall_mode'] == 'single':
         data = single_dataset(args)
+    elif args['recall_mode'] == 'phrase':
+        data = phrase_dataset(args)
     builder = ESBuilder(
         f'{args["dataset"]}_{args["recall_mode"]}',
         create_index=True,
-        q_q=True if args['recall_mode'] == 'q-q' else False,
+        q_q=True if args['recall_mode'] in ['q-q'] else False,
     )
     builder.insert(data)

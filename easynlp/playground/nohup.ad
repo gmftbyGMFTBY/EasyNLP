@@ -1,0 +1,52 @@
+nohup: ignoring input
+prefix:ad    port:8085
+0
+last 1k data cost time:3.170967102050781e-05
+1000
+last 1k data cost time:277.63855242729187
+2000
+last 1k data cost time:330.3634979724884
+3000
+last 1k data cost time:310.9353687763214
+succ_cnt:1000
+4000
+last 1k data cost time:329.01579546928406
+5000
+last 1k data cost time:330.7793982028961
+6000
+last 1k data cost time:312.510422706604
+succ_cnt:2000
+7000
+last 1k data cost time:327.16870307922363
+8000
+last 1k data cost time:323.77781081199646
+9000
+last 1k data cost time:304.1275508403778
+succ_cnt:3000
+10000
+last 1k data cost time:329.0437171459198
+11000
+last 1k data cost time:304.58326721191406
+succ_cnt:4000
+12000
+last 1k data cost time:324.69294786453247
+13000
+last 1k data cost time:325.1803135871887
+14000
+last 1k data cost time:303.0877194404602
+succ_cnt:5000
+15000
+last 1k data cost time:326.1845803260803
+16000
+last 1k data cost time:332.4504551887512
+succ_cnt:6000
+17000
+last 1k data cost time:310.97001481056213
+succ_cnt:7000
+18000
+last 1k data cost time:327.6862621307373
+19000
+last 1k data cost time:306.74730348587036
+succ_cnt:8000
+20000
+last 1k data cost time:327.02389335632324

@@ -193,6 +193,32 @@ def load_sentences(path, lang='zh'):
     return dataset
 
 
+def load_sentences_phrase(path, lang='zh'):
+    with open(path) as f:
+        dataset = []
+        max_length = 512
+        for line in tqdm(f.readlines()):
+            utterances = json.loads(line.strip())['q']
+            utterances = [''.join(s.split()) for s in utterances]
+            current_num = 0
+            cache = []
+            if len(utterances) == 0:
+                continue
+            for s in utterances:
+                if current_num < max_length and current_num + len(s) > max_length:
+                    line = ''.join(cache)
+                    dataset.append(line)
+                    cache = [s]
+                    current_num = len(s)
+                else:
+                    cache.append(s)
+                    current_num += len(s)
+            if cache:
+                line = ''.join(cache)
+                dataset.append(line)
+    return dataset
+
+
 def load_extended_sentences(path):
     with open(path) as f:
         dataset = []
