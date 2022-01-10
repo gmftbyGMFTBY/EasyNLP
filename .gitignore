@@ -135,6 +135,7 @@ benchmarks/*.md
 *pretrained
 indexdir/
 post_train/runs
+easynlp/playground/nohup*
 
 !data/vocab/*
 !data/config/*
