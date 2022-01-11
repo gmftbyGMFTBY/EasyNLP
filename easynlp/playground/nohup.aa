@@ -77,3 +77,400 @@ last 1k data cost time:63.14623212814331
 succ_cnt:13000
 31000
 last 1k data cost time:67.69798612594604
+32000
+last 1k data cost time:66.72998976707458
+succ_cnt:14000
+33000
+last 1k data cost time:61.2557373046875
+34000
+last 1k data cost time:65.91591358184814
+succ_cnt:15000
+35000
+last 1k data cost time:62.79831624031067
+36000
+last 1k data cost time:65.31995964050293
+succ_cnt:16000
+37000
+last 1k data cost time:61.07138276100159
+38000
+last 1k data cost time:63.2261438369751
+39000
+last 1k data cost time:66.08710098266602
+succ_cnt:17000
+40000
+last 1k data cost time:65.5171422958374
+41000
+last 1k data cost time:60.102043867111206
+succ_cnt:18000
+42000
+last 1k data cost time:66.35296988487244
+43000
+last 1k data cost time:65.24013566970825
+succ_cnt:19000
+44000
+last 1k data cost time:71.91891741752625
+45000
+last 1k data cost time:70.42023062705994
+46000
+last 1k data cost time:63.128737688064575
+succ_cnt:20000
+47000
+last 1k data cost time:65.28062677383423
+48000
+last 1k data cost time:66.63598442077637
+succ_cnt:21000
+49000
+last 1k data cost time:64.39232873916626
+50000
+last 1k data cost time:67.23708415031433
+51000
+last 1k data cost time:63.59197783470154
+succ_cnt:22000
+52000
+last 1k data cost time:66.95454001426697
+53000
+last 1k data cost time:66.17867040634155
+succ_cnt:23000
+54000
+last 1k data cost time:61.45014190673828
+55000
+last 1k data cost time:64.48539113998413
+succ_cnt:24000
+56000
+last 1k data cost time:65.84400582313538
+57000
+last 1k data cost time:59.3082115650177
+succ_cnt:25000
+58000
+last 1k data cost time:65.00922274589539
+59000
+last 1k data cost time:60.44647741317749
+succ_cnt:26000
+60000
+last 1k data cost time:67.58670115470886
+61000
+last 1k data cost time:65.34721946716309
+62000
+last 1k data cost time:63.3435914516449
+succ_cnt:27000
+63000
+last 1k data cost time:63.076616287231445
+64000
+last 1k data cost time:65.62875580787659
+65000
+last 1k data cost time:62.704699754714966
+succ_cnt:28000
+66000
+last 1k data cost time:67.56521248817444
+67000
+last 1k data cost time:58.54923343658447
+68000
+last 1k data cost time:68.73790049552917
+succ_cnt:29000
+69000
+last 1k data cost time:68.22241353988647
+70000
+last 1k data cost time:63.00538206100464
+70000
+last 1k data cost time:5.245208740234375e-06
+succ_cnt:30000
+71000
+last 1k data cost time:66.48272657394409
+72000
+last 1k data cost time:66.18399786949158
+succ_cnt:31000
+73000
+last 1k data cost time:61.3497269153595
+74000
+last 1k data cost time:66.03987169265747
+succ_cnt:32000
+75000
+last 1k data cost time:60.0466411113739
+76000
+last 1k data cost time:64.6002025604248
+77000
+last 1k data cost time:65.09127998352051
+succ_cnt:33000
+78000
+last 1k data cost time:64.5341010093689
+79000
+last 1k data cost time:69.15905690193176
+succ_cnt:34000
+80000
+last 1k data cost time:66.73092579841614
+81000
+last 1k data cost time:62.75041961669922
+82000
+last 1k data cost time:69.98459768295288
+succ_cnt:35000
+83000
+last 1k data cost time:58.78199911117554
+84000
+last 1k data cost time:68.09863495826721
+succ_cnt:36000
+85000
+last 1k data cost time:68.01102828979492
+86000
+last 1k data cost time:61.18908977508545
+succ_cnt:37000
+87000
+last 1k data cost time:67.91436433792114
+88000
+last 1k data cost time:69.17293572425842
+89000
+last 1k data cost time:61.35170340538025
+succ_cnt:38000
+90000
+last 1k data cost time:65.46070122718811
+91000
+last 1k data cost time:62.199825048446655
+succ_cnt:39000
+92000
+last 1k data cost time:70.7162697315216
+93000
+last 1k data cost time:67.31700730323792
+94000
+last 1k data cost time:60.09978652000427
+succ_cnt:40000
+95000
+last 1k data cost time:65.69411826133728
+96000
+last 1k data cost time:68.37597990036011
+succ_cnt:41000
+97000
+last 1k data cost time:65.92836213111877
+98000
+last 1k data cost time:67.20225191116333
+succ_cnt:42000
+99000
+last 1k data cost time:63.24157452583313
+100000
+last 1k data cost time:66.73645186424255
+succ_cnt:43000
+101000
+last 1k data cost time:66.40239524841309
+102000
+last 1k data cost time:63.999186754226685
+103000
+last 1k data cost time:65.20565104484558
+succ_cnt:44000
+104000
+last 1k data cost time:71.68291687965393
+105000
+last 1k data cost time:63.30581760406494
+succ_cnt:45000
+106000
+last 1k data cost time:66.21532607078552
+107000
+last 1k data cost time:58.90568661689758
+succ_cnt:46000
+108000
+last 1k data cost time:68.23648142814636
+109000
+last 1k data cost time:70.9111680984497
+succ_cnt:47000
+110000
+last 1k data cost time:63.95543718338013
+111000
+last 1k data cost time:68.308842420578
+succ_cnt:48000
+112000
+last 1k data cost time:68.41541242599487
+113000
+last 1k data cost time:64.99072933197021
+114000
+last 1k data cost time:67.90306186676025
+succ_cnt:49000
+115000
+last 1k data cost time:62.60732626914978
+succ_cnt:50000
+116000
+last 1k data cost time:67.31335139274597
+117000
+last 1k data cost time:68.16096425056458
+succ_cnt:51000
+118000
+last 1k data cost time:63.796674489974976
+119000
+last 1k data cost time:67.00124311447144
+succ_cnt:52000
+120000
+last 1k data cost time:61.3384473323822
+121000
+last 1k data cost time:61.29855704307556
+succ_cnt:53000
+122000
+last 1k data cost time:67.3523952960968
+123000
+last 1k data cost time:62.5311975479126
+succ_cnt:54000
+124000
+last 1k data cost time:61.06454038619995
+125000
+last 1k data cost time:67.38788509368896
+126000
+last 1k data cost time:61.72768521308899
+succ_cnt:55000
+127000
+last 1k data cost time:65.37349843978882
+128000
+last 1k data cost time:73.2097647190094
+succ_cnt:56000
+129000
+last 1k data cost time:61.66417670249939
+130000
+last 1k data cost time:70.21770191192627
+succ_cnt:57000
+131000
+last 1k data cost time:63.345497131347656
+131000
+last 1k data cost time:4.5299530029296875e-06
+132000
+last 1k data cost time:68.00309944152832
+succ_cnt:58000
+133000
+last 1k data cost time:73.27870678901672
+134000
+last 1k data cost time:66.05768418312073
+succ_cnt:59000
+135000
+last 1k data cost time:70.5142183303833
+succ_cnt:60000
+136000
+last 1k data cost time:69.98403334617615
+137000
+last 1k data cost time:61.38380408287048
+succ_cnt:61000
+138000
+last 1k data cost time:66.01125383377075
+139000
+last 1k data cost time:63.496243953704834
+succ_cnt:62000
+140000
+last 1k data cost time:71.9137544631958
+141000
+last 1k data cost time:70.56578373908997
+142000
+last 1k data cost time:61.1866979598999
+succ_cnt:63000
+143000
+last 1k data cost time:64.27116298675537
+144000
+last 1k data cost time:65.69051814079285
+succ_cnt:64000
+145000
+last 1k data cost time:65.12569499015808
+146000
+last 1k data cost time:68.77095127105713
+succ_cnt:65000
+147000
+last 1k data cost time:60.852566957473755
+148000
+last 1k data cost time:70.71556091308594
+succ_cnt:66000
+149000
+last 1k data cost time:68.43588781356812
+150000
+last 1k data cost time:63.68397617340088
+succ_cnt:67000
+151000
+last 1k data cost time:72.9022650718689
+152000
+last 1k data cost time:67.19164514541626
+153000
+last 1k data cost time:72.09791946411133
+succ_cnt:68000
+154000
+last 1k data cost time:68.86858820915222
+155000
+last 1k data cost time:67.42770147323608
+succ_cnt:69000
+156000
+last 1k data cost time:67.92122793197632
+157000
+last 1k data cost time:68.6526563167572
+succ_cnt:70000
+158000
+last 1k data cost time:66.71582865715027
+159000
+last 1k data cost time:71.72258400917053
+160000
+last 1k data cost time:64.45322227478027
+succ_cnt:71000
+161000
+last 1k data cost time:66.05117726325989
+succ_cnt:72000
+162000
+last 1k data cost time:72.84047436714172
+163000
+last 1k data cost time:65.41920256614685
+succ_cnt:73000
+164000
+last 1k data cost time:65.57019472122192
+165000
+last 1k data cost time:71.89537119865417
+166000
+last 1k data cost time:61.167145013809204
+succ_cnt:74000
+Traceback (most recent call last):
+  File "/root/anaconda3/lib/python3.7/site-packages/urllib3/connectionpool.py", line 677, in urlopen
+    chunked=chunked,
+  File "/root/anaconda3/lib/python3.7/site-packages/urllib3/connectionpool.py", line 426, in _make_request
+    six.raise_from(e, None)
+  File "<string>", line 3, in raise_from
+  File "/root/anaconda3/lib/python3.7/site-packages/urllib3/connectionpool.py", line 421, in _make_request
+    httplib_response = conn.getresponse()
+  File "/root/anaconda3/lib/python3.7/http/client.py", line 1321, in getresponse
+    response.begin()
+  File "/root/anaconda3/lib/python3.7/http/client.py", line 296, in begin
+    version, status, reason = self._read_status()
+  File "/root/anaconda3/lib/python3.7/http/client.py", line 265, in _read_status
+    raise RemoteDisconnected("Remote end closed connection without"
+http.client.RemoteDisconnected: Remote end closed connection without response
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/root/anaconda3/lib/python3.7/site-packages/requests/adapters.py", line 449, in send
+    timeout=timeout
+  File "/root/anaconda3/lib/python3.7/site-packages/urllib3/connectionpool.py", line 727, in urlopen
+    method, url, error=e, _pool=self, _stacktrace=sys.exc_info()[2]
+  File "/root/anaconda3/lib/python3.7/site-packages/urllib3/util/retry.py", line 410, in increment
+    raise six.reraise(type(error), error, _stacktrace)
+  File "/root/anaconda3/lib/python3.7/site-packages/urllib3/packages/six.py", line 734, in reraise
+    raise value.with_traceback(tb)
+  File "/root/anaconda3/lib/python3.7/site-packages/urllib3/connectionpool.py", line 677, in urlopen
+    chunked=chunked,
+  File "/root/anaconda3/lib/python3.7/site-packages/urllib3/connectionpool.py", line 426, in _make_request
+    six.raise_from(e, None)
+  File "<string>", line 3, in raise_from
+  File "/root/anaconda3/lib/python3.7/site-packages/urllib3/connectionpool.py", line 421, in _make_request
+    httplib_response = conn.getresponse()
+  File "/root/anaconda3/lib/python3.7/http/client.py", line 1321, in getresponse
+    response.begin()
+  File "/root/anaconda3/lib/python3.7/http/client.py", line 296, in begin
+    version, status, reason = self._read_status()
+  File "/root/anaconda3/lib/python3.7/http/client.py", line 265, in _read_status
+    raise RemoteDisconnected("Remote end closed connection without"
+urllib3.exceptions.ProtocolError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "get_retrival_batch_parallel.py", line 161, in <module>
+    file_retrieve(filename, outfile, port)
+  File "get_retrival_batch_parallel.py", line 101, in file_retrieve
+    resp = sementic_retrieval_batch(batch_data, 10, port)
+  File "get_retrival_batch_parallel.py", line 56, in sementic_retrieval_batch
+    data = requests.post(url, headers=headers, json=params)
+  File "/root/anaconda3/lib/python3.7/site-packages/requests/api.py", line 119, in post
+    return request('post', url, data=data, json=json, **kwargs)
+  File "/root/anaconda3/lib/python3.7/site-packages/requests/api.py", line 61, in request
+    return session.request(method=method, url=url, **kwargs)
+  File "/root/anaconda3/lib/python3.7/site-packages/requests/sessions.py", line 530, in request
+    resp = self.send(prep, **send_kwargs)
+  File "/root/anaconda3/lib/python3.7/site-packages/requests/sessions.py", line 643, in send
+    r = adapter.send(request, **kwargs)
+  File "/root/anaconda3/lib/python3.7/site-packages/requests/adapters.py", line 498, in send
+    raise ConnectionError(err, request=request)
+requests.exceptions.ConnectionError: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))

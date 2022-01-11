@@ -34,4 +34,6 @@ class DeployGenerationAgent:
         batches['generation_num'] = 1
         batches['sampling_prefix_len'] = -1.
         g2 = self.agent.generate(batches)
+
+        del batches['generation_num']
         return g1, g2, g3

@@ -298,7 +298,7 @@ def create_app():
         else:
             result['item_list'] = None
         # log
-        push_to_log(result, recall_logger)
+        #push_to_log(result, recall_logger)
         return jsonify(result)
      
     @app.route('/generation', methods=['POST'])

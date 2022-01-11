@@ -11,7 +11,7 @@ def sementic_retrival(text, k):
     resp = []
     params = {"segment_list": [{"str": text, "status": "editing"}], "topk": k, "lang": "zh"}
     headers = {"Content-type": "application/json"}
-    url = 'http://9.91.66.241:8090/recall'
+    url = 'http://9.91.66.241:8089/recall'
     # data = requests.post(url, params)
     data = requests.post(url, headers=headers, json=params)
     data = json.loads(data.text)

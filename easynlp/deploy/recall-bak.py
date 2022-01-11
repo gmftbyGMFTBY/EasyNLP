@@ -5,7 +5,6 @@ from dataloader import *
 from inference_utils import Searcher
 from es.es_utils import *
 from .utils import *
-import time
 
 
 def init_recall(args):
@@ -70,13 +69,9 @@ class RecallAgent:
         elif self.args['model'] == 'full':
             rest_ = [self.searcher]
         else:
-            model_start_time = time.time()
             vectors = self.agent.encode_queries(batch)    # [B, E]
-            print("model inference cost time:{}".format(time.time() - model_start_time))
-            retrieval_start_time = time.time()
             # rest_ = self.searcher._search(vectors, topk=topk)
             rest_, distance = self.searcher._search_dis(vectors, topk=topk)
-            print("retrieval cost time:{}".format(time.time() - retrieval_start_time))
         rest = []
         for item, dis in zip(rest_, distance):
             cache = []

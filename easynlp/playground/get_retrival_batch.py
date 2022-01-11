@@ -32,7 +32,7 @@ def sementic_retrieval(text, k):
     resp = []
     params = {"segment_list": [{"str": text, "status": "editing"}], "topk": k, "lang": "zh"}
     headers = {"Content-type": "application/json"}
-    url = 'http://9.91.66.241:8082/recall'
+    url = 'http://9.91.66.241:8089/recall'
     # data = requests.post(url, params)
     data = requests.post(url, headers=headers, json=params)
     data = json.loads(data.text)
@@ -50,7 +50,7 @@ def sementic_retrieval_batch(texts, k):
         request_data.append({"str": text, "status": "editing"})
     params = {"segment_list": request_data, "topk": k, "lang": "zh"}
     headers = {"Content-type": "application/json"}
-    url = 'http://9.91.66.241:8083/recall'
+    url = 'http://9.91.66.241:8089/recall'
     # data = requests.post(url, params)
     data = requests.post(url, headers=headers, json=params)
     data = json.loads(data.text)

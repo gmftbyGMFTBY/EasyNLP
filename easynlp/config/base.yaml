@@ -748,7 +748,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 99
+version: 103
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
 rank: null
@@ -765,13 +765,13 @@ start_save_step: 0
 # ========== Deploy configuration ========== #
 deploy:
     host: '0.0.0.0'
-    port: 8089
-    # dataset: writer-rank
-    dataset: wz_game
+    port: 22335
+    dataset: writer-rank
+    # dataset: wz_game
     max_len: 128
     res_max_len: 64
     recall:
-        activate: true
+        activate: false
         model: wz-simcse
         topk: 200
         with_source: false
@@ -779,8 +779,8 @@ deploy:
         index_nprobe: 1
         dimension: 768
     rerank:
-        activate: false
-        model: writer-dual-bert-phrase
+        activate: true
+        model: writer-dual-bert-compare
     pipeline:
         activate: false
     pipeline_evaluation:
