@@ -330,7 +330,8 @@ models:
         type: CompareInteraction
         model_name: BERTDualSCMHNEncoder
         # model_name: BERTDualSCMHN2Encoder
-        dataset_name: BERTDualBM25SCMLiteDataset
+        # dataset_name: BERTDualBM25SCMLiteDataset
+        dataset_name: BERTDualFullCorruptSCMDataset
         # dataset_name: HORSETestDataset
         inference_dataset_name: null
     dual-bert-scm-cls: 
@@ -342,6 +343,7 @@ models:
         type: CompareInteraction
         model_name: BERTDualSCMEncoder
         dataset_name: BERTDualFullDataset
+        # dataset_name: HORSETestDataset
         inference_dataset_name: null
     dual-bert-seed: 
         type: Representation
@@ -748,7 +750,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 103
+version: 196
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
 rank: null

@@ -5,7 +5,14 @@ valid_during_training: true
 nhead: 12
 num_layers: 2
 gray_cand_num: 5
-before_comp: false
+before_comp: true
+dropout: 0.1
+
+# corrupt parameters
+deletion_ratio: 0.3
+deletion_min_num: 1
+deletion_num: 1
+concatention_num: 4
 
 # parameters for dual-bert-scm-hn-2
 # dropout: 0.1

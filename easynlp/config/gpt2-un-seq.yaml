@@ -26,7 +26,7 @@ train:
     un_prefix_len: 64
     un_generated_len: 64
     warmup_ratio: 0.
-    iter_to_accumulate: 8
+    iter_to_accumulate: 1
     checkpoint: 
         path: bert-post/best_nspmlm.pt
         is_load: false

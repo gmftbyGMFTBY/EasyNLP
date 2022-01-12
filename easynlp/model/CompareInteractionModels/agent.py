@@ -19,7 +19,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         else:
             # open the test save scores file handler
             pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
-            path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}.txt'
+            path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}_{args["version"]}.txt'
             self.log_save_file = open(path, 'w')
         if torch.cuda.is_available():
             self.model.cuda()
@@ -58,6 +58,28 @@ class CompareInteractionAgent(RetrievalBaseAgent):
                 total_loss += loss.item()
                 total_acc += acc
                 acc /= inner_time
+            elif self.args['model'] in ['dual-bert-scm']:
+                with autocast():
+                    loss_recall, loss_margin, acc = self.model(batch)
+                    loss = loss_recall + loss_margin
+                self.scaler.scale(loss).backward()
+                self.scaler.unscale_(self.optimizer)
+                clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+                self.scheduler.step()
+                batch_num += 1
+                if whole_batch_num + batch_num in self.args['test_step']:
+                    self.test_now(test_iter, recoder)
+                total_loss += loss.item()
+                total_acc += acc
+                if recoder:
+                    recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
+                    recoder.add_scalar(f'train-epoch-{idx_}/RunRecallLoss', loss_recall.item(), idx)
+                    recoder.add_scalar(f'train-epoch-{idx_}/RunMarginLoss', loss_margin.item(), idx)
+                    recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
+                    recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
+                pbar.set_description(f'[!] loss(recall|margin): {round(loss_recall.item(), 4)}|{round(loss_margin.item(), 4)}; acc: {round(acc, 4)}')
             else:
                 with autocast():
                     loss, acc = self.model(batch)

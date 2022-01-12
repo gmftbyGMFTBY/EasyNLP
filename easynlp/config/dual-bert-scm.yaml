@@ -1,11 +1,11 @@
-temp: 1.
+temp: 0.05
 full_turn_length: 5
 test_interval: 0.05
 valid_during_training: true
 nhead: 8
 num_layers: 2
 dropout: 0.1
-context_aware_before_comparison: true
+margin: 0.5
 
 # network issue, load locally
 tokenizer:

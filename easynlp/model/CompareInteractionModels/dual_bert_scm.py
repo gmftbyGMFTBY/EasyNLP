@@ -21,6 +21,14 @@ class BERTDualSCMEncoder(nn.Module):
             nn.Dropout(p=args['dropout']) ,
             nn.Linear(768*3, 768)
         )
+        self.args = args
+        self.convert = nn.Sequential(
+            nn.Dropout(p=args['dropout']),
+            nn.Linear(768, 768),
+            nn.Tanh(),
+            nn.Dropout(p=args['dropout']),
+            nn.Linear(768, 768),
+        )
 
     def _encode(self, cid, rid, cid_mask, rid_mask):
         rid_size, cid_size = len(rid), len(cid)
@@ -32,6 +40,8 @@ class BERTDualSCMEncoder(nn.Module):
         cid_rep_ = cid_rep_whole[:, 0, :].unsqueeze(1)
         # rid_rep: [B_r, E]
         rid_rep = self.can_encoder(rid, rid_mask)
+
+        cid_rep_mt, rid_rep_mt = self.convert(cid_rep), self.convert(rid_rep)
 
         ## combine context and response embeddings before comparison
         # cid_rep: [B_r, B_c, E]
@@ -68,8 +78,10 @@ class BERTDualSCMEncoder(nn.Module):
         # rest: [B_c, E, B_r]
         rest = rest.permute(1, 2, 0)
         # dp: [B_c, B_r]
+        cid_rep_ = F.normalize(cid_rep_, dim=-1)
+        rest = F.normalize(rest, dim=-1)
         dp = torch.bmm(cid_rep_, rest).squeeze(1)
-        return dp
+        return dp, cid_rep_mt, rid_rep_mt
 
     @torch.no_grad()
     def predict(self, batch):
@@ -77,7 +89,7 @@ class BERTDualSCMEncoder(nn.Module):
         cid_mask = torch.ones_like(cid)
         rid = batch['rids']
         rid_mask = batch['rids_mask']
-        dp = self._encode(cid, rid, cid_mask, rid_mask)    # [1, 10]
+        dp, _, _ = self._encode(cid, rid, cid_mask, rid_mask)    # [1, 10]
         return dp.squeeze()
     
     def forward(self, batch):
@@ -87,15 +99,29 @@ class BERTDualSCMEncoder(nn.Module):
         rid_mask = batch['rids_mask']
         batch_size = len(cid)
 
-        # [B_c, B_r]
-        dp = self._encode(cid, rid, cid_mask, rid_mask)
+        dp, cid_rep_mt, rid_rep_mt = self._encode(cid, rid, cid_mask, rid_mask)
+        # multi-task: recall training
+        dp_mt = torch.matmul(cid_rep_mt, rid_rep_mt.t())
+        mask = torch.zeros_like(dp_mt)
+        mask[range(batch_size), range(batch_size)] = 1.
+        loss_ = F.log_softmax(dp_mt, dim=-1) * mask
+        loss = (-loss_.sum(dim=1)).mean()
+        acc = (dp_mt.max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).to(torch.float).mean().item()
+
+        # multi-task: rerank training (ranking loss)
+        ## dp: [B_c, B_r]
+        gold_score = torch.diagonal(dp).unsqueeze(dim=-1)    # [B_c, 1]
+        difference = gold_score - dp    # [B_c, B_r]
+        loss_matrix = torch.clamp(self.args['margin'] - difference, min=0.)   # [B_c, B_r]
+        loss_margin = loss_matrix.mean()
+        
+        dp /= self.args['temp']
         mask = torch.zeros_like(dp)
         mask[range(batch_size), range(batch_size)] = 1.
         loss_ = F.log_softmax(dp, dim=-1) * mask
-        loss = (-loss_.sum(dim=1)).mean()
-
-        acc = (dp.max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).to(torch.float).mean().item()
-        return loss, acc
+        loss += (-loss_.sum(dim=1)).mean()
+        
+        return loss, loss_margin, acc
 
 
 class BERTDualSCMHNEncoder(nn.Module):
@@ -107,6 +133,13 @@ class BERTDualSCMHNEncoder(nn.Module):
         self.can_encoder = BertEmbedding(model=model)
         decoder_layer = nn.TransformerDecoderLayer(d_model=768, nhead=args['nhead'])
         self.fusion_encoder = nn.TransformerDecoder(decoder_layer, num_layers=args['num_layers'])
+        self.projection = nn.Sequential(
+            nn.Dropout(p=args['dropout']),
+            nn.Linear(768, 768),
+            nn.Tanh(),
+            nn.Dropout(p=args['dropout']),
+            nn.Linear(768, 768)
+        )
         self.topk = 1 + args['gray_cand_num']
         self.args = args
 
@@ -194,6 +227,7 @@ class BERTDualSCMHNEncoder(nn.Module):
         loss = 0
         if self.args['before_comp']:
             dp, dp2, cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask, before_comp=True)
+            cid_rep, rid_rep = self.projection(cid_rep), self.projection(rid_rep)
             # before comparsion, optimize the absolute semantic space
             dot_product = torch.matmul(cid_rep, rid_rep.t())
             mask = torch.zeros_like(dot_product)
