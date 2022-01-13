@@ -11,7 +11,6 @@ class BERTDualSCMEncoder(nn.Module):
         # decoder layer
         decoder_layer = nn.TransformerDecoderLayer(d_model=768, nhead=args['nhead'])
         self.fusion_encoder = nn.TransformerDecoder(decoder_layer, num_layers=args['num_layers'])
-
         # sequeeze and gate
         self.squeeze = nn.Sequential(
             nn.Dropout(p=args['dropout']) ,
@@ -106,7 +105,7 @@ class BERTDualSCMEncoder(nn.Module):
         mask[range(batch_size), range(batch_size)] = 1.
         loss_ = F.log_softmax(dp_mt, dim=-1) * mask
         loss = (-loss_.sum(dim=1)).mean()
-        acc = (dp_mt.max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).to(torch.float).mean().item()
+        # acc = (dp_mt.max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).to(torch.float).mean().item()
 
         # multi-task: rerank training (ranking loss)
         ## dp: [B_c, B_r]
@@ -120,6 +119,8 @@ class BERTDualSCMEncoder(nn.Module):
         mask[range(batch_size), range(batch_size)] = 1.
         loss_ = F.log_softmax(dp, dim=-1) * mask
         loss += (-loss_.sum(dim=1)).mean()
+        
+        acc = (dp.max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).to(torch.float).mean().item()
         
         return loss, loss_margin, acc
 

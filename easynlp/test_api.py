@@ -499,13 +499,14 @@ def test_generation(args):
     data = [{
         'segment_list': [
             {
-                'context': '一检验中心负责人在许昌实施引起传播病毒或有传',
+                'context': '几天跑了半个小时，真的太累了',
             },
         ],
         'decoding_method': 'contrastive_batch_search',
         'beam_width': 5,
         'model_prediction_confidence': 0.6,
-        'generation_num': 5,
+        'generation_num': 20,
+        'max_gen_len': 64,
         # 'decoding_method': 'topk_topp_repetition_penalty_batch_fast_search',
     }]
 

@@ -1,7 +1,7 @@
 temp: 0.05
-full_turn_length: 5
+full_turn_length: 9
 test_interval: 0.05
-valid_during_training: true
+valid_during_training: false
 nhead: 8
 num_layers: 2
 dropout: 0.1
@@ -18,9 +18,9 @@ train:
     lr: 0.00005
     grad_clip: 5.0
     seed: 0
-    batch_size: 80
-    max_len: 64
-    res_max_len: 32
+    batch_size: 64
+    max_len: 256
+    res_max_len: 64
     epoch: 5
     warmup_ratio: 0.
     checkpoint: 
@@ -36,8 +36,8 @@ train:
 test:
     seed: 0
     batch_size: 1
-    max_len: 64
-    res_max_len: 32
+    max_len: 256
+    res_max_len: 64
 
 # inference configuration
 inference:
