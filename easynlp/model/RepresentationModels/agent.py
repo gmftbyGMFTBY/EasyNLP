@@ -625,7 +625,7 @@ class RepresentationAgent(RetrievalBaseAgent):
     def rerank(self, batches, inner_bsz=2048):
         self.model.eval()
         scores = []
-        for batch in batches:
+        for batch in tqdm(batches):
             subscores = []
             # pbar = tqdm(range(0, len(batch['candidates']), inner_bsz))
             cid, cid_mask = self.totensor([batch['context']], ctx=True)

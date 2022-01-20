@@ -2,9 +2,16 @@
 rank: null
 # for data augmentation
 full_turn_length: 100
-test_interval: 0.1
+test_interval: 0.0001
 # true for ubuntu and horse, false for douban and ecommerce
-valid_during_training: true
+valid_during_training: false
+
+tokenizer:
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
+# pretrained_model:
+#     zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+#     en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
 
 # train configuration
 train:
@@ -16,8 +23,9 @@ train:
     epoch: 5
     warmup_ratio: 0.0
     checkpoint: 
-        # path: bert-post/best_nspmlm.pt
-        path: bert-fp/best_bert-base-chinese.pt
+        path: bert-post/best_nspmlm.pt
+        # path: bert-fp/best_bert-base-chinese.pt
+        # path: bert-fp-mono/best_bert-base-uncased.pt
         is_load: true
 
 # test configuration

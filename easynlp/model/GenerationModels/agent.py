@@ -185,22 +185,29 @@ class GenerationAgent(GenerationBaseAgent):
         distinct_word_1, distinct_word_3, distinct_word_5 = [], [], []
         for idx, batch in enumerate(pbar):
             # gpt2 batch inference need the positional ids and the left padding mechanism
-            if self.args['mode'] == 'train':
-                logits = self.model.module.predict(batch)
-                ppl = self.model.module.calculate_ppl(
-                    batch['ids'], 
-                    batch['ids_mask'], 
-                    batch['pos_ids'],
-                    batch['ids_label']
-                )
+            if self.args['model'] == 'doctttttquery':
+                if self.args['mode'] == 'train':
+                    logits = self.model.module.predict(batch)
+                else:
+                    logits = self.model.predict(batch)
+                ppl = 0.
             else:
-                logits = self.model.predict(batch)
-                ppl = self.model.calculate_ppl(
-                    batch['ids'], 
-                    batch['ids_mask'], 
-                    batch['pos_ids'],
-                    batch['ids_label']
-                )
+                if self.args['mode'] == 'train':
+                    logits = self.model.module.predict(batch)
+                    ppl = self.model.module.calculate_ppl(
+                        batch['ids'], 
+                        batch['ids_mask'], 
+                        batch['pos_ids'],
+                        batch['ids_label']
+                    )
+                else:
+                    logits = self.model.predict(batch)
+                    ppl = self.model.calculate_ppl(
+                        batch['ids'], 
+                        batch['ids_mask'], 
+                        batch['pos_ids'],
+                        batch['ids_label']
+                    )
             PPL.append(ppl)
             if print_output:
                 for c, r in zip(batch['ids'], logits):
@@ -375,11 +382,23 @@ class GenerationAgent(GenerationBaseAgent):
         pbar = tqdm(test_iter)
         for idx, batch in enumerate(pbar):
             rest = self.model.predict(batch)
-            for r, t in zip(rest, batch['text']):
-                r = ''.join(self.vocab.convert_ids_to_tokens(r))
-                self.log_save_file.write(f'[Prefix     ] {t}\n')
-                self.log_save_file.write(f'[Generation ] {r}\n\n')
-                self.log_save_file.flush()
+            if type(rest[0]) == list:
+                # diverse generation
+                self.log_save_file.write(f'[Prefix     ] {batch["text"][0]}\n')
+                for idx, r in enumerate(rest):
+                    sep = ' ' if self.args['lang'] == 'en' else ''
+                    r = sep.join([token for token in self.vocab.convert_ids_to_tokens(r)])
+                    self.log_save_file.write(f'[Generation {idx}] {r}\n')
+                    self.log_save_file.flush()
+                self.log_save_file.write('\n')
+            else:
+                for r, t in zip(rest, batch['text']):
+                    ipdb.set_trace()
+                    sep = ' ' if self.args['lang'] == 'en' else ''
+                    r = sep.join([token for token in self.vocab.convert_ids_to_tokens(r)])
+                    self.log_save_file.write(f'[Prefix     ] {t}\n')
+                    self.log_save_file.write(f'[Generation ] {r}\n\n')
+                    self.log_save_file.flush()
         return {}
     
     @torch.no_grad()

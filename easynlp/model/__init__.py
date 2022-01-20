@@ -1,4 +1,5 @@
 from .InteractionModels import *
+from .TraditionalResponseSelectionModels import *
 from .WriterRerankModels import *
 from .AugmentationModels import *
 from .CompareInteractionModels import *
@@ -26,6 +27,7 @@ def load_model(args):
         'MutualTrainingModel': MutualTrainingAgent,
         'WriterRerank': WriterRerankAgent,
         'SemanticSimilarity': SemanticSimilarityAgent,
+        'TraditionalResponseSelection': TraditionalResponseSelectionAgent,
     }
     if model_type in MAP:
         agent_t = MAP[model_type]

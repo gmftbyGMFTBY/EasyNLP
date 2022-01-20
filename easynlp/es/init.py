@@ -19,9 +19,13 @@ def q_q_dataset(args):
     return train_data
 
 def q_r_dataset(args):
-    train_path = f'{args["root_dir"]}/data/{args["dataset"]}/train.txt'
+    if args['recall_mode'] == 'q-r':
+        train_path = f'{args["root_dir"]}/data/{args["dataset"]}/train.txt'
+        train_data = load_sentences(train_path, lang=args['lang'])
+    else:
+        train_path = f'{args["root_dir"]}/data/{args["dataset"]}/train_doctttttquery.txt'
+        train_data = load_doctttttquery(train_path, lang=args['lang'])
     # extend_path = f'{args["root_dir"]}/data/ext_douban/train.txt'
-    train_data = load_sentences(train_path, lang=args['lang'])
     # extend_data = load_extended_sentences(extend_path)
     # data = train_data + extend_data
     # data = list(set(data))
@@ -66,7 +70,7 @@ if __name__ == "__main__":
     random.seed(args['seed'])
     if args['recall_mode'] == 'q-q':
         data = q_q_dataset(args)
-    elif args['recall_mode'] == 'q-r':
+    elif args['recall_mode'] in ['q-r', 'doctttttquery']:
         data = q_r_dataset(args)
     elif args['recall_mode'] == 'single':
         data = single_dataset(args)

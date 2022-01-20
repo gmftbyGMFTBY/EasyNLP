@@ -2,6 +2,12 @@ from config import *
 from header import *
 from flask import Flask, request, jsonify, make_response, session
 from deploy import *
+import argparse
+
+def parser_args():
+    parser = argparse.ArgumentParser(description='train parameters')
+    parser.add_argument('--base_port', type=int, default=22330)
+    return vars(parser.parse_args())
 
 def create_app():
     app = Flask(__name__)
@@ -62,7 +68,7 @@ def create_app():
         }
         '''
         try:
-            data = request.json
+            data = json.loads(request.data)
             (responses, mrrs, recall_t, rerank_t), core_time = pipelineevaluationagent.work(
                 data['segment_list'],
                 topk=pipeline_evaluation_args['recall']['topk'],
@@ -130,7 +136,7 @@ def create_app():
         }
         '''
         try:
-            data = request.json
+            data = json.loads(request.data)
             (responses, recall_t, rerank_t), core_time = pipelineagent.work(data['segment_list'])
             succ = True
         except Exception as error:
@@ -386,9 +392,14 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     logger = logging.getLogger(__name__)
 
+    # mentioned !
+    # base_port = parser_args()['base_port']
+
     app_args = load_base_config()['deploy']
+    # print(f'[!] running port: {base_port+app_args["port"]}')
     app = create_app()
     app.run(
         host=app_args['host'], 
         port=app_args['port'],
+        # port=base_port+app_args['port'],
     )

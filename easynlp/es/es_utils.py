@@ -176,6 +176,15 @@ def load_qa_pair(path, lang='zh'):
             dataset.append((q, a))
     return dataset
 
+def load_doctttttquery(path, lang='zh'):
+    with open(path) as f:
+        dataset = []
+        for line in f.readlines():
+            line = line.strip()
+            dataset.append(line)
+    print(f'[!] collect {len(dataset)} samples for doctttttquery bm25 search')
+    return dataset
+
 
 def load_sentences(path, lang='zh'):
     with open(path) as f:

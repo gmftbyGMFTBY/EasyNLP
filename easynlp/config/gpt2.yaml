@@ -4,11 +4,13 @@ tokenizer:
     # zh: /apdcephfs/share_916081/johntianlan/gpt2_12layers_clue
     # zh: /apdcephfs/share_916081/johntianlan/gpt2-distil-chinese-cluecorpussmall
     zh: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
+    en: /apdcephfs/share_916081/johntianlan/gpt2_small_contrastive_finetune
 pretrained_model: 
     # zh: /apdcephfs/share_916081/johntianlan/gpt2-chinese-cluecorpussmall
     # zh: /apdcephfs/share_916081/johntianlan/gpt2_12layers_clue
     # zh: /apdcephfs/share_916081/johntianlan/gpt2-distil-chinese-cluecorpussmall
     zh: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
+    en: /apdcephfs/share_916081/johntianlan/gpt2_small_contrastive_finetune
 # max_len is the max length of the prefix
 max_len: 128
 # gen_max_len is the max length of the generated sequence
@@ -17,17 +19,19 @@ gen_max_len: 128
 gen_max_ctx_len: 128
 
 # file name: novel or news
-file_name: novel
-# file_name: news
+# file_name: novel
+file_name: news
+# file_name: english_test
 
 # decoding methods
 # decoding_method: contrastive_search
+decoding_method: contrastive_beam_search
 # decoding_method: contrastive_batch_search
 # decoding_method: greedy_search
 # decoding_method: beam_search
 # decoding_method: topk_topp_repetition_penalty_search
 # decoding_method: topk_topp_repetition_penalty_fast_search
-decoding_method: topk_topp_repetition_penalty_batch_fast_search
+# decoding_method: topk_topp_repetition_penalty_batch_fast_search
 # decoding_method: topk_topp_search
 # decoding_method: topk_search
 # decoding_method: topp_search
@@ -42,12 +46,14 @@ topk_topp_beam_num: 2
 repetition_penalty: 1.0
 
 # contrastive decoding parameter
-beam_width: 5
-model_prediction_confidence: 0.6
+beam_width: 8
+model_prediction_confidence: 0.4
 contrastive_topk: 8
 contrastive_topp: 0.93
-sampling_prefix_len: 3
+sampling_prefix_len: 0
 sep_smooth_length: 50
+sampling_probability: 0.
+contrastive_generation_num: 10
 
 # test configuration
 test:

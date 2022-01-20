@@ -11,7 +11,8 @@ import time
 def init_recall(args):
     if args['model'] == 'bm25':
         # Elasticsearch
-        searcher = ESSearcher(f'{args["dataset"]}_q-q', q_q=True)
+        # searcher = ESSearcher(f'{args["dataset"]}_q-q', q_q=True)
+        searcher = ESSearcher(f'{args["dataset"]}_doctttttquery', q_q=False)
         # searcher = ESSearcher(f'{args["dataset"]}_q-r', q_q=False)
         agent = None
         size = searcher.get_size()
@@ -74,20 +75,26 @@ class RecallAgent:
             vectors = self.agent.encode_queries(batch)    # [B, E]
             print("model inference cost time:{}".format(time.time() - model_start_time))
             retrieval_start_time = time.time()
-            # rest_ = self.searcher._search(vectors, topk=topk)
-            rest_, distance = self.searcher._search_dis(vectors, topk=topk)
+            rest_ = self.searcher._search(vectors, topk=topk)
+            # rest_, distance = self.searcher._search_dis(vectors, topk=topk)
             print("retrieval cost time:{}".format(time.time() - retrieval_start_time))
         rest = []
-        for item, dis in zip(rest_, distance):
+        # for item, dis in zip(rest_, distance):
+        for item in rest_:
             cache = []
-            for i, j in zip(item, dis):
+            # for i, j in zip(item, dis):
+            for i in item:
                 if type(i) == str:
+
+                    # for doctttttquery
+                    # i = ' '.join(i.split()[:-1])
+
                     # with_source is False
                     assert self.args['with_source'] is False
                     cache.append({
                         'text': i,
                         'source': {'title': None, 'url': None},
-                        'similarity': str(j),
+                        # 'similarity': str(j),
                     })
                 elif type(i) == tuple:
                     # with_source is True

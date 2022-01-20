@@ -10,6 +10,7 @@ class BERTDualInferenceDataset(Dataset):
         self.args = args
         self.vocab = vocab
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
         suffix = args['tokenizer'].replace('/', '_')
         self.pp_path = f'{os.path.split(path)[0]}/inference_{suffix}.pt'
@@ -24,7 +25,7 @@ class BERTDualInferenceDataset(Dataset):
 
         self.data = []
         for res in tqdm(responses):
-            rids = length_limit_res(self.vocab.encode(res), self.args['max_len'], sep=self.sep)
+            rids = [self.cls] + self.vocab.encode(res, add_special_tokens=False)[:self.args['max_len']-2] + [self.sep]
             self.data.append({
                 'ids': rids, 
                 'text': res

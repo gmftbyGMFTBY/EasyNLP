@@ -443,7 +443,8 @@ class GPT2InferenceDataset(Dataset):
         
         self.data = []
         for ctx in tqdm(data):
-            ids = self.vocab.encode(ctx, add_special_tokens=False)
+            ids = self.vocab.tokenize(ctx)
+            ids = self.vocab.convert_tokens_to_ids(ids)
             ids = ids[-self.args['gen_max_ctx_len']+1:]
             text = ''.join(self.vocab.convert_ids_to_tokens(ids))
             self.data.append({'ids': ids, 'text': text})

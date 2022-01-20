@@ -14,6 +14,7 @@ class BERTDualEncoder(nn.Module):
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
         rid_rep = self.can_encoder(rid, rid_mask)
+        # rid_rep = torch.randn(10, 768).cuda()
         # cosine similarity
         # cid_rep, rid_rep = F.normalize(cid_rep), F.normalize(rid_rep)
         return cid_rep, rid_rep

@@ -203,7 +203,7 @@ class RetrievalBaseAgent:
                         item = self.vocab.batch_encode_plus(text, add_special_tokens=False)['input_ids']
                         context = []
                         for u in item:
-                            context.extend(u+[self.eos])
+                            context.extend(u+[self.sep])
                         context.pop()
                         context = context[-(self.args['max_len']-2):]
                         context = [self.cls] + context + [self.sep]
@@ -217,7 +217,7 @@ class RetrievalBaseAgent:
                         pos = []
                         w = self.args['min_w']
                         for u in item:
-                            context.extend(u+[self.eos])
+                            context.extend(u+[self.sep])
                             pos.extend([w]*(len(u)+1))
                             w += self.args['w_delta']
                         context.pop()

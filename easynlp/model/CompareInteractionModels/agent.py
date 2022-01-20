@@ -555,7 +555,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
     def load_model(self, path):
         state_dict = torch.load(path, map_location=torch.device('cpu'))
         if self.args['mode'] == 'train':
-            if self.args['model'] in ['dual-bert-comp-hn', 'dual-bert-comp', 'dual-bert-compare', 'dual-bert-scm', 'dual-bert-scm-hn', 'dual-bert-scm-hn-mch', 'dual-bert-scm-hn-with-easy', 'dual-bert-scm-hn-dist', 'dual-bert-scm-hn-dm', 'dual-bert-scm-hn-topk', 'dual-bert-scm-compare', 'dual-bert-scm-sdl', 'dual-bert-scm-hn-pos', 'dual-bert-scm-hn-g', 'dual-bert-scm-hn-dm']:
+            if self.args['model'] in ['dual-bert-comp-hn', 'dual-bert-comp', 'dual-bert-compare', 'dual-bert-scm-hn', 'dual-bert-scm-hn-mch', 'dual-bert-scm-hn-with-easy', 'dual-bert-scm-hn-dist', 'dual-bert-scm-hn-dm', 'dual-bert-scm-hn-topk', 'dual-bert-scm-compare', 'dual-bert-scm-sdl', 'dual-bert-scm-hn-pos', 'dual-bert-scm-hn-g', 'dual-bert-scm-hn-dm', 'dual-bert-scm']:
                 if self.args['model'] in ['dual-bert-scm-compare']:
                     new_state_dict = OrderedDict()
                     for k, v in state_dict.items():
@@ -576,6 +576,15 @@ class CompareInteractionAgent(RetrievalBaseAgent):
                 )
                 new_state_dict = self.checkpointadapeter.convert(state_dict)
                 self.model.can_encoder.model.load_state_dict(new_state_dict)
+            # elif self.args['model'] in ['dual-bert-scm']:
+            #     ctx_new_state_dict, res_new_state_dict = OrderedDict(), OrderedDict()
+            #     for k, v in state_dict.items():
+            #         if k.startswith('can_encoder'):
+            #             res_new_state_dict[k[12:]] = v
+            #         elif k.startswith('ctx_encoder'):
+            #             ctx_new_state_dict[k[12:]] = v
+            #     self.model.can_encoder.load_state_dict(res_new_state_dict)
+            #     self.model.ctx_encoder.load_state_dict(ctx_new_state_dict)
             elif self.args['model'] in ['bert-ft-compare']:
                 new_state_dict = OrderedDict()
                 for k, v in state_dict.items():
@@ -906,3 +915,57 @@ class CompareInteractionAgent(RetrievalBaseAgent):
             'P@1': round(100*avg_prec_at_one, 2),
             'MAP': round(100*avg_map, 2),
         }
+
+    @torch.no_grad()
+    def rerank(self, batches, inner_bsz=2048):
+        self.model.eval()
+        scores = []
+        for batch in tqdm(batches):
+            subscores = []
+            cid, cid_mask = self.totensor([batch['context']], ctx=True)
+            for idx in tqdm(range(0, len(batch['candidates']), inner_bsz)):
+                candidates = batch['candidates'][idx:idx+inner_bsz]
+                rid, rid_mask = self.totensor(candidates, ctx=False)
+                batch['ids'] = cid
+                batch['ids_mask'] = cid_mask
+                batch['rids'] = rid
+                batch['rids_mask'] = rid_mask
+                subscores.extend(self.model.predict(batch).tolist())
+            scores.append(subscores)
+        return scores
+    
+    @torch.no_grad()
+    def inference(self, inf_iter, size=500000):
+        self.model.eval()
+        pbar = tqdm(inf_iter)
+        embds, texts = [], []
+        idx = 0
+        for batch in pbar:
+            rid = batch['ids']
+            rid_mask = batch['mask']
+            text = batch['text']
+            res = self.model.module.get_cand(rid, rid_mask).cpu()
+            embds.append(res)
+            texts.extend(text)
+
+            if len(texts) > size:
+                embds = torch.cat(embds, dim=0).numpy()
+                torch.save(
+                    (embds, texts), 
+                    f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
+                )
+                embds, texts = [], []
+                idx += 1
+        if len(texts) > 0:
+            embds = torch.cat(embds, dim=0).numpy()
+            torch.save(
+                (embds, texts),
+                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
+            )
+    
+    @torch.no_grad()
+    def encode_queries(self, texts):
+        self.model.eval()
+        ids, ids_mask = self.totensor(texts, ctx=True)
+        vectors = self.model.get_ctx(ids, ids_mask)    # [B, E]
+        return vectors.cpu().numpy()

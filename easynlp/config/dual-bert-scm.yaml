@@ -1,14 +1,20 @@
 temp: 0.05
 full_turn_length: 9
 test_interval: 0.05
-valid_during_training: false
-nhead: 8
+valid_during_training: true
+nhead: 12
 num_layers: 2
 dropout: 0.1
-margin: 0.5
+margin: 0.7
+coarse_recall_loss: true
+small_turn_size: 10
+predict_ensemble: false
 
 # network issue, load locally
 tokenizer:
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
+pretrained_model:
     zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
     en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
 
@@ -18,7 +24,7 @@ train:
     lr: 0.00005
     grad_clip: 5.0
     seed: 0
-    batch_size: 64
+    batch_size: 80
     max_len: 256
     res_max_len: 64
     epoch: 5
@@ -30,6 +36,7 @@ train:
         # path: bert-fp/best_bert-base-chinese.pt
         path: bert-fp-mono/best_bert-base-chinese.pt
         # path: bert-fp-mono/best_bert-base-uncased.pt
+        # path: dual-bert/best_bert-base-chinese_500.pt
         is_load: true
 
 # test configuration
@@ -43,7 +50,7 @@ test:
 inference:
     seed: 0
     batch_size: 256
-    max_len: 32
+    max_len: 64
     ctx_max_len: 64
     topk: 20
     index_type: Flat

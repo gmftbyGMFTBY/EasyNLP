@@ -13,15 +13,17 @@ class ContrastiveGPT2Encoder(nn.Module):
 
         # tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        if args['dataset'] in ['writer-rank']:
+        if args['dataset'] in ['writer-rank', 'chinese_pretrain']:
             self.pad = self.tokenizer.pad_token_id
             self.special_tokens = set([self.tokenizer.pad_token_id, self.tokenizer.cls_token_id, self.tokenizer.unk_token_id, self.tokenizer.sep_token_id])
+            self.unk = self.tokenizer.unk_token_id
+            self.sep = self.tokenizer.sep_token_id
         else:
             self.pad = self.tokenizer.bos_token_id
+            self.unk = self.tokenizer.bos_token_id
+            self.sep = self.tokenizer.bos_token_id
             self.special_tokens = set([self.tokenizer.bos_token_id])
         self.vocab_size = len(self.tokenizer)
-        self.unk = self.tokenizer.unk_token_id
-        self.sep = self.tokenizer.sep_token_id
 
         # model
         self.model = GPT2LMHeadModel.from_pretrained(model_name)
@@ -109,18 +111,17 @@ class ContrastiveGPT2Encoder(nn.Module):
                 self.args['model_prediction_confidence'],
                 self.args['contrastive_topk'],
                 self.args['contrastive_topp'],
-                self.args['sampling_probability'],
                 self.pad,
                 min(1., (step+1)/self.args['sep_smooth_length']),
                 past_key_values,
                 last_hidden_states,
                 self.tokenizer,
                 logits,
-                first_step=first_step == 0,
+                step,
+                step < self.args['sampling_prefix_len'],
             )
             ids_pos = 1 + ids_pos[:, -1].unsqueeze(dim=-1)
             ids_mask = torch.ones_like(ids)
-            first_step += 1
             # collect ids: [B, 1]
             tokens = ids.squeeze(dim=-1).tolist()
             for idx, t in enumerate(tokens):

@@ -132,9 +132,10 @@ def ContrastiveDecodingOneStepBatch(
         logit_for_next_step = output.logits[:, -1, :]    # [B, V]
     bsz, seqlen, embed_dim = last_hidden_states.size()
     if is_sampling is False:
-        logit_for_next_step[:, sep_idx] *= sep_smooth_length
+        # next_probs = F.softmax(logit_for_next_step, dim=-1)
+        # next_probs[:, sep_idx] *= sep_smooth_length
         next_probs = F.softmax(logit_for_next_step, dim=-1)
-        _, top_k_ids = torch.topk(logit_for_next_step, dim=-1, k=beam_width)    # [B, K]
+        _, top_k_ids = torch.topk(next_probs, dim=-1, k=beam_width)    # [B, K]
         top_k_probs = torch.gather(next_probs, dim=1, index=top_k_ids)    # [B, K]
         # next stage: move forward one step to rerank the tokens by the motivation of the contrastive search
         past_key_values = enlarge_past_key_values(past_key_values, beam_width)
@@ -211,3 +212,104 @@ def select_past_key_values(past_key_values, beam_width, selected_idx):
             items.append(item)
         new_key_values.append(items)
     return new_key_values
+
+# beam search version contrastive search for diverse generations
+def ContrastiveDecodingOneStepBeamSearch(
+    model, 
+    ids, 
+    beam_width, 
+    model_prediction_confidence, 
+    past_key_values,
+    last_hidden_states,
+    vocab,
+    logit_for_next_step,
+    step,
+    contrastive_generation_num,
+    searching_graph
+    ):
+    if step == 0:
+        output = model(
+            input_ids=ids, 
+            use_cache=True,
+            output_hidden_states=True
+        )
+        past_key_values = output.past_key_values
+        last_hidden_states = output.hidden_states[-1]    # [K, S, E]
+        logit_for_next_step = output.logits[:, -1, :]    # [K, V]
+    _, seqlen, embed_dim = last_hidden_states.size()
+
+    k_size = len(logit_for_next_step)
+
+    # next stage: move forward one step to rerank the tokens by the motivation of the contrastive search
+    next_probs = F.softmax(logit_for_next_step, dim=-1)
+    _, top_k_ids = torch.topk(next_probs, dim=-1, k=beam_width)    # [K, B]
+    top_k_probs = torch.gather(next_probs, dim=1, index=top_k_ids)    # [K, B]
+    past_key_values = enlarge_past_key_values(past_key_values, beam_width)
+    output = model(
+        input_ids=top_k_ids.view(-1, 1), 
+        past_key_values=past_key_values,
+        output_hidden_states=True,
+        use_cache=True,
+    )
+    past_key_values = output.past_key_values
+    logits = output.logits[:, -1, :]    # [K*B, V]
+    next_hidden = output.hidden_states[-1]    # [K*B, 1, E]
+    context_hidden = last_hidden_states.unsqueeze(1).expand(-1, beam_width, -1, -1).reshape(len(next_hidden), seqlen, embed_dim)    # [K*B, S, E]
+
+    select_num = min(len(context_hidden), contrastive_generation_num)
+    selected_idx = ranking_beam_search(
+        context_hidden, 
+        next_hidden, 
+        top_k_probs,
+        model_prediction_confidence,
+        select_num,
+    )     # [Select]
+
+    # get the father node in the search graph
+    ipdb.set_trace()
+    for node in selected_idx.tolist():
+        if k_size == 1:
+            father_index = 0
+        else:
+            father_index = node // k_size 
+        father_node = ids[father_index][-1]
+        current_node = top_k_ids[node].item()
+        searching_graph[(father_node, step)][(node, step+1)] = {}
+
+    # prepare for the next step
+    next_id = top_k_ids.view(-1, 1)[selected_idx, :]    # [Select, 1]
+    next_hidden = next_hidden[selected_idx, :]    # [Select, 1, E]
+    last_hidden_states = torch.cat([context_hidden[selected_idx, :, :], next_hidden], dim=1)    # [Select, S, E]
+    past_key_values = select_past_key_values_beam(past_key_values, selected_idx)
+    logits = logits[selected_idx, :]    # [Select, V]
+    return next_id, past_key_values, last_hidden_states, logits
+
+def ranking_beam_search(context_hidden, next_hidden, next_top_k_probs, model_prediction_confidence, select_num):
+    '''
+        context_hidden: beam*beam x seqlen x embed_dim
+        next_hidden: beam*beam x 1 x embed_dim
+        next_top_k_probs: beam x beam
+    '''
+    _, context_len, embed_dim = context_hidden.size()
+    norm_context_hidden = context_hidden / context_hidden.norm(dim=2, keepdim=True)
+    norm_next_hidden = next_hidden / next_hidden.norm(dim=2, keepdim=True)
+    cosine_matrix = torch.matmul(norm_context_hidden, norm_next_hidden.transpose(1,2)).squeeze(-1)    # [B*B, S]
+    scores, _ = torch.max(cosine_matrix, dim=-1)    # [B*B]
+    next_top_k_probs = next_top_k_probs.view(-1)    # [B*B]
+    scores = model_prediction_confidence * next_top_k_probs - (1.0 - model_prediction_confidence) * scores 
+    selected_idx = scores.topk(k=select_num)[1]    # [B]
+    return selected_idx
+
+def select_past_key_values_beam(past_key_values, selected_idx):
+    '''select_idx: [B]'''
+    new_key_values = []
+    for layer in past_key_values:
+        items = []
+        for item in layer:
+            bsz_and_beam, num_head, seq_len, esz = item.size()
+            item = item[selected_idx, :, :, :]
+            items.append(item)
+        new_key_values.append(items)
+    return new_key_values
+
+

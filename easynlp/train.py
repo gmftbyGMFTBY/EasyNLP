@@ -88,6 +88,10 @@ def main(**args):
                     break
             if over_train_flag:
                 break
+        if args['model'] == 'doctttttquery':
+            path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/doctttttquery/best.pt'
+            agent.save_model(path)
+            print(f'[!] save model into: {path}')
     else:
         obtain_steps_parameters(train_data, args)
         agent = load_model(args)

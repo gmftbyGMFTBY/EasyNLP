@@ -1,4 +1,5 @@
 from .agent import *
+from .doctttttquery import *
 from .dual_bert_gen import *
 from .seq2seq import *
 from .gpt2 import *

@@ -12,7 +12,7 @@ import argparse
 
 def parser_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--size', type=int, default=1000)
+    parser.add_argument('--size', type=int, default=500)
     parser.add_argument('--block_size', type=int, default=10)
     parser.add_argument('--topk', type=int, default=10, help='topk candidates for recall')
     parser.add_argument('--mode', type=str, default='rerank/recall/pipeline')
@@ -22,15 +22,13 @@ def parser_args():
     parser.add_argument('--seed', type=float, default=0.0)
     parser.add_argument('--prefix_name', type=str, default='')
     # worker from 0-7, only for bert-ft full-rank
-    parser.add_argument('--worker_num', type=int, default=0)
+    parser.add_argument('--worker_num', type=int, default=1)
     parser.add_argument('--worker_id', type=int, default=0)
     return parser.parse_args()
 
 def load_pipeline_data_with_worker_id(path, size=1000):
     '''for pipeline and recall test'''
     data = read_text_data_utterances(path, lang='zh')
-
-
     dataset = []
     for i in range(0, len(data), 10):
         session = data[i:i+10]
@@ -46,18 +44,6 @@ def load_pipeline_data_with_worker_id(path, size=1000):
     # obtain a part of the data
     size = int(len(dataset) / args['worker_num'])
     dataset = dataset[size*args['worker_id']:size*(args['worker_id'] + 1)]
-
-    dataset = [
-        {
-            'ctx': [
-                '吃过那么多好吃的还是最喜欢妈妈的菜',
-                '吃过那么多好吃的还是依然做不好一碗鸡蛋羹',
-                '真是笨啊',
-                '其实我压根就不会'
-            ],
-            'res': '没有'
-        }        
-    ]
 
     cache, block_size = [], random.randint(1, args['block_size'])
     current_num = 0
@@ -345,7 +331,6 @@ def test_recall(args):
             collections.append(rest)
             avg_times.append(rest['header']['core_time_cost_ms'])
         pbar.set_description(f'[!] time: {round(np.mean(avg_times), 2)} ms; error: {error_counter}')
-        ipdb.set_trace()
     avg_t = round(np.mean(avg_times), 4)
     print(f'[!] avg recall time cost: {avg_t} ms; error ratio: {round(error_counter/len(data), 4)}')
     return collections
@@ -478,8 +463,8 @@ def test_pipeline(args):
         # for debug
         print(rest)
     # show the result
-    for name in ['R@1000', 'R@500', 'R@100', 'R@50', 'MRR']:
-        print(f'{name}: {rest["results"][name]}')
+    # for name in ['R@1000', 'R@500', 'R@100', 'R@50', 'MRR']:
+    #     print(f'{name}: {rest["results"][name]}')
     avg_t = round(np.mean(avg_times), 4)
     avg_recall_t = round(np.mean(avg_recall_times), 4)
     avg_rerank_t = round(np.mean(avg_rerank_times), 4)
@@ -521,49 +506,9 @@ def test_generation(args):
             avg_times.append(rest['header']['core_time_cost_ms'])
         pbar.set_description(f'[!] time: {round(np.mean(avg_times), 2)} ms; error: {error_counter}')
         pprint.pprint(rest)
-        ipdb.set_trace()
     avg_t = round(np.mean(avg_times), 4)
     print(f'[!] avg rerank time cost: {avg_t} ms; error ratio: {round(error_counter/len(data), 4)}')
     return collections
-
-def test_pipeline(args):
-    data = load_pipeline_data_with_worker_id(
-        f'{args["root_dir"]}/data/{args["dataset"]}/test.txt',
-        size=args['size'],
-    )
-    # pipeline test begin
-    avg_times = []
-    avg_recall_times = []
-    avg_rerank_times = []
-    collections = []
-    error_counter = 0
-    pbar = tqdm(list(enumerate(data)))
-    for idx, data in pbar:
-        data = json.dumps(data)
-        rest = SendPOST(args['url'], args['port'], '/pipeline_evaluation', data)
-        # rest = SendPOST(args['url'], args['port'], '/pipeline', data)
-        if rest['header']['ret_code'] == 'fail':
-            error_counter += 1
-            print(f'[!] ERROR happens in sample {idx}')
-        else:
-            collections.append(rest)
-            avg_times.append(rest['header']['core_time_cost_ms'])
-            avg_recall_times.append(rest['header']['recall_core_time_cost_ms'])
-            avg_rerank_times.append(rest['header']['rerank_core_time_cost_ms'])
-        pbar.set_description(f'[!] time: {round(np.mean(avg_times), 2)} ms; error: {error_counter}')
-        # for debug
-        print(rest)
-    # show the result
-    for name in ['R@1000', 'R@500', 'R@100', 'R@50', 'MRR']:
-        print(f'{name}: {rest["results"][name]}')
-    avg_t = round(np.mean(avg_times), 4)
-    avg_recall_t = round(np.mean(avg_recall_times), 4)
-    avg_rerank_t = round(np.mean(avg_rerank_times), 4)
-    print(f'[!] avg time cost: {avg_t} ms; avg recall time cost: {avg_recall_t} ms; avg rerank time cost {avg_rerank_t} ms; error ratio: {round(error_counter/len(data), 4)}')
-    return collections
-
-
-
 
 if __name__ == '__main__':
     # topk rewrite

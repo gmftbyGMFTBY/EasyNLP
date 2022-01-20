@@ -110,7 +110,7 @@ class GPT2ForContrastiveDataset(Dataset):
     def __init__(self, vocab, path, **args):
         self.args = args
         self.vocab = vocab
-        if args['dataset'] in ['writer-rank']:
+        if args['dataset'] in ['writer-rank', 'chinese_pretrain']:
             self.pad = self.vocab.pad_token_id
         else:
             self.pad = self.vocab.bos_token_id
@@ -144,7 +144,11 @@ class GPT2ForContrastiveDataset(Dataset):
             line = ''.join([''.join(s.strip().split()) for s in sentences])
 
         if self.args['mode'] in ['train']:
-            tokens = self.vocab.encode(line, add_special_tokens=False)[:self.args['max_len']]
+            tokens = self.vocab.encode(line, add_special_tokens=False)
+            if len(tokens) > self.args['max_len']:
+                sample_range = range(0, len(tokens) - self.args['max_len'])
+                index = random.choice(sample_range)
+                tokens = tokens[index:index+self.args['max_len']]
         else:
             tokens = self.vocab.encode(line, add_special_tokens=False)[:self.args['prefix_len']]
         return tokens

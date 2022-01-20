@@ -36,7 +36,10 @@ class SABERTWithNegDataset(Dataset):
                 ids, tids, sids = [], [], []
                 for idx, neg in enumerate([response] + candidates):
                     utterances = context + [neg]
-                    ids_, tids_, sids_ = self.annotate(utterances)
+                    try:
+                        ids_, tids_, sids_ = self.annotate(utterances)
+                    except:
+                        continue
                     ids.append(ids_)
                     tids.append(tids_)
                     sids.append(sids_)
@@ -58,7 +61,10 @@ class SABERTWithNegDataset(Dataset):
                 ids, tids, sids = [],[], []
                 for neg in [response] + candidates:
                     utterances = context + [neg]
-                    ids_, tids_, sids_ = self.annotate(utterances)
+                    try:
+                        ids_, tids_, sids_ = self.annotate(utterances)
+                    except:
+                        continue
                     ids.append(ids_)
                     tids.append(tids_)
                     sids.append(sids_)
@@ -189,10 +195,15 @@ class SABERTFTDataset(Dataset):
         data = read_text_data_utterances(path, lang=self.args['lang'])
         self.data = []
         if self.args['mode'] == 'train':
+            data = data[:1000]
             for label, utterances in tqdm(data):
-                ids, tids, sids = self.annotate(utterances)
-                self.data.append({'label': label, 'ids': ids, 'tids': tids, 'sids': sids})
+                try:
+                    ids, tids, sids = self.annotate(utterances)
+                    self.data.append({'label': label, 'ids': ids, 'tids': tids, 'sids': sids})
+                except:
+                    continue
         else:
+            data = data[:10000]
             for i in tqdm(range(0, len(data), 10)):
                 batch = data[i:i+10]
                 ids_, tids_, sids_ = [], [], []

@@ -14,8 +14,8 @@ def response_strategy(args):
         for idx in range(100):
             try:
                 embd, text = torch.load(
-                    # f'{args["root_dir"]}/data/{args["dataset"]}/inference_{args["model"]}_{i}_{idx}.pt'
-                    f'{args["root_dir"]}/data/{args["dataset"]}/inference_wz_simcse_{args["model"]}_{i}_{idx}.pt'
+                    f'{args["root_dir"]}/data/{args["dataset"]}/inference_{args["model"]}_{i}_{idx}.pt'
+                    # f'{args["root_dir"]}/data/{args["dataset"]}/inference_wz_simcse_{args["model"]}_{i}_{idx}.pt'
                 )
                 print(f'[!] load {args["root_dir"]}/data/{args["dataset"]}/inference_{args["model"]}_{i}_{idx}.pt')
                 current_num += len(embd)
@@ -39,7 +39,8 @@ def response_strategy(args):
                 continue
             try:
                 embd, text = torch.load(
-                    f'{args["root_dir"]}/data/{args["dataset"]}/inference_wz_simcse_{args["model"]}_{i}_{idx}.pt'
+                    # f'{args["root_dir"]}/data/{args["dataset"]}/inference_wz_simcse_{args["model"]}_{i}_{idx}.pt'
+                    f'{args["root_dir"]}/data/{args["dataset"]}/inference_{args["model"]}_{i}_{idx}.pt'
                 )
                 print(f'[!] load {args["root_dir"]}/data/{args["dataset"]}/inference_wz_simcse_{i}_{idx}.pt')
             except:

@@ -1,4 +1,5 @@
 datasets: 
+    chinese_pretrain: zh
     wz_game: zh
     ecommerce: zh
     douban: zh
@@ -330,8 +331,8 @@ models:
         type: CompareInteraction
         model_name: BERTDualSCMHNEncoder
         # model_name: BERTDualSCMHN2Encoder
-        # dataset_name: BERTDualBM25SCMLiteDataset
-        dataset_name: BERTDualFullCorruptSCMDataset
+        dataset_name: BERTDualBM25SCMLiteDataset
+        # dataset_name: BERTDualFullCorruptSCMDataset
         # dataset_name: HORSETestDataset
         inference_dataset_name: null
     dual-bert-scm-cls: 
@@ -341,10 +342,13 @@ models:
         inference_dataset_name: null
     dual-bert-scm: 
         type: CompareInteraction
+        # model_name: BERTDualSCMSmallEncoder
         model_name: BERTDualSCMEncoder
-        dataset_name: BERTDualFullDataset
-        # dataset_name: HORSETestDataset
-        inference_dataset_name: null
+        # dataset_name: BERTDualFullDataset
+        dataset_name: HORSETestDataset
+        # inference_dataset_name: BERTDualInferenceDataset
+        # inference_dataset_name: BERTDualInferenceFullDataset
+        inference_dataset_name: BERTDualInferenceFullEXTDataset
     dual-bert-seed: 
         type: Representation
         model_name: BERTDualSEEDEncoder
@@ -384,6 +388,21 @@ models:
         # model_name: WriterPhraseForDeployEncoder
         dataset_name: WriterRankDataset
         inference_dataset_name: null
+    smn: 
+        type: TraditionalResponseSelection
+        model_name: SMN
+        dataset_name: TraditionalRSDataset
+        inference_dataset_name: null
+    msn: 
+        type: TraditionalResponseSelection
+        model_name: MSN
+        dataset_name: TraditionalRSDataset
+        inference_dataset_name: null
+    rocketqa: 
+        type: Representation
+        model_name: RocketQAEncoder
+        dataset_name: BERTDualDataset
+        inference_dataset_name: null
     writer-dual-bert: 
         type: WriterRerank
         model_name: WriterDualEncoder
@@ -393,11 +412,11 @@ models:
         type: Representation
         model_name: BERTDualEncoder
         # dataset_name: BERTDualFullFakeCtxDataset
-        # dataset_name: BERTDualDataset
+        dataset_name: BERTDualDataset
         # dataset_name: BERTDualFullWithHardNegDataset
         # dataset_name: BERTDualFullDataset
+        # dataset_name: HORSETestDataset
         # dataset_name: BERTDualDAFullDataset
-        dataset_name: HORSETestDataset
         # dataset_name: BERTDualRandomFullDataset
         # dataset_name: BERTDualMultiCTXFullDataset
         # dataset_name: BERTDualTimeDataset
@@ -457,6 +476,7 @@ models:
         type: Generation
         model_name: ContrastiveGPT2Encoder
         dataset_name: GPT2ForContrastiveDataset
+        # dataset_name: GPT2WikiTextDataset
         inference_dataset_name: WriterInferenceDataset
     gpt2-cl: 
         type: Generation
@@ -596,9 +616,9 @@ models:
         type: Interaction
         model_name: BERTRetrieval
         # dataset_name: FineGrainedTestInteractionDataset
-        dataset_name: BERTFTDataset
+        # dataset_name: BERTFTDataset
         # dataset_name: BERTFTFullDataset
-        # dataset_name: HORSETestInteractionDataset
+        dataset_name: HORSETestInteractionDataset
         # dataset_name: BERTFTTimeDataset
         inference_dataset_name: null 
     bert-ft-essay: 
@@ -666,6 +686,20 @@ models:
         dataset_name: SABERTFTDataset
         # dataset_name: HORSETestSAInteractionDataset
         inference_dataset_name: null 
+    doctttttquery: 
+        type: Generation
+        model_name: DocTTTTTQueryModel
+        dataset_name: DocTTTTTQueryDataset
+    colbertv2: 
+        type: LatentInteraction
+        model_name: ColBERTV2Encoder
+        dataset_name: ColBERTV2Dataset
+        # dataset_name: HORSETestDataset
+    colbert: 
+        type: LatentInteraction
+        model_name: ColBERTEncoder
+        dataset_name: ColBERTDataset
+        # dataset_name: HORSETestDataset
     poly-encoder-hn: 
         type: LatentInteraction
         model_name: PolyEncoderHN
@@ -746,11 +780,12 @@ models:
 # ========= Global configuration ========== #
 # huge file are saved in the root dir
 root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
-# root_dir: /home/johntianlan/sources/MyReDial
+# root_dir: /apdcephfs/share_733425/johntianlan/MyReDial
+# root_dir: /home/johntianlan/sources/EasyNLP
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 195
+version: 200
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
 rank: null
@@ -767,26 +802,27 @@ start_save_step: 0
 # ========== Deploy configuration ========== #
 deploy:
     host: '0.0.0.0'
-    port: 22335
-    dataset: writer-rank
+    port: 23330
+    # dataset: writer-rank
     # dataset: wz_game
+    dataset: restoration-200k
     max_len: 128
     res_max_len: 64
     recall:
         activate: false
-        model: wz-simcse
+        model: dual-bert-scm
         topk: 200
         with_source: false
-        index_type: LSH
+        index_type: Flat
         index_nprobe: 1
         dimension: 768
     rerank:
-        activate: true
-        model: writer-dual-bert-compare
+        activate: false
+        model: dual-bert-scm
     pipeline:
         activate: false
     pipeline_evaluation:
-        activate: false
+        activate: true
     generation:
         activate: false
         model: gpt2

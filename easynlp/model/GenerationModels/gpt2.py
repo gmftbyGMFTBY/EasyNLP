@@ -12,7 +12,8 @@ class InferenceGPT2Model(nn.Module):
         self.model = GPT2LMHeadModel.from_pretrained(model)
         # pad token is 0
         self.gen_loss_fct = nn.CrossEntropyLoss(ignore_index=0)
-        self.vocab = BertTokenizerFast.from_pretrained(model)
+        # self.vocab = BertTokenizerFast.from_pretrained(model)
+        self.vocab = AutoTokenizer.from_pretrained(model)
         self.unk, self.pad, self.cls, self.sep = self.vocab.convert_tokens_to_ids(['[UNK]', '[PAD]', '[CLS]', '[SEP]'])
         self.topk = args['topk']
         self.topp = args['topp']
@@ -25,6 +26,8 @@ class InferenceGPT2Model(nn.Module):
     def switch_decoding_method(self, method_name):
         if method_name == 'contrastive_search':
             self.predict = self.predict_contrastive_search
+        elif method_name == 'contrastive_beam_search':
+            self.predict = self.predict_contrastive_beam_search
         elif method_name == 'contrastive_batch_search':
             self.predict = self.predict_contrastive_batch_search
         elif method_name == 'greedy_search':
@@ -61,6 +64,33 @@ class InferenceGPT2Model(nn.Module):
         return ppl
     
     @torch.no_grad()
+    def predict_contrastive_beam_search(self, batch):
+        self.model.eval()
+        ids = batch['ids']
+        batch_size, seqlen = ids.size()
+        generated = [[] for _ in range(self.args['contrastive_generation_num'])]
+
+        past_key_values = None
+        last_hidden_states = None
+        logits = None
+        searching_graph = {(ids[0][-1].item(), -1): {}}
+        for step in range(self.test_max_len):
+            ids, past_key_values, last_hidden_states, logits = ContrastiveDecodingOneStepBeamSearch(
+                self.model,
+                ids,
+                self.args['beam_width'],
+                self.args['model_prediction_confidence'],
+                past_key_values,
+                last_hidden_states,
+                self.vocab,
+                logits,
+                step,
+                self.args['contrastive_generation_num'],
+                searching_graph,
+            )
+        return generated
+    
+    @torch.no_grad()
     def predict_contrastive_batch_search(self, batch):
         self.model.eval()
         ids = batch['ids']
@@ -72,6 +102,7 @@ class InferenceGPT2Model(nn.Module):
         past_key_values = None
         last_hidden_states = None
         logits = None
+        sampling_prefix_len = self.args['sampling_prefix_len']
         for step in range(self.test_max_len):
             ids, past_key_values, last_hidden_states, logits = ContrastiveDecodingOneStepBatch(
                 self.model,

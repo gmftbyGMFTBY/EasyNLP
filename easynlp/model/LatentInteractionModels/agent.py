@@ -6,6 +6,9 @@ class LatentInteractionAgent(RetrievalBaseAgent):
         super(LatentInteractionAgent, self).__init__()
         self.args = args
         self.vocab, self.model = vocab, model
+
+        self.pad, self.sep, self.cls = self.vocab.convert_tokens_to_ids(['[PAD]', '[SEP]', '[CLS]'])
+
         if args['mode'] == 'train':
             self.set_test_interval()
             self.load_checkpoint()
@@ -26,7 +29,7 @@ class LatentInteractionAgent(RetrievalBaseAgent):
         self.model.can_encoder.load_bert_model(state_dict)
         print(f'[!] load pretrained BERT model from {path}')
         
-    def train_model(self, train_iter, test_iter, recoder=None, idx_=0):
+    def train_model(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
         self.model.train()
         total_loss, total_acc, batch_num = 0, 0, 0
         pbar = tqdm(train_iter)
@@ -46,7 +49,7 @@ class LatentInteractionAgent(RetrievalBaseAgent):
             total_acc += acc
             batch_num += 1
 
-            if batch_num in self.args['test_step']:
+            if whole_batch_num + batch_num in self.args['test_step']:
                 self.test_now(test_iter, recoder)
             
             if recoder:
@@ -59,7 +62,7 @@ class LatentInteractionAgent(RetrievalBaseAgent):
         if recoder:
             recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
             recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
-        return round(total_loss / batch_num, 4)
+        return batch_num
         
     @torch.no_grad()
     def test_model(self, test_iter, print_output=False, rerank_agent=None, core_time=False):
@@ -153,6 +156,7 @@ class LatentInteractionAgent(RetrievalBaseAgent):
             )
             new_state_dict = self.checkpointadapeter.convert(state_dict)
             self.model.load_state_dict(new_state_dict)
+        print(f'[!] load checkpoint from: {path}')
 
     @torch.no_grad()
     def test_model_horse_human(self, test_iter, print_output=False, rerank_agent=None):
@@ -182,3 +186,21 @@ class LatentInteractionAgent(RetrievalBaseAgent):
 
             collection.append((label, scores))
         return collection
+    
+    @torch.no_grad()
+    def rerank(self, batches, inner_bsz=512):
+        self.model.eval()
+        scores = []
+        for batch in tqdm(batches):
+            subscores = []
+            cid, cid_mask = self.totensor([batch['context']], ctx=True)
+            for idx in tqdm(range(0, len(batch['candidates']), inner_bsz)):
+                candidates = batch['candidates'][idx:idx+inner_bsz]
+                rid, rid_mask = self.totensor(candidates, ctx=False)
+                batch['ids'] = cid
+                batch['ids_mask'] = cid_mask
+                batch['rids'] = rid
+                batch['rids_mask'] = rid_mask
+                subscores.extend(self.model.predict(batch).tolist())
+            scores.append(subscores)
+        return scores

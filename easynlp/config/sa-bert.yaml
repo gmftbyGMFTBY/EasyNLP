@@ -1,4 +1,6 @@
 dropout: 0.1
+test_interval: 0.0001
+valid_during_training: false
 
 # train configuration
 train:
@@ -11,8 +13,9 @@ train:
     warmup_ratio: 0.
     checkpoint: 
         # path: bert-post/best_nspmlm.pt
-        path: bert-fp/best_bert-base-chinese.pt
-        is_load: true
+        # path: bert-fp/best_bert-base-chinese.pt
+        path: bert-fp/best_bert-base-uncased.pt
+        is_load: false
 
 # test configuration
 test:

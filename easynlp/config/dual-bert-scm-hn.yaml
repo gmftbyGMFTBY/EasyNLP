@@ -31,8 +31,8 @@ train:
     grad_clip: 5.0
     seed: 0
     batch_size: 64
-    max_len: 64
-    res_max_len: 32
+    max_len: 256
+    res_max_len: 64
     epoch: 5
     warmup_ratio: 0.
     checkpoint: 

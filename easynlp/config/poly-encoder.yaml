@@ -1,5 +1,13 @@
 poly_m: 128
+test_interval: 0.05
 full_turn_length: 5
+
+tokenizer:
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
+# pretrained_model:
+#     zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+#     en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
 
 # train configuration
 train:
@@ -9,11 +17,12 @@ train:
     batch_size: 64
     max_len: 256
     res_max_len: 64
-    epoch: 2
+    epoch: 5
     warmup_ratio: 0
     checkpoint: 
         # path: bert-post/best_nspmlm.pt
-        path: bert-fp/best_bert-base-chinese.pt
+        # path: bert-fp/best_bert-base-chinese.pt
+        path: bert-fp-mono/best_bert-base-chinese.pt
         is_load: true
 
 # test configuration
