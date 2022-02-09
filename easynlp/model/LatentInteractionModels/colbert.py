@@ -52,8 +52,8 @@ class ColBERTEncoder(nn.Module):
         
         cid_rep = self.ctx_encoder(cid, cid_mask, hidden=True).expand(len(rid), -1, -1)    # [B_r, S, E]
         
-        # rid_rep = self.can_encoder(rid, rid_mask, hidden=True)    # [B_r, S, E]
-        rid_rep = torch.zeros(batch_size, rseq_len, 768).cuda()
+        rid_rep = self.can_encoder(rid, rid_mask, hidden=True)    # [B_r, S, E]
+        # rid_rep = torch.zeros(batch_size, rseq_len, 768).cuda()
 
         cid_rep, rid_rep = F.normalize(cid_rep, dim=-1), F.normalize(rid_rep, dim=-1)
         scores = torch.bmm(cid_rep, rid_rep.permute(0, 2, 1))    # [B, S_c, S_r]
@@ -95,32 +95,37 @@ class ColBERTV2Encoder(nn.Module):
         self.ctx_encoder = BertEmbedding(model=model)
         self.args = args
         
-    def _encode(self, cid, rid, cid_mask, rid_mask):
+    def _encode(self, cid, rid, cid_mask, rid_mask, test=True):
         bsz_c, seqlen_c = cid.size()
         bsz_r, seqlen_r = rid.size()
         cid_rep = self.ctx_encoder(cid, cid_mask, hidden=True)    # [B_c, S, E]
-        rid_rep = self.can_encoder(rid, rid_mask, hidden=True)    # [B_r, S, E]
-        cid_rep, rid_rep = F.normalize(cid_rep, dim=-1), F.normalize(rid_rep, dim=-1)
+        # rid_rep = self.can_encoder(rid, rid_mask, hidden=True)    # [B_r, S, E]
+        rid_rep = torch.zeros(len(rid), len(rid[0]), 768).cuda()
+        cid_rep = F.normalize(cid_rep, dim=-1)
+        rid_rep = F.normalize(rid_rep, dim=-1)
         # step 1: cross-batch gather
-        cid_rep, rid_rep = distributed_collect(cid_rep, rid_rep)
+        # if test:
+        #     cid_rep, rid_rep = distributed_collect(cid_rep, rid_rep)
+        #     cid_mask, rid_mask = distributed_collect(cid_mask, rid_mask)
+        #     bsz_c *= torch.distributed.get_world_size()
+        #     bsz_r *= torch.distributed.get_world_size()
         # step 2:
         cid_rep = cid_rep.reshape(bsz_c*seqlen_c, -1)
         rid_rep = rid_rep.reshape(bsz_r*seqlen_r, -1)
         dp = torch.matmul(cid_rep, rid_rep.t())     # [B_c*S_c, B_r*S_r]
         # step 3: masking
-        cid_mask_ = cid_mask.view(-1, 1).expand(-1, bsz_r*seqlen_r)
-        rid_mask_ = rid_mask.view(1, -1).expand(bsz_c*seqlen_c, -1)
-        mask = cid_mask_ * rid_mask_
+        cid_mask = cid_mask.reshape(-1, 1).expand(-1, bsz_r*seqlen_r)
+        rid_mask = rid_mask.reshape(1, -1).expand(bsz_c*seqlen_c, -1)
+        mask = cid_mask * rid_mask
         dp[mask == 0] = -np.inf
-        # step 4: split
-        dp = torch.stack(torch.split(dp, bsz_r, dim=-1), dim=-1)    # [B_c*S_c, B_r, S_r]
+        # step 4: split and maximum
+        dp = torch.stack(torch.split(dp, seqlen_r, dim=-1), dim=-1).permute(0, 2, 1)    # [B_c*S_c, B_r, S_r]
         dp = dp.max(dim=-1)[0]     # [B_c*S_c, B_r]
         # step 5: remask
-        dp_ = torch.where(dp == -np.inf, torch.zeros_like(dp), dp).t()
-        # step 6:
-        dp_ = torch.stack(torch.split(dp_, bsz_c, dim=-1), dim=-1)    # [B_r, B_c, S_c]
-        dp_ = dp_.sum(dim=-1)    # [B_r, B_c]
-        return dp_
+        dp = torch.where(dp == -np.inf, torch.zeros_like(dp), dp).t()
+        # step 6: sum
+        dp = torch.stack(torch.split(dp, seqlen_c, dim=-1), dim=-1).permute(0, 2, 1).sum(dim=-1).t()    # [B_c, B_r]
+        return dp
         
     @torch.no_grad()
     def predict(self, batch):
@@ -128,7 +133,7 @@ class ColBERTV2Encoder(nn.Module):
         cid_mask = torch.ones_like(cid)
         rid = batch['rids']
         rid_mask = batch['rids_mask']
-        dp = self._encode(cid, cid_mask, rid, rid_mask)
+        dp = self._encode(cid, rid, cid_mask, rid_mask, test=False)
         return dp.squeeze(dim=0)
         
     def forward(self, batch):
@@ -136,10 +141,9 @@ class ColBERTV2Encoder(nn.Module):
         rid = batch['rids']
         cid_mask = batch['ids_mask']
         rid_mask = batch['rids_mask']
-        batch_size = len(rid)
-        batch_size = cid.shape[0]
         dp = self._encode(cid, rid, cid_mask, rid_mask)
         dp /= self.args['temp']
+        batch_size = len(dp)
         
         # constrastive loss
         mask = torch.zeros_like(dp)
@@ -151,3 +155,93 @@ class ColBERTV2Encoder(nn.Module):
         acc_num = (F.softmax(dp, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
         acc = acc_num / batch_size
         return loss, acc
+
+
+class ColBERTV2TaCLEncoder(nn.Module):
+
+    def __init__(self, **args):
+        super(ColBERTV2TaCLEncoder, self).__init__()
+        model = args['pretrained_model']
+        self.can_encoder = BertEmbedding(model=model)
+        self.ctx_encoder = BertEmbedding(model=model)
+        self.args = args
+
+    def get_tacl_loss(self, hidden):
+        bsz, seqlen, _ = hidden.size()
+        dp = torch.matmul(hidden, hidden.permute(0, 2, 1))    # [B_c, S, S]
+        gold_score = torch.diagonal(dp, offset=0, dim1=1, dim2=2)    # [B_c, S]
+        gold_score = gold_score.unsqueeze(dim=-1)    # [B_c, S, 1]
+        difference = gold_score - dp
+        loss = self.args['margin'] - difference
+        loss[:, range(seqlen), range(seqlen)] = 0
+        loss = F.relu(loss)    # [B_c, S, S]
+        return loss.sum(dim=-1).sum(dim=-1).mean()
+        
+    def _encode(self, cid, rid, cid_mask, rid_mask, test=False):
+        bsz_c, seqlen_c = cid.size()
+        bsz_r, seqlen_r = rid.size()
+        cid_rep = self.ctx_encoder(cid, cid_mask, hidden=True)    # [B_c, S, E]
+        rid_rep = self.can_encoder(rid, rid_mask, hidden=True)    # [B_r, S, E]
+        cid_rep = F.normalize(cid_rep, dim=-1)
+        rid_rep = F.normalize(rid_rep, dim=-1)
+
+        # tacl loss
+        if test is False:
+            tacl_loss = self.get_tacl_loss(cid_rep)
+            tacl_loss += self.get_tacl_loss(rid_rep)
+            # step 1: cross-batch gather
+            # cid_rep, rid_rep = distributed_collect(cid_rep, rid_rep)
+            # cid_mask, rid_mask = distributed_collect(cid_mask, rid_mask)
+            # bsz_c *= torch.distributed.get_world_size()
+            # bsz_r *= torch.distributed.get_world_size()
+        # step 2:
+        cid_rep = cid_rep.reshape(bsz_c*seqlen_c, -1)
+        rid_rep = rid_rep.reshape(bsz_r*seqlen_r, -1)
+        dp = torch.matmul(cid_rep, rid_rep.t())     # [B_c*S_c, B_r*S_r]
+        # step 3: masking
+        cid_mask = cid_mask.reshape(-1, 1).expand(-1, bsz_r*seqlen_r)
+        rid_mask = rid_mask.reshape(1, -1).expand(bsz_c*seqlen_c, -1)
+        mask = cid_mask * rid_mask
+        dp[mask == 0] = -np.inf
+        # step 4: split and maximum
+        dp = torch.stack(torch.split(dp, seqlen_r, dim=-1), dim=-1).permute(0, 2, 1)    # [B_c*S_c, B_r, S_r]
+        dp = dp.max(dim=-1)[0]     # [B_c*S_c, B_r]
+        # step 5: remask
+        dp = torch.where(dp == -np.inf, torch.zeros_like(dp), dp).t()
+        # step 6: sum
+        dp = torch.stack(torch.split(dp, seqlen_c, dim=-1), dim=-1).permute(0, 2, 1).sum(dim=-1).t()    # [B_c, B_r]
+
+        # tacl loss
+        if test:
+            return dp
+        else:
+            return dp, tacl_loss
+        
+    @torch.no_grad()
+    def predict(self, batch):
+        cid = batch['ids']
+        cid_mask = torch.ones_like(cid)
+        rid = batch['rids']
+        rid_mask = batch['rids_mask']
+        dp = self._encode(cid, rid, cid_mask, rid_mask, test=True)
+        return dp.squeeze(dim=0)
+        
+    def forward(self, batch):
+        cid = batch['ids']
+        rid = batch['rids']
+        cid_mask = batch['ids_mask']
+        rid_mask = batch['rids_mask']
+        dp, tacl_loss = self._encode(cid, rid, cid_mask, rid_mask)
+        dp /= self.args['temp']
+        batch_size = len(dp)
+        
+        # constrastive loss
+        mask = torch.zeros_like(dp)
+        mask[range(batch_size), range(batch_size)] = 1. 
+        loss_ = F.log_softmax(dp, dim=-1) * mask
+        loss = (-loss_.sum(dim=1)).mean()
+
+        # acc
+        acc_num = (F.softmax(dp, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
+        acc = acc_num / batch_size
+        return loss, tacl_loss, acc

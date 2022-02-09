@@ -52,11 +52,11 @@ class BERTDualHNEncoder(nn.Module):
         dot_product /= self.temp
         
         # mask hard negative of other samples in the batch 
-        nset = set(range(0, len(rid), self.topk))
-        for i in range(batch_size):
-            nnset = nset | set(range(self.topk*i, self.topk*i+self.topk))
-            index = [j for j in range(len(rid)) if j not in nnset]
-            dot_product[i, index] = -1e3
+        # nset = set(range(0, len(rid), self.topk))
+        # for i in range(batch_size):
+        #     nnset = nset | set(range(self.topk*i, self.topk*i+self.topk))
+        #     index = [j for j in range(len(rid)) if j not in nnset]
+        #     dot_product[i, index] = -1e3
 
         # contrastive loss
         mask = torch.zeros_like(dot_product)

@@ -27,12 +27,31 @@ class CompareInteractionAgent(RetrievalBaseAgent):
             self.set_optimizer_scheduler_ddp()
 
         if args['model'] in ['dual-bert-scm', 'dual-bert-scm-hn', 'dual-bert-scm-hn-mch', 'dual-bert-scm-hn-with-easy', 'dual-bert-scm-hn-dist', 'dual-bert-scm-hn-dm', 'dual-bert-scm-hn-topk', 'dual-bert-scm-compare', 'dual-bert-scm-sdl', 'dual-bert-scm-hn-pos', 'dual-bert-scm-hn-g', 'dual-bert-scm-hn-dm']:
+            if self.args['is_step_for_training']:
+                self.train_model = self.train_model_step
             self.test_model = self.test_model_dual_bert
             self.test_model_horse_human = self.test_model_horse_human_dual_bert
         elif args['model'] in ['bert-ft-scm']:
             self.test_model = self.test_model_bert_ft
 
         self.show_parameters(self.args)
+    
+    def train_model_step(self, batch, recoder=None, current_step=0, pbar=None):
+        self.model.train()
+        self.optimizer.zero_grad()
+        with autocast():
+            loss, acc = self.model(batch)
+        self.scaler.scale(loss).backward()
+        self.scaler.unscale_(self.optimizer)
+        clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+        self.scaler.step(self.optimizer)
+        self.scaler.update()
+        self.scheduler.step()
+        if recoder:
+            recoder.add_scalar(f'train/RunLoss', loss.item(), current_step)
+            recoder.add_scalar(f'train/RunAcc', acc, current_step)
+        pbar.set_description(f'[!] train loss: {round(loss.item(), 4)}; acc: {round(acc, 4)}')
+        pbar.update(1)
         
     def train_model(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
         self.model.train()
@@ -58,28 +77,6 @@ class CompareInteractionAgent(RetrievalBaseAgent):
                 total_loss += loss.item()
                 total_acc += acc
                 acc /= inner_time
-            elif self.args['model'] in ['dual-bert-scm']:
-                with autocast():
-                    loss_recall, loss_margin, acc = self.model(batch)
-                    loss = loss_recall + loss_margin
-                self.scaler.scale(loss).backward()
-                self.scaler.unscale_(self.optimizer)
-                clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
-                self.scheduler.step()
-                batch_num += 1
-                if whole_batch_num + batch_num in self.args['test_step']:
-                    self.test_now(test_iter, recoder)
-                total_loss += loss.item()
-                total_acc += acc
-                if recoder:
-                    recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
-                    recoder.add_scalar(f'train-epoch-{idx_}/RunRecallLoss', loss_recall.item(), idx)
-                    recoder.add_scalar(f'train-epoch-{idx_}/RunMarginLoss', loss_margin.item(), idx)
-                    recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
-                    recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
-                pbar.set_description(f'[!] loss(recall|margin): {round(loss_recall.item(), 4)}|{round(loss_margin.item(), 4)}; acc: {round(acc, 4)}')
             else:
                 with autocast():
                     loss, acc = self.model(batch)
@@ -794,6 +791,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
                 if core_time:
                     et = time.time()
                     core_time_rest += et - bt
+            
 
             # print output
             if print_output:
@@ -839,6 +837,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         avg_mrr = float(total_mrr / total_examples)
         avg_prec_at_one = float(total_prec_at_one / total_examples)
         avg_map = float(total_map / total_examples)
+
         if core_time:
             return {
                 f'R10@{k_list[0]}': round(((total_correct[0]/total_examples)*100), 2),        

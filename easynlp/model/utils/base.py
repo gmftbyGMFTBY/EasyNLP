@@ -370,8 +370,7 @@ class GenerationBaseAgent:
         dis_word_5 = new_test['Distinct-word-5']
         new_test_score = dis_char_1 + dis_char_3 + dis_char_5 + dis_word_1 + dis_word_3 + dis_word_5
         new_test_score = new_test['PPL']
-        if new_test_score > now_test_score:
-        # if new_test_score < now_test_score:
+        if new_test_score < now_test_score:
             self.best_test = new_test
             return True
         else:

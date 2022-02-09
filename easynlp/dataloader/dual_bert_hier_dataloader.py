@@ -6,8 +6,6 @@ from .augmentation import *
 
 class BERTDualFullHierDataset(Dataset):
 
-    '''more positive pairs to train the dual bert model'''
-    
     def __init__(self, vocab, path, **args):
         self.args = args
         self.vocab = vocab
@@ -40,8 +38,8 @@ class BERTDualFullHierDataset(Dataset):
                 })
         else:
             data = read_text_data_utterances(path, lang=self.args['lang'])
-            # DEBUG for Ubuntu Corpus
-            # data = data[:10000]    # 1000 sampels for ubunut
+            if args['mode'] == 'valid' and args['dataset'] in ['ubuntu']:
+                data = data[:10000]
             for i in tqdm(range(0, len(data), 10)):
                 batch = data[i:i+10]
                 rids = []

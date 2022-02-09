@@ -1,5 +1,7 @@
 # basic configuration for building the model
 dropout: 0.1
+ext_read: false
+is_step_for_training: false
 
 # network issue, load locally
 tokenizer:
@@ -27,4 +29,4 @@ train:
         path: bert-fp/best_bert-base-chinese.pt
         # path: bert-fp-no-cls/best_bert-base-chinese.pt
         # path: bert-post/best_nspmlm.pt
-        is_load: false 
+        is_load: true

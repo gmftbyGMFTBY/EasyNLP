@@ -42,7 +42,8 @@ def inference(**args):
         agent.load_model(f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}_{args["version"]}.pt')
 
     if work_mode in ['response']:
-        agent.inference(data_iter, size=args['cut_size'])
+        pass
+        # agent.inference(data_iter, size=args['cut_size'])
     elif work_mode in ['phrase-generate']:
         agent.build_offline_index(data_iter)
     elif work_mode in ['data-filter']:

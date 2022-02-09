@@ -1,4 +1,5 @@
 datasets: 
+    potter: zh
     chinese_pretrain: zh
     wz_game: zh
     ecommerce: zh
@@ -177,7 +178,8 @@ models:
         # dataset_name: BERTDualCTXHNFullDataset
         # dataset_name: BERTDualHNDataset
         # dataset_name: BERTDualFullDataset
-        dataset_name: BERTDualBM25HNDataset
+        # dataset_name: BERTDualBM25HNDataset
+        dataset_name: BERTDualBM25SCMLiteDataset
         # dataset_name: HORSETestDataset
         # dataset_name: BERTDualBertMaskHardNegativeDataset
         # dataset_name: BERTDualSimCSEHardNegativeDataset
@@ -300,11 +302,6 @@ models:
         model_name: BERTDualSCMDistHNEncoder
         dataset_name: BERTDualBM25SCMDataset
         inference_dataset_name: null
-    dual-bert-scm-hn-dm: 
-        type: CompareInteraction
-        model_name: BERTDualSCMHNDMEncoder
-        dataset_name: BERTDualBM25SCMLiteDataset
-        inference_dataset_name: null
     dual-bert-scm-hn-topk: 
         type: CompareInteraction
         model_name: BERTDualSCMTopKHNEncoder
@@ -330,8 +327,10 @@ models:
     dual-bert-scm-hn: 
         type: CompareInteraction
         model_name: BERTDualSCMHNEncoder
+        # model_name: BERTDualSCMHNL2REncoder
         # model_name: BERTDualSCMHN2Encoder
         dataset_name: BERTDualBM25SCMLiteDataset
+        # dataset_name: BERTDualBM25SCMLiteWithStepDataset
         # dataset_name: BERTDualFullCorruptSCMDataset
         # dataset_name: HORSETestDataset
         inference_dataset_name: null
@@ -344,8 +343,9 @@ models:
         type: CompareInteraction
         # model_name: BERTDualSCMSmallEncoder
         model_name: BERTDualSCMEncoder
-        # dataset_name: BERTDualFullDataset
-        dataset_name: HORSETestDataset
+        dataset_name: BERTDualFullDataset
+        # dataset_name: BERTDualFullWithStepDataset
+        # dataset_name: HORSETestDataset
         # inference_dataset_name: BERTDualInferenceDataset
         # inference_dataset_name: BERTDualInferenceFullDataset
         inference_dataset_name: BERTDualInferenceFullEXTDataset
@@ -412,9 +412,9 @@ models:
         type: Representation
         model_name: BERTDualEncoder
         # dataset_name: BERTDualFullFakeCtxDataset
-        dataset_name: BERTDualDataset
+        # dataset_name: BERTDualDataset
         # dataset_name: BERTDualFullWithHardNegDataset
-        # dataset_name: BERTDualFullDataset
+        dataset_name: BERTDualFullDataset
         # dataset_name: HORSETestDataset
         # dataset_name: BERTDualDAFullDataset
         # dataset_name: BERTDualRandomFullDataset
@@ -428,13 +428,13 @@ models:
         # dataset_name: BERTDualFullWithSelfPlayDataset
         # dataset_name: BERTDualFullPseudoDataset
         # inference_dataset_name: BERTDualFullFilterInferenceDataset
-        inference_dataset_name: BERTDualInferenceDataset
+        # inference_dataset_name: BERTDualInferenceDataset
         # inference_dataset_name: BERTDualInferenceWithTestDataset
         # inference_dataset_name: BERTDualInferenceFullWithTestDataset
         # inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
         # inference_dataset_name: BERTDualInferenceWithSourceDataset
         # inference_dataset_name: BERTDualInferenceFullDataset
-        # inference_dataset_name: BERTDualInferenceFullEXTDataset
+        inference_dataset_name: BERTDualInferenceFullEXTDataset
         # inference_dataset_name: BERTDualInferenceContextDataset
         # inference_dataset_name: BERTDualInferenceFullContextDataset
         # inference_dataset_name: BERTDualInferenceFullContextSingleExtendDataset
@@ -587,6 +587,11 @@ models:
         # dataset_name: BERTDualArxivDataset
         # inference_dataset_name: BERTDualFullInferenceDataset
         inference_dataset_name: BERTDualFullWithSourceInferenceDataset
+    dual-bert-hier-trs: 
+        type: Representation
+        model_name: BERTDualHierarchicalTrsEncoder
+        dataset_name: BERTDualFullHierDataset
+        inference_dataset_name: BERTDualInferenceDataset
     dual-bert-hier: 
         type: Representation
         model_name: BERTDualHierarchicalEncoder
@@ -616,9 +621,9 @@ models:
         type: Interaction
         model_name: BERTRetrieval
         # dataset_name: FineGrainedTestInteractionDataset
-        # dataset_name: BERTFTDataset
+        dataset_name: BERTFTDataset
         # dataset_name: BERTFTFullDataset
-        dataset_name: HORSETestInteractionDataset
+        # dataset_name: HORSETestInteractionDataset
         # dataset_name: BERTFTTimeDataset
         inference_dataset_name: null 
     bert-ft-essay: 
@@ -690,10 +695,16 @@ models:
         type: Generation
         model_name: DocTTTTTQueryModel
         dataset_name: DocTTTTTQueryDataset
+    colbertv2tacl: 
+        type: LatentInteraction
+        model_name: ColBERTV2TaCLEncoder
+        dataset_name: ColBERTV2FullDataset
+        # dataset_name: HORSETestDataset
     colbertv2: 
         type: LatentInteraction
         model_name: ColBERTV2Encoder
         dataset_name: ColBERTV2Dataset
+        # dataset_name: ColBERTV2HNDataset
         # dataset_name: HORSETestDataset
     colbert: 
         type: LatentInteraction
@@ -747,9 +758,9 @@ models:
     bert-fp-mono: 
         type: PostTrain
         model_name: BERTMonolingualPostTrain
-        # dataset_name: PostTrainMonoDataset
+        dataset_name: PostTrainMonoDataset
         # dataset_name: PostTrainMonoWriterDataset
-        dataset_name: WZPostTrainMonoDataset
+        # dataset_name: WZPostTrainMonoDataset
         inference_dataset_name: null 
     dual-bert-pt: 
         type: Representation
@@ -779,13 +790,15 @@ models:
 
 # ========= Global configuration ========== #
 # huge file are saved in the root dir
+# root_dir: /apdcephfs/share_733425/johntianlan/MyReDial
 root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
+# root_dir: /apdcephfs/share_916081/dongyangma/johntianlan/MyReDial
 # root_dir: /apdcephfs/share_733425/johntianlan/MyReDial
 # root_dir: /home/johntianlan/sources/EasyNLP
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 200
+version: 301
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
 rank: null
@@ -802,16 +815,17 @@ start_save_step: 0
 # ========== Deploy configuration ========== #
 deploy:
     host: '0.0.0.0'
-    port: 23330
+    port: 23331
     # dataset: writer-rank
     # dataset: wz_game
-    dataset: restoration-200k
+    # dataset: restoration-200k
+    dataset: potter
     max_len: 128
     res_max_len: 64
     recall:
-        activate: false
-        model: dual-bert-scm
-        topk: 200
+        activate: true
+        model: dual-bert
+        topk: 50
         with_source: false
         index_type: Flat
         index_nprobe: 1
@@ -822,7 +836,7 @@ deploy:
     pipeline:
         activate: false
     pipeline_evaluation:
-        activate: true
+        activate: false
     generation:
         activate: false
         model: gpt2

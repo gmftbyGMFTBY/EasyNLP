@@ -1,10 +1,12 @@
-temp: 1.
-full_turn_length: 5
+temp: 1
+full_turn_length: 9
 test_interval: 0.05
-valid_during_training: true
+valid_during_training: false
+is_step_for_training: false
+total_step: 10010
 nhead: 12
-num_layers: 2
-gray_cand_num: 5
+num_layers: 5
+gray_cand_num: 3
 before_comp: true
 dropout: 0.1
 
@@ -20,8 +22,11 @@ concatention_num: 4
 
 # network issue, load locally
 tokenizer:
-    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
-    en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
+    zh: /apdcephfs/share_733425/johntianlan/bert-base-chinese
+    en: /apdcephfs/share_733425/johntianlan/bert-base-uncased
+pretrained_model:
+    zh: /apdcephfs/share_733425/johntianlan/bert-base-chinese
+    en: /apdcephfs/share_733425/johntianlan/bert-base-uncased
 
 # train configuration
 # max_len and res_max_len are (64,32) for RRS and E-commerce, (128, 32) for douban
@@ -40,7 +45,8 @@ train:
         # path: bert-fp/best_bert-base-chinese.pt
         # path: bert-fp-comp/best_bert-base-chinese.pt
         # path: bert-fp/best_bert-base-chinese.pt
-        path: bert-fp-mono/best_bert-base-chinese.pt
+        # path: bert-fp-mono/best_bert-base-chinese.pt
+        path: bert-fp-mono/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_709.pt
         # path: bert-fp-mono/best_bert-base-uncased.pt
         is_load: true
 

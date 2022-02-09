@@ -19,7 +19,8 @@ class BERTDualInferenceDataset(Dataset):
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
         # ========== for full-rank response recall ========= #
-        responses = read_response_data(path, lang=self.args['lang'])
+        # responses = read_response_data(path, lang=self.args['lang'])
+        responses = read_response_data_potter(path, lang=self.args['lang'])
         responses = list(set(responses))
         print(f'[!] load {len(responses)} responses for inference finally')
 

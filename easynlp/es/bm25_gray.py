@@ -79,8 +79,10 @@ def main_single_search(args):
     dataset = read_text_data_utterances_full(read_path, lang=args['lang'], turn_length=full_turn_length)
     data = [(utterances[:-1], utterances[-1]) for label, utterances in dataset if label == 1]
     responses = [utterances[-1] for label, utterances in dataset]
-    collector = []
     pbar = tqdm(range(0, len(data), args['batch_size']))
+
+    f = open(write_path, 'w', encoding='utf-8')
+
     for idx in pbar:
         # random choice the conversation context to search the topic related responses
         context = [i[0] for i in data[idx:idx+args['batch_size']]]
@@ -118,11 +120,8 @@ def main_single_search(args):
                 rest_single.append(i[:args['topk']])
 
         for q, r, nr, nr_ in zip(context, response, rest_q_q, rest_single):
-            collector.append({'q': q, 'r': r, 'q_q_nr': nr, 'single_nr': nr_})
-
-    with open(write_path, 'w', encoding='utf-8') as f:
-        for data in collector:
-            string = json.dumps(data)
+            data_ = {'q': q, 'r': r, 'q_q_nr': nr, 'single_nr': nr_}
+            string = json.dumps(data_)
             f.write(f'{string}\n')
 
 

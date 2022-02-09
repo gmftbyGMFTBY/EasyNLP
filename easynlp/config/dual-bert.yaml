@@ -6,15 +6,15 @@ test_interval: 0.05
 multi_ctx: 1
 min_conv_length: 3
 data_filter_size: 650000
-valid_during_training: false
+valid_during_training: true
 
 # network issue, load locally
 tokenizer:
     zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
     en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
-pretrained_model:
-    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
-    en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
+# pretrained_model:
+#     zh: /apdcephfs/share_733425/johntianlan/bert-base-chinese
+#     en: /apdcephfs/share_733425/johntianlan/bert-base-uncased
 
 # train configuration
 train:
@@ -36,8 +36,8 @@ train:
         # path: bert-fp-no-cls/best_bert-base-chinese.pt
         # path: bert-fp/best_bert-base-chinese.pt
         # path: bert-fp-mono/best_bert-base-chinese.pt
-        # path: bert-fp-mono-seed/best_bert-base-chinese_1.pt
-        path: bert-fp-mono/best_bert-base-uncased.pt
+        path: bert-fp-mono/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_709.pt
+        # path: bert-fp-mono/best_bert-base-uncased.pt
         # path: simcse/best_bert-base-chinese.pt
         is_load: true
 
@@ -55,6 +55,6 @@ inference:
     max_len: 32
     ctx_max_len: 64
     topk: 20
-    index_type: Flat
+    index_type: IVF65536,Flat
     index_nprobe: 5
     dimension: 768

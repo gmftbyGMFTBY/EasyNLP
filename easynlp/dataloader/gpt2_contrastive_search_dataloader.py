@@ -131,17 +131,22 @@ class GPT2ForContrastiveDataset(Dataset):
         return self.size
 
     def __getitem__(self, i):
-        line = self.reader.get_line(i).strip()
         # for chinese
-        if self.args['dataset'] in ['writer-rank']:
+        if self.args['dataset'] in ['writer-rank', 'chinese_pretrain']:
             while True:
-                sentences = json.loads(line.strip())['q']
+                line = self.reader.get_line(i).strip()
+                try:
+                    sentences = json.loads(line.strip())['q']
+                except:
+                    i = random.choice(range(self.size))
+                    continue
                 sentences = [s.strip() for s in sentences if s.strip()]
                 if len(sentences) > 0:
                     break
                 i = random.choice(range(self.size))
-                line = self.reader.get_line(i).strip()
             line = ''.join([''.join(s.strip().split()) for s in sentences])
+        else:
+            raise Exception()
 
         if self.args['mode'] in ['train']:
             tokens = self.vocab.encode(line, add_special_tokens=False)

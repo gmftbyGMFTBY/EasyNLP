@@ -1,9 +1,9 @@
-test_interval: 0.05
+test_interval: 0.01
 temp: 0.05
 valid_during_training: false
 is_step_for_training: true
 inference_time: 3
-total_step: 50010
+total_step: 1000010
 nhead: 12
 num_layers: 2
 easy_cand_pool_size: 10

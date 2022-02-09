@@ -25,11 +25,13 @@ def response_strategy(args):
             texts.extend(text)
             already_added.append((i, idx))
             print(f'[!] collect embeddings: {current_num}')
-        if current_num > 10000000:
+            if current_num > 500000:
+                break
+        if current_num > 500000:
             break
     embds = np.concatenate(embds) 
     searcher = Searcher(args['index_type'], dimension=args['dimension'])
-    searcher._build(embds, texts, speedup=True)
+    searcher._build(embds, texts, speedup=False)
     print(f'[!] train the searcher over')
 
     # add the external dataset
@@ -42,7 +44,7 @@ def response_strategy(args):
                     # f'{args["root_dir"]}/data/{args["dataset"]}/inference_wz_simcse_{args["model"]}_{i}_{idx}.pt'
                     f'{args["root_dir"]}/data/{args["dataset"]}/inference_{args["model"]}_{i}_{idx}.pt'
                 )
-                print(f'[!] load {args["root_dir"]}/data/{args["dataset"]}/inference_wz_simcse_{i}_{idx}.pt')
+                print(f'[!] load {args["root_dir"]}/data/{args["dataset"]}/inference_{i}_{idx}.pt')
             except:
                 break
             searcher.add(embd, text)

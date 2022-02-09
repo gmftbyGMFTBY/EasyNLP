@@ -1,7 +1,10 @@
 temp: 0.05
-full_turn_length: 9
+full_turn_length: 5
 test_interval: 0.05
 valid_during_training: true
+is_step_for_training: false
+# rrs: 10000; douban: 30000; ecommerce: 45000
+total_step: 45010
 nhead: 12
 num_layers: 2
 dropout: 0.1
@@ -14,9 +17,9 @@ predict_ensemble: false
 tokenizer:
     zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
     en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
-pretrained_model:
-    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
-    en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
+# pretrained_model:
+#     zh: /apdcephfs/share_733425/johntianlan/bert-base-chinese
+#     en: /apdcephfs/share_733425/johntianlan/bert-base-uncased
 
 # train configuration
 train:
@@ -24,7 +27,7 @@ train:
     lr: 0.00005
     grad_clip: 5.0
     seed: 0
-    batch_size: 80
+    batch_size: 64
     max_len: 256
     res_max_len: 64
     epoch: 5
@@ -34,7 +37,8 @@ train:
         # path: bert-fp/best_bert-base-chinese.pt
         # path: bert-fp-comp/best_bert-base-chinese.pt
         # path: bert-fp/best_bert-base-chinese.pt
-        path: bert-fp-mono/best_bert-base-chinese.pt
+        # path: bert-fp-mono/best_bert-base-chinese.pt
+        path: bert-fp-mono/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_709.pt
         # path: bert-fp-mono/best_bert-base-uncased.pt
         # path: dual-bert/best_bert-base-chinese_500.pt
         is_load: true

@@ -38,6 +38,10 @@ class WriterRankDataset(Dataset):
     def __getitem__(self, i):
         while True:
             line = self.reader.get_line(i)
+            if not line.strip():
+                i = random.choice(range(self.size))
+                continue
+
             sentences = json.loads(line.strip())['q']
             sentences = [s.strip() for s in sentences if s.strip()]    # ignore the empty sentence
             if self.filter(sentences) is False:
@@ -98,6 +102,10 @@ class WriterRankDataset(Dataset):
         for idx in random_index:
             while True:
                 line = self.reader.get_line(idx)
+                if not line.strip():
+                    idx = random.choice(range(self.size))
+                    continue
+
                 sentences = json.loads(line.strip())['q']
                 sentences = [s.strip() for s in sentences if s.strip()]    # ignore the empty sentence
                 if self.filter(sentences):

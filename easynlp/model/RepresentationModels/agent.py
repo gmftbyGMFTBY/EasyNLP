@@ -336,7 +336,7 @@ class RepresentationAgent(RetrievalBaseAgent):
             calculate_candidates_ranking(
                 np.array(scores), 
                 np.array(label.cpu().tolist()),
-                10)
+                50)
             num_correct = logits_recall_at_k(pos_index, k_list)
             if self.args['dataset'] in ["douban", "restoration-200k"]:
                 total_prec_at_one += precision_at_one(rank_by_pred)

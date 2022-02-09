@@ -140,6 +140,15 @@ def read_text_data_utterances_compare(path, lang='zh'):
     print(f'[!] load {len(dataset)} samples from {path}')
     return dataset
 
+def read_text_data_utterances_potter(path, lang='zh'):
+    with open(path) as f:
+        dataset = []
+        for line in f.readlines():
+            line = line.strip()
+            dataset.append(line)
+    print(f'[!] load {len(dataset)} queries from {path}')
+    return dataset
+
 
 def read_text_data_utterances(path, lang='zh'):
     with open(path) as f:
@@ -331,6 +340,17 @@ def read_response_data_test(path, lang='zh'):
     # delete the duplicate responses
     dataset = list(set(dataset))
     print(f'[!] load {len(dataset)} test responses from {path}')
+    return dataset
+
+def read_response_data_potter(path, lang='zh'):
+    with open(path) as f:
+        dataset = []
+        for line in f.readlines():
+            utterance = line.strip().split('\t')
+            dataset.extend(utterance)
+    # delete the duplicate responses
+    dataset = list(set(dataset))
+    print(f'[!] load {len(dataset)} responses from {path}')
     return dataset
 
 

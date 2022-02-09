@@ -225,7 +225,10 @@ def ContrastiveDecodingOneStepBeamSearch(
     logit_for_next_step,
     step,
     contrastive_generation_num,
-    searching_graph
+    queue,
+    queue_scores,
+    limited_size,
+    delta,
     ):
     if step == 0:
         output = model(
@@ -233,17 +236,32 @@ def ContrastiveDecodingOneStepBeamSearch(
             use_cache=True,
             output_hidden_states=True
         )
-        past_key_values = output.past_key_values
-        last_hidden_states = output.hidden_states[-1]    # [K, S, E]
-        logit_for_next_step = output.logits[:, -1, :]    # [K, V]
-    _, seqlen, embed_dim = last_hidden_states.size()
+        # past_key_values = output.past_key_values
+        logit_for_next_step = output.logits[:, -1, :]    # [1, V]
 
-    k_size = len(logit_for_next_step)
+        # move one step further to generate the queue with the beam size
+        next_id = logit_for_next_step.topk(dim=-1, k=beam_width)[1].t()     # [B, 1]
+        queue_scores = F.softmax(logit_for_next_step, dim=-1).squeeze(0)[next_id.t().squeeze(0)]    # [B]
+        ids = torch.cat([ids.expand(beam_width, -1), next_id], dim=-1)    # [B, S+1]
+        output = model(
+            input_ids=ids, 
+            use_cache=True, 
+            output_hidden_states=True, 
+            # past_key_values=past_key_values
+        )
+        past_key_values = output.past_key_values
+        last_hidden_states = output.hidden_states[-1]
+        logit_for_next_step = output.logits[:, -1, :]    # [B, V]
+
+        # init the queue
+        queue = [item.tolist() for item in ids]
+
+    _, seqlen, embed_dim = last_hidden_states.size()
 
     # next stage: move forward one step to rerank the tokens by the motivation of the contrastive search
     next_probs = F.softmax(logit_for_next_step, dim=-1)
-    _, top_k_ids = torch.topk(next_probs, dim=-1, k=beam_width)    # [K, B]
-    top_k_probs = torch.gather(next_probs, dim=1, index=top_k_ids)    # [K, B]
+    _, top_k_ids = torch.topk(next_probs, dim=-1, k=beam_width)    # [B, B]
+    top_k_probs = torch.gather(next_probs, dim=1, index=top_k_ids)    # [B, B]
     past_key_values = enlarge_past_key_values(past_key_values, beam_width)
     output = model(
         input_ids=top_k_ids.view(-1, 1), 
@@ -252,43 +270,44 @@ def ContrastiveDecodingOneStepBeamSearch(
         use_cache=True,
     )
     past_key_values = output.past_key_values
-    logits = output.logits[:, -1, :]    # [K*B, V]
-    next_hidden = output.hidden_states[-1]    # [K*B, 1, E]
-    context_hidden = last_hidden_states.unsqueeze(1).expand(-1, beam_width, -1, -1).reshape(len(next_hidden), seqlen, embed_dim)    # [K*B, S, E]
+    logits = output.logits[:, -1, :]    # [B*B, V]
+    next_hidden = output.hidden_states[-1]    # [B*B, 1, E]
+    context_hidden = last_hidden_states.unsqueeze(1).expand(-1, beam_width, -1, -1).reshape(len(next_hidden), seqlen, embed_dim)    # [B*B, S, E]
 
-    select_num = min(len(context_hidden), contrastive_generation_num)
     selected_idx = ranking_beam_search(
         context_hidden, 
         next_hidden, 
         top_k_probs,
         model_prediction_confidence,
-        select_num,
-    )     # [Select]
+        beam_width,
+        queue_scores,
+        limited_size,
+    )    # [B]
 
     # get the father node in the search graph
-    ipdb.set_trace()
+    new_queue = []
+    top_k_ids = top_k_ids.view(-1, 1)
     for node in selected_idx.tolist():
-        if k_size == 1:
-            father_index = 0
-        else:
-            father_index = node // k_size 
-        father_node = ids[father_index][-1]
+        father_index = node // beam_width 
+        father = deepcopy(queue[father_index])
         current_node = top_k_ids[node].item()
-        searching_graph[(father_node, step)][(node, step+1)] = {}
+        rest = father + [current_node]
+        new_queue.append(rest)
 
     # prepare for the next step
-    next_id = top_k_ids.view(-1, 1)[selected_idx, :]    # [Select, 1]
-    next_hidden = next_hidden[selected_idx, :]    # [Select, 1, E]
-    last_hidden_states = torch.cat([context_hidden[selected_idx, :, :], next_hidden], dim=1)    # [Select, S, E]
+    next_id = top_k_ids[selected_idx, :]    # [B, 1]
+    next_hidden = next_hidden[selected_idx, :]    # [B, 1, E]
+    last_hidden_states = torch.cat([context_hidden[selected_idx, :, :], next_hidden], dim=1)    # [B, S, E]
     past_key_values = select_past_key_values_beam(past_key_values, selected_idx)
-    logits = logits[selected_idx, :]    # [Select, V]
-    return next_id, past_key_values, last_hidden_states, logits
+    logits = logits[selected_idx, :]    # [B, V]
+    return next_id, past_key_values, last_hidden_states, logits, new_queue, top_k_probs 
 
-def ranking_beam_search(context_hidden, next_hidden, next_top_k_probs, model_prediction_confidence, select_num):
+def ranking_beam_search(context_hidden, next_hidden, next_top_k_probs, model_prediction_confidence, select_num, queue_scores, limited_size):
     '''
         context_hidden: beam*beam x seqlen x embed_dim
         next_hidden: beam*beam x 1 x embed_dim
         next_top_k_probs: beam x beam
+        queue_scores: beam -> beam x beam
     '''
     _, context_len, embed_dim = context_hidden.size()
     norm_context_hidden = context_hidden / context_hidden.norm(dim=2, keepdim=True)
@@ -296,9 +315,24 @@ def ranking_beam_search(context_hidden, next_hidden, next_top_k_probs, model_pre
     cosine_matrix = torch.matmul(norm_context_hidden, norm_next_hidden.transpose(1,2)).squeeze(-1)    # [B*B, S]
     scores, _ = torch.max(cosine_matrix, dim=-1)    # [B*B]
     next_top_k_probs = next_top_k_probs.view(-1)    # [B*B]
-    scores = model_prediction_confidence * next_top_k_probs - (1.0 - model_prediction_confidence) * scores 
-    selected_idx = scores.topk(k=select_num)[1]    # [B]
-    return selected_idx
+    scores = model_prediction_confidence * next_top_k_probs - (1.0 - model_prediction_confidence) * scores    # [B*B] 
+
+    # limited the search results
+    scores = torch.stack(torch.split(scores, select_num))    # [B, B]
+    sub_scores, sub_scores_idx = scores.topk(dim=-1, k=limited_size)    # [B, L]
+    delta = []
+    for i in range(select_num):
+        delta.extend([i * select_num] * limited_size)
+    delta = torch.LongTensor(delta).cuda()
+    sub_scores, sub_scores_idx = sub_scores.view(-1), sub_scores_idx.view(-1)    # [B*L]
+    sub_scores_idx += delta
+    _, sub_sub_scores_idx = sub_scores.topk(k=select_num)
+    sub_scores_idx = sub_scores_idx[sub_sub_scores_idx]
+    return sub_scores_idx
+
+    # consider the past scores
+    # _, selected_idx = scores.topk(k=select_num)   # [B]
+    # return selected_idx
 
 def select_past_key_values_beam(past_key_values, selected_idx):
     '''select_idx: [B]'''

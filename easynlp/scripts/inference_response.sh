@@ -1,4 +1,5 @@
 #!/bin/bash
+export NCCL_IB_DISABLE=1
 
 dataset=$1
 model=$2

@@ -54,10 +54,10 @@ def single_dataset(args):
     train_data = load_sentences(train_path, lang=args['lang'])
     # maximum sentences limitation
     # too many candidates in the elasticseach will slow down the searching speed
-    if len(data) > args['maximum_sentence_num']:
-        data = random.sample(data, args['maximum_sentence_num'])
-    print(f'[!] collect {len(data)} sentence for single-sentence BM25 retrieval')
-    return data
+    if len(train_data) > args['maximum_sentence_num']:
+        train_data = random.sample(train_data, args['maximum_sentence_num'])
+    print(f'[!] collect {len(train_data)} sentence for single-sentence BM25 retrieval')
+    return train_data
 
 if __name__ == "__main__":
     args=  vars(parser_args())

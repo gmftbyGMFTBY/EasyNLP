@@ -203,9 +203,8 @@ class SABERTFTDataset(Dataset):
                 except:
                     continue
         else:
-            data = data[:10000]
-            for i in tqdm(range(0, len(data), 10)):
-                batch = data[i:i+10]
+            for i in tqdm(range(0, len(data), 1000)):
+                batch = data[i:i+1000]
                 ids_, tids_, sids_ = [], [], []
                 for j in batch:
                     ids, tids, sids = self.annotate(j[1])

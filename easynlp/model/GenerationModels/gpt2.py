@@ -73,9 +73,10 @@ class InferenceGPT2Model(nn.Module):
         past_key_values = None
         last_hidden_states = None
         logits = None
-        searching_graph = {(ids[0][-1].item(), -1): {}}
+        queue, queue_scores = [], []
+        delta = torch.arange(self.args['beam_width']).cuda() * self.args['beam_width'] 
         for step in range(self.test_max_len):
-            ids, past_key_values, last_hidden_states, logits = ContrastiveDecodingOneStepBeamSearch(
+            ids, past_key_values, last_hidden_states, logits, queue, queue_scores = ContrastiveDecodingOneStepBeamSearch(
                 self.model,
                 ids,
                 self.args['beam_width'],
@@ -86,9 +87,12 @@ class InferenceGPT2Model(nn.Module):
                 logits,
                 step,
                 self.args['contrastive_generation_num'],
-                searching_graph,
+                queue,
+                queue_scores,
+                self.args['limited_size'],
+                delta,
             )
-        return generated
+        return queue
     
     @torch.no_grad()
     def predict_contrastive_batch_search(self, batch):

@@ -43,8 +43,8 @@ class TraditionalRSDataset(Dataset):
             data = read_text_data_utterances(path, lang=self.args['lang'])
             if self.args['dataset'] == 'ubuntu':
                 data = data[:10000]
-            for i in tqdm(range(0, len(data), 10)):
-                batch = data[i:i+10]
+            for i in tqdm(range(0, len(data), 1000)):
+                batch = data[i:i+1000]
                 rids = []
                 gt_text = []
                 for label, utterances in batch:

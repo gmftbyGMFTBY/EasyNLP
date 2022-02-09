@@ -107,8 +107,8 @@ class InteractionAgent(RetrievalBaseAgent):
             if rerank_agent:
                 scores_ = []
                 counter = 0
-                for i in tqdm(range(0, len(scores), 10)):
-                    subscores = scores[i:i+10]
+                for i in tqdm(range(0, len(scores), 100)):
+                    subscores = scores[i:i+100]
                     context = batch['context'][counter]
                     responses = batch['responses'][i:i+10]
                     packup = {
@@ -135,7 +135,7 @@ class InteractionAgent(RetrievalBaseAgent):
           calculate_candidates_ranking(
                 np.array(scores), 
                 np.array(label.cpu().tolist()),
-                10)
+                1000)
             num_correct = logits_recall_at_k(pos_index, k_list)
             if self.args['dataset'] in ["douban", "restoration-200k"]:
                 total_prec_at_one += precision_at_one(rank_by_pred)

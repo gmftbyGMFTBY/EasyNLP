@@ -43,8 +43,8 @@ class BERTFTDataset(Dataset):
                     'tids': tids,
                 })
         else:
-            for i in tqdm(range(0, len(data), 10)):
-                batch = data[i:i+10]
+            for i in tqdm(range(0, len(data), 1000)):
+                batch = data[i:i+1000]
                 ids, tids = [], []
                 context, responses = [], []
                 for b in batch:
