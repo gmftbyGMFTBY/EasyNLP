@@ -133,17 +133,39 @@ class RetrievalBaseAgent:
 
     def set_optimizer_scheduler_ddp(self):
         if self.args['mode'] in ['train']:
-            self.optimizer = transformers.AdamW(
-                self.model.parameters(), 
-                lr=self.args['lr'],
-            )
+            if self.args['mode'] in ['hash-bert']:
+                self.optimizer = transformers.AdamW([
+                    {
+                        'params': self.model.ctx_encoder.parameters(),
+                        'lr': self.args['bert_lr'],
+                    },
+                    {
+                        'params': self.model.can_encoder.parameters(),
+                        'lr': self.args['bert_lr'],
+                    },
+                    {
+                        'params': self.model.ctx_hash_encoder.parameters(),
+                        'lr': self.args['lr']
+                    },
+                    {
+                        'params': self.model.can_hash_encoder.parameters(),
+                        'lr': self.args['lr']
+                    },
+                    {
+                        'params': self.model.ctx_hash_decoder.parameters(),
+                        'lr': self.args['lr']
+                    },
+                    {
+                        'params': self.model.can_hash_decoder.parameters(),
+                        'lr': self.args['lr']
+                    },
+                ])
+            else:
+                self.optimizer = transformers.AdamW(
+                    self.model.parameters(), 
+                    lr=self.args['lr'],
+                )
             self.scaler = GradScaler()
-            # self.scheduler = transformers.get_cosine_with_hard_restarts_schedule_with_warmup(
-            #     self.optimizer, 
-            #     num_warmup_steps=self.args['warmup_step'], 
-            #     num_training_steps=self.args['total_step'],
-            #     num_cycles=self.args['num_cycles'],
-            # )
             self.scheduler = transformers.get_linear_schedule_with_warmup(
                 self.optimizer, 
                 num_warmup_steps=self.args['warmup_step'], 
@@ -339,13 +361,14 @@ class GenerationBaseAgent:
         # f = self.best_test['BERTScore-F']
         # now_test_score = b_1 + b_2 + b_3 + b_4 + rouge_l + meteor + p + r + f
         # now_test_score = ppl_neg - ppl_pos
-        dis_char_1 = self.best_test['Distinct-char-1']
-        dis_char_3 = self.best_test['Distinct-char-3']
-        dis_char_5 = self.best_test['Distinct-char-5']
-        dis_word_1 = self.best_test['Distinct-word-1']
-        dis_word_3 = self.best_test['Distinct-word-3']
-        dis_word_5 = self.best_test['Distinct-word-5']
-        now_test_score = dis_char_1 + dis_char_3 + dis_char_5 + dis_word_1 + dis_word_3 + dis_word_5
+        
+        # dis_char_1 = self.best_test['Distinct-char-1']
+        # dis_char_3 = self.best_test['Distinct-char-3']
+        # dis_char_5 = self.best_test['Distinct-char-5']
+        # dis_word_1 = self.best_test['Distinct-word-1']
+        # dis_word_3 = self.best_test['Distinct-word-3']
+        # dis_word_5 = self.best_test['Distinct-word-5']
+        # now_test_score = dis_char_1 + dis_char_3 + dis_char_5 + dis_word_1 + dis_word_3 + dis_word_5
         now_test_score = self.best_test['PPL']
         
         # ppl_pos = new_test['PPL-pos']
@@ -362,13 +385,14 @@ class GenerationBaseAgent:
         # f = new_test['BERTScore-F']
         # new_test_score = b_1 + b_2 + b_3 + b_4 + rouge_l + meteor + p + r + f
         # new_test_score = ppl_neg - ppl_pos
-        dis_char_1 = new_test['Distinct-char-1']
-        dis_char_3 = new_test['Distinct-char-3']
-        dis_char_5 = new_test['Distinct-char-5']
-        dis_word_1 = new_test['Distinct-word-1']
-        dis_word_3 = new_test['Distinct-word-3']
-        dis_word_5 = new_test['Distinct-word-5']
-        new_test_score = dis_char_1 + dis_char_3 + dis_char_5 + dis_word_1 + dis_word_3 + dis_word_5
+        
+        # dis_char_1 = new_test['Distinct-char-1']
+        # dis_char_3 = new_test['Distinct-char-3']
+        # dis_char_5 = new_test['Distinct-char-5']
+        # dis_word_1 = new_test['Distinct-word-1']
+        # dis_word_3 = new_test['Distinct-word-3']
+        # dis_word_5 = new_test['Distinct-word-5']
+        # new_test_score = dis_char_1 + dis_char_3 + dis_char_5 + dis_word_1 + dis_word_3 + dis_word_5
         new_test_score = new_test['PPL']
         if new_test_score < now_test_score:
             self.best_test = new_test
@@ -392,12 +416,12 @@ class GenerationBaseAgent:
         # ppl_pos = test_rest['PPL-pos']
         # ppl_neg = test_rest['PPL-neg']
         ppl = test_rest['PPL']
-        dis_char_1 = test_rest['Distinct-char-1']
-        dis_char_3 = test_rest['Distinct-char-3']
-        dis_char_5 = test_rest['Distinct-char-5']
-        dis_word_1 = test_rest['Distinct-word-1']
-        dis_word_3 = test_rest['Distinct-word-3']
-        dis_word_5 = test_rest['Distinct-word-5']
+        # dis_char_1 = test_rest['Distinct-char-1']
+        # dis_char_3 = test_rest['Distinct-char-3']
+        # dis_char_5 = test_rest['Distinct-char-5']
+        # dis_word_1 = test_rest['Distinct-word-1']
+        # dis_word_3 = test_rest['Distinct-word-3']
+        # dis_word_5 = test_rest['Distinct-word-5']
         # b_1 = test_rest['BLEU-1']
         # b_2 = test_rest['BLEU-2']
         # b_3 = test_rest['BLEU-3']
@@ -412,12 +436,12 @@ class GenerationBaseAgent:
             # recoder.add_scalar(f'train-test/PPL-pos', ppl_pos, index)
             # recoder.add_scalar(f'train-test/PPL-neg', ppl_neg, index)
             recoder.add_scalar(f'train-test/PPL', ppl, index)
-            recoder.add_scalar(f'train-test/Distinct-char-1', dis_char_1, index)
-            recoder.add_scalar(f'train-test/Distinct-char-3', dis_char_3, index)
-            recoder.add_scalar(f'train-test/Distinct-char-5', dis_char_5, index)
-            recoder.add_scalar(f'train-test/Distinct-word-1', dis_word_1, index)
-            recoder.add_scalar(f'train-test/Distinct-word-3', dis_word_3, index)
-            recoder.add_scalar(f'train-test/Distinct-word-5', dis_word_5, index)
+            # recoder.add_scalar(f'train-test/Distinct-char-1', dis_char_1, index)
+            # recoder.add_scalar(f'train-test/Distinct-char-3', dis_char_3, index)
+            # recoder.add_scalar(f'train-test/Distinct-char-5', dis_char_5, index)
+            # recoder.add_scalar(f'train-test/Distinct-word-1', dis_word_1, index)
+            # recoder.add_scalar(f'train-test/Distinct-word-3', dis_word_3, index)
+            # recoder.add_scalar(f'train-test/Distinct-word-5', dis_word_5, index)
             # recoder.add_scalar(f'train-test/BLEU-1', b_1, index)
             # recoder.add_scalar(f'train-test/BLEU-2', b_2, index)
             # recoder.add_scalar(f'train-test/BLEU-3', b_3, index)

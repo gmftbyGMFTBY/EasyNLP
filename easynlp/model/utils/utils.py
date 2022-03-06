@@ -81,12 +81,6 @@ class TopKBertEmbedding(nn.Module):
         # bert-fp checkpoint has the special token: [EOS]
         self.model.resize_token_embeddings(self.model.config.vocab_size + 1)
         self.queries = nn.Parameter(torch.randn(512, 768))    # [M, E] with maxium length 512
-        self.proj_heads = nn.ModuleList([
-            nn.Sequential(
-                nn.Dropout(p=dropout),
-                nn.Linear(768, 768)
-            ) for _ in range(m)    
-        ])
 
     def get_padding_mask_weight(self, attn_mask):
         weight = torch.where(attn_mask != 0, torch.zeros_like(attn_mask), torch.ones_like(attn_mask))
@@ -105,16 +99,7 @@ class TopKBertEmbedding(nn.Module):
         scores = F.softmax(scores, dim=-1)    # [B, M, S]
 
         # [B, M, S] x [B, S, E] -> [B, M, E]
-        rep = torch.bmm(scores, embds)
-        # project m times
-        reps = []
-        for idx, rep_ in enumerate(rep.permute(1, 0, 2)):
-            # rep_: [B, E]
-            # residual connection
-            # rep_ = rep_ + self.proj_heads[idx](rep_)
-            rep_ = self.proj_heads[idx](rep_)
-            reps.append(rep_)
-        reps = torch.stack(reps)    # [M, B, E]
+        reps = torch.bmm(scores, embds).permute(1, 0, 2)
         if hidden is False:
             return reps
         else:
@@ -995,3 +980,36 @@ class GraphC:
 def apply_dropout(m):
     if type(m) == nn.Dropout:
         m.train()
+
+
+class ConditionalTopKBertEmbedding(nn.Module):
+
+    '''bert embedding with m query heads'''
+    
+    def __init__(self, model='bert-base-chinese', m=5, dropout=0.1):
+        super(ConditionalTopKBertEmbedding, self).__init__()
+        self.model = BertModel.from_pretrained(model)
+        self.model.resize_token_embeddings(self.model.config.vocab_size + 1)
+
+    def get_padding_mask_weight(self, attn_mask):
+        weight = torch.where(attn_mask != 0, torch.zeros_like(attn_mask), torch.ones_like(attn_mask))
+        weight = weight * -1e3    # [B, S]
+        weight = weight.unsqueeze(1).repeat(1, self.m, 1)    # [B, M, S]
+        return weight
+
+    def forward(self, ids, attn_mask, query):
+        '''ids: [B, S]; attn_mask: [B, S]; query'''
+        embds = self.model(ids, attention_mask=attn_mask)[0]     # [B, S, E]
+        # [B, S, E] x [M, E] -> [B, S, E] x [E, M] -> [B, S, M] -> [B, M, S]
+        queries = self.queries[:self.m, :]    # [M, E]
+        scores = torch.matmul(embds, queries.t()).permute(0, 2, 1)
+        scores /= np.sqrt(768)
+        weight = self.get_padding_mask_weight(attn_mask)    # [B, M, S]
+        scores += weight
+        scores = F.softmax(scores, dim=-1)    # [B, M, S]
+
+        # [B, M, S] x [B, S, E] -> [B, M, E]
+        reps = torch.bmm(scores, embds).permute(1, 0, 2)    # [M, B, E]
+        return reps
+
+

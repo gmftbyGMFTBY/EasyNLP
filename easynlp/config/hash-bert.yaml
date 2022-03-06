@@ -1,28 +1,46 @@
-hash_code_size: 512
+temp: 0.05
+hash_code_size: 256
+tfidf_hidden_size: 768
+segment_num: 4
+test_interval: 0.05
+valid_during_training: true
+full_turn_length: 5
 hidden_size: 768
 dropout: 0.1
 # 0-11 layers will be fine-tuned, other index are invalid
 # all means that all the pearmeters will be optimized
-trainable_bert_layers: -1
+# trainable_bert_layers: all
 q_alpha: 0.0001
 q_alpha_max: 0.1
 hash_loss_scale: 1
-kl_loss_scale: 10
+hash_loss_matrix_scale: 1
+kl_loss_scale: 1
+dis_loss_scale: 100
+gray_cand_num: 5
+is_step_for_training: false
+total_step: 5010
+
+pretrained_model:
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+tokenizer:
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
 
 # train configuration
 train:
-    lr: 0.0005
-    grad_clip: 1.0
+    lr: 0.001
+    bert_lr: 0.00001
+    grad_clip: 5.0
     smoothing: 0.1
-    seed: 50
-    batch_size: 256
+    seed: 0
+    batch_size: 64
     max_len: 256
     res_max_len: 64
     epoch: 5
     warmup_ratio: 0.1
     checkpoint: 
-        path: dual-bert-gray-writer/best_bert-base-chinese.pt
-        # path: dual-bert/best_bert-base-chinese.pt
+        # path: dual-bert-gray-writer/best_bert-base-chinese.pt
+        path: dual-bert/best_bert-base-chinese_600.pt
+        # path: bert-fp-mono/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_709.pt
         is_load: true
 
 # test configuration
@@ -36,6 +54,7 @@ inference:
     seed: 50
     batch_size: 512
     max_len: 64
-    index_type: BHash512
-    dimension: 512
+    index_type: BFlat
+    index_nprobe: 5
+    dimension: 4096
     topk: 20

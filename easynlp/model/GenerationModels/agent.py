@@ -8,6 +8,8 @@ class GenerationAgent(GenerationBaseAgent):
         super(GenerationAgent, self).__init__()
         self.args = args
         self.vocab, self.model = vocab, model
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         
         if args['mode'] == 'train':
             self.set_test_interval()
@@ -60,7 +62,7 @@ class GenerationAgent(GenerationBaseAgent):
         self.scheduler.step()
         if recoder:
             recoder.add_scalar(f'train/RunLoss', loss.item(), current_step)
-            recoder.add_scalar(f'train/RunMLELoss', mle_loss.item(), mle_acc)
+            recoder.add_scalar(f'train/RunMLELoss', mle_loss.item(), current_step)
             recoder.add_scalar(f'train/RunCLLoss', cl_loss.item(), current_step)
             recoder.add_scalar(f'train/TokenAcc', mle_acc, current_step)
         pbar.set_description(f'[!] loss(mle|cl): {round(mle_loss.item(), 4)}|{round(cl_loss.item(), 4)}; token_acc: {round(mle_acc*100, 2)}')
@@ -193,7 +195,8 @@ class GenerationAgent(GenerationBaseAgent):
                 ppl = 0.
             else:
                 if self.args['mode'] == 'train':
-                    logits = self.model.module.predict(batch)
+                    # logits = self.model.module.predict(batch)
+                    # test during training only meansure the ppl
                     ppl = self.model.module.calculate_ppl(
                         batch['ids'], 
                         batch['ids_mask'], 
@@ -209,7 +212,7 @@ class GenerationAgent(GenerationBaseAgent):
                         batch['ids_label']
                     )
             PPL.append(ppl)
-            if print_output:
+            if print_output and self.args['mode'] == 'test':
                 for c, r in zip(batch['ids'], logits):
                     if self.args['lang'] == 'en':
                         ctx = ' '.join([i for i in self.vocab.convert_ids_to_tokens(c) if i not in ['[CLS]', '[PAD]', '[SEP]', '<|endoftext|>']])
@@ -229,12 +232,12 @@ class GenerationAgent(GenerationBaseAgent):
                     distinct_word_5.append(distinct_sentence_level_word(res, n=5))
 
         rest['PPL'] = np.mean(PPL)
-        rest['Distinct-char-1'] = np.mean(distinct_char_1)
-        rest['Distinct-char-3'] = np.mean(distinct_char_3)
-        rest['Distinct-char-5'] = np.mean(distinct_char_5)
-        rest['Distinct-word-1'] = np.mean(distinct_word_1)
-        rest['Distinct-word-3'] = np.mean(distinct_word_3)
-        rest['Distinct-word-5'] = np.mean(distinct_word_5)
+        # rest['Distinct-char-1'] = np.mean(distinct_char_1)
+        # rest['Distinct-char-3'] = np.mean(distinct_char_3)
+        # rest['Distinct-char-5'] = np.mean(distinct_char_5)
+        # rest['Distinct-word-1'] = np.mean(distinct_word_1)
+        # rest['Distinct-word-3'] = np.mean(distinct_word_3)
+        # rest['Distinct-word-5'] = np.mean(distinct_word_5)
         return rest
     
     @torch.no_grad()
@@ -320,8 +323,16 @@ class GenerationAgent(GenerationBaseAgent):
 
     def load_model(self, path):
         if self.args['model'] in self.args['no_train_models']:
+            if self.args['decoding_method'] in ['token_rerank_search']:
+                state_dict = torch.load(path, map_location=torch.device('cpu'))
+                self.checkpointadapeter.init(
+                    state_dict.keys(),
+                    self.model.model.state_dict().keys(),
+                )
+                new_state_dict = self.checkpointadapeter.convert(state_dict)
+                self.model.model.load_state_dict(new_state_dict)
+                print(f'[!] load model from {path}')
             return
-        state_dict = torch.load(path, map_location=torch.device('cpu'))
         if self.args['model'] in ['gpt2']:
             self.checkpointadapeter.init(
                 state_dict.keys(),
@@ -355,6 +366,33 @@ class GenerationAgent(GenerationBaseAgent):
                 new_state_dict = self.checkpointadapeter.convert(state_dict)
                 self.model.load_state_dict(new_state_dict)
             print(f'[!] load model from {path}')
+
+    @torch.no_grad()
+    def batch_generation_inference(self, inf_iter, size=100000):
+        self.model.eval()
+        pbar = tqdm(inf_iter)
+        results, context, response = [], [], []
+        counter = 0
+        for batch in pbar:
+            rest = self.model.module.predict(batch)
+            for i in range(0, len(rest), self.args['inference_num']):
+                results.append(rest[i:i+self.args['inference_num']])
+            context.extend(batch['context'])
+            response.extend(batch['response'])
+            ipdb.set_trace()
+            if len(context) > size:
+                assert len(context) == len(response) == len(results)
+                torch.save(
+                    (context, response, results),
+                    f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
+                )
+                context, response, results = [], [], []
+                counter += 1
+        assert len(context) == len(response) == len(results)
+        torch.save(
+            (context, response, results),
+            f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
+        )
 
     @torch.no_grad()
     def inference(self, inf_iter, size=500000):
@@ -461,3 +499,40 @@ class GenerationAgent(GenerationBaseAgent):
         if 'sampling_prefix_len' in batch:
             self.model.args['sampling_prefix_len'] = default_sampling_prefix_len
         return rests
+
+    @torch.no_grad()
+    def rerank(self, batch, inner_bsz=1024):
+        '''only work for the test_recall scripts for the ppl evaluation'''
+        self.model.eval()
+        subscores = []
+        for idx in range(0, len(batch['candidates']), inner_bsz):
+            candidates = batch['candidates'][idx:idx+inner_bsz]
+            ids, ids_mask, pos_ids, ids_label = self.convert_to_ids_dialog(
+                batch['ctext'], 
+                candidates
+            ) 
+            batch['ids'] = ids
+            batch['ids_mask'] = ids_mask
+            batch['pos_ids'] = pos_ids
+            batch['ids_label'] = ids_label
+            subscores.append(self.model.calculate_ppl(ids, ids_mask, pos_ids, ids_label))
+        return np.mean(subscores)
+
+    def convert_to_ids_dialog(self, context, responses):
+        items = self.vocab.batch_encode_plus([context] + responses, add_special_tokens=False)['input_ids']
+        context, responses = items[0], items[1:]
+        ids, labels = [], []
+        for r in responses:
+            ctx = deepcopy(context)
+            truncate_pair(ctx, r, self.args['max_len'])
+            tokens = ctx + [self.sep] + r
+            label = [self.pad] * (len(ctx) + 1) + r
+            ids.append(torch.LongTensor(tokens))
+            labels.append(torch.LongTensor(label))
+        ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+        labels = pad_sequence(labels, batch_first=True, padding_value=self.pad)
+        ids, ids_label = ids[:, :-1], labels[:, 1:]
+        ids_mask = generate_mask(ids)
+        pos_ids = (ids_mask.long().cumsum(-1) - 1).masked_fill(ids_mask == 0, 0)
+        ids, ids_mask, pos_ids, ids_label = to_cuda(ids, ids_mask, pos_ids, ids_label)
+        return ids, ids_mask, pos_ids, ids_label

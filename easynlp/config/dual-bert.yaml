@@ -1,4 +1,4 @@
-temp: 1.
+temp: 0.05
 # five for restoration-200k is enough
 # test 100 full_turn_length for ubuntu corpus
 full_turn_length: 5
@@ -12,9 +12,9 @@ valid_during_training: true
 tokenizer:
     zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
     en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
-# pretrained_model:
-#     zh: /apdcephfs/share_733425/johntianlan/bert-base-chinese
-#     en: /apdcephfs/share_733425/johntianlan/bert-base-uncased
+pretrained_model:
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
 
 # train configuration
 train:
@@ -51,10 +51,10 @@ test:
 # inference configuration
 inference:
     seed: 0
-    batch_size: 256
+    batch_size: 512
     max_len: 32
     ctx_max_len: 64
     topk: 20
-    index_type: IVF65536,Flat
+    index_type: LSH
     index_nprobe: 5
     dimension: 768

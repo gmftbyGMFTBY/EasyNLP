@@ -52,30 +52,6 @@ class GPT2Dataset(Dataset):
                     'context': ctx,
                 })
 
-            # path = f'{args["root_dir"]}/data/{args["dataset"]}/test_gray_simcse.pt'
-            # data = torch.load(path)
-            # random sample 100 samples
-            # data = random.sample(data, 10)
-            # self.data = []
-            # for item in tqdm(data):
-            #     context, pos, neg_responses = item['context'], item['pos_response'], item['neg_responses']
-            #     for neg in neg_responses:
-            #         # prefix
-            #         item = self.vocab.encode(context, add_special_tokens=False)
-            #         ids = [self.cls] + item[-(self.args['max_len']-1):]
-            #         item = self.vocab.encode(context+pos, add_special_tokens=False)
-            #         pos_ids = [self.cls] + item[:self.args['max_len']-2] + [self.sep]
-            #         item = self.vocab.encode(context+neg, add_special_tokens=False)
-            #         neg_ids = [self.cls] + item[:self.args['max_len']-2] + [self.sep]
-            #         self.data.append({
-            #             'ids': ids,
-            #             'pos_ids': pos_ids,
-            #             'pos_text': context+pos,
-            #             'neg_ids': neg_ids,
-            #             'neg_text': context+neg,
-            #             'text': context,
-            #         })
-
     def __len__(self):
         return len(self.data)
 
@@ -123,37 +99,6 @@ class GPT2Dataset(Dataset):
                 'response': response,
                 'context': context,
             }
-            # pos_ids = [i[1] for i in batch]
-            # neg_ids = [i[2] for i in batch]
-            # pos_text = [i[3] for i in batch]
-            # neg_text = [i[4] for i in batch]
-            # text = [i[5] for i in batch]
-
-            # pad from the left side, batch first
-            # max_length = max([len(i) for i in ids])
-            # n_ids = []
-            # for i in ids:
-            #     ids_ = torch.cat([torch.LongTensor([self.pad] * (max_length - len(i))), i])
-            #     n_ids.append(ids_)
-            # ids = torch.stack(n_ids)
-            # mask = generate_mask(ids)
-            # 
-            # pos_ids = pad_sequence(pos_ids, batch_first=True, padding_value=self.pad)
-            # pos_ids_mask = generate_mask(pos_ids)
-            # neg_ids = pad_sequence(neg_ids, batch_first=True, padding_value=self.pad)
-            # neg_ids_mask = generate_mask(neg_ids)
-            # ids, mask, pos_ids, pos_ids_mask, neg_ids, neg_ids_mask = to_cuda(ids, mask, pos_ids, pos_ids_mask, neg_ids, neg_ids_mask)
-            # return {
-            #     'ids': ids, 
-            #     'mask': mask, 
-            #     'pos_ids': pos_ids, 
-            #     'pos_ids_mask': pos_ids_mask, 
-            #     'neg_ids': neg_ids, 
-            #     'neg_ids_mask': neg_ids_mask, 
-            #     'pos_text': pos_text,
-            #     'text': text,
-            #     'neg_text': neg_text,
-            # }
 
             
             

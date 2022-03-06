@@ -13,12 +13,15 @@ class Searcher:
     if with_source is true, then self.if_q_q is False (only do q-r matching)'''
 
     def __init__(self, index_type, dimension=768, q_q=False, with_source=False, nprobe=1):
-        if index_type.startswith('BHash') or index_type in ['BFlat']:
+        if index_type.startswith('BHash') or index_type in ['BFlat'] or index_type == 'LSH':
             binary = True
         else:
             binary = False
         if binary:
-            self.searcher = faiss.index_binary_factory(dimension, index_type)
+            if index_type == 'LSH':
+                self.searcher = faiss.IndexLSH(768, dimension)
+            else:
+                self.searcher = faiss.index_binary_factory(dimension, index_type)
         else:
             # self.searcher = faiss.index_factory(dimension, index_type)
             # self.searcher = faiss.index_factory(dimension, index_type, faiss.METRIC_INNER_PRODUCT)
@@ -29,6 +32,7 @@ class Searcher:
         self.source_corpus = {}
         self.if_q_q = q_q
         self.nprobe = nprobe
+        self.index_type = index_type
 
     def _build(self, matrix, corpus, source_corpus=None, speedup=False):
         '''dataset: a list of tuple (vector, utterance)'''
@@ -75,7 +79,7 @@ class Searcher:
         return rest
 
     def save(self, path_faiss, path_corpus, path_source_corpus=None):
-        if self.binary:
+        if self.binary and self.index_type != 'LSH':
             faiss.write_index_binary(self.searcher, path_faiss)
         else:
             faiss.write_index(self.searcher, path_faiss)
@@ -86,7 +90,7 @@ class Searcher:
                 joblib.dump(self.source_corpus, f)
 
     def load(self, path_faiss, path_corpus, path_source_corpus=None):
-        if self.binary:
+        if self.binary and self.index_type != 'LSH':
             self.searcher = faiss.read_index_binary(path_faiss)
         else:
             self.searcher = faiss.read_index(path_faiss)

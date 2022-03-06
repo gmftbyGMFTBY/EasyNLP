@@ -1,6 +1,9 @@
 datasets: 
     potter: zh
+    chinese_wiki: zh
     chinese_pretrain: zh
+    chinese_high_quality_300g: zh
+    english_pretrain: en
     wz_game: zh
     ecommerce: zh
     douban: zh
@@ -14,6 +17,7 @@ datasets:
     novel_selected: zh
     baike_summary: zh
     arxiv: en
+    arxiv_data: en
     restoration-200k: zh
     essay: zh
     unlikelyhood-gen: zh
@@ -37,6 +41,7 @@ pretrained_model:
 
 no_test_models:
     - bert-fp
+    - dual-bert-wr
     - bert-fp-comp
     - bert-fp-multi
     - bert-fp-no-cls
@@ -48,6 +53,8 @@ no_test_models:
     - bert-mask-da-dmr
     - bert-mask-da-sep
     - dual-bert-unsup
+    - gpt2-contrastive-search
+    - gpt2-token-rerank
 #     - writer-dual-bert-phrase
 
 no_train_models:
@@ -61,6 +68,10 @@ curriculum_learning_models:
     - dual-bert-hn-cl
 
 models:
+    tfidf:
+        type: LanguageModel
+        model_name: TFIDFModel
+        dataset_name: BERTDualFullDataset
     bert-mask-da-sep:
         type: Augmentation
         model_name: BERTMaskAugmentationSepModel
@@ -98,9 +109,9 @@ models:
     simcse: 
         type: SemanticSimilarity
         model_name: SimCSE
-        # dataset_name: SimCSEDataset
-        dataset_name: SimCSEUnlikelyhoodDataset
-        # inference_dataset_name: BERTSimCSEInferenceDataset
+        dataset_name: SimCSEDataset
+        # dataset_name: SimCSEUnlikelyhoodDataset
+        inference_dataset_name: BERTSimCSEInferenceDataset
         # inference_dataset_name: BERTSimCSEInferenceContextDataset
         # inference_dataset_name: BERTSimCSEUnlikelyhoodInferenceDataset
         # inference_dataset_name: BERTSimCSEUnlikelyhoodInferenceContextDataset
@@ -408,6 +419,17 @@ models:
         model_name: WriterDualEncoder
         dataset_name: WriterRankDataset
         inference_dataset_name: null
+    dual-bert-session: 
+        type: Representation
+        model_name: BERTDualSessionEncoder
+        dataset_name: BERTDualSessionDataset
+        inference_dataset_name: null
+    dual-bert-wr: 
+        type: Representation
+        model_name: BERTDualWREncoder
+        dataset_name: BERTDualWRDataset
+        # inference_dataset_name: BERTDualFullWRInferenceDataset
+        inference_dataset_name: BERTDualInferenceFullContextDataset
     dual-bert: 
         type: Representation
         model_name: BERTDualEncoder
@@ -434,8 +456,9 @@ models:
         # inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
         # inference_dataset_name: BERTDualInferenceWithSourceDataset
         # inference_dataset_name: BERTDualInferenceFullDataset
-        inference_dataset_name: BERTDualInferenceFullEXTDataset
+        # inference_dataset_name: BERTDualInferenceFullEXTDataset
         # inference_dataset_name: BERTDualInferenceContextDataset
+        inference_dataset_name: BERTDualInferenceTestContextDataset
         # inference_dataset_name: BERTDualInferenceFullContextDataset
         # inference_dataset_name: BERTDualInferenceFullContextSingleExtendDataset
         # inference_dataset_name: BERTDualInferenceFullForOne2ManyDataset
@@ -475,7 +498,10 @@ models:
     gpt2-contrastive-search: 
         type: Generation
         model_name: ContrastiveGPT2Encoder
-        dataset_name: GPT2ForContrastiveDataset
+        # dataset_name: GPT2ForContrastiveDataset
+        # dataset_name: GPT2ForContrastiveForBigDataset
+        dataset_name: GPT2ForContrastiveForBigArxivDataset
+        # dataset_name: GPT2ForContrastiveEnDataset
         # dataset_name: GPT2WikiTextDataset
         inference_dataset_name: WriterInferenceDataset
     gpt2-cl: 
@@ -483,12 +509,19 @@ models:
         model_name: GPT2CLEncoder
         dataset_name: GPT2CLDataset
         inference_dataset_name: WriterInferenceDataset
+    gpt2-token-rerank: 
+        type: Generation
+        model_name: GPT2TokenRerankModel
+        dataset_name: GPT2ForContrastiveDataset
+        inference_dataset_name: null 
     gpt2-original: 
         type: Generation
-        model_name: GPT2OriginalModel
+        # model_name: GPT2OriginalModel
+        model_name: GPT2DialogModel
         # dataset_name: GPT2TaCLDataset
-        dataset_name: GPT2ForContrastiveDataset
-        inference_dataset_name: null
+        # dataset_name: GPT2ForContrastiveDataset
+        dataset_name: GPT2DialogDataset
+        inference_dataset_name: GPT2DialogDataset
     gpt2-rerank: 
         type: Generation
         model_name: GPT2RerankModel
@@ -544,9 +577,13 @@ models:
     hash-bert: 
         type: Representation
         model_name: HashBERTDualEncoder
-        dataset_name: BERTDualFullWithNegDataset
-        # dataset_name: BERTDualDataset
-        inference_dataset_name: BERTDualFullInferenceDataset
+        # model_name: HashBERTSegmentDualEncoder
+        # model_name: HashBERTSupDualEncoder
+        # dataset_name: BERTDualFullWithNegDataset
+        dataset_name: BERTDualFullDataset
+        # dataset_name: BERTDualHashFullDataset
+        # dataset_name: BERTDualBM25SCMLiteDataset
+        inference_dataset_name: BERTDualInferenceFullDataset
         # inference_dataset_name: BERTDualInferenceDataset
     gpt2-unlikely: 
         type: Generation
@@ -587,10 +624,26 @@ models:
         # dataset_name: BERTDualArxivDataset
         # inference_dataset_name: BERTDualFullInferenceDataset
         inference_dataset_name: BERTDualFullWithSourceInferenceDataset
+    dual-bert-trs: 
+        type: Representation
+        model_name: BERTDualHierTrsEncoder
+        dataset_name: BERTDualHierTrsDataset
+        inference_dataset_name: BERTDualInferenceDataset
     dual-bert-hier-trs: 
         type: Representation
-        model_name: BERTDualHierarchicalTrsEncoder
+        # model_name: BERTDualHierarchicalTrsMVEncoder
+        # model_name: BERTDualHierarchicalTrsEncoder
+        # model_name: BERTDualHierarchicalTrsGPT2Encoder
+        # model_name: BERTDualHierarchicalTrsGPT2BothEncoder
+        model_name: BERTDualHierarchicalTrsMVColBERTEncoder
+        # model_name: BERTDualHierarchicalTrsMVEncoder
         dataset_name: BERTDualFullHierDataset
+        # dataset_name: BERTDualHierTrsDataset
+        inference_dataset_name: BERTDualInferenceDataset
+    dual-bert-hier-dist: 
+        type: Representation
+        model_name: DRBERTV2Encoder
+        dataset_name: BERTDualBM25SCMLiteDistDataset
         inference_dataset_name: BERTDualInferenceDataset
     dual-bert-hier: 
         type: Representation
@@ -616,6 +669,11 @@ models:
         type: WriterRerank
         model_name: WriterBERTRetrieval
         dataset_name: WriterRankDataset
+        inference_dataset_name: null 
+    bert-ft-hier:
+        type: Interaction
+        model_name: BERTFTHierEncoder
+        dataset_name: BERTFTFullHierDataset
         inference_dataset_name: null 
     bert-ft: 
         type: Interaction
@@ -798,7 +856,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 301
+version: 605
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
 rank: null
@@ -820,7 +878,7 @@ deploy:
     # dataset: wz_game
     # dataset: restoration-200k
     dataset: potter
-    max_len: 128
+    max_len: 512
     res_max_len: 64
     recall:
         activate: true

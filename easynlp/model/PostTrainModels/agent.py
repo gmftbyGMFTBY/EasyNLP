@@ -207,7 +207,6 @@ class PostTrainAgent(RetrievalBaseAgent):
                     )
                     new_state_dict = self.checkpointadapeter.convert(state_dict)
                     self.model.load_state_dict(new_state_dict)
-                    print(f'[!] bert-fp-mono loads pre-trained model from {path}')
                 else:
                     state_dict = torch.load(path, map_location=torch.device('cpu'))
                     self.checkpointadapeter.init(
@@ -216,7 +215,16 @@ class PostTrainAgent(RetrievalBaseAgent):
                     )
                     new_state_dict = self.checkpointadapeter.convert(state_dict)
                     missing, unexcept = self.model.model.bert.load_state_dict(new_state_dict, strict=False)
-
+                print(f'[!] bert-fp-mono loads pre-trained model from {path}')
+            elif self.args['model'] in ['bert-fp-comp']:
+                state_dict = torch.load(path, map_location=torch.device('cpu'))
+                self.checkpointadapeter.init(
+                    state_dict.keys(),
+                    self.model.model.bert.state_dict().keys(),
+                )
+                new_state_dict = self.checkpointadapeter.convert(state_dict)
+                missing, unexcept = self.model.model.bert.load_state_dict(new_state_dict, strict=False)
+                print(f'[!] ========== bert-fp-comp loads pre-trained model from {path}')
             elif self.args['model'] in ['dual-bert-unsup']:
                 state_dict = torch.load(path, map_location=torch.device('cpu'))
                 self.checkpointadapeter.init(

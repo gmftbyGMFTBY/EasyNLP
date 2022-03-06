@@ -5,6 +5,7 @@ tokenizer:
     # zh: /apdcephfs/share_916081/johntianlan/gpt2-distil-chinese-cluecorpussmall
     zh: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
     # zh: /apdcephfs/share_916081/johntianlan/gpt2-contrastive-search-23g/multi-node
+    # zh: /apdcephfs/share_916081/johntianlan/gpt2-contrastive-search-300g
     en: /apdcephfs/share_916081/johntianlan/gpt2_small_contrastive_finetune
 pretrained_model: 
     # zh: /apdcephfs/share_916081/johntianlan/gpt2-chinese-cluecorpussmall
@@ -12,6 +13,7 @@ pretrained_model:
     # zh: /apdcephfs/share_916081/johntianlan/gpt2-distil-chinese-cluecorpussmall
     zh: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
     # zh: /apdcephfs/share_916081/johntianlan/gpt2-contrastive-search-23g/multi-node
+    # zh: /apdcephfs/share_916081/johntianlan/gpt2-contrastive-search-300g
     en: /apdcephfs/share_916081/johntianlan/gpt2_small_contrastive_finetune
 # max_len is the max length of the prefix
 max_len: 128
@@ -19,6 +21,11 @@ max_len: 128
 gen_max_len: 128
 # gen_max_ctx_len is used for cutting the too long context
 gen_max_ctx_len: 128
+iter_hn_num: 5
+
+
+dropout: 0.1
+test_max_len: 128
 
 # file name: novel or news
 # file_name: novel
@@ -26,9 +33,10 @@ file_name: news
 # file_name: english_test
 
 # decoding methods
+decoding_method: token_rerank_search
 # decoding_method: contrastive_search
 # decoding_method: contrastive_beam_search
-decoding_method: contrastive_batch_search
+# decoding_method: contrastive_batch_search
 # decoding_method: greedy_search
 # decoding_method: beam_search
 # decoding_method: topk_topp_repetition_penalty_search
@@ -48,8 +56,8 @@ topk_topp_beam_num: 2
 repetition_penalty: 1.0
 
 # contrastive decoding parameter
-beam_width: 5
-model_prediction_confidence: 0.4
+beam_width: 8
+model_prediction_confidence: 0.6
 contrastive_topk: 8
 contrastive_topp: 0.93
 sampling_prefix_len: 0

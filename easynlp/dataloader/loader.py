@@ -2,10 +2,13 @@ from header import *
 from .doctttttquery_dataloader import *
 from .colbert_dataloader import *
 from .traditional_response_selection_dataloader import *
+from .gpt2_dialog_dataloader import *
 from .gpt2_contrastive_search_dataloader import *
+from .gpt2_contrastive_search_super_large_dataloader import *
 from .writer_rank_dataloader import *
 from .mutual_dataloader import *
 from .dual_bert_hier_dataloader import *
+from .dual_bert_session_dataloader import *
 from .dual_bert_curriculum_learning_dataloader import *
 from .horse_human_test_dataloader import *
 from .time_evaluation_dataloader import *
@@ -16,6 +19,7 @@ from .gpt2_memory_dataloader import *
 from .simcse_dataloader import *
 from .post_train_dataloader import *
 from .dual_bert_dataloader import *
+from .hash_bert_dataloader import *
 from .dual_bert_unsup_dataloader import *
 from .gpt2_tacl_dataloader import *
 from .dual_bert_pt_dataloader import *
@@ -31,6 +35,8 @@ from .inference_full_filter_dataloader import *
 from .inference_phrase_dataloader import *
 from .inference_full_dataloader import *
 from .inference_ctx_dataloader import *
+from .dual_bert_full_wr_dataloader import *
+from .inference_full_wr_dataloader import *
 
 def load_dataset(args):
     if args['mode'] in ['train', 'test', 'valid']:

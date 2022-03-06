@@ -1,0 +1,34 @@
+test_interval: 0.05
+save_every: 500
+valid_during_training: false
+is_step_for_training: true
+total_step: 2510
+test_max_len: 128 
+sep_smooth_length: 50
+prefix_len: 32
+dropout: 0.1
+min_instance_seqlen: 16
+
+# for token-level data augmentation
+topk: 100
+topp: 1.0
+iter_hn_num: 10
+
+tokenizer: 
+    zh: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
+pretrained_model: 
+    zh: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
+
+# train configuration
+train:
+    load_param: true
+    lr: 0.001
+    grad_clip: 1.0
+    seed: 0
+    batch_size: 64
+    max_len: 256
+    warmup_ratio: 0.
+    iter_to_accumulate: 1
+    checkpoint: 
+        path: bert-post/best_nspmlm.pt
+        is_load: false

@@ -34,7 +34,7 @@ class BERTFTCompDataset(Dataset):
             data = read_bm25_hard_negative(path)
             responses, response_overlap = [], set()
             for item in tqdm(data):
-                context, response, candidates = item['q'], item['r'], item['nr']
+                context, response, candidates = item['q'], item['r'], item['q_q_nr'] + item['single_nr']
                 ids = self.vocab.batch_encode_plus(context + [response], add_special_tokens=False)['input_ids']
                 cids = []
                 sids, cache = [], 0

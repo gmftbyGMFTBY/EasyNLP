@@ -301,11 +301,14 @@ class BERTDualFullDataset(Dataset):
             # if args['dataset'] in ['ubuntu']:
             if args['dataset'] in ['ubuntu'] and args['mode'] == 'valid':
                 data = data[:10000]    # 1000 sampels for ubunut
-            for i in tqdm(range(0, len(data), 1000)):
-                batch = data[i:i+1000]
+            for i in tqdm(range(0, len(data), 10)):
+                batch = data[i:i+10]
                 rids = []
                 gt_text = []
+                rtext = []
                 for label, utterances in batch:
+                    ctext = ' [SEP] '.join(utterances[:-1])
+                    rtext.append(utterances[-1])
                     item = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']
                     cids, rids_ = item[:-1], item[-1]
                     ids = []
@@ -324,6 +327,8 @@ class BERTDualFullDataset(Dataset):
                     'ids': ids,
                     'rids': rids,
                     'text': gt_text,
+                    'ctext': ctext,
+                    'rtext': rtext,
                 })    
                 
     def __len__(self):
@@ -338,7 +343,7 @@ class BERTDualFullDataset(Dataset):
         else:
             ids = torch.LongTensor(bundle['ids'])
             rids = [torch.LongTensor(i) for i in bundle['rids']]
-            return ids, rids, bundle['label'], bundle['text']
+            return ids, rids, bundle['label'], bundle['text'], bundle['ctext'], bundle['rtext']
 
     def save(self):
         data = torch.save(self.data, self.pp_path)
@@ -365,7 +370,7 @@ class BERTDualFullDataset(Dataset):
         else:
             # batch size is batch_size * 10
             assert len(batch) == 1
-            ids, rids, label, text = batch[0]
+            ids, rids, label, text, ctext, rtext = batch[0]
             rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
             rids_mask = generate_mask(rids)
             label = torch.LongTensor(label)
@@ -375,7 +380,9 @@ class BERTDualFullDataset(Dataset):
                 'rids': rids, 
                 'rids_mask': rids_mask, 
                 'label': label,
-                'text': text
+                'text': text,
+                'ctext': ctext,
+                'rtext': rtext,
             }
 
             

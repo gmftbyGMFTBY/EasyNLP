@@ -27,6 +27,7 @@ def parser_args():
     parser.add_argument('--log', action='store_true', dest='log')
     parser.add_argument('--no-log', action='store_false', dest='log')
     parser.add_argument('--candidate_size', type=int, default=100)
+    parser.add_argument('--recall_topk', type=int, default=20)
     return parser.parse_args()
 
 
@@ -49,17 +50,40 @@ def prepare_inference(**args):
     save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}_{args["version"]}.pt'
     agent.load_model(save_path)
 
+    # ========== load the relevane evaluation model (dual-bert) ========== #
+    inf_args_relevance = deepcopy(args)
+    inf_args_relevance['mode'] = 'test'
+    inf_args_relevance['model'] = 'dual-bert'
+    config = load_config(inf_args_relevance)
+    inf_args_relevance.update(config)
+    relevance_agent = load_model(inf_args_relevance)
+    pretrained_model_name = inf_args_relevance['pretrained_model'].replace('/', '_')
+    save_path = f'{inf_args_relevance["root_dir"]}/ckpt/{inf_args_relevance["dataset"]}/{inf_args_relevance["model"]}/best_{pretrained_model_name}_{inf_args_relevance["version"]}.pt'
+    relevance_agent.load_model(save_path)
+    print(f'[!] build the relevance evaluation model over')
+
+    # ========== load the ppl evaluation model (sota response selection model: dual-bert) ========== #
+    inf_args_ppl = deepcopy(args)
+    inf_args_ppl['mode'] = 'test'
+    inf_args_ppl['model'] = 'gpt2-original'
+    config = load_config(inf_args_ppl)
+    inf_args_ppl.update(config)
+    ppl_agent = load_model(inf_args_ppl)
+    pretrained_model_name = inf_args_ppl['pretrained_model'].replace('/', '_')
+    save_path = f'{inf_args_ppl["root_dir"]}/ckpt/{inf_args_ppl["dataset"]}/{inf_args_ppl["model"]}/best_{pretrained_model_name}_{inf_args_ppl["version"]}.pt'
+    ppl_agent.load_model(save_path)
+    print(f'[!] build the ppl evaluation model over')
+
+    # ========== load the dataset ========== #
     test_data, test_iter, _ = load_dataset(args)
 
     # ===== use inference args ===== #
     inf_args['mode'] = 'inference'
     config = load_config(inf_args)
     inf_args.update(config)
-    # print(f'inference', inf_args)
-
     # load faiss index
     model_name = inf_args['model']
-    pretrained_model_name = inf_args['pretrained_model']
+    pretrained_model_name = inf_args['pretrained_model'].replace('/', '_')
     if inf_args['recall_mode'] == 'q-q':
         q_q = True
         faiss_ckpt_path = f'{inf_args["root_dir"]}/data/{inf_args["dataset"]}/{model_name}_{pretrained_model_name}_q_q_faiss.ckpt'        
@@ -71,8 +95,7 @@ def prepare_inference(**args):
     searcher = Searcher(inf_args['index_type'], dimension=inf_args['dimension'], q_q=q_q)
     searcher.load(faiss_ckpt_path, corpus_ckpt_path)
     print(f'[!] load faiss over')
-    return test_iter, inf_args, searcher, agent
-
+    return test_iter, inf_args, searcher, agent, relevance_agent, ppl_agent
 
 def main_compare(**args):
     '''compare mode applications:
@@ -251,11 +274,13 @@ def main_es_recall(**args):
 def main_recall(**args):
     '''test the recall with the faiss index'''
     # use test mode args load test dataset and model
-    test_iter, inf_args, searcher, agent = prepare_inference(**args)
+    test_iter, inf_args, searcher, agent, relevance_agent, ppl_agent = prepare_inference(**args)
+    inf_args['topk'] = inf_args['recall_topk']
 
     # test recall (Top-20, Top-100)
     pbar = tqdm(test_iter)
     counter, acc = 0, 0
+    ppl, relevance = [], []
     cost_time = []
     log_collector = []
     for batch in pbar:
@@ -268,15 +293,20 @@ def main_recall(**args):
             raise Exception(f'[!] process test dataset error')
         vector = agent.model.get_ctx(ids, ids_mask)   # [E]
 
-        if not searcher.binary:
+        # if not searcher.binary:
+        try:
             vector = vector.cpu().numpy()
+        except:
+            pass
 
         bt = time.time()
         rest = searcher._search(vector, topk=inf_args['topk'])[0]
         et = time.time()
         cost_time.append(et - bt)
+        batch['candidates'] = rest
 
-        #
+        # evaluation the package
+        # 1. top-k
         if 'context' in batch:
             context = batch['context']
         elif 'ids' in batch:
@@ -294,12 +324,25 @@ def main_recall(**args):
                 acc += 1
                 break
         counter += 1
-        pbar.set_description(f'[!] Top-{inf_args["topk"]}: {round(acc/counter, 4)}')
+
+        # 2. perplexity
+        ppl_scores = ppl_agent.rerank(batch)
+        ppl.append(np.mean(ppl_scores))
+
+        # 3. relevance
+        relevance_scores = relevance_agent.rerank_recall_evaluation(batch)
+        relevance.append(np.mean(relevance_scores))
+
+        pbar.set_description(f'[!] Top-{inf_args["topk"]}: {round(acc/counter, 4)}; Relevance-{inf_args["topk"]}: {round(np.mean(relevance)*100, 2)}; PPL-{inf_args["topk"]}: {round(np.mean(ppl), 4)}')
 
     topk_metric = round(acc/counter, 4)
+    relevance_metric = round(np.mean(relevance)*100, 2)
+    ppl_metric = round(np.mean(ppl), 4)
     avg_time = round(np.mean(cost_time)*1000, 2)    # ms
     pretrained_model_name = inf_args['pretrained_model'].replace('/', '_')
     print(f'[!] Top-{inf_args["topk"]}: {topk_metric}')
+    print(f'[!] Relevance-{inf_args["topk"]}: {relevance_metric}')
+    print(f'[!] PPL-{inf_args["topk"]}: {ppl_metric}')
     print(f'[!] Average Times: {avg_time} ms')
     with open(f'{inf_args["root_dir"]}/rest/{inf_args["dataset"]}/{inf_args["model"]}/test_result_recall_{pretrained_model_name}.txt', 'w') as f:
         print(f'Top-{inf_args["topk"]}: {topk_metric}', file=f)

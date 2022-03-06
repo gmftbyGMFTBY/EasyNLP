@@ -1,6 +1,6 @@
 # The experiments of the Comparison-based Dialog Response Selection (DRS)
 
-replace the NSP (next sentence prediction) with the CCE (Candidate comparison evaluation) learning object.
+replace the NSP (next sentence prediction) with the CCE (candidate comparison evaluation) learning object.
 
 ## 1. Traditional Settings
 

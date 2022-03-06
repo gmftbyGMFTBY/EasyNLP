@@ -28,6 +28,8 @@ class InteractionAgent(RetrievalBaseAgent):
 
         if self.args['model'] in ['bert-ft-ibns']:
             self.train_model = self.train_ibns_model
+        elif self.args['model'] in ['bert-ft-hier']:
+            self.train_model = self.train_model_hier
 
 
         self.criterion = nn.BCEWithLogitsLoss()
@@ -69,11 +71,12 @@ class InteractionAgent(RetrievalBaseAgent):
             if self.args['model'] in ['bert-ft-compare-plus']:
                 output = output.max(dim=-1)[1]
                 now_correct = (output == label).sum().item()
+                s += len(label)
             else:
                 output = torch.sigmoid(output) > 0.5
                 now_correct = torch.sum(output == label).item()
+                s += len(label)
             correct += now_correct
-            s += len(label)
 
             if recoder:
                 recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
@@ -99,7 +102,13 @@ class InteractionAgent(RetrievalBaseAgent):
             label = batch['label']
             if core_time:
                 bt = time.time()
-            scores = torch.sigmoid(self.model(batch)).cpu().tolist()
+            if self.args['model'] in['bert-ft-hier']:
+                if self.args['mode'] == 'train':
+                    scores = torch.sigmoid(self.model.module.predict(batch)).cpu().tolist()
+                else:
+                    scores = torch.sigmoid(self.model.predict(batch)).cpu().tolist()
+            else:
+                scores = torch.sigmoid(self.model(batch)).cpu().tolist()
             if core_time:
                 et = time.time()
                 core_time_rest += et - bt
@@ -135,7 +144,7 @@ class InteractionAgent(RetrievalBaseAgent):
           calculate_candidates_ranking(
                 np.array(scores), 
                 np.array(label.cpu().tolist()),
-                1000)
+                10)
             num_correct = logits_recall_at_k(pos_index, k_list)
             if self.args['dataset'] in ["douban", "restoration-200k"]:
                 total_prec_at_one += precision_at_one(rank_by_pred)
@@ -203,6 +212,13 @@ class InteractionAgent(RetrievalBaseAgent):
                 )
                 new_state_dict = self.checkpointadapeter.convert(state_dict)
                 missing, unexcept = self.model.model.load_state_dict(new_state_dict, strict=False)
+            elif self.args['model'] in ['bert-ft-hier']:
+                self.checkpointadapeter.init(
+                    state_dict.keys(),
+                    self.model.model.state_dict().keys(),
+                )
+                new_state_dict = self.checkpointadapeter.convert(state_dict)
+                self.model.model.load_state_dict(new_state_dict)
             else:
                 self.checkpointadapeter.init(
                     state_dict.keys(),
@@ -210,6 +226,7 @@ class InteractionAgent(RetrievalBaseAgent):
                 )
                 new_state_dict = self.checkpointadapeter.convert(state_dict)
                 self.model.model.bert.load_state_dict(new_state_dict)
+            print(f'[!] ========= load model from {path}')
         else:
             # test and inference mode
             self.checkpointadapeter.init(
@@ -287,4 +304,38 @@ class InteractionAgent(RetrievalBaseAgent):
         if recoder:
             recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
             recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
+        return batch_num
+
+    def train_model_hier(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
+        self.model.train()
+        total_loss, batch_num, correct, s = 0, 0, 0, 0
+        pbar = tqdm(train_iter)
+        correct, s = 0, 0
+        for idx, batch in enumerate(pbar):
+            self.optimizer.zero_grad()
+            with autocast():
+                loss, acc = self.model(batch)    # [B]
+
+            self.scaler.scale(loss).backward()
+            self.scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            self.scheduler.step()
+
+            total_loss += loss.item()
+            batch_num += 1
+            if batch_num in self.args['test_step']:
+                self.test_now(test_iter, recoder)
+            correct += acc
+            if recoder:
+                recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/Acc', correct/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
+
+            pbar.set_description(f'[!] train loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(correct/batch_num, 4)}')
+        if recoder:
+            recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/Acc', correct/batch_num, idx_)
         return batch_num

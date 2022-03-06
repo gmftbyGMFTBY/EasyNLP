@@ -1,4 +1,5 @@
 from .agent import *
+from .gpt2_token_rerank import *
 from .doctttttquery import *
 from .dual_bert_gen import *
 from .seq2seq import *

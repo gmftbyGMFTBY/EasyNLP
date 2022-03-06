@@ -643,7 +643,7 @@ class PostTrainComparisonDataset(Dataset):
         self.special_tokens = set([self.pad, self.sep, self.cls, self.unk, self.mask, self.eos])
 
         suffix = args['tokenizer'].replace('/', '_')
-        self.pp_path = f'{os.path.splitext(path)[0]}_post_train_{suffix}.pt'
+        self.pp_path = f'{os.path.splitext(path)[0]}_post_train_compare_{suffix}.pt'
         if os.path.exists(self.pp_path):
             self.data, self.table = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')

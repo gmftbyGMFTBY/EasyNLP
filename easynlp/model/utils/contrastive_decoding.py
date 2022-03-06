@@ -347,3 +347,47 @@ def select_past_key_values_beam(past_key_values, selected_idx):
     return new_key_values
 
 
+# ========== ========== #
+def TokenRerankDecodingOneStep(model, reranker, input_ids, beam_width, model_prediction_confidence, top_k, top_p, sampling_probability, sep_idx, sep_smooth_length):
+    '''
+        model: the generation model, e.g., gpt2
+        input_ids: 1 x seqlen
+    '''
+    output = model(input_ids=input_ids, output_hidden_states=True)
+    prev_hidden_states = output.hidden_states[-1]
+    logits = output.logits
+
+    _, seqlen, embed_dim = prev_hidden_states.size()
+    _, _, vocab_size = logits.size()
+    logit_for_next_step = logits[:,-1,:]
+    # ignore sep
+    logit_for_next_step[:, sep_idx] *= sep_smooth_length
+    assert logit_for_next_step.size() == torch.Size([1, vocab_size])
+
+    next_probs = F.softmax(logit_for_next_step, dim = -1)
+    assert next_probs.size() == logit_for_next_step.size()
+
+    _, top_k_ids = torch.topk(logit_for_next_step, dim = -1, k = beam_width)
+    assert top_k_ids.size() == torch.Size([1, beam_width])
+    
+    top_k_probs = torch.gather(next_probs, dim = 1, index=top_k_ids)
+
+    assert top_k_probs.size() == top_k_ids.size()
+    # compute new hidden 
+    expanded_context = [input_ids for _ in range(beam_width)]
+    expanded_context = torch.cat(expanded_context, dim = 0)
+    assert expanded_context.size() == torch.Size([beam_width, seqlen])
+    top_k_ids = top_k_ids.view(beam_width, 1)
+    next_input_ids = torch.cat([expanded_context, top_k_ids], dim = -1)
+    assert next_input_ids.size() == torch.Size([beam_width, seqlen+1])
+    output = model(input_ids=next_input_ids, output_hidden_states=True)
+    new_hidden_states = output.hidden_states[-1]
+    new_hidden_score = F.softmax(reranker(new_hidden_states), dim=-1)[:, -1, 1]    # [beam_width]
+    new_hidden_score = model_prediction_confidence * top_k_probs.squeeze(0) + (1-model_prediction_confidence) * new_hidden_score
+    best_index = new_hidden_score.max(dim=-1)[1]
+    next_id = top_k_ids[best_index, :]     # [1]
+    next_input_ids = torch.cat([input_ids, next_id.unsqueeze(1)], dim=-1)
+    assert next_input_ids.size() == torch.Size([1, seqlen+1])
+    return next_input_ids
+
+

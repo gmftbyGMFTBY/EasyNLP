@@ -27,6 +27,8 @@ def main(**args):
     torch.cuda.set_device(args['local_rank'])
     torch.distributed.init_process_group(backend='nccl', init_method='env://')
 
+    args['global_rank'] = dist.get_rank()
+
     # test set configuration
     test_args = deepcopy(args)
     test_args['mode'] = 'test'
@@ -72,7 +74,7 @@ def main(**args):
         gobal_total_step, current_step, over_train_flag = 0, 0, False
         # 1000000 is the virtual epoch, only the step are used
         sampler.set_epoch(0)    # shuffle for DDP
-        for _ in range(1000000):
+        for _ in range(100000000):
             for batch in train_iter:
                 agent.train_model(
                     batch, 
@@ -80,8 +82,14 @@ def main(**args):
                     current_step=current_step, 
                     pbar=pbar
                 )
-                if args['local_rank'] == 0 and current_step in args['test_step'] and current_step > 0:
-                    agent.test_now(test_iter, sum_writer)
+
+                # if args['local_rank'] == 0 and current_step in args['test_step'] and current_step > 0:
+                #     agent.test_now(test_iter, sum_writer)
+                if args['global_rank'] == 0 and current_step % args['save_every'] == 0 and current_step > 0:
+                    pretrained_model_name = args['pretrained_model'].replace('/', '_')
+                    save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}_{args["version"]}_{current_step}.pt'
+                    agent.save_model(save_path)
+
                 current_step += 1
                 if current_step > args['total_step']:
                     over_train_flag = True

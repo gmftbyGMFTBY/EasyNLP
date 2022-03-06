@@ -1,4 +1,5 @@
 from model.utils import *
+from .gpt2_token_rerank import *
 from .utils import *
 
 
@@ -9,7 +10,10 @@ class InferenceGPT2Model(nn.Module):
     def __init__(self, **args):
         super(InferenceGPT2Model, self).__init__()
         model = args['pretrained_model']
-        self.model = GPT2LMHeadModel.from_pretrained(model)
+        if args['decoding_method'] in ['token_rerank_search']:
+            self.model = GPT2TokenRerankModel(**args)
+        else:
+            self.model = GPT2LMHeadModel.from_pretrained(model)
         # pad token is 0
         self.gen_loss_fct = nn.CrossEntropyLoss(ignore_index=0)
         # self.vocab = BertTokenizerFast.from_pretrained(model)
@@ -26,6 +30,8 @@ class InferenceGPT2Model(nn.Module):
     def switch_decoding_method(self, method_name):
         if method_name == 'contrastive_search':
             self.predict = self.predict_contrastive_search
+        elif method_name == 'token_rerank_search':
+            self.predict = self.predict_token_rerank_search
         elif method_name == 'contrastive_beam_search':
             self.predict = self.predict_contrastive_beam_search
         elif method_name == 'contrastive_batch_search':
@@ -136,6 +142,28 @@ class InferenceGPT2Model(nn.Module):
                 break
         # batch size is 1
         return generated
+
+    @torch.no_grad()
+    def predict_token_rerank_search(self, batch):
+        self.model.eval()
+        input_ids = batch['ids']
+        _, prefix_length = input_ids.size()
+        for step in range(self.test_max_len):
+            input_ids = TokenRerankDecodingOneStep(
+                self.model.model,
+                self.model.token_reranker,
+                input_ids,
+                self.args['beam_width'],
+                self.args['model_prediction_confidence'],
+                self.args['contrastive_topk'],
+                self.args['contrastive_topp'],
+                self.args['sampling_probability'],
+                self.sep,
+                min(1., (step+1)/self.args['sep_smooth_length']),
+            )
+        # input_ids contains the prefix, cut it
+        input_ids = input_ids[:, prefix_length:]
+        return input_ids.tolist()
     
     @torch.no_grad()
     def predict_contrastive_search(self, batch):

@@ -1,3 +1,8 @@
+pretrained_model:
+    zh: /apdcephfs/share_733425/johntianlan/bert-base-chinese
+tokenizer:
+    zh: /apdcephfs/share_733425/johntianlan/bert-base-chinese
+
 # train configuration
 train:
     lr: 0.00003
@@ -11,7 +16,9 @@ train:
     min_context_length: 2
     min_token_length: 20
     epoch: 35
+    dropout: 0.1
     warmup_ratio: 0.01
     checkpoint: 
-        path: bert-post/best_nspmlm.pt
-        is_load: false
+        # path: bert-post/best_nspmlm.pt
+        path: bert-fp/best_bert-base-chinese.pt
+        is_load: true

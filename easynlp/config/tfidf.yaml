@@ -1,0 +1,11 @@
+full_turn_length: 5
+batch_size: 32
+epoch: 1
+warmup_ratio: 0.1
+# train configuration
+train:
+    seed: 0
+
+# test configuration
+test:
+    seed: 0

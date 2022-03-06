@@ -1,4 +1,5 @@
 from .InteractionModels import *
+from .TargetDialogModels import *
 from .TraditionalResponseSelectionModels import *
 from .WriterRerankModels import *
 from .AugmentationModels import *

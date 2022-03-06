@@ -51,25 +51,43 @@ class RepresentationAgent(RetrievalBaseAgent):
         if args['mode'] in ['train', 'inference']:
             self.set_optimizer_scheduler_ddp()
         self.show_parameters(self.args)
-        # Metrics object
-        self.metrics = Metrics()
 
-        if self.args['fgm']:
-            self.fgm = FGM(self.model)
+    def _train_model_hash(self, batch, recoder=None, pbar=None, current_step=0):
+        self.model.train()
+        self.optimizer.zero_grad()
+        with autocast():
+            kl_loss, hash_loss, quantization_loss, acc, ref_acc = self.model(batch)
+            quantization_loss *= self.q_alpha
+            loss = kl_loss + hash_loss + quantization_loss
+            self.q_alpha += self.q_alpha_step
+        self.scaler.scale(loss).backward()
+        self.scaler.unscale_(self.optimizer)
+        clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+        self.scaler.step(self.optimizer)
+        self.scaler.update()
+            
+        self.scheduler.step()
+        if recoder:
+            recoder.add_scalar(f'train-epoch-{current_step}/q_alpha', self.q_alpha, current_step)
+            recoder.add_scalar(f'train-epoch-{current_step}/RunLoss', loss.item(), current_step)
+            recoder.add_scalar(f'train-epoch-{current_step}/RunKLLoss', kl_loss.item(), current_step)
+            recoder.add_scalar(f'train-epoch-{current_step}/RunHashLoss', hash_loss.item(), current_step)
+            recoder.add_scalar(f'train-epoch-{current_step}/RunQuantizationLoss', quantization_loss.item(), current_step)
+            recoder.add_scalar(f'train-epoch-{current_step}/RunAcc', acc, current_step)
+        pbar.set_description(f'[!] kl_loss: {round(kl_loss.item(), 4)}; q_loss: {round(quantization_loss.item(), 4)}; h_loss: {round(hash_loss.item(), 4)}; acc(hash|ref): {round(acc, 4)}|{round(ref_acc, 4)}')
+        pbar.update(1)
 
-        # faiss searcher for inference
-
-    def train_model_hash(self, train_iter, test_iter, recoder=None, idx_=0):
+    def train_model_hash(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
         self.model.train()
         total_loss, batch_num = 0, 0
-        total_h_loss, total_q_loss, total_kl_loss = 0, 0, 0
-        total_acc = 0
+        total_h_loss, total_q_loss, total_kl_loss, total_dis_loss = 0, 0, 0, 0
+        total_acc, total_ref_acc = 0, 0
         pbar = tqdm(train_iter)
         correct, s, oom_t = 0, 0, 0
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
             with autocast():
-                kl_loss, hash_loss, quantization_loss, acc = self.model(batch)
+                kl_loss, hash_loss, quantization_loss, acc, ref_acc = self.model(batch)
                 quantization_loss *= self.q_alpha
                 loss = kl_loss + hash_loss + quantization_loss
                 self.q_alpha += self.q_alpha_step
@@ -86,31 +104,34 @@ class RepresentationAgent(RetrievalBaseAgent):
             total_q_loss += quantization_loss.item()
             total_h_loss += hash_loss.item()
             total_acc += acc
+            total_ref_acc += ref_acc
             batch_num += 1
 
-            if batch_num in self.args['test_step']:
+            if whole_batch_num + batch_num in self.args['test_step']:
                 self.test_now(test_iter, recoder)
-            
-            recoder.add_scalar(f'train-epoch-{idx_}/q_alpha', self.q_alpha, idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/KLLoss', total_kl_loss/batch_num, idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/RunKLLoss', kl_loss.item(), idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/HashLoss', total_h_loss/batch_num, idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/RunHashLoss', hash_loss.item(), idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/QuantizationLoss', total_q_loss/batch_num, idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/RunQuantizationLoss', quantization_loss.item(), idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
-             
-            pbar.set_description(f'[!] kl_loss: {round(kl_loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
 
-        recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
-        recoder.add_scalar(f'train-whole/KLLoss', total_kl_loss/batch_num, idx_)
-        recoder.add_scalar(f'train-whole/QLoss', total_q_loss/batch_num, idx_)
-        recoder.add_scalar(f'train-whole/HLoss', total_h_loss/batch_num, idx_)
-        recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
-        return round(total_loss / batch_num, 4)
+            if recoder:
+                recoder.add_scalar(f'train-epoch-{idx_}/q_alpha', self.q_alpha, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/KLLoss', total_kl_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunKLLoss', kl_loss.item(), idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/HashLoss', total_h_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunHashLoss', hash_loss.item(), idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/QuantizationLoss', total_q_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunQuantizationLoss', quantization_loss.item(), idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
+             
+            pbar.set_description(f'[!] kl_loss: {round(kl_loss.item(), 4)}; q_loss: {round(quantization_loss.item(), 4)}; h_loss: {round(hash_loss.item(), 4)}; acc(ref|hash): {round(total_ref_acc/batch_num, 4)}|{round(total_acc/batch_num, 4)}')
+
+        if recoder:
+            recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/KLLoss', total_kl_loss/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/QLoss', total_q_loss/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/HLoss', total_h_loss/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
+        return batch_num
     
     def train_model_ssl(self, train_iter, test_iter, recoder=None, idx_=0):
         self.model.train()
@@ -283,6 +304,8 @@ class RepresentationAgent(RetrievalBaseAgent):
             elif 'ids' in batch:
                 if self.args['model'] in ['dual-bert-multi-ctx']:
                     pass
+                elif self.args['model'] in ['dual-bert-session']:
+                    pass
                 else:
                     cid = batch['ids'].unsqueeze(0)
                     cid_mask = torch.ones_like(cid)
@@ -336,7 +359,7 @@ class RepresentationAgent(RetrievalBaseAgent):
             calculate_candidates_ranking(
                 np.array(scores), 
                 np.array(label.cpu().tolist()),
-                50)
+                10)
             num_correct = logits_recall_at_k(pos_index, k_list)
             if self.args['dataset'] in ["douban", "restoration-200k"]:
                 total_prec_at_one += precision_at_one(rank_by_pred)
@@ -551,7 +574,31 @@ class RepresentationAgent(RetrievalBaseAgent):
                 (embd, text), 
                 f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_context_for_response_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
             )
-    
+
+    @torch.no_grad()
+    def inference_context_test(self, inf_iter, size=500000):
+        '''inference the context for searching the hard negative data'''
+        self.model.eval()
+        pbar = tqdm(inf_iter)
+        embds, contexts, responses = [], [], []
+        for batch in pbar:
+            ids = batch['ids']
+            ids_mask = batch['mask']
+            context = batch['context']
+            response = batch['responses']
+            embd = self.model.module.get_ctx(ids, ids_mask).cpu()
+            embds.append(embd)
+            contexts.extend(context)
+            responses.extend(response)
+        embds = torch.cat(embds, dim=0).numpy()
+        for idx, i in enumerate(range(0, len(embds), size)):
+            embd = embds[i:i+size]
+            context = contexts[i:i+size]
+            response = responses[i:i+size]
+            torch.save(
+                (embd, context, response), 
+                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_test_context_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
+            )
     
     @torch.no_grad()
     def inference_context(self, inf_iter, size=500000):
@@ -627,9 +674,7 @@ class RepresentationAgent(RetrievalBaseAgent):
         scores = []
         for batch in tqdm(batches):
             subscores = []
-            # pbar = tqdm(range(0, len(batch['candidates']), inner_bsz))
             cid, cid_mask = self.totensor([batch['context']], ctx=True)
-            # for idx in pbar:
             for idx in range(0, len(batch['candidates']), inner_bsz):
                 candidates = batch['candidates'][idx:idx+inner_bsz]
                 rid, rid_mask = self.totensor(candidates, ctx=False)
@@ -640,6 +685,21 @@ class RepresentationAgent(RetrievalBaseAgent):
                 subscores.extend(self.model.predict(batch).tolist())
             scores.append(subscores)
         return scores
+
+    @torch.no_grad()
+    def rerank_recall_evaluation(self, batch, inner_bsz=2048):
+        self.model.eval()
+        subscores = []
+        cid, cid_mask = self.totensor([batch['ctext']], ctx=True)
+        for idx in range(0, len(batch['candidates']), inner_bsz):
+            candidates = batch['candidates'][idx:idx+inner_bsz]
+            rid, rid_mask = self.totensor(candidates, ctx=False)
+            batch['ids'] = cid
+            batch['ids_mask'] = cid_mask
+            batch['rids'] = rid
+            batch['rids_mask'] = rid_mask
+            subscores.extend(self.model.predict(batch).tolist())
+        return np.mean(subscores)
 
     def load_model(self, path):
         # ========== special case ========== #
@@ -684,7 +744,15 @@ class RepresentationAgent(RetrievalBaseAgent):
                     self.model.can_encoders[idx].load_state_dict(new_res_state_dict)
                 print(f'[!] init the context encoder and {self.args["gray_cand_num"]+1} response encoders')
                 # print(f'[!] init the context encoder and response encoders')
-            elif self.args['model'] in ['dual-bert-hn-ctx', 'dual-bert-cl']:
+            elif self.args['model'] in ['dual-bert-hier-dist']:
+                dr_bert_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["dr_bert_path"]}'
+                state_dict = torch.load(dr_bert_path, map_location=torch.device('cpu'))
+                self.model.dr_bert.load_state_dict(state_dict)
+                dr_bert_v2_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["dr_bert_v2_path"]}'
+                # state_dict = torch.load(dr_bert_v2_path, map_location=torch.device('cpu'))
+                # self.model.dr_bert_v2.load_state_dict(state_dict)
+                print(f'[!] load the model from:\n - {dr_bert_path}\n - {dr_bert_v2_path}')
+            elif self.args['model'] in ['dual-bert-hn-ctx', 'dual-bert-cl', 'hash-bert']:
                 new_ctx_state_dict = OrderedDict()
                 new_res_state_dict = OrderedDict()
                 for k, v in state_dict.items():

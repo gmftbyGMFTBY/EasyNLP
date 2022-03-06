@@ -1,4 +1,5 @@
 #!/bin/bash
+export NCCL_IB_DISABLE=1
 
 dataset=$1
 model=$2
@@ -9,5 +10,5 @@ CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=$
     --dataset $dataset \
     --model $model \
     --nums ${#gpu_ids[@]} \
-    --work_mode gray-test \
+    --work_mode gray-hard-test \
     --gray_topk 20

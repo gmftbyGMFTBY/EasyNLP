@@ -1,7 +1,7 @@
-test_interval: 0.01
 valid_during_training: false
 is_step_for_training: true
-total_step: 10000010
+total_step: 100000010
+save_every: 10000
 test_gen_max_len: 128
 beam_width: 5
 model_prediction_confidence: 0.6
@@ -12,32 +12,42 @@ contrastive_topp: 0.93
 prefix_len: 32
 margin: 0.5
 cl_loss_alpha: 1.
-sampling_prefix_len: -1.0
+sampling_prefix_len: 3
 
 # gpt2 configuration load locally
 tokenizer: 
     # zh: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
-    zh: /apdcephfs/share_733425/johntianlan/gpt2_with_long_time
+    # zh: /apdcephfs/share_733425/johntianlan/gpt2_with_long_time
+    zh: /apdcephfs/share_733425/johntianlan/gpt2-l-300g
+    # zh: /apdcephfs/share_916081/johntianlan/gpt2-l-300g
+    # zh: /apdcephfs/share_916081/johntianlan/gpt2-l-300g
     # zh: /apdcephfs/share_733425/johntianlan/gpt2-chinese-cluecorpussmall
     # en: /apdcephfs/share_916081/johntianlan/gpt2_english
+    # en: /apdcephfs/share_733425/johntianlan/gpt2-arxiv
+    en: /apdcephfs/share_916081/johntianlan/gpt2-arxiv
     # en: /apdcephfs/share_916081/johntianlan/gpt2_small_contrastive_finetune
 pretrained_model: 
     # zh: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
-    zh: /apdcephfs/share_733425/johntianlan/gpt2_with_long_time
+    # zh: /apdcephfs/share_733425/johntianlan/gpt2_with_long_time
+    zh: /apdcephfs/share_733425/johntianlan/gpt2-l-300g
+    # zh: /apdcephfs/share_916081/johntianlan/gpt2-l-300g
+    # zh: /apdcephfs/share_916081/johntianlan/gpt2-l-300g
     # zh: /apdcephfs/share_733425/johntianlan/gpt2-chinese-cluecorpussmall
-    # en: /apdcephfs/share_916081/johntianlan/gpt2-large
+    # en: /apdcephfs/share_916081/johntianlan/gpt2_english
+    # en: /apdcephfs/share_733425/johntianlan/gpt2-arxiv
+    en: /apdcephfs/share_916081/johntianlan/gpt2-arxiv
     # en: /apdcephfs/share_916081/johntianlan/gpt2_small_contrastive_finetune
 
 # train configuration
 train:
     load_param: true
-    lr: 0.00005
+    lr: 0.00003
     grad_clip: 1.0
     seed: 0
     batch_size: 32
-    max_len: 512
+    max_len: 256
     warmup_ratio: 0.
-    iter_to_accumulate: 4
+    iter_to_accumulate: 16
     checkpoint: 
         path: bert-post/best_nspmlm.pt
         is_load: false
@@ -46,4 +56,4 @@ train:
 test:
     seed: 0
     batch_size: 16
-    max_len: 256
+    max_len: 128

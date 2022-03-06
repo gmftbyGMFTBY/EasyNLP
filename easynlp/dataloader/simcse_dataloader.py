@@ -20,14 +20,21 @@ class SimCSEDataset(Dataset):
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
 
-        data = read_text_data_utterances(path, lang=self.args['lang'])
-        data = list(chain(*[u for label, u in data if label == 1]))
-        data = list(set(data))
+        if self.args['dataset'] in ['chinese_wiki']:
+            data = []
+            with open(path) as f:
+                for line in tqdm(f.readlines()):
+                    data.append(json.loads(line.strip())['q'])
+            data = list(set(data))
+        else:
+            data = read_text_data_utterances(path, lang=self.args['lang'])
+            data = list(chain(*[u for label, u in data if label == 1]))
+            data = list(set(data))
         print(f'[!] collect {len(data)} samples for simcse')
 
         self.data = []
-        for idx in tqdm(range(0, len(data), 256)):
-            utterances = data[idx:idx+256]
+        for idx in tqdm(range(0, len(data), 32)):
+            utterances = data[idx:idx+32]
             item = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']
             ids = [[self.cls] + i[:self.args["res_max_len"]-2] + [self.sep] for i in item]
             self.data.extend(ids)
@@ -77,6 +84,13 @@ class BERTSimCSEInferenceDataset(Dataset):
             dataset = []
             for _, utterances in ndataset:
                 dataset.extend(utterances)
+            dataset = list(set(dataset))
+        elif self.args['dataset'] in ['chinese_wiki']:
+            path = f'{args["root_dir"]}/data/{self.args["dataset"]}/base_data.txt'
+            with open(path) as f:
+                dataset = []
+                for line in tqdm(f.readlines()):
+                    dataset.append(json.loads(line.strip())['q'])
             dataset = list(set(dataset))
         print(f'[!] load {len(dataset)} sentences for inference')
         self.data = []

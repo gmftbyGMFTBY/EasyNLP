@@ -1,4 +1,5 @@
 from .agent import *
+from .tfidf import *
 try:
     from .kenlm import *
 except:
