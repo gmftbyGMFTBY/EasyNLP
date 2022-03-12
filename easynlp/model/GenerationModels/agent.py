@@ -424,16 +424,15 @@ class GenerationAgent(GenerationBaseAgent):
                 # diverse generation
                 self.log_save_file.write(f'[Prefix     ] {batch["text"][0]}\n')
                 for idx, r in enumerate(rest):
-                    sep = ' ' if self.args['lang'] == 'en' else ''
-                    r = sep.join([token for token in self.vocab.convert_ids_to_tokens(r)])
+                    sep = '' if self.args['lang'] == 'en' else ''
+                    r = sep.join([self.vocab.decode(token) for token in r])
                     self.log_save_file.write(f'[Generation {idx}] {r}\n')
                     self.log_save_file.flush()
                 self.log_save_file.write('\n')
             else:
                 for r, t in zip(rest, batch['text']):
-                    ipdb.set_trace()
-                    sep = ' ' if self.args['lang'] == 'en' else ''
-                    r = sep.join([token for token in self.vocab.convert_ids_to_tokens(r)])
+                    sep = '' if self.args['lang'] == 'en' else ''
+                    r = sep.join([self.vocab.decode(token) for token in r])
                     self.log_save_file.write(f'[Prefix     ] {t}\n')
                     self.log_save_file.write(f'[Generation ] {r}\n\n')
                     self.log_save_file.flush()

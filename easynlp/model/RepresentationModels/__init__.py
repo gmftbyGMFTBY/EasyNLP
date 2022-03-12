@@ -1,4 +1,7 @@
 from .agent import *
+from .dual_bert_mv import *
+from .pq_bert import *
+from .hash_bert_hier import *
 from .dual_bert_hier import *
 from .dual_bert_hier_dist import *
 from .xmoco import *

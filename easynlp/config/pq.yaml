@@ -1,23 +1,9 @@
-temp: 0.05
-hash_code_size: 768
-segment_num: 4
 test_interval: 0.05
 valid_during_training: true
 full_turn_length: 5
-hidden_size: 1024
-dropout: 0.1
-# 0-11 layers will be fine-tuned, other index are invalid
-# all means that all the pearmeters will be optimized
-# trainable_bert_layers: all
-q_alpha: 0.001
-q_alpha_max: 0.1
-hash_loss_scale: 1
-hash_loss_matrix_scale: 1
-kl_loss_scale: 1
-dis_loss_scale: 100
-gray_cand_num: 5
-is_step_for_training: false
-total_step: 5010
+
+M: 16
+train_data_size: 500000
 
 pretrained_model:
     zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
@@ -31,10 +17,10 @@ train:
     grad_clip: 1.0
     smoothing: 0.1
     seed: 0
-    batch_size: 128
+    batch_size: 512
     max_len: 256
     res_max_len: 64
-    epoch: 5
+    epoch: 1
     warmup_ratio: 0.0
     checkpoint: 
         path: dual-bert/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_700.pt

@@ -136,14 +136,6 @@ class RetrievalBaseAgent:
             if self.args['mode'] in ['hash-bert']:
                 self.optimizer = transformers.AdamW([
                     {
-                        'params': self.model.ctx_encoder.parameters(),
-                        'lr': self.args['bert_lr'],
-                    },
-                    {
-                        'params': self.model.can_encoder.parameters(),
-                        'lr': self.args['bert_lr'],
-                    },
-                    {
                         'params': self.model.ctx_hash_encoder.parameters(),
                         'lr': self.args['lr']
                     },

@@ -40,6 +40,7 @@ import faiss
 import h5py
 import torch.multiprocessing
 import linecache
+import nanopq
 
 # texsmart
 # sys.path.append('/home/johntianlan/sources/texsmart-sdk-0.3.0-m-zh/lib')

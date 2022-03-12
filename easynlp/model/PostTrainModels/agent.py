@@ -179,6 +179,7 @@ class PostTrainAgent(RetrievalBaseAgent):
         self.model.eval()
         pbar = tqdm(inf_iter)
         embds, texts, contexts = [], [], []
+        counter = 0
         for batch in pbar:
             ids = batch['ids']
             ids_mask = batch['mask']
@@ -186,14 +187,20 @@ class PostTrainAgent(RetrievalBaseAgent):
             res = self.model.module.get_embedding(ids, ids_mask).cpu()
             embds.append(res)
             texts.extend(text)
-        embds = torch.cat(embds, dim=0).numpy()
 
-        for idx, i in enumerate(range(0, len(embds), size)):
-            embd = embds[i:i+size]
-            text = texts[i:i+size]
+            if len(embds) > size:
+                embds = torch.cat(embds, dim=0).numpy()
+                torch.save(
+                    (embds, texts), 
+                    f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
+                )
+                embds, texts = [], []
+                counter += 1
+        if len(embds) > size:
+            embds = torch.cat(embds, dim=0).numpy()
             torch.save(
-                (embd, text), 
-                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
+                (embds, texts), 
+                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
             )
 
     def load_model(self, path):

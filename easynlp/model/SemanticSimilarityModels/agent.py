@@ -212,3 +212,73 @@ class SemanticSimilarityAgent(SimCSEBaseAgent):
         return {
             'corrcoef': round(corrcoef, 4),
         }
+
+    @torch.no_grad()
+    def inference(self, inf_iter, size=500000):
+        '''for simcse model to generate the embeddings'''
+        self.model.eval()
+        pbar = tqdm(inf_iter)
+        embds, texts, contexts = [], [], []
+        # add the lsh module, convert the floats into the binary has codes
+        # self.model.module.init_lsh_model()
+        counter = 0
+        for batch in pbar:
+            ids = batch['ids']
+            ids_mask = batch['mask']
+            text = batch['text']
+            res = self.model.module.get_embedding(ids, ids_mask).cpu()
+            embds.append(res)
+            texts.extend(text)
+
+            if len(texts) > size:
+                embds = torch.cat(embds, dim=0).numpy()
+                torch.save(
+                    (embds, texts), 
+                    f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
+                )
+                embds, texts = [], []
+                counter += 1
+        if len(texts) > 0:
+            embds = torch.cat(embds, dim=0).numpy()
+            torch.save(
+                (embds, texts), 
+                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
+            )
+
+    @torch.no_grad()
+    def inference_context(self, inf_iter, size=500000):
+        '''for simcse model to generate the embeddings'''
+        self.model.eval()
+        pbar = tqdm(inf_iter)
+        embds, texts, indexes = [], [], []
+        # add the lsh module, convert the floats into the binary has codes
+        # self.model.module.init_lsh_model()
+        counter = 0
+        for batch in pbar:
+            ids = batch['ids']
+            ids_mask = batch['mask']
+            text = batch['text']
+            index = batch['index']
+            res = self.model.module.get_embedding(ids, ids_mask)
+            embds.append(res)
+            texts.extend(text)
+            indexes.extend(index)
+
+            if len(texts) > size:
+                embds = torch.cat(embds, dim=0).numpy()
+                torch.save(
+                    (embds, texts, indexes), 
+                    f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_context_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
+                )
+                embds, texts, indexes = [], [], []
+                counter += 1
+        if len(texts) > 0:
+            embds = torch.cat(embds, dim=0).numpy()
+            torch.save(
+                (embds, texts, indexes), 
+                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_context_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
+            )
+
+
+
+

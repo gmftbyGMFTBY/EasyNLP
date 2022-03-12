@@ -86,6 +86,9 @@ class BERTDualFullHierDataset(Dataset):
             turn_length = [i[2] for i in batch]
             ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
             rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
+            if rids.size(-1) < self.args['res_max_len']:
+                padding_matrix = torch.LongTensor([self.pad] * (self.args['res_max_len'] - rids.size(-1))).unsqueeze(0).expand(rids.size(0), -1)
+                rids = torch.cat([rids, padding_matrix], dim=-1)
             ids_mask = generate_mask(ids)
             rids_mask = generate_mask(rids)
             ids, rids, ids_mask, rids_mask = to_cuda(ids, rids, ids_mask, rids_mask)
@@ -103,11 +106,15 @@ class BERTDualFullHierDataset(Dataset):
             turn_length = [turn_length]
             ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
             rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
+            if ids.size(-1) < self.args['mv_num']:
+                ids = torch.cat([ids, torch.zeros(ids.size(0), self.args['mv_num'] - ids.size(-1)).to(torch.long)], dim=-1)
+            ids_mask = generate_mask(ids)
             rids_mask = generate_mask(rids)
             label = torch.LongTensor(label)
-            ids, rids, rids_mask, label = to_cuda(ids, rids, rids_mask, label)
+            ids, rids, ids_mask, rids_mask, label = to_cuda(ids, rids, ids_mask, rids_mask, label)
             return {
                 'ids': ids, 
+                'ids_mask': ids_mask,
                 'rids': rids, 
                 'rids_mask': rids_mask, 
                 'label': label,

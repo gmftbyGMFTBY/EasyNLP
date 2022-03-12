@@ -24,7 +24,7 @@ tokenizer:
     # zh: /apdcephfs/share_733425/johntianlan/gpt2-chinese-cluecorpussmall
     # en: /apdcephfs/share_916081/johntianlan/gpt2_english
     # en: /apdcephfs/share_733425/johntianlan/gpt2-arxiv
-    en: /apdcephfs/share_916081/johntianlan/gpt2-arxiv
+    en: /apdcephfs/share_916081/johntianlan/gpt2-arxiv-simctg
     # en: /apdcephfs/share_916081/johntianlan/gpt2_small_contrastive_finetune
 pretrained_model: 
     # zh: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
@@ -35,7 +35,7 @@ pretrained_model:
     # zh: /apdcephfs/share_733425/johntianlan/gpt2-chinese-cluecorpussmall
     # en: /apdcephfs/share_916081/johntianlan/gpt2_english
     # en: /apdcephfs/share_733425/johntianlan/gpt2-arxiv
-    en: /apdcephfs/share_916081/johntianlan/gpt2-arxiv
+    en: /apdcephfs/share_916081/johntianlan/gpt2-arxiv-simctg
     # en: /apdcephfs/share_916081/johntianlan/gpt2_small_contrastive_finetune
 
 # train configuration

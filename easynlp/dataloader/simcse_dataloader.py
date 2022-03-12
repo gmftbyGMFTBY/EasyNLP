@@ -141,15 +141,26 @@ class BERTSimCSEInferenceContextDataset(Dataset):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
-        # dataset = read_text_data_utterances_full(path, lang=self.args['lang'], turn_length=5)
-        dataset = read_text_data_utterances(path, lang=self.args['lang'])
+        if self.args['dataset'] in ['chinese_wiki']:
+            path = f'{args["root_dir"]}/data/{self.args["dataset"]}/sample_data.txt'
+            with open(path) as f:
+                dataset = []
+                for line in tqdm(f.readlines()):
+                    dataset.append(json.loads(line.strip())['q'])
+            dataset = list(set(dataset))
+        else:
+            dataset = read_text_data_utterances(path, lang=self.args['lang'])
+
         self.data = []
         counter = 0
-        for label, utterances in tqdm(dataset):
-            if label == 0:
+        # for label, utterances in tqdm(dataset):
+        #     if label == 0:
+        #         continue
+        for utterances in tqdm(dataset):
+            if not utterances.strip():
                 continue
-            item = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']
-            ids = [[self.cls] + i[:self.args['max_len']] + [self.sep] for i in item]
+            item = self.vocab.encode(utterances, add_special_tokens=False)
+            ids = [self.cls] + item[:self.args['max_len']-2] + [self.sep]
             self.data.append({
                 'ids': ids, 
                 'text': utterances,
@@ -162,7 +173,8 @@ class BERTSimCSEInferenceContextDataset(Dataset):
 
     def __getitem__(self, i):
         bundle = self.data[i]
-        ids = [torch.LongTensor(i) for i in bundle['ids']]
+        # ids = [torch.LongTensor(i) for i in bundle['ids']]
+        ids = torch.LongTensor(bundle['ids'])
         utterances = bundle['text']
         return ids, utterances, bundle['index']
 
@@ -173,9 +185,9 @@ class BERTSimCSEInferenceContextDataset(Dataset):
     def collate(self, batch):
         ids, text, index = [], [], []
         for i, j, k in batch:
-            ids.extend(i)
-            text.extend(j)
-            index.extend([k] * len(i))
+            ids.append(i)
+            text.append(j)
+            index.append(k)
         ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
         ids_mask = generate_mask(ids)
         ids, ids_mask = to_cuda(ids, ids_mask)

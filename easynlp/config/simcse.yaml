@@ -20,10 +20,10 @@ test:
 
 inference:
     seed: 0
-    batch_size: 512
+    batch_size: 128
     max_len: 512
     topk: 20
-    index_type: IVF8000
+    index_type: IVF65536_HNSW32,Flat
     index_nprobe: 1
     dimension: 768
     min_test_len: 16

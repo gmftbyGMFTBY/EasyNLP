@@ -13,7 +13,7 @@ class Searcher:
     if with_source is true, then self.if_q_q is False (only do q-r matching)'''
 
     def __init__(self, index_type, dimension=768, q_q=False, with_source=False, nprobe=1):
-        if index_type.startswith('BHash') or index_type in ['BFlat'] or index_type == 'LSH':
+        if index_type.startswith('BHash') or index_type in ['BFlat', 'BHNSW16'] or index_type == 'LSH':
             binary = True
         else:
             binary = False
@@ -23,9 +23,8 @@ class Searcher:
             else:
                 self.searcher = faiss.index_binary_factory(dimension, index_type)
         else:
-            # self.searcher = faiss.index_factory(dimension, index_type)
-            # self.searcher = faiss.index_factory(dimension, index_type, faiss.METRIC_INNER_PRODUCT)
-            self.searcher = faiss.IndexHNSWFlat(768, 4)
+            self.searcher = faiss.index_factory(dimension, index_type)
+            self.searcher = faiss.index_factory(dimension, index_type, faiss.METRIC_INNER_PRODUCT)
         self.corpus = []
         self.binary = binary
         self.with_source = with_source

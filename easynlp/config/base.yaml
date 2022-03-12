@@ -22,8 +22,8 @@ datasets:
     essay: zh
     unlikelyhood-gen: zh
     ext_douban: zh
-    # writer-gen-test only has the test file for generation testing
-    writer-gen-test: zh
+    # writer-gen-test only has the test file for generation testing (en/zh)
+    writer-gen-test: en
     wikitext103: en
 
 # pretrained model and tokenizer
@@ -432,7 +432,8 @@ models:
         inference_dataset_name: BERTDualInferenceFullContextDataset
     dual-bert: 
         type: Representation
-        model_name: BERTDualEncoder
+        # model_name: BERTDualEncoder
+        model_name: BERTDualMVEncoder
         # dataset_name: BERTDualFullFakeCtxDataset
         # dataset_name: BERTDualDataset
         # dataset_name: BERTDualFullWithHardNegDataset
@@ -573,7 +574,36 @@ models:
         type: Representation
         model_name: BERTDualFusionGrayFullEncoder
         dataset_name: BERTDualFullWithNegDataset
-        inference_dataset_name: BERTDualCLInferenceDataset
+    itq: 
+        type: Representation
+        model_name: ITQEncoder
+        dataset_name: BERTDualFullDataset
+        inference_dataset_name: BERTDualInferenceFullDataset
+    pq: 
+        type: Representation
+        model_name: PQEncoder
+        dataset_name: BERTDualFullDataset
+        inference_dataset_name: BERTDualInferenceFullDataset
+    sh: 
+        type: Representation
+        model_name: SHEncoder
+        dataset_name: BERTDualFullDataset
+        inference_dataset_name: BERTDualInferenceFullDataset
+    lsh-hier: 
+        type: Representation
+        model_name: LSHHierEncoder
+        dataset_name: BERTDualFullHierDataset
+        inference_dataset_name: null
+    lsh: 
+        type: Representation
+        model_name: LSHEncoder
+        dataset_name: BERTDualFullDataset
+        inference_dataset_name: BERTDualInferenceFullDataset
+    bpr: 
+        type: Representation
+        model_name: BPREncoder
+        dataset_name: BERTDualFullDataset
+        inference_dataset_name: BERTDualInferenceFullDataset
     hash-bert: 
         type: Representation
         model_name: HashBERTDualEncoder
@@ -629,13 +659,20 @@ models:
         model_name: BERTDualHierTrsEncoder
         dataset_name: BERTDualHierTrsDataset
         inference_dataset_name: BERTDualInferenceDataset
+    hash-dual-bert-hier-trs: 
+        type: Representation
+        model_name: HashBERTDualHierEncoder
+        dataset_name: BERTDualFullHierDataset
+        inference_dataset_name: BERTDualInferenceDataset
     dual-bert-hier-trs: 
         type: Representation
         # model_name: BERTDualHierarchicalTrsMVEncoder
         # model_name: BERTDualHierarchicalTrsEncoder
         # model_name: BERTDualHierarchicalTrsGPT2Encoder
+        model_name: BERTDualHierarchicalTrsMVGPT2Encoder
         # model_name: BERTDualHierarchicalTrsGPT2BothEncoder
-        model_name: BERTDualHierarchicalTrsMVColBERTEncoder
+        # model_name: BERTDualHierarchicalTrsMVColBERTEncoder
+        # model_name: BERTDualHierarchicalTrsMVColBERTMoCoEncoder
         # model_name: BERTDualHierarchicalTrsMVEncoder
         dataset_name: BERTDualFullHierDataset
         # dataset_name: BERTDualHierTrsDataset
@@ -856,7 +893,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 605
+version: 601
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
 rank: null

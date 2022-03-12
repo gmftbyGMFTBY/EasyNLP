@@ -391,7 +391,10 @@ class GPT2InferenceDataset(Dataset):
             ids = self.vocab.tokenize(ctx)
             ids = self.vocab.convert_tokens_to_ids(ids)
             ids = ids[-self.args['gen_max_ctx_len']+1:]
-            text = ''.join(self.vocab.convert_ids_to_tokens(ids))
+            if self.args['lang'] == 'zh':
+                text = ''.join(self.vocab.convert_ids_to_tokens(ids))
+            else:
+                text = ''.join([self.vocab.decode(i) for i in ids])
             self.data.append({'ids': ids, 'text': text})
 
     def __len__(self):
@@ -408,6 +411,7 @@ class GPT2InferenceDataset(Dataset):
         max_length = max([len(i[0]) for i in batch])
         tokens = [i[0] for i in batch]
         texts = [i[1] for i in batch]
+        # ids = torch.LongTensor([[self.pad] * (max_length - len(i)) + i for i in tokens]).expand(self.args['contrastive_generation_num'], -1)
         ids = torch.LongTensor([[self.pad] * (max_length - len(i)) + i for i in tokens])
         ids_mask = generate_mask(ids, pad_token_idx=self.pad)
         pos_ids = (ids_mask.long().cumsum(-1) - 1).masked_fill(ids_mask == 0, 0)

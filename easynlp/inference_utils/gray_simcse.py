@@ -9,10 +9,10 @@ def gray_simcse_strategy(args):
     for idx in range(100):
         try:
             embd, text, index = torch.load(
-                f'{args["root_dir"]}/data/{args["dataset"]}/inference_simcse_ctx_{args["model"]}_{args["local_rank"]}_{idx}.pt'
+                f'{args["root_dir"]}/data/{args["dataset"]}/inference_context_{args["model"]}_{args["local_rank"]}_{idx}.pt'
             )
             print(f'[!] load {args["root_dir"]}/data/{args["dataset"]}/inference_simcse_ctx_{args["model"]}_{args["local_rank"]}_{idx}.pt')
-        except:
+        except Exception as error:
             break
         embds.append(embd)
         texts.extend(text)
@@ -27,7 +27,7 @@ def gray_simcse_strategy(args):
         f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt',
     )
     # speed up with gpu
-    searcher.move_to_gpu(device=args['local_rank'])
+    # searcher.move_to_gpu(device=args['local_rank'])
 
     # search
     collection = {}

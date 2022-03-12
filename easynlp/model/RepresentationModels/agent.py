@@ -16,10 +16,20 @@ class RepresentationAgent(RetrievalBaseAgent):
 
         if args['mode'] == 'train':
             # hash-bert parameter setting
-            if self.args['model'] in ['hash-bert']:
+            if self.args['model'] in ['hash-bert', 'hash-dual-bert-hier-trs']:
                 self.q_alpha = self.args['q_alpha']
                 self.q_alpha_step = (self.args['q_alpha_max'] - self.args['q_alpha']) / int(self.args['total_step'] / torch.distributed.get_world_size())
                 self.train_model = self.train_model_hash
+            elif self.args['model'] in ['bpr']:
+                self.train_model = self.train_model_bpr
+            elif self.args['model'] in['lsh', 'lsh-hier']:
+                self.train_model = self.train_model_lsh
+            elif self.args['model'] in['sh']:
+                self.train_model = self.train_model_sh
+            elif self.args['model'] in['pq']:
+                self.train_model = self.train_model_pq
+            elif self.args['model'] in['itq']:
+                self.train_model = self.train_model_itq
             elif self.args['model'] in ['dual-bert-ssl']:
                 self.train_model = self.train_model_ssl
                 # set hyperparameters
@@ -52,30 +62,180 @@ class RepresentationAgent(RetrievalBaseAgent):
             self.set_optimizer_scheduler_ddp()
         self.show_parameters(self.args)
 
-    def _train_model_hash(self, batch, recoder=None, pbar=None, current_step=0):
+    @torch.no_grad()
+    def train_model_lsh(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
+        batch_num = 0
+        for batch in tqdm(train_iter):
+            if batch_num == 10:
+                self.test_now(test_iter, recoder)
+            batch_num += 1
+        return batch_num
+
+    @torch.no_grad()
+    def train_model_itq(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
+        batch_num = 0
+        reps = []
+        for batch in tqdm(train_iter):
+            rep = self.model(batch).cpu()
+            if self.args['local_rank'] == 0:
+                reps.append(rep)
+            batch_num += 1
+
+        # only the main process train the itq model
+        if self.args['local_rank'] != 0:
+            return batch_num
+        reps = torch.cat(reps).numpy()    # [B, E]
+        print(f'[!] collect {len(reps)} samples for hash training')
+
+        # begin to train the model
+        ## 0. save the random seed
+        np.random.seed(self.args['seed'])
+        torch.manual_seed(self.args['seed'])
+        torch.cuda.manual_seed(self.args['seed'])
+
+        code_len = self.args['hash_code_size']
+        R = torch.randn(code_len, code_len).cuda()
+        U, _, _ = torch.svd(R)
+        R = U[:, :code_len]
+        ## 1. PCA
+        pca = PCA(n_components=code_len)
+        V = torch.from_numpy(pca.fit_transform(reps)).cuda()
+        V = torch.tensor(V, dtype=torch.float32)
+        ## 2. training
+        for i in tqdm(range(self.args['max_itq_iter'])):
+            V_tilde = V @ R
+            B = V_tilde.sign()
+            U, _, VT = torch.svd(B.t() @ V)
+            R = (VT.t() @ U.t())
+
+        ## save the necessary parameters: pca, R
+        pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
+        path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_itq_model_{self.args["version"]}.pt'
+        torch.save((pca, R.cpu().numpy()), path)
+        print(f'[!] save the itq model into {path}')
+        return batch_num
+
+    @torch.no_grad()
+    def train_model_pq(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
+        batch_num = 0
+        reps = []
+        for batch in tqdm(train_iter):
+            rep = self.model(batch).cpu()
+            if self.args['local_rank'] == 0:
+                reps.append(rep)
+            batch_num += 1
+        # only the main process train the itq model
+        if self.args['local_rank'] != 0:
+            return batch_num
+        reps = torch.cat(reps).numpy()    # [B, E]
+        print(f'[!] collect {len(reps)} samples for hash training')
+        reps = reps[:self.args['train_data_size'], :]
+
+        # begin to train the model
+        pq = nanopq.PQ(M=self.args['M'])
+        pq.fit(reps)
+
+        ## save the necessary parameters: pca, mn, R, modes
+        pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
+        path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_pq_model_{self.args["version"]}.pt'
+        torch.save(pq, path)
+        print(f'[!] save the sh model into {path}')
+        return batch_num
+
+    @torch.no_grad()
+    def train_model_sh(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
+        batch_num = 0
+        reps = []
+        for batch in tqdm(train_iter):
+            rep = self.model(batch).cpu()
+            if self.args['loca_rank'] == 0:
+                reps.append(rep)
+            batch_num += 1
+        # only the main process train the itq model
+        if self.args['local_rank'] != 0:
+            return batch_num
+        reps = torch.cat(reps).numpy()    # [B, E]
+        print(f'[!] collect {len(reps)} samples for hash training')
+
+        # begin to train the model
+        ## 0. save the random seed
+        np.random.seed(self.args['seed'])
+        torch.manual_seed(self.args['seed'])
+        torch.cuda.manual_seed(self.args['seed'])
+        ## 1. PCA
+        pca = PCA(n_components=self.args['hash_code_size'])
+        X = pca.fit_transform(reps)
+
+        ## 2. fit uniform distribution
+        eps = np.finfo(float).eps
+        mn = X.min(0) - eps
+        mx = X.max(0) + eps
+
+        ## 3. enumerate eigenfunctions
+        R = mx - mn
+        max_mode = np.ceil((self.args['hash_code_size'] + 1) * R / R.max()).astype(np.int)
+        n_modes = max_mode.sum() - len(max_mode) + 1
+        modes = np.ones([n_modes, self.args['hash_code_size']])
+        m = 0
+        for i in range(self.args['hash_code_size']):
+            modes[m + 1: m + max_mode[i], i] = np.arange(1, max_mode[i]) + 1
+            m = m + max_mode[i] - 1
+
+        modes -= 1
+        omega0 = np.pi / R
+        omegas = modes * omega0.reshape(1, -1).repeat(n_modes, 0)
+        eig_val = -(omegas ** 2).sum(1)
+        ii = (-eig_val).argsort()
+        modes = modes[ii[1:self.args['hash_code_size']+1], :]
+
+        ## save the necessary parameters: pca, mn, R, modes
+        pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
+        path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_sh_model_{self.args["version"]}.pt'
+        torch.save((pca, mn, R, modes), path)
+        print(f'[!] save the sh model into {path}')
+        return batch_num
+
+    def train_model_bpr(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
         self.model.train()
-        self.optimizer.zero_grad()
-        with autocast():
-            kl_loss, hash_loss, quantization_loss, acc, ref_acc = self.model(batch)
-            quantization_loss *= self.q_alpha
-            loss = kl_loss + hash_loss + quantization_loss
-            self.q_alpha += self.q_alpha_step
-        self.scaler.scale(loss).backward()
-        self.scaler.unscale_(self.optimizer)
-        clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
-        self.scaler.step(self.optimizer)
-        self.scaler.update()
+        total_loss, batch_num = 0, 0
+        total_acc, total_ref_acc = 0, 0
+        pbar = tqdm(train_iter)
+        correct, s, oom_t = 0, 0, 0
+        for idx, batch in enumerate(pbar):
+            self.optimizer.zero_grad()
+            batch['current_step'] = whole_batch_num + batch_num + 1
+            with autocast():
+                loss, acc, ref_acc, beta = self.model(batch)
+            self.scaler.scale(loss).backward()
+            self.scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
             
-        self.scheduler.step()
+            self.scheduler.step()
+
+            total_loss += loss.item()
+            total_acc += acc
+            total_ref_acc += ref_acc
+            batch_num += 1
+
+            if whole_batch_num + batch_num in self.args['test_step']:
+                self.test_now(test_iter, recoder)
+
+            if recoder:
+                recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
+             
+            pbar.set_description(f'[!] beta: {round(beta, 4)}; loss: {round(loss.item(), 4)}; acc(ref|hash): {round(total_ref_acc/batch_num, 4)}|{round(total_acc/batch_num, 4)}')
+
         if recoder:
-            recoder.add_scalar(f'train-epoch-{current_step}/q_alpha', self.q_alpha, current_step)
-            recoder.add_scalar(f'train-epoch-{current_step}/RunLoss', loss.item(), current_step)
-            recoder.add_scalar(f'train-epoch-{current_step}/RunKLLoss', kl_loss.item(), current_step)
-            recoder.add_scalar(f'train-epoch-{current_step}/RunHashLoss', hash_loss.item(), current_step)
-            recoder.add_scalar(f'train-epoch-{current_step}/RunQuantizationLoss', quantization_loss.item(), current_step)
-            recoder.add_scalar(f'train-epoch-{current_step}/RunAcc', acc, current_step)
-        pbar.set_description(f'[!] kl_loss: {round(kl_loss.item(), 4)}; q_loss: {round(quantization_loss.item(), 4)}; h_loss: {round(hash_loss.item(), 4)}; acc(hash|ref): {round(acc, 4)}|{round(ref_acc, 4)}')
-        pbar.update(1)
+            recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
+        return batch_num
+    
+
 
     def train_model_hash(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
         self.model.train()
@@ -114,8 +274,6 @@ class RepresentationAgent(RetrievalBaseAgent):
                 recoder.add_scalar(f'train-epoch-{idx_}/q_alpha', self.q_alpha, idx)
                 recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
                 recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
-                recoder.add_scalar(f'train-epoch-{idx_}/KLLoss', total_kl_loss/batch_num, idx)
-                recoder.add_scalar(f'train-epoch-{idx_}/RunKLLoss', kl_loss.item(), idx)
                 recoder.add_scalar(f'train-epoch-{idx_}/HashLoss', total_h_loss/batch_num, idx)
                 recoder.add_scalar(f'train-epoch-{idx_}/RunHashLoss', hash_loss.item(), idx)
                 recoder.add_scalar(f'train-epoch-{idx_}/QuantizationLoss', total_q_loss/batch_num, idx)
@@ -127,7 +285,6 @@ class RepresentationAgent(RetrievalBaseAgent):
 
         if recoder:
             recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
-            recoder.add_scalar(f'train-whole/KLLoss', total_kl_loss/batch_num, idx_)
             recoder.add_scalar(f'train-whole/QLoss', total_q_loss/batch_num, idx_)
             recoder.add_scalar(f'train-whole/HLoss', total_h_loss/batch_num, idx_)
             recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
@@ -302,9 +459,7 @@ class RepresentationAgent(RetrievalBaseAgent):
                 batch['ids'], batch['ids_mask'] = cid, cid_mask
                 batch['rids'], batch['rids_mask'] = rid, rid_mask
             elif 'ids' in batch:
-                if self.args['model'] in ['dual-bert-multi-ctx']:
-                    pass
-                elif self.args['model'] in ['dual-bert-session']:
+                if self.args['model'] in ['dual-bert-multi-ctx', 'dual-bert-session', 'dual-bert-hier-trs']:
                     pass
                 else:
                     cid = batch['ids'].unsqueeze(0)
@@ -725,8 +880,8 @@ class RepresentationAgent(RetrievalBaseAgent):
             print(f'[!] load following PLMs:\n - context BERT encoder: {context_path}\n - response BERT encoder: {response_path}')
             return 
         # ========== common case ========== #
-        state_dict = torch.load(path, map_location=torch.device('cpu'))
         if self.args['mode'] == 'train':
+            state_dict = torch.load(path, map_location=torch.device('cpu'))
             if self.args['model'] in ['dual-bert-one2many']:
                 new_ctx_state_dict = OrderedDict()
                 new_res_state_dict = OrderedDict()
@@ -744,6 +899,13 @@ class RepresentationAgent(RetrievalBaseAgent):
                     self.model.can_encoders[idx].load_state_dict(new_res_state_dict)
                 print(f'[!] init the context encoder and {self.args["gray_cand_num"]+1} response encoders')
                 # print(f'[!] init the context encoder and response encoders')
+            elif self.args['model'] in ['lsh-hier', 'hash-dual-bert-hier-trs']:
+                self.checkpointadapeter.init(
+                    state_dict.keys(),
+                    self.model.base_model.state_dict().keys(),
+                )
+                new_state_dict = self.checkpointadapeter.convert(state_dict)
+                self.model.base_model.load_state_dict(new_state_dict)
             elif self.args['model'] in ['dual-bert-hier-dist']:
                 dr_bert_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["dr_bert_path"]}'
                 state_dict = torch.load(dr_bert_path, map_location=torch.device('cpu'))
@@ -752,7 +914,7 @@ class RepresentationAgent(RetrievalBaseAgent):
                 # state_dict = torch.load(dr_bert_v2_path, map_location=torch.device('cpu'))
                 # self.model.dr_bert_v2.load_state_dict(state_dict)
                 print(f'[!] load the model from:\n - {dr_bert_path}\n - {dr_bert_v2_path}')
-            elif self.args['model'] in ['dual-bert-hn-ctx', 'dual-bert-cl', 'hash-bert']:
+            elif self.args['model'] in ['dual-bert-hn-ctx', 'dual-bert-cl']:
                 new_ctx_state_dict = OrderedDict()
                 new_res_state_dict = OrderedDict()
                 for k, v in state_dict.items():
@@ -781,6 +943,19 @@ class RepresentationAgent(RetrievalBaseAgent):
                         new_can_state_dict[k] = v
                 self.model.ctx_encoder.load_state_dict(new_ctx_state_dict)
                 self.model.can_encoder.load_state_dict(new_can_state_dict)
+            elif self.args['model'] in ['dual-bert-hier-trs']:
+                self.checkpointadapeter.init(
+                    state_dict.keys(),
+                    self.model.ctx_encoder.model.state_dict().keys(),
+                )
+                new_state_dict = self.checkpointadapeter.convert(state_dict)
+                self.model.ctx_encoder.model.load_state_dict(new_state_dict)
+                self.model.can_encoder.model.load_state_dict(new_state_dict)
+                try:
+                    self.model.can_encoder_momentum.model.load_state_dict(new_state_dict)
+                    print(f'[!] ========== momentum candidate encoder found and load ==========')
+                except:
+                    print(f'[!] ========== momentum candidate encoder not found ==========')
             elif self.args['model'] in ['xmoco']:
                 # fast or slow context encoder load
                 self.checkpointadapeter.init(
@@ -850,13 +1025,27 @@ class RepresentationAgent(RetrievalBaseAgent):
                     new_state_dict = self.checkpointadapeter.convert(state_dict)
                     self.model.can_encoder.load_state_dict(new_state_dict)
         else:
-            # test and inference mode
-            self.checkpointadapeter.init(
-                state_dict.keys(),
-                self.model.state_dict().keys(),
-            )
-            new_state_dict = self.checkpointadapeter.convert(state_dict)
-            self.model.load_state_dict(new_state_dict)
+            if self.args['model'] in ['sh']:
+                path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_sh_model_{self.args["version"]}.pt'
+                self.model.pca, self.model.mn, self.model.R, self.model.modes = torch.load(path)
+                print(f'[!] load the sh hashing model parameters from {path}')
+            elif self.args['model'] in ['itq']:
+                path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_itq_model_{self.args["version"]}.pt'
+                self.model.pca, self.model.R = torch.load(path)
+                print(f'[!] load the itq hashing model parameters from {path}')
+            elif self.args['model'] in ['pq']:
+                path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_pq_model_{self.args["version"]}.pt'
+                self.model.pq = torch.load(path)
+                print(f'[!] load pq model from {path}')
+            else:
+                state_dict = torch.load(path, map_location=torch.device('cpu'))
+                # test and inference mode
+                self.checkpointadapeter.init(
+                    state_dict.keys(),
+                    self.model.state_dict().keys(),
+                )
+                new_state_dict = self.checkpointadapeter.convert(state_dict)
+                self.model.load_state_dict(new_state_dict)
         print(f'[!] load model from {path}')
     
     @torch.no_grad()

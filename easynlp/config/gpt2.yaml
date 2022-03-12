@@ -6,7 +6,9 @@ tokenizer:
     zh: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
     # zh: /apdcephfs/share_916081/johntianlan/gpt2-contrastive-search-23g/multi-node
     # zh: /apdcephfs/share_916081/johntianlan/gpt2-contrastive-search-300g
-    en: /apdcephfs/share_916081/johntianlan/gpt2_small_contrastive_finetune
+    # en: /apdcephfs/share_916081/johntianlan/gpt2_small_contrastive_finetune
+    # en: /apdcephfs/share_916081/johntianlan/gpt2-arxiv
+    en: /apdcephfs/share_916081/johntianlan/gpt2-arxiv-simctg
 pretrained_model: 
     # zh: /apdcephfs/share_916081/johntianlan/gpt2-chinese-cluecorpussmall
     # zh: /apdcephfs/share_916081/johntianlan/gpt2_12layers_clue
@@ -14,7 +16,9 @@ pretrained_model:
     zh: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
     # zh: /apdcephfs/share_916081/johntianlan/gpt2-contrastive-search-23g/multi-node
     # zh: /apdcephfs/share_916081/johntianlan/gpt2-contrastive-search-300g
-    en: /apdcephfs/share_916081/johntianlan/gpt2_small_contrastive_finetune
+    # en: /apdcephfs/share_916081/johntianlan/gpt2_small_contrastive_finetune
+    # en: /apdcephfs/share_916081/johntianlan/gpt2-arxiv
+    en: /apdcephfs/share_916081/johntianlan/gpt2-arxiv-simctg
 # max_len is the max length of the prefix
 max_len: 128
 # gen_max_len is the max length of the generated sequence
@@ -29,14 +33,15 @@ test_max_len: 128
 
 # file name: novel or news
 # file_name: novel
-file_name: news
+# file_name: news
+file_name: arxiv
 # file_name: english_test
 
 # decoding methods
-decoding_method: token_rerank_search
+# decoding_method: token_rerank_search
 # decoding_method: contrastive_search
 # decoding_method: contrastive_beam_search
-# decoding_method: contrastive_batch_search
+decoding_method: contrastive_batch_search
 # decoding_method: greedy_search
 # decoding_method: beam_search
 # decoding_method: topk_topp_repetition_penalty_search
@@ -57,13 +62,13 @@ repetition_penalty: 1.0
 
 # contrastive decoding parameter
 beam_width: 8
-model_prediction_confidence: 0.6
+model_prediction_confidence: 0.4
 contrastive_topk: 8
 contrastive_topp: 0.93
-sampling_prefix_len: 0
+sampling_prefix_len: 3
 sep_smooth_length: 50
 sampling_probability: 0.
-contrastive_generation_num: 10
+contrastive_generation_num: 3
 limited_size: 2
 
 # test configuration

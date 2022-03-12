@@ -372,6 +372,9 @@ class BERTDualFullDataset(Dataset):
             assert len(batch) == 1
             ids, rids, label, text, ctext, rtext = batch[0]
             rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
+            if rids.size(-1) < self.args['mv_num']:
+                pad_matrix = torch.LongTensor([self.pad] * (self.args['mv_num'] - rids.size(-1))).unsqueeze(0).expand(len(rids), -1)
+                rids = torch.cat([rids, pad_matrix], dim=-1)
             rids_mask = generate_mask(rids)
             label = torch.LongTensor(label)
             ids, rids, rids_mask, label = to_cuda(ids, rids, rids_mask, label)

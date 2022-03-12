@@ -2,8 +2,6 @@ from model.utils import *
 
 class SimCSE(nn.Module):
 
-    '''two bert encoder are not shared, which is different from the original SimCSE model'''
-
     def __init__(self, **args):
         super(SimCSE, self).__init__()
         model = args['pretrained_model']
@@ -11,16 +9,40 @@ class SimCSE(nn.Module):
         self.encoder = BertEmbedding(model=model, add_tokens=1)
         self.args = args
 
+    def init_lsh_model(self):
+        random.seed(self.args['seed'])
+        torch.manual_seed(self.args['seed'])
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(self.args['seed'])
+        self.W = torch.randn(768, 128).cuda()
+
     def _encode(self, ids, ids_mask):
         rep_1 = self.encoder(ids, ids_mask)
         rep_2 = self.encoder(ids, ids_mask)
         rep_1, rep_2 = F.normalize(rep_1), F.normalize(rep_2)
         return rep_1, rep_2
 
+    def compact_binary_vectors(self, ids):
+        # ids: [B, D]
+        ids = ids.cpu().numpy().astype('int')
+        ids = np.split(ids, int(ids.shape[-1]/8), axis=-1)
+        ids = np.ascontiguousarray(
+            np.stack(
+                [np.packbits(i) for i in ids]    
+            ).transpose().astype('uint8')
+        )
+        return ids
+
     @torch.no_grad()
     def get_embedding(self, ids, ids_mask):
         rep = self.encoder(ids, ids_mask)
-        rep = F.normalize(rep)
+        rep = F.normalize(rep, dim=-1)
+        # rep = torch.matmul(rep, self.W)    # [B, 128]
+        # project into the hash codes
+        # rep = torch.sign(rep)
+        # rep = torch.where(rep == -1, torch.zeros_like(rep), rep)
+        # rep = self.compact_binary_vectors(rep)
+        # rep = torch.from_numpy(rep)
         return rep
 
     def forward(self, batch):
