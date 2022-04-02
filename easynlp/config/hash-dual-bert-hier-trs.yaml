@@ -1,17 +1,16 @@
 # hashing module parameters
-hash_code_size: 256
-hidden_size: 768
+hash_code_size: 512
+hidden_size: 2048
 q_alpha: 0.001
 q_alpha_max: 0.1
 hash_loss_scale: 1
 hash_loss_matrix_scale: 1
 kl_loss_scale: 1
 
-
 temp: 0.05
-full_turn_length: 100
+full_turn_length: 5
 test_interval: 0.05
-valid_during_training: true
+valid_during_training: false
 max_turn_length: 16
 mv_num: 5
 queue_size: 10240
@@ -35,8 +34,8 @@ pretrained_model:
 # train configuration
 train:
     load_param: true
-    lr: 0.00005
-    grad_clip: 5.0
+    lr: 0.001
+    grad_clip: 1.0
     seed: 0
     batch_size: 128
     max_len: 64
@@ -44,7 +43,8 @@ train:
     epoch: 5
     warmup_ratio: 0.
     checkpoint: 
-        path: dual-bert-hier-trs/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_701.pt
+        # path: dual-bert-hier-trs/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_701.pt
+        path: dual-bert-hier-trs/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_1003.pt
         is_load: true
 
 # test configuration
@@ -60,6 +60,7 @@ inference:
     max_len: 32
     ctx_max_len: 64
     topk: 20
-    index_type: IVF65536,Flat
+    # index_type: IVF65536,Flat
+    index_type: BFlat
     index_nprobe: 5
-    dimension: 768
+    dimension: 512

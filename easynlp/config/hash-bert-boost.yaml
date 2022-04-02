@@ -1,0 +1,62 @@
+temp: 0.05
+hash_code_size: 256
+select_topk: 16
+base_hash_code_size: 256
+segment_num: 4
+test_interval: 0.05
+valid_during_training: false
+full_turn_length: 100
+hidden_size: 2048
+dropout: 0.1
+# 0-11 layers will be fine-tuned, other index are invalid
+# all means that all the pearmeters will be optimized
+# trainable_bert_layers: all
+q_alpha: 0.001
+q_alpha_max: 0.1
+hash_loss_scale: 1
+hash_loss_matrix_scale: 1
+kl_loss_scale: 1
+dis_loss_scale: 100
+gray_cand_num: 0
+is_step_for_training: false
+total_step: 5010
+mv_num: 5
+random_neg_num: 5
+beta_gamma: 0.01
+
+pretrained_model:
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+tokenizer:
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+
+# train configuration
+train:
+    lr: 0.001
+    bert_lr: 0.00001
+    grad_clip: 1.0
+    smoothing: 0.1
+    seed: 0
+    batch_size: 128
+    max_len: 256
+    res_max_len: 64
+    epoch: 5
+    warmup_ratio: 0.0
+    checkpoint: 
+        path: hash-bert/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_1115.pt
+        is_load: true
+
+# test configuration
+test:
+    seed: 50
+    batch_size: 1
+    max_len: 256
+    res_max_len: 64
+
+inference:
+    seed: 50
+    batch_size: 512
+    max_len: 64
+    index_type: BHNSW16
+    index_nprobe: 5
+    dimension: 256
+    topk: 20

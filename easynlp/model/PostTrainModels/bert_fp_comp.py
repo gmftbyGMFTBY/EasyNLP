@@ -24,6 +24,7 @@ class BERTFPCompPostTrain(nn.Module):
             input_ids=inpt,
             attention_mask=attn_mask,
             token_type_ids=token_type_ids,
+            # speaker_ids=speaker_ids
         )
         prediction_scores, seq_relationship = output.prediction_logits, output.seq_relationship_logits
 

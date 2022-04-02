@@ -1,4 +1,5 @@
 from .agent import *
+from .hash_bert_boost import *
 from .dual_bert_mv import *
 from .pq_bert import *
 from .hash_bert_hier import *

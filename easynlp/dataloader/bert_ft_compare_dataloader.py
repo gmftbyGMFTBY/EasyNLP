@@ -3,6 +3,153 @@ from .utils import *
 from .util_func import *
 
 
+class BERTFTCompEasyDataset(Dataset):
+
+    def __init__(self, vocab, path, **args):
+        self.args = args
+        self.vocab = vocab
+        self.vocab.add_tokens(['[EOS]'])
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.eos = self.vocab.convert_tokens_to_ids('[EOS]')
+        self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
+        self.topk = args['gray_cand_num']
+        self.num_labels = args['num_labels']
+
+        suffix = args['tokenizer'].replace('/', '_')
+        self.pp_path = f'{os.path.splitext(path)[0]}_ft_comp_easy_plus_{suffix}.pt'
+        if os.path.exists(self.pp_path):
+            if self.args['mode'] == 'train':
+                self.data, self.responses = torch.load(self.pp_path)
+            else:
+                self.data = torch.load(self.pp_path)
+            print(f'[!] load preprocessed file from {self.pp_path}')
+            return None
+        
+        self.data = []
+        if self.args['mode'] == 'train':
+            data = read_text_data_utterances(path, lang=self.args['lang'])
+            responses, response_overlap = [], set()
+            for label, item in tqdm(data):
+                if label == 0:
+                    continue
+                ids = self.vocab.batch_encode_plus(item, add_special_tokens=False)['input_ids']
+                cids = []
+                sids, cache = [], 0
+                for u in ids[:-1]:
+                    cids.extend(u + [self.eos])
+                    sids.extend([cache] * (len(u) + 1))
+                    cache = 1 if cache == 0 else 0
+                sids.pop()
+                cids.pop()
+
+                rids = ids[-1]
+                responses.append(item[-1])
+                if item[-1] not in response_overlap:
+                    responses.append(item[-1])
+                    response_overlap.add(item[-1])
+                self.data.append({
+                    'context': cids,
+                    'sids': sids,
+                    'response': rids,
+                })
+            self.responses = responses
+        else:
+            data = read_text_data_utterances(path, lang=self.args['lang'])
+            if args['dataset'] in ['ubuntu'] and args['mode'] == 'valid':
+                # ubuntu dataset is so huge, use a part of it for validation
+                data = data[:10000]
+            for i in tqdm(range(0, len(data), 10)):
+                batch = data[i:i+10]
+                responses = [b[1][-1] for b in batch]
+                context = batch[0][1][:-1]
+                self.data.append({
+                    'label': [b[0] for b in batch],
+                    'context': context,
+                    'responses': responses,
+                })    
+
+    def __len__(self):
+        return len(self.data)
+
+    def _packup(self, cids, rids1, rids2, sids=None):
+        cids_, rids1_, rids2_ = deepcopy(cids), deepcopy(rids1), deepcopy(rids2)
+        sids_ = deepcopy(sids)
+        truncate_pair_two_candidates(
+            cids_, rids1_, rids2_,
+            self.args['max_len'],
+            sids=sids_,
+        )
+        other_speaker = 0 if sids[-1] == 1 else 1
+        ids = [self.cls] + cids_ + [self.sep] + rids1_ + [self.sep] + rids2_ + [self.sep]
+        sids_ = [sids_[0]] + sids_ + [sids_[-1]] + [other_speaker] * (len(rids1_) + len(rids2_) + 2)
+        tids = [0] * (len(cids_) + 2) + [1] * (len(rids1_) + 1) + [0] * (len(rids2_) + 1)
+        assert len(sids_) == len(ids)
+        return ids, tids, sids_
+
+    def __getitem__(self, i):
+        bundle = self.data[i]
+        if self.args['mode'] == 'train':
+            cids, rids = bundle['context'], bundle['response']
+            speaker_ids = bundle['sids']
+
+            ids, sids, tids, label, token_label = [], [], [], [], []
+            e = random.choice(self.responses)
+            e = self.vocab.encode(e, add_special_tokens=False)
+            if random.random() > 0.5:
+                ids_, tids_, sids_ = self._packup(cids, rids, e, sids=speaker_ids)
+                l = 1
+            else:
+                ids_, tids_, sids_ = self._packup(cids, e, rids, sids=speaker_ids)
+                l = 0
+            ids.append(ids_)
+            sids.append(sids_)
+            tids.append(tids_)
+            label.append(l)
+            ids = [torch.LongTensor(i) for i in ids]
+            sids = [torch.LongTensor(i) for i in sids]
+            tids = [torch.LongTensor(i) for i in tids]
+            return ids, sids, tids, label
+        else:
+            # random shuffle
+            random_idx = list(range(len(bundle['label'])))
+            random.shuffle(random_idx)
+            bundle['responses'] = [bundle['responses'][i] for i in random_idx]
+            bundle['label'] = [bundle['label'][i] for i in random_idx]
+            return bundle['context'], bundle['responses'], bundle['label']
+
+    def save(self):
+        if self.args['mode'] == 'train':
+            data = torch.save((self.data, self.responses), self.pp_path)
+        else:
+            data = torch.save(self.data, self.pp_path)
+        print(f'[!] save preprocessed dataset into {self.pp_path}')
+        
+    def collate(self, batch):
+        if self.args['mode'] == 'train':
+            ids, sids, tids, label = [], [], [], []
+            for b in batch:
+                ids.extend(b[0])
+                sids.extend(b[1])
+                tids.extend(b[2])
+                label.extend(b[3])
+            label = torch.LongTensor(label)
+            return {
+                'ids': ids, 
+                'sids': sids,
+                'tids': tids, 
+                'label': label
+            }
+        else:
+            # test or valid set
+            assert len(batch) == 1
+            return {
+                'context': batch[0][0],
+                'responses': batch[0][1],
+                'label': batch[0][2],
+            }
+
+
 class BERTFTCompDataset(Dataset):
 
     def __init__(self, vocab, path, **args):

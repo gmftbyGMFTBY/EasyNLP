@@ -8,10 +8,10 @@ class BERTCompareRetrieval(nn.Module):
         model = args['pretrained_model']
         self.inner_bsz = args['inner_bsz']
         self.num_labels = args['num_labels']
-        self.model = SABertForSequenceClassification.from_pretrained(model, num_labels=self.num_labels)
-        # add the [EOS]
+        # self.model = SABertForSequenceClassification.from_pretrained(model, num_labels=self.num_labels)
+        self.model = BertForSequenceClassification.from_pretrained(model, num_labels=2)
         self.model.resize_token_embeddings(self.model.config.vocab_size+1)
-        self.criterion = nn.BCEWithLogitsLoss()
+        self.criterion = nn.CrossEntropyLoss()
 
         # vocabulary
         self.vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
@@ -53,7 +53,7 @@ class BERTCompareRetrieval(nn.Module):
             )
             sub_attn_mask = generate_mask(sub_ids)
             sub_label = label[i:i+self.inner_bsz]
-            sub_label = sub_label.to(torch.float)
+            # sub_label = sub_label.to(torch.float)
 
             sub_ids, sub_sids, sub_tids, sub_attn_mask, sub_label = to_cuda(sub_ids, sub_sids, sub_tids, sub_attn_mask, sub_label)
             with autocast():
@@ -61,7 +61,7 @@ class BERTCompareRetrieval(nn.Module):
                     input_ids=sub_ids,
                     attention_mask=sub_attn_mask,
                     token_type_ids=sub_tids,
-                    speaker_ids=sub_sids,
+                    # speaker_ids=sub_sids,
                 )
                 logits = output.logits.squeeze(dim=1)     # [B]
                 loss = self.criterion(logits, sub_label)
@@ -74,7 +74,7 @@ class BERTCompareRetrieval(nn.Module):
             scheduler.step()
 
             tloss += loss
-            acc += torch.sum((torch.sigmoid(logits) > 0.5) == sub_label).item()/len(sub_label)
+            acc += (logits.max(dim=-1)[1] == sub_label).to(torch.float).mean().item()
             counter += 1
         tloss /= counter
         return tloss, acc, counter
@@ -88,9 +88,9 @@ class BERTCompareRetrieval(nn.Module):
             input_ids=inpt,
             attention_mask=mask,
             token_type_ids=tids,
-            speaker_ids=sids,
+            # speaker_ids=sids,
         )[0]
-        logits = torch.sigmoid(logits.squeeze(dim=-1))    # [B]
+        logits = F.softmax(logits, dim=-1)[:, 1]
         return logits
 
 

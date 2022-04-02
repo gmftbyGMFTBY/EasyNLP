@@ -2,13 +2,16 @@
 inner_bsz: 64
 gray_cand_num: 2
 compare_turn_num: 2
-positive_margin: 0.1
+positive_margin: 0.05
 positive_margin_delta: 0.0
 num_labels: 1
 test_interval: 0.05
 no_hard_negative: false
 valid_during_training: true
 
+pretrained_model:
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
 tokenizer:
     zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
     en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
@@ -21,11 +24,10 @@ train:
     batch_size: 32
     max_len: 384    # 320 + 32 + 32
     epoch: 5
-    warmup_ratio: 0.05
+    warmup_ratio: 0.0
     checkpoint: 
-        # path: bert-post/best_nspmlm.pt
-        # path: bert-fp/best_bert-base-chinese.pt
-        path: bert-fp-comp/best_bert-base-chinese.pt
+        path: bert-fp-comp/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_601.pt
+        # path: bert-fp-comp/best__apdcephfs_share_916081_johntianlan_bert-base-uncased_601.pt
         is_load: true
 
 # test configuration

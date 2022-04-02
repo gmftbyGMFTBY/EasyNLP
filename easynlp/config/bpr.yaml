@@ -1,20 +1,22 @@
-hash_code_size: 256
+hash_code_size: 128
 test_interval: 0.05
-valid_during_training: true
+valid_during_training: false
 full_turn_length: 5
-hidden_size: 1024
+hidden_size: 2048
 dropout: 0.1
-beta_gamma: 0.01
+beta_gamma: 0.1
 mv_num: 5
 
 pretrained_model:
     zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
 tokenizer:
     zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
 
 # train configuration
 train:
-    lr: 0.001
+    lr: 0.0005
     bert_lr: 0.00001
     grad_clip: 1.0
     smoothing: 0.1
@@ -25,7 +27,10 @@ train:
     epoch: 5
     warmup_ratio: 0.0
     checkpoint: 
-        path: dual-bert/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_700.pt
+        # path: dual-bert/best__apdcephfs_share_916081_johntianlan_bert-base-uncased_1100.pt
+        # path: dual-bert/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_900.pt
+        # path: dual-bert/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_800.pt
+        path: dual-bert/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_1000.pt
         is_load: true
 
 # test configuration
@@ -41,5 +46,5 @@ inference:
     max_len: 64
     index_type: BFlat
     index_nprobe: 5
-    dimension: 4096
+    dimension: 128
     topk: 20

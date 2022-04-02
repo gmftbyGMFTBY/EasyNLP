@@ -69,54 +69,39 @@ class BERTSimCSEInferenceDataset(Dataset):
         self.vocab = vocab
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
-        suffix = args['tokenizer'].replace('/', '_')
-        self.pp_path = f'{os.path.split(path)[0]}/inference_simcse_{suffix}.pt'
-        if os.path.exists(self.pp_path):
-            self.data = torch.load(self.pp_path)
-            print(f'[!] load preprocessed file from {self.pp_path}')
-            return None
-        if self.args['dataset'] in ['restoration-200k', 'douban']:
-            ext_path = f'{args["root_dir"]}/data/ext_douban/train.txt'
-            dataset = read_extended_douban_corpus(ext_path)
-        elif self.args['dataset'] in ['ecommerce', 'ubuntu']:
-            path = f'{args["root_dir"]}/data/{self.args["dataset"]}/train.txt'
-            ndataset = read_text_data_utterances(path)
-            dataset = []
-            for _, utterances in ndataset:
-                dataset.extend(utterances)
-            dataset = list(set(dataset))
-        elif self.args['dataset'] in ['chinese_wiki']:
-            path = f'{args["root_dir"]}/data/{self.args["dataset"]}/base_data.txt'
-            with open(path) as f:
-                dataset = []
-                for line in tqdm(f.readlines()):
-                    dataset.append(json.loads(line.strip())['q'])
-            dataset = list(set(dataset))
-        print(f'[!] load {len(dataset)} sentences for inference')
-        self.data = []
-        for utterance in tqdm(dataset):
-            rids = length_limit_res(self.vocab.encode(utterance), self.args['max_len'], sep=self.sep)
-            self.data.append({
-                'ids': rids, 
-                'text': utterance,
-            })
-                
+        self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
+
+        rar_path = f'{args["root_dir"]}/data/{args["dataset"]}/{args["mode"]}.rar'
+        if os.path.exists(rar_path):
+            self.reader = torch.load(rar_path)
+            print(f'[!] load RandomAccessReader Object over')
+        else:
+            path = f'{args["root_dir"]}/data/{self.args["dataset"]}/base_data_nore.txt'
+            self.reader = RandomAccessReader(path)
+            self.reader.init()
+            torch.save(self.reader, rar_path)
+        self.size = self.reader.size
+        self.reader.init_file_handler()
+        print(f'[!] dataset size: {self.size}')
+
     def __len__(self):
-        return len(self.data)
+        return self.size
 
     def __getitem__(self, i):
-        bundle = self.data[i]
-        rid = torch.LongTensor(bundle['ids'])
-        rid_text = bundle['text']
-        return rid, rid_text
+        line = self.reader.get_line(i).strip()
+        line = ''.join(line.split('\t')[:-1])
+        rids = self.vocab.encode(line, add_special_tokens=False)
+        rids = [self.cls] + rids[:self.args['max_len']-2] + [self.sep]
+        rid = torch.LongTensor(rids)
+        return rid, line, i
 
     def save(self):
-        data = torch.save(self.data, self.pp_path)
-        print(f'[!] save preprocessed dataset into {self.pp_path}')
+        pass
         
     def collate(self, batch):
         rid = [i[0] for i in batch]
         rid_text = [i[1] for i in batch]
+        rid_text_id = [i[2] for i in batch]
         rid = pad_sequence(rid, batch_first=True, padding_value=self.pad)
         rid_mask = generate_mask(rid)
         rid, rid_mask = to_cuda(rid, rid_mask)
@@ -124,6 +109,7 @@ class BERTSimCSEInferenceDataset(Dataset):
             'ids': rid, 
             'mask': rid_mask, 
             'text': rid_text,
+            'text_id': rid_text_id
         }
 
         

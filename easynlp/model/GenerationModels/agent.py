@@ -20,6 +20,12 @@ class GenerationAgent(GenerationBaseAgent):
         if args['model'] in ['gpt2']:
             # path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}_{args["version"]}_{args["decoding_method"]}_{args["file_name"]}.txt'
             path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}_{args["version"]}_{args["decoding_method"]}_{args["file_name"]}_{args["beam_width"]}_{args["model_prediction_confidence"]}.txt'
+        elif args['model'] in ['simrag']:
+            path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{args["version"]}_bw_{args["beam_width"]}_alpha_{args["model_prediction_confidence"]}_beta_{args["beta"]}.txt'
+
+            self.bert_tokenizer = BertTokenizer.from_pretrained(args['bert_pretrained_model'])
+            self.gpt2_tokenizer = vocab
+
         else:
             path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}_{args["version"]}.txt'
         self.log_save_file = open(path, 'w')
@@ -205,12 +211,13 @@ class GenerationAgent(GenerationBaseAgent):
                     )
                 else:
                     logits = self.model.predict(batch)
-                    ppl = self.model.calculate_ppl(
-                        batch['ids'], 
-                        batch['ids_mask'], 
-                        batch['pos_ids'],
-                        batch['ids_label']
-                    )
+                    # ppl = self.model.calculate_ppl(
+                    #     batch['ids'], 
+                    #     batch['ids_mask'], 
+                    #     batch['pos_ids'],
+                    #     batch['ids_label']
+                    # )
+                    ppl = 0.
             PPL.append(ppl)
             if print_output and self.args['mode'] == 'test':
                 for c, r in zip(batch['ids'], logits):
@@ -218,8 +225,12 @@ class GenerationAgent(GenerationBaseAgent):
                         ctx = ' '.join([i for i in self.vocab.convert_ids_to_tokens(c) if i not in ['[CLS]', '[PAD]', '[SEP]', '<|endoftext|>']])
                         res = ' '.join([i for i in self.vocab.convert_ids_to_tokens(r) if i not in ['[CLS]', '[PAD]', '[SEP]', '<|endoftext|>']])
                     else:
-                        ctx = ''.join([i for i in self.vocab.convert_ids_to_tokens(c) if i not in ['[CLS]', '[PAD]', '[SEP]']])
-                        res = ''.join([i for i in self.vocab.convert_ids_to_tokens(r) if i not in ['[CLS]', '[PAD]', '[SEP]']])
+                        # ctx = ''.join([i for i in self.vocab.convert_ids_to_tokens(c) if i not in ['[CLS]', '[PAD]', '[SEP]']])
+                        # res = ''.join([i for i in self.vocab.convert_ids_to_tokens(r) if i not in ['[CLS]', '[PAD]', '[SEP]']])
+                        ctx = ''.join([i for i in self.vocab.convert_ids_to_tokens(c) if i not in ['[PAD]']])
+                        res = ''.join([i for i in self.vocab.convert_ids_to_tokens(r)])
+                        if '[SEP]' in res:
+                            res = res[:res.index('[SEP]')]
                     self.log_save_file.write(f'[Prefix     ] {ctx}\n')
                     self.log_save_file.write(f'[Generation ] {res}\n\n')
                     self.log_save_file.flush()
@@ -322,9 +333,9 @@ class GenerationAgent(GenerationBaseAgent):
         }
 
     def load_model(self, path):
+        state_dict = torch.load(path, map_location=torch.device('cpu'))
         if self.args['model'] in self.args['no_train_models']:
             if self.args['decoding_method'] in ['token_rerank_search']:
-                state_dict = torch.load(path, map_location=torch.device('cpu'))
                 self.checkpointadapeter.init(
                     state_dict.keys(),
                     self.model.model.state_dict().keys(),
@@ -535,3 +546,42 @@ class GenerationAgent(GenerationBaseAgent):
         pos_ids = (ids_mask.long().cumsum(-1) - 1).masked_fill(ids_mask == 0, 0)
         ids, ids_mask, pos_ids, ids_label = to_cuda(ids, ids_mask, pos_ids, ids_label)
         return ids, ids_mask, pos_ids, ids_label
+
+    @torch.no_grad()
+    def simrag_talk(self, context_list, retrieval_list=[], topk_topp=False, scorer=None, copy_token_num=0):
+        self.model.eval()
+
+        # process the context into the token ids for simrag model
+        ## 1. gpt2 tokens
+        tokens = self.gpt2_tokenizer.batch_encode_plus(context_list, add_special_tokens=False)['input_ids']
+        gpt2_tokens = []
+        for u in tokens:
+            gpt2_tokens.extend(u + [self.gpt2_tokenizer.sep_token_id])
+        gpt2_tokens = gpt2_tokens[-self.args['max_len']:]
+        if topk_topp is False:
+            # prepare
+            ids = torch.LongTensor(gpt2_tokens).unsqueeze(0)
+            mask = generate_mask(ids)
+            ids, mask = to_cuda(ids, mask)
+            batch = {
+                'ids': ids,
+                'ids_mask': mask,
+                'rag_sentences': retrieval_list
+            }
+            assert scorer is not None
+            logits = self.model.predict(batch, scorer, copy_token_num)
+        else:
+            ids = torch.LongTensor(gpt2_tokens).unsqueeze(0)
+            mask = generate_mask(ids)
+            ids, mask = to_cuda(ids, mask)
+            batch = {
+                'ids': ids,
+                'ids_mask': mask,
+                'rag_sentences': retrieval_list
+            }
+            logits = self.model.predict_topk_topp(batch, copy_token_num)
+        res = self.gpt2_tokenizer.decode(logits[0])
+        if '[SEP]' in res:
+            res = res[:res.index('[SEP]')]
+        res = ''.join(res.split())
+        return res

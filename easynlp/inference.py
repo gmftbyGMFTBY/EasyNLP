@@ -41,7 +41,7 @@ def inference(**args):
     else:
         agent.load_model(f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}_{args["version"]}.pt')
 
-    if work_mode in ['response']:
+    if work_mode in ['response', 'simcse-response']:
         agent.inference(data_iter, size=args['cut_size'])
         pass
     elif work_mode in ['generate']:
@@ -75,6 +75,7 @@ def inference(**args):
         agent.inference_context_test(data_iter, size=args['cut_size'])
     else:
         pass
+    return agent
 
 if __name__ == "__main__":
     args = vars(parser_args())
@@ -86,13 +87,13 @@ if __name__ == "__main__":
     torch.cuda.set_device(args['local_rank'])
     torch.distributed.init_process_group(backend='nccl', init_method='env://')
 
-    inference(**args)
+    agent = inference(**args)
 
     # barries
     torch.distributed.barrier()
 
     if args['local_rank'] != 0:
-        if args['work_mode'] in ['self-play', 'gray-simcse', 'gray-simcse-unlikelyhood', 'gray-one2many', 'generate', 'gray-hard']:
+        if args['work_mode'] in ['self-play', 'gray-simcse-unlikelyhood', 'gray-one2many', 'generate', 'gray-hard', 'gray-simcse']:
             pass
         else:
             exit()
@@ -100,6 +101,8 @@ if __name__ == "__main__":
     # only the main process will run the following inference strategies
     if args['work_mode'] in ['writer-inference']:
         writer_with_source_strategy(args)
+    elif args['work_mode'] in ['inference-time-cost']:
+        inference_time_cost_strategy(args, agent)
     elif args['work_mode'] in ['data-filter']:
         data_filter_strategy(args)
     elif args['work_mode'] in ['gray-test']:
@@ -108,6 +111,8 @@ if __name__ == "__main__":
         da_strategy(args)
     elif args['work_mode'] in ['response', 'wz-simcse']:
         response_strategy(args)
+    elif args['work_mode'] in ['simcse-response']:
+        simcse_response_strategy(args)
     elif args['work_mode'] in ['response-test']:
         response_test_strategy(args)
     elif args['work_mode'] in ['response-with-src']:

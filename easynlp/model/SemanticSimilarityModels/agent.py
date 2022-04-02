@@ -181,10 +181,10 @@ class SemanticSimilarityAgent(SimCSEBaseAgent):
     def encode_queries(self, texts):
         self.model.eval()
         output = self.vocab(texts, padding=True, max_length=self.args['max_len'], truncation=True, return_tensors='pt')
-        ids, ids_mask, tids = output['input_ids'], output['attention_mask'], output['token_type_ids']
-        ids, ids_mask, tids = to_cuda(ids, ids_mask, tids)
-        vectors = self.model.get_embedding(ids, tids, ids_mask)    # [B, E]
-        return vectors.cpu().numpy()
+        ids, ids_mask = output['input_ids'], output['attention_mask']
+        ids, ids_mask = to_cuda(ids, ids_mask)
+        vectors = self.model.get_embedding(ids, ids_mask)    # [B, E]
+        return vectors
     
     @torch.no_grad()
     def test_model(self, test_iter, print_output=False):
@@ -219,6 +219,7 @@ class SemanticSimilarityAgent(SimCSEBaseAgent):
         self.model.eval()
         pbar = tqdm(inf_iter)
         embds, texts, contexts = [], [], []
+        text_ids = []
         # add the lsh module, convert the floats into the binary has codes
         # self.model.module.init_lsh_model()
         counter = 0
@@ -226,14 +227,16 @@ class SemanticSimilarityAgent(SimCSEBaseAgent):
             ids = batch['ids']
             ids_mask = batch['mask']
             text = batch['text']
+            text_id = batch['text_id']
             res = self.model.module.get_embedding(ids, ids_mask).cpu()
             embds.append(res)
             texts.extend(text)
+            text_ids.extend(text_id)
 
             if len(texts) > size:
                 embds = torch.cat(embds, dim=0).numpy()
                 torch.save(
-                    (embds, texts), 
+                    (embds, texts, text_ids), 
                     f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
                 )
                 embds, texts = [], []
@@ -241,7 +244,7 @@ class SemanticSimilarityAgent(SimCSEBaseAgent):
         if len(texts) > 0:
             embds = torch.cat(embds, dim=0).numpy()
             torch.save(
-                (embds, texts), 
+                (embds, texts, text_ids), 
                 f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
             )
 
@@ -258,14 +261,15 @@ class SemanticSimilarityAgent(SimCSEBaseAgent):
             ids = batch['ids']
             ids_mask = batch['mask']
             text = batch['text']
-            index = batch['index']
+            # index = batch['index']
+            index = batch['text_id']
             res = self.model.module.get_embedding(ids, ids_mask)
             embds.append(res)
             texts.extend(text)
             indexes.extend(index)
 
             if len(texts) > size:
-                embds = torch.cat(embds, dim=0).numpy()
+                embds = torch.cat(embds, dim=0).cpu().numpy()
                 torch.save(
                     (embds, texts, indexes), 
                     f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_context_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
@@ -273,12 +277,17 @@ class SemanticSimilarityAgent(SimCSEBaseAgent):
                 embds, texts, indexes = [], [], []
                 counter += 1
         if len(texts) > 0:
-            embds = torch.cat(embds, dim=0).numpy()
+            embds = torch.cat(embds, dim=0).cpu().numpy()
             torch.save(
                 (embds, texts, indexes), 
                 f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_context_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
             )
 
-
-
-
+    @torch.no_grad()
+    def predict_score(self, batch_text_list, anchor):
+        self.model.eval()
+        embds = self.encode_queries(batch_text_list)    # [B, E]
+        anchor_embds = self.encode_queries([anchor])    # [1, E]
+        embds, anchor_embds = F.normalize(embds, dim=-1), F.normalize(anchor_embds, dim=-1)
+        scores = torch.matmul(anchor_embds, embds.t())
+        return scores

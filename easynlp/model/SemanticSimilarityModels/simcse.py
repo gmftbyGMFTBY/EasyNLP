@@ -9,13 +9,6 @@ class SimCSE(nn.Module):
         self.encoder = BertEmbedding(model=model, add_tokens=1)
         self.args = args
 
-    def init_lsh_model(self):
-        random.seed(self.args['seed'])
-        torch.manual_seed(self.args['seed'])
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed_all(self.args['seed'])
-        self.W = torch.randn(768, 128).cuda()
-
     def _encode(self, ids, ids_mask):
         rep_1 = self.encoder(ids, ids_mask)
         rep_2 = self.encoder(ids, ids_mask)
@@ -37,12 +30,6 @@ class SimCSE(nn.Module):
     def get_embedding(self, ids, ids_mask):
         rep = self.encoder(ids, ids_mask)
         rep = F.normalize(rep, dim=-1)
-        # rep = torch.matmul(rep, self.W)    # [B, 128]
-        # project into the hash codes
-        # rep = torch.sign(rep)
-        # rep = torch.where(rep == -1, torch.zeros_like(rep), rep)
-        # rep = self.compact_binary_vectors(rep)
-        # rep = torch.from_numpy(rep)
         return rep
 
     def forward(self, batch):

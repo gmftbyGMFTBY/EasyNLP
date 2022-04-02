@@ -12,5 +12,5 @@ CUDA_VISIBLE_DEVICES=$cuda python test.py \
     --multi_gpu $cuda \
     --mode recall \
     --recall_mode q-r \
-    --recall_topk 100 \
+    --recall_topk 300 \
     --log

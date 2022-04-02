@@ -72,8 +72,8 @@ class BERTDualHierarchicalEncoder(nn.Module):
         cid_mask = batch['ids_mask']
         rid_mask = batch['rids_mask']
 
-        cid = cid.squeeze(0)    # [B, S]
-        cid_mask = cid_mask.squeeze(0)
+        # cid = cid.squeeze(0)    # [B, S]
+        # cid_mask = cid_mask.squeeze(0)
 
         batch_size = rid.shape[0]
         cid_reps, rid_rep = self._encode(cid, rid, cid_mask, rid_mask, turn_length)
@@ -129,7 +129,21 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
         cid_reps = torch.split(cid_rep, turn_length)
         return cid_reps, rid_rep
 
-    def get_context_level_rep(self, cid_reps, turn_length):
+    @torch.no_grad()
+    def get_cand(self, ids, attn_mask):
+        rid_rep = self.can_encoder(ids, attn_mask)
+        rid_rep = F.normalize(rid_rep, dim=-1)
+        return rid_rep
+
+    @torch.no_grad()
+    def get_ctx(self, ids, attn_mask, turn_length):
+        cid_rep = self.ctx_encoder(ids, attn_mask)
+        cid_reps = torch.split(cid_rep, turn_length)
+        cid_rep = self.get_context_level_rep(cid_reps, turn_length)
+        cid_rep = F.normalize(cid_rep, dim=-1)
+        return cid_rep
+
+    def get_context_level_rep(self, cid_reps, turn_length, time_cost=False):
         '''resort and generate the order, context length mask'''
         max_turn_length = max([len(i) for i in cid_reps])
         # padding by the turn_length
@@ -141,23 +155,28 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
             cid_mask.append(m)
             if len(cid_rep) < max_turn_length:
                 zero_tensor = torch.zeros(1, 768).cuda()
+                # zero_tensor = torch.zeros(1, 768)
                 padding = [zero_tensor] * (max_turn_length - len(cid_rep))
                 cid_rep = torch.cat([cid_rep] + padding)
             reps.append(cid_rep)
         reps = torch.stack(reps)    # [B, S, E]
         cid_mask = torch.stack(cid_mask).cuda()    # [B, S]
+        # cid_mask = torch.stack(cid_mask)    # [B, S]
 
         # get the position embeddings
         bsz, seqlen, _ = reps.size()
         seqlen_index = torch.arange(seqlen).cuda().unsqueeze(0).expand(bsz, -1)    # [B, S]
+        # seqlen_index = torch.arange(seqlen).unsqueeze(0).expand(bsz, -1)    # [B, S]
         pos_embd = self.position_embedding(seqlen_index)    # [B, S, E]
         reps += pos_embd
 
         # 1. 
+        bt = time.time()
         reps = self.fusion_layer(
             reps.permute(1, 0, 2),
             src_key_padding_mask=cid_mask,
         ).permute(1, 0, 2)    # [B, S, E]
+        ct = time.time() - bt
         selected_index = torch.tensor(turn_length) - 1
         reps = reps[range(len(cid_reps)), selected_index, :]    # [B, E]
         # 2. last attention reps
@@ -166,7 +185,10 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
         reps = self.squeeze_layer(
             torch.cat([reps, last_reps], dim=-1)        
         )    # [B, E]
-        return reps
+        if time_cost:
+            return reps, ct
+        else:
+            return reps
     
     @torch.no_grad()
     def predict(self, batch):
@@ -176,8 +198,8 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
         cid_mask = batch['ids_mask']
         rid_mask = batch['rids_mask']
 
-        cid = cid.squeeze(0)    # [B, S]
-        cid_mask = cid_mask.squeeze(0)
+        # cid = cid.squeeze(0)    # [B, S]
+        # cid_mask = cid_mask.squeeze(0)
 
         batch_size = rid.shape[0]
         cid_reps, rid_rep = self._encode(cid, rid, cid_mask, rid_mask, turn_length)
@@ -185,6 +207,38 @@ class BERTDualHierarchicalTrsEncoder(nn.Module):
         cid_rep, rid_rep = F.normalize(cid_rep, dim=-1), F.normalize(rid_rep, dim=-1)
         dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze()
         return dot_product
+
+    @torch.no_grad()
+    def self_play_one_turn(self, context_lists, vocab):
+        self.ctx_encoder.eval()
+        self.fusion_layer.eval()
+        ids_1, ids_2 = [], []
+        turn_length = []
+        for context_list in context_lists:
+            tokens = vocab.batch_encode_plus(context_list, add_special_tokens=False)['input_ids']
+            ids = [[vocab.cls_token_id] + i[-16:] + [vocab.sep_token_id] for i in tokens]
+            ids = [torch.LongTensor(i) for i in ids[-4:]]
+            ids_ = ids[-1]
+            turn_length.append(len(ids))
+            ids_1.extend(ids)
+            ids_2.append(ids_)
+        
+        ids = pad_sequence(ids_1, batch_first=True, padding_value=vocab.pad_token_id)
+        ids_mask = generate_mask(ids)
+        ids_ = pad_sequence(ids_2, batch_first=True, padding_value=vocab.pad_token_id)
+        ids_mask_ = generate_mask(ids_)
+        ids, ids_mask, ids_, ids_mask_ = to_cuda(ids, ids_mask, ids_, ids_mask_)
+
+        # encoder the last utterance time cost
+        bt = time.time()
+        self.ctx_encoder(ids_, ids_mask_) 
+        ct = time.time() - bt
+
+        cid_rep = self.ctx_encoder(ids, ids_mask)
+        cid_reps = torch.split(cid_rep, turn_length)
+        cid_rep, t = self.get_context_level_rep(cid_reps, turn_length, time_cost=True)
+        # ct += t
+        return cid_rep.cpu().numpy(), ct
 
     def forward(self, batch):
         cid = batch['ids']
@@ -231,6 +285,22 @@ class BERTDualHierarchicalTrsMVEncoder(nn.Module):
         self.mv_num = args['mv_num']
         self.args = args
 
+    @torch.no_grad()
+    def get_ctx(self, ids, attn_mask, turn_length):
+        cid_rep = self.ctx_encoder(ids, attn_mask, hidden=True)    # [B, S, E]
+        cid_rep = cid_rep[:, :self.mv_num, :].reshape(-1, 768)    # [B*V, E]
+        new_turn_length = [i*self.mv_num for i in turn_length]
+        cid_reps = torch.split(cid_rep, new_turn_length)
+        cid_rep = self.get_context_level_rep(cid_reps, turn_length)
+        cid_rep = F.normalize(cid_rep, dim=-1)
+        return cid_rep
+
+    @torch.no_grad()
+    def get_cand(self, ids, attn_mask):
+        rid_rep = self.can_encoder(ids, attn_mask)
+        rid_rep = F.normalize(rid_rep, dim=-1)
+        return rid_rep
+
     def _encode(self, cids, rid, cids_mask, rid_mask, turn_length):
         cid_rep = self.ctx_encoder(cids, cids_mask, hidden=True)    # [B, S, E]
         cid_rep = cid_rep[:, :self.mv_num, :].reshape(-1, 768)    # [B*V, E]
@@ -239,7 +309,7 @@ class BERTDualHierarchicalTrsMVEncoder(nn.Module):
         cid_reps = torch.split(cid_rep, new_turn_length)
         return cid_reps, rid_rep
 
-    def get_context_level_rep(self, cid_reps, turn_length):
+    def get_context_level_rep(self, cid_reps, turn_length, time_cost=False):
         '''resort and generate the order, context length mask'''
         max_turn_length = max([len(i) for i in cid_reps])
         max_turn_length_ = max(turn_length)
@@ -252,24 +322,29 @@ class BERTDualHierarchicalTrsMVEncoder(nn.Module):
             cid_mask.append(m)
             if len(cid_rep) < max_turn_length:
                 zero_tensor = torch.zeros(1, 768).cuda()
+                # zero_tensor = torch.zeros(1, 768)
                 padding = [zero_tensor] * (max_turn_length - len(cid_rep))
                 cid_rep = torch.cat([cid_rep] + padding)
             reps.append(cid_rep)
         reps = torch.stack(reps)    # [B, S, E]
         cid_mask = torch.stack(cid_mask).cuda()    # [B, S]
+        # cid_mask = torch.stack(cid_mask)    # [B, S]
 
         # get the position embeddings
         bsz, seqlen, _ = reps.size()
         sequence = list(chain(*[[j] * self.mv_num for j in range(max_turn_length_)]))
         seqlen_index = torch.LongTensor(sequence).cuda().unsqueeze(0).expand(bsz, -1)   # [B, S]
+        # seqlen_index = torch.LongTensor(sequence).unsqueeze(0).expand(bsz, -1)   # [B, S]
         pos_embd = self.position_embedding(seqlen_index)    # [B, S, E]
         reps += pos_embd
 
         # 1. 
+        bt = time.time()
         reps = self.fusion_layer(
             reps.permute(1, 0, 2),
             src_key_padding_mask=cid_mask,
         ).permute(1, 0, 2)    # [B, S, E]
+        ct = time.time() - bt
         selected_index = torch.tensor(turn_length) - 1
         reps = reps[range(len(cid_reps)), selected_index, :]    # [B, E]
         # 2. last attention reps
@@ -278,8 +353,45 @@ class BERTDualHierarchicalTrsMVEncoder(nn.Module):
         reps = self.squeeze_layer(
             torch.cat([reps, last_reps], dim=-1)        
         )    # [B, E]
-        return reps
-    
+        if time_cost:
+            return reps, ct
+        else:
+            return reps
+
+    @torch.no_grad()
+    def self_play_one_turn(self, context_lists, vocab):
+        self.ctx_encoder.eval()
+        self.fusion_layer.eval()
+        ids_1, ids_2 = [], []
+        turn_length = []
+        for context_list in context_lists:
+            tokens = vocab.batch_encode_plus(context_list, add_special_tokens=False)['input_ids']
+            ids = [[vocab.cls_token_id] + i[-16:] + [vocab.sep_token_id] for i in tokens]
+            ids = [torch.LongTensor(i) for i in ids[-4:]]
+            ids_ = ids[-1]
+            turn_length.append(len(ids))
+            ids_1.extend(ids)
+            ids_2.append(ids_)
+        
+        ids = pad_sequence(ids_1, batch_first=True, padding_value=vocab.pad_token_id)
+        ids_mask = generate_mask(ids)
+        ids_ = pad_sequence(ids_2, batch_first=True, padding_value=vocab.pad_token_id)
+        ids_mask_ = generate_mask(ids_)
+        ids, ids_mask, ids_, ids_mask_ = to_cuda(ids, ids_mask, ids_, ids_mask_)
+
+        # encoder the last utterance time cost
+        bt = time.time()
+        self.ctx_encoder(ids_, ids_mask_) 
+        ct = time.time() - bt
+
+        cid_rep = self.ctx_encoder(ids, ids_mask, hidden=True)    # [B, S, E]
+        cid_rep = cid_rep[:, :self.mv_num, :].reshape(-1, 768)    # [B*V, E]
+        new_turn_length = [i*self.mv_num for i in turn_length]
+        cid_reps = torch.split(cid_rep, new_turn_length)
+        cid_rep, t = self.get_context_level_rep(cid_reps, turn_length, time_cost=True)
+        # ct += t
+        return cid_rep.cpu().numpy(), ct
+
     @torch.no_grad()
     def predict(self, batch):
         cid = batch['ids']
@@ -288,8 +400,8 @@ class BERTDualHierarchicalTrsMVEncoder(nn.Module):
         cid_mask = batch['ids_mask']
         rid_mask = batch['rids_mask']
 
-        cid = cid.squeeze(0)    # [B, S]
-        cid_mask = cid_mask.squeeze(0)
+        # cid = cid.squeeze(0)    # [B, S]
+        # cid_mask = cid_mask.squeeze(0)
 
         batch_size = rid.shape[0]
         cid_reps, rid_rep = self._encode(cid, rid, cid_mask, rid_mask, turn_length)
@@ -339,13 +451,27 @@ class BERTDualHierarchicalTrsGPT2Encoder(nn.Module):
         )
         self.args = args
 
+    @torch.no_grad()
+    def get_cand(self, ids, attn_mask):
+        rid_rep = self.can_encoder(ids, attn_mask)
+        rid_rep = F.normalize(rid_rep, dim=-1)
+        return rid_rep
+
+    @torch.no_grad()
+    def get_ctx(self, ids, attn_mask, turn_length):
+        cid_rep = self.ctx_encoder(ids, attn_mask)
+        cid_reps = torch.split(cid_rep, turn_length)
+        cid_rep = self.get_context_level_rep(cid_reps, turn_length)
+        cid_rep = F.normalize(cid_rep, dim=-1)
+        return cid_rep
+
     def _encode(self, cids, rid, cids_mask, rid_mask, turn_length):
         cid_rep = self.ctx_encoder(cids, cids_mask)
         rid_rep = self.can_encoder(rid, rid_mask)
         cid_reps = torch.split(cid_rep, turn_length)
         return cid_reps, rid_rep
 
-    def get_context_level_rep(self, cid_reps, turn_length):
+    def get_context_level_rep(self, cid_reps, turn_length, time_cost=False):
         '''resort and generate the order, context length mask'''
         max_turn_length = max([len(i) for i in cid_reps])
         # padding by the turn_length
@@ -353,7 +479,7 @@ class BERTDualHierarchicalTrsGPT2Encoder(nn.Module):
         last_cid_rep = []
         for cid_rep in cid_reps:
             last_cid_rep.append(cid_rep[-1])
-            m = torch.tensor([False] * len(cid_rep) + [True] * (max_turn_length - len(cid_rep))).to(torch.bool)
+            m = torch.tensor([1] * len(cid_rep) + [0] * (max_turn_length - len(cid_rep))).to(torch.bool)
             cid_mask.append(m)
             if len(cid_rep) < max_turn_length:
                 zero_tensor = torch.zeros(1, 768).cuda()
@@ -370,7 +496,43 @@ class BERTDualHierarchicalTrsGPT2Encoder(nn.Module):
         reps = self.squeeze_layer(
             torch.cat([reps, last_reps], dim=-1)        
         )    # [B, E]
-        return reps
+        if time_cost:
+            return reps, ct
+        else:
+            return reps
+
+    def get_context_level_rep_speedup(self, cid_reps, turn_length):
+        '''resort and generate the order, context length mask'''
+        max_turn_length = max([len(i) for i in cid_reps])
+        # padding by the turn_length
+        reps, cid_mask = [], []    # [B, S]
+        last_cid_rep = []
+        for cid_rep in cid_reps:
+            last_cid_rep.append(cid_rep[-1])
+            m = torch.tensor([0] * (max_turn_length - len(cid_rep)) + [1] * len(cid_rep)).to(torch.bool)
+            cid_mask.append(m)
+            if len(cid_rep) < max_turn_length:
+                zero_tensor = torch.zeros(1, 768).cuda()
+                padding = [zero_tensor] * (max_turn_length - len(cid_rep))
+                cid_rep = torch.cat(padding+ [cid_rep])
+            reps.append(cid_rep)
+        reps = torch.stack(reps)    # [B, S, E]
+        cid_mask = torch.stack(cid_mask).cuda()    # [B, S]
+        pos_ids = (cid_mask.long().cumsum(-1) - 1).masked_fill(cid_mask == 0, 0)
+
+        # output = self.upon_model(input_ids=None, attention_mask=cid_mask[:, :-1], inputs_embeds=reps[:, :-1, :], position_ids=pos_ids[:, :-1], use_cache=True)
+        # pos_ids_ = pos_ids[:, -1:]
+        # bt = time.time()
+        # self.upon_model(input_ids=None, inputs_embeds=reps[:, -1:, :], position_ids=pos_ids_, past_key_values=output['past_key_values'])
+        # ct = time.time() - bt
+
+        output = self.upon_model(input_ids=None, attention_mask=cid_mask, inputs_embeds=reps, position_ids=pos_ids)
+        reps = output.last_hidden_state[range(len(cid_reps)), -1, :]   # [B, E]
+        last_reps = torch.stack(last_cid_rep)    # [B, E]
+        reps = self.squeeze_layer(
+            torch.cat([reps, last_reps], dim=-1)        
+        )    # [B, E]
+        return reps, 0. 
     
     @torch.no_grad()
     def predict(self, batch):
@@ -380,14 +542,43 @@ class BERTDualHierarchicalTrsGPT2Encoder(nn.Module):
         cid_mask = batch['ids_mask']
         rid_mask = batch['rids_mask']
 
-        cid = cid.squeeze(0)    # [B, S]
-        cid_mask = cid_mask.squeeze(0)
-
         batch_size = rid.shape[0]
         cid_reps, rid_rep = self._encode(cid, rid, cid_mask, rid_mask, turn_length)
         cid_rep = self.get_context_level_rep(cid_reps, turn_length)
         dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze()
         return dot_product
+
+    @torch.no_grad()
+    def self_play_one_turn(self, context_lists, vocab):
+        self.ctx_encoder.eval()
+        self.upon_model.eval()
+        ids_1, ids_2 = [], []
+        turn_length = []
+        for context_list in context_lists:
+            tokens = vocab.batch_encode_plus(context_list, add_special_tokens=False)['input_ids']
+            ids = [[vocab.cls_token_id] + i[-16:] + [vocab.sep_token_id] for i in tokens]
+            ids = [torch.LongTensor(i) for i in ids[-4:]]
+            ids_ = ids[-1]
+            turn_length.append(len(ids))
+            ids_1.extend(ids)
+            ids_2.append(ids_)
+        
+        ids = pad_sequence(ids_1, batch_first=True, padding_value=vocab.pad_token_id)
+        ids_mask = generate_mask(ids)
+        ids_ = pad_sequence(ids_2, batch_first=True, padding_value=vocab.pad_token_id)
+        ids_mask_ = generate_mask(ids_)
+        ids, ids_mask, ids_, ids_mask_ = to_cuda(ids, ids_mask, ids_, ids_mask_)
+
+        # encoder the last utterance time cost
+        bt = time.time()
+        self.ctx_encoder(ids_, ids_mask_) 
+        ct = time.time() - bt
+
+        cid_rep = self.ctx_encoder(ids, ids_mask)    # [B, S, E]
+        cid_reps = torch.split(cid_rep, turn_length)
+        cid_rep, t = self.get_context_level_rep_speedup(cid_reps, turn_length)
+        ct += t
+        return cid_rep.cpu().numpy(), ct
 
     def forward(self, batch):
         cid = batch['ids']
@@ -493,8 +684,8 @@ class BERTDualHierarchicalTrsGPT2BothEncoder(nn.Module):
         cid_mask = batch['ids_mask']
         rid_mask = batch['rids_mask']
 
-        cid = cid.squeeze(0)    # [B, S]
-        cid_mask = cid_mask.squeeze(0)
+        # cid = cid.squeeze(0)    # [B, S]
+        # cid_mask = cid_mask.squeeze(0)
 
         batch_size = rid.shape[0]
         cid_reps, rid_rep = self._encode(cid, rid, cid_mask, rid_mask, turn_length)
@@ -638,8 +829,8 @@ class BERTDualHierarchicalTrsMVColBERTEncoder(nn.Module):
         cid_mask = batch['ids_mask']
         rid_mask = batch['rids_mask']
 
-        cid = cid.squeeze(0)    # [B, S]
-        cid_mask = cid_mask.squeeze(0)
+        # cid = cid.squeeze(0)    # [B, S]
+        # cid_mask = cid_mask.squeeze(0)
 
         batch_size = rid.shape[0]
         cid_reps, rid_rep, rid_mask, pos_index = self._encode(cid, rid, cid_mask, rid_mask, turn_length)
@@ -818,8 +1009,8 @@ class BERTDualHierarchicalTrsMVColBERTMoCoEncoder(nn.Module):
         cid_mask = batch['ids_mask']
         rid_mask = batch['rids_mask']
 
-        cid = cid.squeeze(0)    # [B, S]
-        cid_mask = cid_mask.squeeze(0)
+        # cid = cid.squeeze(0)    # [B, S]
+        # cid_mask = cid_mask.squeeze(0)
 
         batch_size = rid.shape[0]
         cid_reps, rid_rep, pos_index, _ = self._encode(cid, rid, cid_mask, rid_mask, turn_length)
@@ -885,12 +1076,17 @@ class BERTDualHierarchicalTrsMVGPT2Encoder(nn.Module):
         reps = torch.split(reps, new_turn_length)    # B_r*[S, E]
         return reps
 
+    @torch.no_grad()
+    def get_cand(self, ids, attn_mask):
+        rid_rep = self.can_encoder(ids, attn_mask)
+        rid_rep = F.normalize(rid_rep, dim=-1)
+        return rid_rep
+
     def _encode(self, cids, rid, cids_mask, rid_mask, turn_length):
         bsz, seqlen = rid.size()
         cid_rep = self.ctx_encoder(cids, cids_mask, hidden=True)    # [B, S, E]
         cid_rep = self.collect_cid_rep(cid_rep, cids_mask, turn_length)    # [B*S, E]
-        rid_rep = self.can_encoder(rid, rid_mask, hidden=True)    # [B, E]
-        rid_rep = rid_rep[:, :self.mv_num, :].reshape(bsz, self.mv_num*768)    # [B, M*E]
+        rid_rep = self.can_encoder(rid, rid_mask)    # [B, E]
         return cid_rep, rid_rep
 
     def get_context_level_rep(self, cid_reps):
@@ -900,7 +1096,7 @@ class BERTDualHierarchicalTrsMVGPT2Encoder(nn.Module):
         # padding by the turn_length
         reps, cid_mask, pos = [], [], []    # [B, S]
         for cid_rep in cid_reps:
-            m = torch.tensor([False] * len(cid_rep) + [True] * (max_turn_length - len(cid_rep))).to(torch.bool)
+            m = torch.tensor([1] * len(cid_rep) + [0] * (max_turn_length - len(cid_rep))).to(torch.bool)
             cid_mask.append(m)
             if len(cid_rep) < max_turn_length:
                 zero_tensor = torch.zeros(1, 768).cuda()
@@ -912,17 +1108,10 @@ class BERTDualHierarchicalTrsMVGPT2Encoder(nn.Module):
         bsz, seqlen, _ = reps.size()
 
         output = self.upon_model(input_ids=None, attention_mask=cid_mask, inputs_embeds=reps)
-        tt = torch.LongTensor(turn_length).cuda()
+        tt = torch.LongTensor(turn_length).cuda() - 1
         reps_ = output.last_hidden_state   # [B, S, E]
         reps = self.squeeze_layer(torch.cat([reps, reps_], dim=-1))    # [B, S, E]
-
-        reps_ = []
-        for i in range(len(cid_reps)):
-            ipdb.set_trace()
-            rep = reps[i, tt[i]-self.mv_num:tt[i], :]    # [M, E]
-            reps_.append(rep)
-        reps = torch.stack(reps_).reshape(len(cid_reps), -1)    # [B, M*E]
-        # reps = reps[range(len(cid_reps)), tt, :]    # [B, E]
+        reps = reps[range(len(cid_reps)), tt, :]    # [B, E]
         return reps
 
     @torch.no_grad()
@@ -933,14 +1122,22 @@ class BERTDualHierarchicalTrsMVGPT2Encoder(nn.Module):
         cid_mask = batch['ids_mask']
         rid_mask = batch['rids_mask']
 
-        cid = cid.squeeze(0)    # [B, S]
-        cid_mask = cid_mask.squeeze(0)
+        # cid = cid.squeeze(0)    # [B, S]
+        # cid_mask = cid_mask.squeeze(0)
 
         batch_size = rid.shape[0]
         cid_reps, rid_rep = self._encode(cid, rid, cid_mask, rid_mask, turn_length)
         cid_rep = self.get_context_level_rep(cid_reps)
         dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(dim=0)
         return dot_product
+
+    @torch.no_grad()
+    def get_ctx(self, cids, cids_mask, turn_length):
+        cid_rep = self.ctx_encoder(cids, cids_mask, hidden=True)    # [B, S, E]
+        cid_reps = self.collect_cid_rep(cid_rep, cids_mask, turn_length)    # [B*S, E]
+        cid_rep = self.get_context_level_rep(cid_reps)
+        cid_rep = F.normalize(cid_rep, dim=-1)
+        return cid_rep
 
     def forward(self, batch):
         cid = batch['ids']
@@ -964,3 +1161,36 @@ class BERTDualHierarchicalTrsMVGPT2Encoder(nn.Module):
         acc_num = (dot_product.max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
         acc = acc_num / batch_size
         return loss, acc
+
+    @torch.no_grad()
+    def self_play_one_turn(self, context_lists, vocab):
+        self.ctx_encoder.eval()
+        self.upon_model.eval()
+        ids_1, ids_2 = [], []
+        turn_length = []
+        for context_list in context_lists:
+            tokens = vocab.batch_encode_plus(context_list, add_special_tokens=False)['input_ids']
+            ids = [[vocab.cls_token_id] + i[-16:] + [vocab.sep_token_id] for i in tokens]
+            ids = [torch.LongTensor(i) for i in ids[-4:]]
+            ids_ = ids[-1]
+            turn_length.append(len(ids))
+            ids_1.extend(ids)
+            ids_2.append(ids_)
+        
+        ids = pad_sequence(ids_1, batch_first=True, padding_value=vocab.pad_token_id)
+        ids_mask = generate_mask(ids)
+        ids_ = pad_sequence(ids_2, batch_first=True, padding_value=vocab.pad_token_id)
+        ids_mask_ = generate_mask(ids_)
+        ids, ids_mask, ids_, ids_mask_ = to_cuda(ids, ids_mask, ids_, ids_mask_)
+
+        # encoder the last utterance time cost
+        bt = time.time()
+        self.ctx_encoder(ids_, ids_mask_) 
+        ct = time.time() - bt
+
+        cid_rep = self.ctx_encoder(ids, ids_mask, hidden=True)    # [B, S, E]
+        cid_rep = self.collect_cid_rep(cid_rep, ids_mask, turn_length)    # [B*S, E]
+        cid_rep = self.get_context_level_rep(cid_rep)
+        return cid_rep.cpu().numpy(), ct
+
+

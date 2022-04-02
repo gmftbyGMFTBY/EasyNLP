@@ -6,7 +6,6 @@ from .utils import *
 
 '''
 self-play strategy to generate the additional data samples for training
-
 Make sure the deploy config is set in the config/base.yaml
 '''
 

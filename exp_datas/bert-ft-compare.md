@@ -35,8 +35,7 @@
 | SA-BERT+BERT-FP    | 51.46 | 69.43 | 92.82 | 71.99 | 57.07 | 70.72  |
 | BERT-FP            | 49.32 | 69.89 | 91.86 | 70.81 | 54.55 | 69.8   |
 | DR-BERT(full)      | 56.44 | 74.7  | 93.56 | 75.91 | 62.42 | 74.75  |
-| BERT-FT-COMPARE    | 53.1  | 71.15 | 91.53 | 72.92 | 58.48 | 71.57  |
-| BERT-FT-COMPARE(topological scorer)    |   |  |  |  |  |   |
+| BERT-FT-COMPARE    | 54.76 | 73.19 | 92.51 | 74.99 | 61.37 | 73.63  |
 
 
 * HORSe ranking test set

@@ -48,7 +48,5 @@ def gray_simcse_strategy(args):
                 })
             else:
                 collection[idx] = [{'text': t, 'cands': rest}]
-
-    # write into new file
     path = f'{args["root_dir"]}/data/{args["dataset"]}/train_gray_simcse_{args["local_rank"]}.pt'
     torch.save(collection, path)

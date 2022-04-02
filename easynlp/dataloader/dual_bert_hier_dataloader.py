@@ -27,6 +27,7 @@ class BERTDualFullHierDataset(Dataset):
         self.data = []
         if self.args['mode'] == 'train':
             data = read_text_data_utterances_full(path, lang=self.args['lang'], turn_length=self.args['full_turn_length'])
+            # data = read_text_data_utterances(path, lang=self.args['lang'])
             for label, utterances in tqdm(data):
                 if label == 0:
                     continue
@@ -41,22 +42,29 @@ class BERTDualFullHierDataset(Dataset):
             data = read_text_data_utterances(path, lang=self.args['lang'])
             if args['mode'] == 'valid' and args['dataset'] in ['ubuntu']:
                 data = data[:10000]
-            for i in tqdm(range(0, len(data), 10)):
-                batch = data[i:i+10]
+            for i in tqdm(range(0, len(data), 100)):
+                batch = data[i:i+100]
                 rids = []
                 gt_text = []
                 for label, utterances in batch:
+                    context_list = utterances[:-1]
                     ids = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']
                     ids = [[self.cls] + i[-(self.args['max_len']-2):] + [self.sep] for i in ids]
                     rids.append(ids[-1])
                     if label == 1:
                         gt_text.append(utterances[-1])
+
+                    # for dual-bert
+                    ctext = ' [SEP] '.join(utterances[:-1])
+
                 self.data.append({
                     'label': [b[0] for b in batch],
                     'ids': ids[:-1],
                     'rids': rids,
                     'text': gt_text,
-                    'turn_length': len(ids) - 1
+                    'turn_length': len(ids) - 1,
+                    'context_list': context_list, 
+                    'ctext': ctext,
                 })    
                 
     def __len__(self):
@@ -71,7 +79,7 @@ class BERTDualFullHierDataset(Dataset):
         else:
             ids = [torch.LongTensor(i) for i in bundle['ids'][-self.args['max_turn_length']:]]
             rids = [torch.LongTensor(i) for i in bundle['rids']]
-            return ids, rids, bundle['label'], len(ids)
+            return ids, rids, bundle['label'], len(ids), bundle['context_list'], bundle['text'], bundle['ctext']
 
     def save(self):
         data = torch.save(self.data, self.pp_path)
@@ -102,7 +110,7 @@ class BERTDualFullHierDataset(Dataset):
         else:
             # batch size is batch_size * 10
             assert len(batch) == 1
-            ids, rids, label, turn_length = batch[0]
+            ids, rids, label, turn_length, context_list, text, ctext = batch[0]
             turn_length = [turn_length]
             ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
             rids = pad_sequence(rids, batch_first=True, padding_value=self.pad)
@@ -118,7 +126,10 @@ class BERTDualFullHierDataset(Dataset):
                 'rids': rids, 
                 'rids_mask': rids_mask, 
                 'label': label,
-                'turn_length': turn_length
+                'turn_length': turn_length,
+                'context_list': context_list,
+                'text': text,
+                'ctext': ctext
             }
 
 class BERTDualHierTrsDataset(Dataset):
@@ -418,11 +429,25 @@ class BERTFTFullHierDataset(Dataset):
                     if label == 1:
                         gt_text.append(utterances[-1])
                     rids.append(ids)
+
+                    # for dual-bert
+                    ctext = ' [SEP] '.join(utterances[:-1])
+                    item = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']
+                    cids, rids_ = item[:-1], item[-1]
+                    ids = []
+                    for u in cids:
+                        ids.extend(u + [self.sep])
+                    ids.pop()
+                    ids = ids[-(self.args['max_len']-2):]    # ignore [CLS] and [SEP]
+                    ids = [self.cls] + ids + [self.sep]
+
                 self.data.append({
                     'label': [b[0] for b in batch],
                     'ids': rids,
                     'text': gt_text,
-                    'turn_length': len(ids)
+                    'turn_length': len(ids),
+                    'ctext': ctext,
+                    'dual_bert_ids': ids
                 })    
                 
     def __len__(self):
@@ -436,7 +461,7 @@ class BERTFTFullHierDataset(Dataset):
         else:
             ids = [[torch.LongTensor(i) for i in item[-self.args['max_turn_length']:]] for item in bundle['ids']]
             turn_length = [len(item) for item in ids]
-            return ids, bundle['label'], turn_length
+            return ids, bundle['label'], turn_length, bundle['text'], bundle['ctext']
 
     def save(self):
         data = torch.save(self.data, self.pp_path)
@@ -459,17 +484,18 @@ class BERTFTFullHierDataset(Dataset):
         else:
             # batch size is batch_size * 10
             assert len(batch) == 1
-            ids, label, turn_length = batch[0]
+            ids, label, turn_length, text, ctext = batch[0]
             ids = list(chain(*ids))
             ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
             ids_mask = generate_mask(ids)
             label = torch.LongTensor(label)
             ids, ids_mask, label = to_cuda(ids, ids_mask, label)
+            ipdb.set_trace()
             return {
                 'ids': ids, 
                 'ids_mask': ids_mask,
                 'label': label,
-                'turn_length': turn_length
+                'turn_length': turn_length,
+                'text': text,
+                'ctext': ctext,
             }
-
-

@@ -12,7 +12,7 @@ class HashBERTDualEncoder(nn.Module):
         self.gray_num = args['gray_cand_num'] + 1
         dropout = args['dropout']
         self.hash_loss_scale = args['hash_loss_scale']
-        self.hash_loss_matrix_scale = args['hash_loss_matrix_scale']
+        self.hash_code_alpha = args['hash_code_alpha']
         self.kl_loss_scale = args['kl_loss_scale']
         self.dis_loss_scale = args['dis_loss_scale']
         self.vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
@@ -50,6 +50,7 @@ class HashBERTDualEncoder(nn.Module):
             nn.Linear(self.hidden_size, inpt_size),
         )
         self.kl_loss = torch.nn.MSELoss()
+        self.criterion = nn.MarginRankingLoss(margin=2.)
 
     def compact_binary_vectors(self, ids):
         # ids: [B, D]
@@ -125,31 +126,37 @@ class HashBERTDualEncoder(nn.Module):
         can_hash_code = self.can_hash_encoder(rid_rep)    # [B*gray, H]
         ctx_hash_code_re = self.ctx_hash_decoder(ctx_hash_code)    # [B, H]
         can_hash_code_re = self.can_hash_decoder(can_hash_code)    # [B*gray, H]
+        # beta = np.sqrt(batch['current_step'] * self.beta_gamma + 1)
+        # ctx_hash_code = torch.tanh(ctx_hash_code * beta)
+        # can_hash_code = torch.tanh(can_hash_code * beta)
+        ctx_hash_code_h, can_hash_code_h = torch.sign(ctx_hash_code).detach(), torch.sign(can_hash_code).detach()
         
         matrix = torch.matmul(ctx_hash_code, can_hash_code.T)   # [B, B*H] similarity matrix
         matrix_ = torch.matmul(cid_rep, rid_rep.T)   # [B, B*H] similarity matrix
 
         # ===== MSE Loss ===== #
         kl_loss =  self.kl_loss_scale * (self.kl_loss(ctx_hash_code_re, cid_rep) + self.kl_loss(can_hash_code_re, rid_rep))
+        kl_loss = torch.tensor(0.).cuda()
 
         # ===== calculate quantization loss ===== #
-        ctx_hash_code_h, can_hash_code_h = torch.sign(ctx_hash_code).detach(), torch.sign(can_hash_code).detach()
         quantization_loss = torch.norm(ctx_hash_code - ctx_hash_code_h, p=2, dim=1).mean() + torch.norm(can_hash_code - can_hash_code_h, p=2, dim=1).mean()
+        quantization_loss = torch.tensor(0.).cuda()
         
         # ===== calculate hash loss ===== #
         mask = torch.zeros_like(matrix)
-        mask[range(batch_size), range(r_batch_size)] = 1.
-        label_matrix = self.hash_code_size * mask
+        mask[range(batch_size), range(0, r_batch_size, self.gray_num)] = 1.
+        label_matrix = self.hash_code_alpha * mask
         hash_loss = torch.norm(matrix - label_matrix, p=2).mean() * self.hash_loss_scale
+        # hash_loss = torch.tensor(0.).cuda()
 
         # ===== calculate hamming distance for accuracy ===== #
         matrix = torch.matmul(ctx_hash_code_h, can_hash_code_h.t())    # [B, B]
         hamming_distance = 0.5 * (self.hash_code_size - matrix)    # hamming distance: ||b_i, b_j||_{H} = 0.5 * (K - b_i^Tb_j); [B, B]
-        acc_num = (hamming_distance.min(dim=-1)[1] == torch.LongTensor(torch.arange(0, len(rid))).cuda()).sum().item()
+        acc_num = (hamming_distance.min(dim=-1)[1] == torch.LongTensor(torch.arange(0, r_batch_size, self.gray_num)).cuda()).sum().item()
         acc = acc_num / batch_size
 
         # ===== ref acc ===== #
-        ref_acc_num = (matrix_.max(dim=-1)[1] == torch.LongTensor(torch.arange(0, len(rid))).cuda()).sum().item()
+        ref_acc_num = (matrix_.max(dim=-1)[1] == torch.LongTensor(torch.arange(0, r_batch_size, self.gray_num)).cuda()).sum().item()
         ref_acc = ref_acc_num / batch_size
         return kl_loss, hash_loss, quantization_loss, acc, ref_acc
 
@@ -649,9 +656,10 @@ class SHEncoder(nn.Module):
         cid, rid = batch['ids'], batch['rids']
         cid_mask, rid_mask = torch.ones_like(cid), batch['rids_mask']
 
-        cid_rep = self.ctx_encoder(cid, cid_mask).cpu().numpy()
-        rid_rep = self.can_encoder(rid, rid_mask).cpu().numpy()
+        cid_rep = self.ctx_encoder(cid, cid_mask)
+        rid_rep = self.can_encoder(rid, rid_mask)
         cid_rep, rid_rep = F.normalize(cid_rep, dim=-1), F.normalize(rid_rep, dim=-1)
+        cid_rep, rid_rep = cid_rep.cpu().numpy(), rid_rep.cpu().numpy()
 
         code_len = self.pca.n_components
         data = self.pca.transform(cid_rep) - self.mn.reshape(1, -1)
@@ -895,7 +903,6 @@ class BPREncoder(nn.Module):
 
         # get new beta parameter
         beta = np.sqrt(batch['current_step'] * self.beta_gamma + 1)
-
         ctx_hash_code = torch.tanh(ctx_hash_code * beta)
         can_hash_code = torch.tanh(can_hash_code * beta)
         

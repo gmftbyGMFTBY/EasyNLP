@@ -1,0 +1,65 @@
+test_interval: 0.1
+valid_during_training: false
+is_step_for_training: true
+total_step: 50010
+dropout: 0.1
+bert_res_len: 32
+save_every: 5000
+temp: 0.05
+iter_to_accumulate: 1
+copy_topk: 5
+
+# decoding methods
+beam_width: 5
+model_prediction_confidence: 0.4
+topk: 8
+topp: 0.93
+contrastive_topk: 8
+contrastive_topp: 0.93
+sep_smooth_length: 50
+beta: 0.0
+beta_scale: 1
+sampling_prefix_len: -1
+test_max_len: 32
+copy_token_num: 1
+
+# gpt2 configuration
+tokenizer:
+    zh: /apdcephfs/share_916081/johntianlan/simctg_lccc_dialogue
+pretrained_model:
+    zh: /apdcephfs/share_916081/johntianlan/simctg_lccc_dialogue
+bert_pretrained_model: /apdcephfs/share_916081/johntianlan/duyu_roberta
+    
+# train configuration
+train:
+    load_param: true
+    lr: 0.00005
+    grad_clip: 1.0
+    seed: 0
+    batch_size: 128
+    max_len: 128
+    warmup_ratio: 0.
+    checkpoint: 
+        path: bert-post/best_nspmlm.pt
+        is_load: false
+
+# test configuration
+test:
+    seed: 0
+    batch_size: 1
+    max_len: 128
+    inf_max_len: 128
+    inf_topk: 10
+    index_type: null
+    nprobe: 1
+    dimension: 768
+
+# inference configuration
+inference:
+    seed: 0
+    batch_size: 256
+    inf_max_len: 128
+    inf_topk: 10
+    index_type: IVF900,Flat 
+    nprobe: 1
+    dimension: 768

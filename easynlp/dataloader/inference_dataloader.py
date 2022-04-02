@@ -19,8 +19,10 @@ class BERTDualInferenceDataset(Dataset):
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
         # ========== for full-rank response recall ========= #
-        # responses = read_response_data(path, lang=self.args['lang'])
-        responses = read_response_data_potter(path, lang=self.args['lang'])
+        if self.args['dataset'] in ['potter']:
+            responses = read_response_data_potter(path, lang=self.args['lang'])
+        else:
+            responses = read_response_data(path, lang=self.args['lang'])
         responses = list(set(responses))
         print(f'[!] load {len(responses)} responses for inference finally')
 
@@ -126,9 +128,13 @@ class BERTDualInferenceFullEXTDataset(Dataset):
             self.data = torch.load(self.pp_path)
             print(f'[!] load preprocessed file from {self.pp_path}')
             return None
-        responses = read_response_data_full(path, lang=self.args['lang'], turn_length=5)
-        ext_responses = read_extended_douban_corpus(f'{args["root_dir"]}/data/ext_douban/train.txt')
-        responses += ext_responses
+
+        if self.args['dataset'] in ['lccc']:
+            responses = read_extended_douban_corpus(f'{args["root_dir"]}/data/lccc/ext_lccc.txt')
+        else:
+            responses = read_response_data_full(path, lang=self.args['lang'], turn_length=5)
+            ext_responses = read_extended_douban_corpus(f'{args["root_dir"]}/data/ext_douban/train.txt')
+            responses += ext_responses
         responses = list(set(responses))
         print(f'[!] load {len(responses)} responses for inference')
 

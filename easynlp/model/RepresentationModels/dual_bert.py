@@ -30,6 +30,28 @@ class BERTDualEncoder(nn.Module):
         return cid_rep
 
     @torch.no_grad()
+    def self_play_one_turn(self, context_lists, vocab):
+        self.ctx_encoder.eval()
+        ids_ = []
+        for context_list in context_lists:
+            tokens = vocab.batch_encode_plus(context_list, add_special_tokens=False)['input_ids']
+            ids = []
+            for u in tokens:
+                ids.extend(u + [vocab.sep_token_id])
+            ids.pop()
+            ids = [vocab.cls_token_id] + ids[-510:] + [vocab.sep_token_id]
+            ids = torch.LongTensor(ids)
+            ids_.append(ids)
+        ids = pad_sequence(ids_, batch_first=True, padding_value=vocab.pad_token_id)
+        ids_mask = generate_mask(ids)
+        # ids, ids_mask = to_cuda(ids, ids_mask)
+
+        bt = time.time()
+        embd = self.get_ctx(ids, ids_mask) 
+        ct = time.time() - bt
+        return embd.cpu().numpy(), ct
+
+    @torch.no_grad()
     def predict(self, batch):
         cid = batch['ids']
         cid_mask = torch.ones_like(cid)
@@ -50,7 +72,7 @@ class BERTDualEncoder(nn.Module):
         rid_mask = batch['rids_mask']
 
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
-        cid_rep, rid_rep = distributed_collect(cid_rep, rid_rep)
+        # cid_rep, rid_rep = distributed_collect(cid_rep, rid_rep)
 
         dot_product = torch.matmul(cid_rep, rid_rep.t()) 
         dot_product /= self.temp

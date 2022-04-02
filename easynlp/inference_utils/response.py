@@ -31,6 +31,7 @@ def response_strategy(args):
             break
     embds = np.concatenate(embds) 
     searcher = Searcher(args['index_type'], dimension=args['dimension'])
+    # searcher._build(embds, texts, speedup=True)
     searcher._build(embds, texts, speedup=False)
     print(f'[!] train the searcher over')
 

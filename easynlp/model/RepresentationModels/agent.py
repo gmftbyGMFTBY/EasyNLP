@@ -16,16 +16,18 @@ class RepresentationAgent(RetrievalBaseAgent):
 
         if args['mode'] == 'train':
             # hash-bert parameter setting
-            if self.args['model'] in ['hash-bert', 'hash-dual-bert-hier-trs']:
+            if self.args['model'] in ['hash-bert']:
                 self.q_alpha = self.args['q_alpha']
                 self.q_alpha_step = (self.args['q_alpha_max'] - self.args['q_alpha']) / int(self.args['total_step'] / torch.distributed.get_world_size())
                 self.train_model = self.train_model_hash
-            elif self.args['model'] in ['bpr']:
+            elif self.args['model'] in ['bpr', 'hash-dual-bert-hier-trs']:
                 self.train_model = self.train_model_bpr
             elif self.args['model'] in['lsh', 'lsh-hier']:
                 self.train_model = self.train_model_lsh
             elif self.args['model'] in['sh']:
                 self.train_model = self.train_model_sh
+            elif self.args['model'] in['hash-bert-boost']:
+                self.train_model = self.train_model_hash_boost
             elif self.args['model'] in['pq']:
                 self.train_model = self.train_model_pq
             elif self.args['model'] in['itq']:
@@ -58,6 +60,7 @@ class RepresentationAgent(RetrievalBaseAgent):
                 print(f'[!] switch the inference function')
         if torch.cuda.is_available():
             self.model.cuda()
+            pass
         if args['mode'] in ['train', 'inference']:
             self.set_optimizer_scheduler_ddp()
         self.show_parameters(self.args)
@@ -73,19 +76,42 @@ class RepresentationAgent(RetrievalBaseAgent):
 
     @torch.no_grad()
     def train_model_itq(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
-        batch_num = 0
-        reps = []
-        for batch in tqdm(train_iter):
-            rep = self.model(batch).cpu()
-            if self.args['local_rank'] == 0:
-                reps.append(rep)
-            batch_num += 1
 
-        # only the main process train the itq model
+        save_path = f'{self.args["root_dir"]}/data/{self.args["dataset"]}/hash_inference'
+        if os.path.exists(f'{save_path}_0.pt'):
+            reps = []
+            try:
+                for i in range(100):
+                    path = f'{save_path}_{i}.pt'
+                    reps_ = torch.load(path)
+                    reps.append(reps_)
+            except:
+                pass
+            if self.args['local_rank'] != 0:
+                return batch_num
+            reps = np.concatenate(reps)    # [B, E]
+            batch_num = 0
+        else:
+            batch_num = 0
+            reps = []
+            for batch in tqdm(train_iter):
+                rep = self.model(batch).cpu()
+                if self.args['local_rank'] == 0:
+                    reps.append(rep)
+                batch_num += 1
+            if self.args['local_rank'] != 0:
+                return batch_num
+            reps = torch.cat(reps).numpy()    # [B, E]
+            counter = 0
+            for i in range(0, len(reps), 500000):
+                reps_ = reps[i:i+500000]
+                torch.save(reps_, f"{save_path}_{counter}.pt")
+                counter += 1
+                print(f'[!] load subdataset size from {save_path}_{counter}.pt')
         if self.args['local_rank'] != 0:
             return batch_num
-        reps = torch.cat(reps).numpy()    # [B, E]
         print(f'[!] collect {len(reps)} samples for hash training')
+
 
         # begin to train the model
         ## 0. save the random seed
@@ -117,17 +143,22 @@ class RepresentationAgent(RetrievalBaseAgent):
 
     @torch.no_grad()
     def train_model_pq(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
-        batch_num = 0
-        reps = []
-        for batch in tqdm(train_iter):
-            rep = self.model(batch).cpu()
-            if self.args['local_rank'] == 0:
-                reps.append(rep)
-            batch_num += 1
-        # only the main process train the itq model
+
+        save_path = f'{self.args["root_dir"]}/data/{self.args["dataset"]}/hash_inference.pt'
+        if os.path.exists(save_path):
+            reps = torch.load(save_path)
+        else:
+            batch_num = 0
+            reps = []
+            for batch in tqdm(train_iter):
+                rep = self.model(batch).cpu()
+                if self.args['local_rank'] == 0:
+                    reps.append(rep)
+                batch_num += 1
+            reps = torch.cat(reps).numpy()    # [B, E]
+            torch.save(reps, save_path)
         if self.args['local_rank'] != 0:
             return batch_num
-        reps = torch.cat(reps).numpy()    # [B, E]
         print(f'[!] collect {len(reps)} samples for hash training')
         reps = reps[:self.args['train_data_size'], :]
 
@@ -144,17 +175,36 @@ class RepresentationAgent(RetrievalBaseAgent):
 
     @torch.no_grad()
     def train_model_sh(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
-        batch_num = 0
-        reps = []
-        for batch in tqdm(train_iter):
-            rep = self.model(batch).cpu()
-            if self.args['loca_rank'] == 0:
-                reps.append(rep)
-            batch_num += 1
-        # only the main process train the itq model
-        if self.args['local_rank'] != 0:
-            return batch_num
-        reps = torch.cat(reps).numpy()    # [B, E]
+        save_path = f'{self.args["root_dir"]}/data/{self.args["dataset"]}/hash_inference'
+        if os.path.exists(f'{save_path}_0.pt'):
+            reps = []
+            try:
+                for i in range(100):
+                    path = f'{save_path}_{i}.pt'
+                    reps_ = torch.load(path)
+                    reps.append(reps_)
+                # creps = torch.cat(reps).numpy()    # [B, E]
+            except:
+                reps = np.concatenate(reps)    # [B, E]
+            batch_num = 0
+            if self.args['local_rank'] != 0:
+                return batch_num
+        else:
+            batch_num = 0
+            reps = []
+            for batch in tqdm(train_iter):
+                rep = self.model(batch).cpu()
+                if self.args['local_rank'] == 0:
+                    reps.append(rep)
+                batch_num += 1
+            if self.args['local_rank'] != 0:
+                return batch_num
+            reps = torch.cat(reps).numpy()    # [B, E]
+            counter = 0
+            for i in range(0, len(reps), 500000):
+                reps_ = reps[i:i+500000]
+                torch.save(reps_, f"{save_path}_{counter}.pt")
+                counter += 1
         print(f'[!] collect {len(reps)} samples for hash training')
 
         # begin to train the model
@@ -235,7 +285,44 @@ class RepresentationAgent(RetrievalBaseAgent):
             recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
         return batch_num
     
+    def train_model_hash_boost(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
+        self.model.train()
+        total_loss, batch_num = 0, 0
+        total_h_loss, total_q_loss, total_kl_loss, total_dis_loss = 0, 0, 0, 0
+        total_acc, total_ref_acc = 0, 0
+        pbar = tqdm(train_iter)
+        correct, s, oom_t = 0, 0, 0
+        for idx, batch in enumerate(pbar):
+            self.optimizer.zero_grad()
+            with autocast():
+                loss, acc = self.model(batch)
+            self.scaler.scale(loss).backward()
+            self.scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            
+            self.scheduler.step()
 
+            total_loss += loss.item()
+            total_acc += acc
+            batch_num += 1
+
+            if whole_batch_num + batch_num in self.args['test_step']:
+                self.test_now(test_iter, recoder)
+
+            if recoder:
+                recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
+             
+            pbar.set_description(f'[!] loss: {round(loss.item(), 4)}; acc: {round(total_acc/batch_num, 4)}')
+
+        if recoder:
+            recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
+        return batch_num
 
     def train_model_hash(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
         self.model.train()
@@ -247,6 +334,7 @@ class RepresentationAgent(RetrievalBaseAgent):
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
             with autocast():
+                batch['current_step'] = whole_batch_num + batch_num + 1
                 kl_loss, hash_loss, quantization_loss, acc, ref_acc = self.model(batch)
                 quantization_loss *= self.q_alpha
                 loss = kl_loss + hash_loss + quantization_loss
@@ -804,12 +892,29 @@ class RepresentationAgent(RetrievalBaseAgent):
                 f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
             )
 
+    def hier_totensor(self, texts):
+        ids = []
+        turn_length = []
+        for text in texts:
+            text = self.vocab.batch_encode_plus(text, add_special_tokens=False)['input_ids']
+            text = [[self.cls] + i[-(self.args['max_len']-2):] + [self.sep] for i in text]
+            text = [torch.LongTensor(i) for i in text[-self.args['max_turn_length']:]]
+            ids.extend(text)
+            turn_length.append(len(text))
+        ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+        ids_mask = generate_mask(ids)
+        ids, ids_mask = to_cuda(ids, ids_mask)
+        return ids, ids_mask, turn_length
+
     @torch.no_grad()
     def encode_queries(self, texts):
         self.model.eval()
         if self.args['model'] in ['dual-bert-pos', 'dual-bert-hn-pos']:
             ids, ids_mask, pos_w = self.totensor(texts, ctx=True, position=True)
             vectors = self.model.get_ctx(ids, ids_mask, pos_w)    # [B, E]
+        elif self.args['model'] in ['dual-bert-hier-trs', 'hash-dual-bert-hier-trs']:
+            ids, ids_mask, turn_length = self.hier_totensor(texts)
+            vectors = self.model.get_ctx(ids, ids_mask, turn_length)
         else:
             ids, ids_mask = self.totensor(texts, ctx=True)
             vectors = self.model.get_ctx(ids, ids_mask)    # [B, E]
@@ -899,7 +1004,7 @@ class RepresentationAgent(RetrievalBaseAgent):
                     self.model.can_encoders[idx].load_state_dict(new_res_state_dict)
                 print(f'[!] init the context encoder and {self.args["gray_cand_num"]+1} response encoders')
                 # print(f'[!] init the context encoder and response encoders')
-            elif self.args['model'] in ['lsh-hier', 'hash-dual-bert-hier-trs']:
+            elif self.args['model'] in ['lsh-hier', 'hash-dual-bert-hier-trs', 'hash-bert-boost']:
                 self.checkpointadapeter.init(
                     state_dict.keys(),
                     self.model.base_model.state_dict().keys(),
@@ -1311,3 +1416,44 @@ class RepresentationAgent(RetrievalBaseAgent):
             recoder.add_scalar(f'train-whole/Acc_token_level_inner_sentence', total_acc2/batch_num, idx_)
             recoder.add_scalar(f'train-whole/Acc_token_level_inner_pair', total_acc3/batch_num, idx_)
         return batch_num
+
+    @torch.no_grad()
+    def inference_context_one_sample(self, context_list):
+        '''inference the context for searching the hard negative data'''
+        self.model.eval()
+        tokens = self.vocab.batch_encode_plus(context_list, add_special_tokens=False)['input_ids']
+        ids = []
+        for u in tokens:
+            ids.extend(u + [self.sep])
+        ids.pop()
+        ids = [self.cls] + ids[-self.args['max_len']+2:] + [self.sep]
+        ids = torch.LongTensor(ids).unsqueeze(0)
+        ids_mask = torch.ones_like(ids)
+        ids, ids_mask = to_cuda(ids, ids_mask)
+        embd = self.model.get_ctx(ids, ids_mask).cpu()
+        return embd.cpu().numpy()
+
+    @torch.no_grad()
+    def inference_context_one_batch(self, context_lists):
+        '''inference the context for searching the hard negative data'''
+        self.model.eval()
+        ids_all = []
+        for context_list in context_lists:
+            tokens = self.vocab.batch_encode_plus(context_list, add_special_tokens=False)['input_ids']
+            ids = []
+            for u in tokens:
+                ids.extend(u + [self.sep])
+            ids.pop()
+            ids = [self.cls] + ids[-self.args['max_len']+2:] + [self.sep]
+            ids = torch.LongTensor(ids)
+            ids_all.append(ids)
+        ids = pad_sequence(ids_all, batch_first=True, padding_value=self.pad)
+        ids_mask = torch.ones_like(ids)
+        ids, ids_mask = to_cuda(ids, ids_mask)
+        bt = time.time()
+        embd = self.model.module.get_ctx(ids, ids_mask)
+        t = time.time() - bt
+        try:
+            return embd.cpu().numpy(), t
+        except:
+            return embd, t

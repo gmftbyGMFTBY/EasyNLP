@@ -15,6 +15,10 @@ def parser_args():
 def q_q_dataset(args):
     train_path = f'{args["root_dir"]}/data/{args["dataset"]}/train.txt'
     train_data = load_qa_pair(train_path, lang=args['lang'])
+    test_path = f'{args["root_dir"]}/data/{args["dataset"]}/train.txt'
+    test_data = load_qa_pair(train_path, lang=args['lang'])
+    train_data.extend(test_data)
+    train_data = list(set(train_data))
     print(f'[!] collect {len(train_data)} sentences for BM25 retrieval')
     return train_data
 

@@ -248,14 +248,14 @@ def load_wz_recall_data(path, size=1000):
 
 def load_fake_recall_data(path, size=1000):
     '''for pipeline and recall test'''
-    if args['dataset'] in ['douban', 'ecommerce', 'ubuntu', 'lccc', 'lccc-large', 'restoration-200k', 'potter']:
+    if args['dataset'] in ['douban', 'ecommerce', 'ubuntu', 'lccc', 'lccc-large', 'restoration-200k']:
+        # test set only use the context 
+        dataset = read_text_data_utterances(path, lang='zh')
+        dataset = [(utterances[:-1], utterances[-1], None) for label, utterances in dataset]
+        dataset = [dataset[i] for i in range(0, len(dataset), 10)]
+    elif args['dataset'] in ['potter']:
         dataset = read_text_data_utterances_potter(path, lang='zh')
         dataset = [(utterances, None) for utterances in dataset]
-        
-        # test set only use the context 
-        # dataset = read_text_data_utterances(path, lang='zh')
-        # dataset = [(utterances[:-1], utterances[-1], None) for label, utterances in dataset]
-        # dataset = [dataset[i] for i in range(0, len(dataset), 10)]
     elif args['dataset'] in ['poetry', 'novel_selected']:
         dataset = read_text_data_with_source(path, lang='zh')
     else:
@@ -313,7 +313,8 @@ def SendPOST(url, port, method, params):
 
 def test_recall(args):
     data = load_fake_recall_data(
-        f'{args["root_dir"]}/data/{args["dataset"]}/test.txt',
+        # f'{args["root_dir"]}/data/{args["dataset"]}/test.txt',
+        f'{args["root_dir"]}/data/{args["dataset"]}/query.txt',
         size=args['size'],
     )
     # data = load_wz_recall_data(

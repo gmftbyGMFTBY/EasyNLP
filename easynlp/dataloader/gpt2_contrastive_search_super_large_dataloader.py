@@ -32,7 +32,6 @@ class GPT2ForContrastiveForBigDataset(Dataset):
             else:
                 strings = self.reader.read(self.buffersize)
                 if not strings:
-                    ipdb.set_trace()
                     # reopen the file
                     self.reader = open(self.path)
                 self.buffer = StringIO(strings)
@@ -78,8 +77,8 @@ class GPT2ForContrastiveForBigArxivDataset(Dataset):
         self.size = 10000000
         path = f'/apdcephfs/share_916081/johntianlan/arxiv_data/rank_0{args["global_rank"]}'
         self.path = path
-        self.reader = open(path)
-        self.buffersize = 40960000
+        self.reader = open(path, encoding='utf-8')
+        self.buffersize = 409600000
         self.buffer = StringIO('')
         print(f'[!] dataset size: {self.size} for file {self.path}')
                 
@@ -88,14 +87,18 @@ class GPT2ForContrastiveForBigArxivDataset(Dataset):
 
     def __getitem__(self, i):
         cache = ''
+        try_num = 0
         while True:
             line = self.buffer.readline().strip()
             if line:
-                line = cache + line
+                cache = cache + line
                 try:
-                    data = eval(line)
+                    data = eval(cache)
                     break
                 except:
+                    try_num += 1
+                    if try_num > 5:
+                        cache = ''
                     continue
             else:
                 strings = self.reader.read(self.buffersize)

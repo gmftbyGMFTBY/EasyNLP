@@ -6,7 +6,7 @@ from .randomaccess import *
 
 class GPT2WikiTextDataset(Dataset):
 
-    '''wikitext-103 dataset'''
+    '''wikitext-103 dataset and English wiki dataset'''
 
     def __init__(self, vocab, path, **args):
         self.args = args
@@ -41,9 +41,11 @@ class GPT2WikiTextDataset(Dataset):
             ids = [torch.LongTensor(i) for i in batch]
             ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
             ids_mask = generate_mask(ids, pad_token_idx=self.pad)
-            ids, ids_mask = to_cuda(ids, ids_mask)
+            ids, ods, ids_mask = ids[:, :-1], ids[:, 1:], ids_mask[:, :-1]
+            ids, ods, ids_mask = to_cuda(ids, ods, ids_mask)
             return {
                 'ids': ids, 
+                'ods': ods,
                 'ids_mask': ids_mask, 
             }
         else:

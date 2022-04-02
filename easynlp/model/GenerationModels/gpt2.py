@@ -187,6 +187,25 @@ class InferenceGPT2Model(nn.Module):
         return input_ids.tolist()
 
     @torch.no_grad()
+    def slow_plug_and_play_rag_contrastive_search(self, batch):
+        self.model.eval()
+        self.scorer.eval()
+        for step in tqdm(range(decoding_len)):
+            input_ids = PlugAndPlayRAGContrastiveDecodingOneStep(
+                self.model,
+                self.tokenizer,
+                self.scorer,
+                self.scorer.tokenizer,
+                input_ids,
+                self.args['beam_width'],
+                self.args['model_prediction_confidence'],
+                self.args['beta'],
+                batch['rag_sentences'][0],
+            )
+        input_ids = input_ids[:, prefix_length:]
+        return input_ids.tolist()
+
+    @torch.no_grad()
     def predict_beam_search(self, batch):
         self.model.eval()
         ids = batch['ids']

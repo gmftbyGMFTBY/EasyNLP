@@ -357,6 +357,48 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         return scores
 
     @torch.no_grad()
+    def fully_comparae_p2(self, batch):
+        self.model.eval() 
+        pos_margin = self.args['positive_margin']
+        items = self.convert_text_to_ids(batch['context'] + batch['responses'])
+        cids_ = items[:len(batch['context'])]
+        cids = []
+        sids, cache = [], 0
+        for u in cids_:
+            cids.extend(u + [self.eos])
+            sids.extend([cache] * (len(u) + 1))
+            cache = 1 if cache == 0 else 0
+        sids.pop()
+        cids.pop()
+        rids = items[len(batch['context']):]
+        tickets = []
+        for i in range(len(rids)):
+            for j in range(len(rids)):
+                if i < j:
+                    tickets.append((i, j))
+        soft = False
+        label, recoder = self.compare_one_turn(cids, sids, rids, tickets, margin=pos_margin, soft=soft)
+        if soft is False:
+            chain = {i: [] for i in range(len(rids))}
+            # key is bigger than values
+            for l, (i, j) in zip(label, recoder):
+                if l is True:
+                    chain[i].append(j)
+                else:
+                    chain[j].append(i)
+            # scores = self.generate_scores_pagerank(chain)
+            scores = self.generate_scores_counter(chain)
+        else:
+            # propagation scorer
+            chain = torch.zeros(len(rids), len(rids))
+            for l, (i, j) in zip(label, recoder):
+                # advantage from i to j
+                chain[i, j] = l
+                chain[j, i] = 1-l
+            scores = self.generate_scores_propagate_with_edge_weight(chain)
+        return scores
+
+    @torch.no_grad()
     def fully_compare(self, batch):
         self.model.eval() 
         pos_margin = self.args['positive_margin']
@@ -376,7 +418,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
             for j in range(len(rids)):
                 if i < j:
                     tickets.append((i, j))
-        soft = True
+        soft = False
         label, recoder = self.compare_one_turn(cids, sids, rids, tickets, margin=pos_margin, soft=soft)
         if soft is False:
             chain = {i: [] for i in range(len(rids))}
@@ -388,14 +430,16 @@ class CompareInteractionAgent(RetrievalBaseAgent):
                     chain[j].append(i)
             # topological sort scorer
             # scores, valid = self.generate_scores(chain)
-            scores = self.generate_scores(chain)
-            return scores
+            # scores = self.generate_scores(chain)
+            # return scores
             # if valid:
             #     return scores
             # else:
             #     return None
             # pagerank scorer
             # scores = self.generate_scores_pagerank(chain)
+            
+            scores = self.generate_scores_counter(chain)
         else:
             # propagation scorer
             chain = torch.zeros(len(rids), len(rids))
@@ -514,6 +558,10 @@ class CompareInteractionAgent(RetrievalBaseAgent):
     def convert_text_to_ids(self, texts):
         items = self.vocab.batch_encode_plus(texts, add_special_tokens=False)['input_ids']
         return items
+
+    def generate_scores_counter(self, chain):
+        scores = {key: len(lists) for key, lists in chain.items()}
+        return [scores[i] for i in range(len(scores))]
 
     def generate_scores_propagate_with_edge_weight(self, matrix):
         scores = torch.ones(len(matrix)).unsqueeze(-1) / len(matrix)
@@ -915,22 +963,22 @@ class CompareInteractionAgent(RetrievalBaseAgent):
             'MAP': round(100*avg_map, 2),
         }
 
+    def _packup(self, cids, rids1, rids2):
+        cids_, rids1_, rids2_ = deepcopy(cids), deepcopy(rids1), deepcopy(rids2)
+        truncate_pair_two_candidates(cids_, rids1_, rids2_, self.args['max_len'])
+        ids = [self.cls] + cids_ + [self.sep] + rids1_ + [self.sep] + rids2_ + [self.sep]
+        tids = [0] * (len(cids_) + 1) + [1] * (len(rids1_) + 1) + [0] * (len(rids2_) + 1)
+        return ids, tids
+
     @torch.no_grad()
     def rerank(self, batches, inner_bsz=2048):
         self.model.eval()
         scores = []
         for batch in tqdm(batches):
-            subscores = []
-            cid, cid_mask = self.totensor([batch['context']], ctx=True)
-            for idx in tqdm(range(0, len(batch['candidates']), inner_bsz)):
-                candidates = batch['candidates'][idx:idx+inner_bsz]
-                rid, rid_mask = self.totensor(candidates, ctx=False)
-                batch['ids'] = cid
-                batch['ids_mask'] = cid_mask
-                batch['rids'] = rid
-                batch['rids_mask'] = rid_mask
-                subscores.extend(self.model.predict(batch).tolist())
-            scores.append(subscores)
+            assert len(batch['candidates']) <= 10
+            batch['responses'] = batch['candidates']
+            s = self.fully_compare(batch)
+            scores.append(s)
         return scores
     
     @torch.no_grad()

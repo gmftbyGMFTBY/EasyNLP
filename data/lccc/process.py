@@ -145,5 +145,16 @@ if __name__ == "__main__":
         test_data = read_file('LCCC-base_test.json', mode='test')
         test_data = random.sample(test_data, args['test_size'])
         write_file(test_data, mode='test', samples=args['samples'])
+    elif args['mode'] == 'prepare_database':
+        data = read_file('LCCC-base_train.json', mode='train')
+        train_data = []
+        for c, r in data:
+            train_data.append(r)
+            c = c.split('\t')
+            train_data.extend(c)
+        train_data = random.sample(train_data, 2000000)
+        with open('ext_lccc.txt', 'w') as f:
+            for u in tqdm(train_data):
+                f.write(f'{u}\n')
     else:
         raise Exception(f'Unknow mode: {args["mode"]}')
