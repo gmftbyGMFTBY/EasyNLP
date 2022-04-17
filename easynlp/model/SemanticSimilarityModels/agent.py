@@ -214,10 +214,10 @@ class SemanticSimilarityAgent(SimCSEBaseAgent):
         }
 
     @torch.no_grad()
-    def inference_context_one_sample(self, doc):
+    def inference_context_one_sample(self, doc, max_len=512):
         self.model.eval()
         ids = self.vocab.encode(doc, add_special_tokens=False)
-        ids = [self.vocab.cls_token_id] + ids[-510:] + [self.vocab.sep_token_id]
+        ids = [self.vocab.cls_token_id] + ids[-max_len+2:] + [self.vocab.sep_token_id]
         ids = torch.LongTensor(ids).unsqueeze(0)
         ids_mask = torch.ones_like(ids)
         ids, ids_mask = to_cuda(ids, ids_mask)

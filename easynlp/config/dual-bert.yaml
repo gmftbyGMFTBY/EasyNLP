@@ -67,5 +67,5 @@ inference:
     buff_size: 100000
     r_data_root_path: /apdcephfs/share_916081/johntianlan/chatbot-data-clean/weibo_clean
     w_data_root_path: /apdcephfs/share_916081/johntianlan/chatbot-data-clean/weibo_clean_v2
-    # r_data_root_path: /home/johntianlan/chatbot-pretrain-data-split/weibo_clean
-    # w_data_root_path: /home/johntianlan/chatbot-pretrain-data-split/weibo_clean_v2
+    # r_data_root_path: /home/johntianlan/chatbot-pretrain-data-split-test/weibo_clean
+    # w_data_root_path: /home/johntianlan/chatbot-pretrain-data-split-test/weibo_clean_v2

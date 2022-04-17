@@ -224,7 +224,7 @@ class CopyGenerationEncoder(nn.Module):
             # dynamic update the documents
             if (len(ids[0]) - seqlen) % update_step == 0:
                 string = ''.join(self.generator.vocab.convert_ids_to_tokens(ids[0]))
-                docs = self.retrieve_doc(string, recall_topk=self.args['recall_topk'])
+                doc = self.retrieve_doc(string, recall_topk=self.args['recall_topk'], max_query_len=self.args['max_query_len'])
                 phrase_reps, phrase_sources = self.process_documents(doc)
         return ''.join(generated)
 
@@ -235,6 +235,7 @@ class CopyGenerationEncoder(nn.Module):
                 ids, 
                 beam_width, 
                 model_prediction_confidence, 
+                self.generator.unk,
             )
         elif generation_method == 'greedy-search':
             logits = self.generator.model(ids).logits[-1, -1, :]
@@ -244,7 +245,7 @@ class CopyGenerationEncoder(nn.Module):
         elif generation_method == 'topk-topp-search':
             logits = self.generator.model(ids).logits[-1, -1, :]
             logits[self.generator.unk] = -np.inf
-            filtered_logits = top_k_top_p_filtering(logits, top_k=topk, topp=topp)
+            filtered_logits = top_k_top_p_filtering(logits, top_k=topk, top_p=topp)
             next_token = torch.multinomial(F.softmax(filtered_logits, dim=-1), num_samples=1)
             ids = torch.cat((ids, next_token.unsqueeze(0)), dim=-1)
         else:
@@ -296,7 +297,7 @@ class CopyGenerationEncoder(nn.Module):
         elif decoding_method == 'beam-search':
             response = self.generator.beam_search(batch)
         elif decoding_method == 'retrieval-search':
-            docs = self.retrieve_doc(prefix, recall_topk=self.args['recall_topk'])
+            docs = self.retrieve_doc(prefix, recall_topk=self.args['recall_topk'], max_query_len=self.args['max_query_len'])
             ids = self.retriever.tokenizer.encode(prefix, add_special_tokens=False)
             ids = torch.LongTensor(ids).unsqueeze(0).cuda()
             batch = {
@@ -312,7 +313,7 @@ class CopyGenerationEncoder(nn.Module):
             }
             response = self.retrieval_generation_search(batch)
         elif decoding_method == 'retrieval-generation-search':
-            docs = self.retrieve_doc(prefix)
+            docs = self.retrieve_doc(prefix, recall_topk=self.args['recall_topk'], max_query_len=self.args['max_query_len'])
             ids = self.retriever.tokenizer.encode(prefix, add_special_tokens=False)
             ids = torch.LongTensor(ids).unsqueeze(0).cuda()
             batch = {
@@ -331,8 +332,8 @@ class CopyGenerationEncoder(nn.Module):
             raise Exception(f'[!] Unknow search method: {decoding_method}')
         return response
 
-    def retrieve_doc(self, string, recall_topk=50):
-        rep = self.search_agent.inference_context_one_sample(string).cpu().numpy()
+    def retrieve_doc(self, string, recall_topk=50, max_query_len=512):
+        rep = self.search_agent.inference_context_one_sample(string, max_len=max_query_len).cpu().numpy()
         doc_list = self.searcher._search(rep, topk=recall_topk)[0]
         docs = [self.base_data[k] for k in doc_list]
         return docs

@@ -25,7 +25,7 @@ def ranking(context_hidden, next_hidden, next_top_k_ids, next_top_k_probs, model
     assert next_id.size() == torch.Size([1,1])
     return next_id
 
-def ContrastiveDecodingOneStep(model, input_ids, beam_width, model_prediction_confidence):
+def ContrastiveDecodingOneStep(model, input_ids, beam_width, model_prediction_confidence, unk_id):
     '''
         model: the generation model, e.g., gpt2
         input_ids: 1 x seqlen
@@ -37,6 +37,7 @@ def ContrastiveDecodingOneStep(model, input_ids, beam_width, model_prediction_co
     _, seqlen, embed_dim = prev_hidden_states.size()
     _, _, vocab_size = logits.size()
     logit_for_next_step = logits[:,-1,:]
+    logit_for_next_step[:, unk_id] = -np.inf
     assert logit_for_next_step.size() == torch.Size([1, vocab_size])
 
     next_probs = F.softmax(logit_for_next_step, dim = -1)

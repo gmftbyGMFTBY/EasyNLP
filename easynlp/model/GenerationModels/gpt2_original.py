@@ -73,6 +73,7 @@ class GPT2OriginalModel(nn.Module):
                 input_ids,
                 self.args['beam_width'],
                 self.args['model_prediction_confidence'],
+                self.unk
             )
         # input_ids contains the prefix, cut it
         input_ids = input_ids[:, prefix_length:]

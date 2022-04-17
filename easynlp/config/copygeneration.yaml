@@ -15,6 +15,8 @@ phrase_alpha: 1.
 # dynamic update the docs
 update_step: 32
 test_max_len: 128
+# max query len for encoding SimCSE model
+max_query_len: 128
 
 phrase_tokenizer: /apdcephfs/share_916081/johntianlan/bert-base-chinese
 phrase_encoder_model: /apdcephfs/share_916081/johntianlan/bert-base-chinese

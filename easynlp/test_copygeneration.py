@@ -61,30 +61,29 @@ def main_generation(**args):
     collection = []
     f = open(f'{args["root_dir"]}/rest/{args["dataset"]}/{args["model"]}/test_copygeneration.txt', 'w')
     for batch in tqdm(test_iter):
-        # batch['decoding_method'] = 'topk-topp-search'
-        # batch['decoding_method'] = 'greedy-search'
-        # batch['decoding_method'] = 'beam-search'
-        # batch['decoding_method'] = 'contrastive-search'
-        batch['decoding_method'] = 'retrieval-search'
-        # batch['decoding_method'] = 'retrieval-generation-search'
-
-        # parameters
+        # parameters of decoding strategies
         batch['topk'] = 8
         batch['topp'] = 0.93
         batch['beam_width'] = 5
         batch['model_prediction_confidence'] = 0.4
-        batch['phrase_alpha'] = 1.
-        batch['generation_method'] = 'greedy-search'
+        batch['phrase_alpha'] = 0.5
+        batch['generation_method'] = 'topk-topp-search'
         batch['update_step'] = 32
-
-        res = agent.model.work(batch)
         
-        batch['response'] = res
-        f.write(f'[Context     ] {batch["prefix"]}\n')
-        f.write(f'[Ground-Truth] {batch["ground_truth"]}\n')
-        f.write(f'[Responese   ] {batch["response"]}\n')
+        for decoding_method in [
+            'topk-topp-search', 
+            'greedy-search', 
+            'beam-search', 
+            'contrastive-search', 
+            'retrieval-search', 
+            'retrieval-generation-search'
+        ]:
+            batch['decoding_method'] = decoding_method
+            res = agent.model.work(batch) 
+            batch[f'{decoding_method}_response'] = res
+        string = json.dumps(batch, ensure_ascii=True)
+        f.write(string + '\n')
         f.flush()
-        ipdb.set_trace()
 
 if __name__ == "__main__":
     args = vars(parser_args())

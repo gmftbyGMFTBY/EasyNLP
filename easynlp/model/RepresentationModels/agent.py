@@ -1472,7 +1472,7 @@ class RepresentationAgent(RetrievalBaseAgent):
             return embd, t
         
     @torch.no_grad()
-    def inference_clean(self, inf_iter, fw, size=100000):
+    def inference_clean(self, inf_iter, inf_data, size=100000):
         self.model.eval()
         pbar = tqdm(inf_iter)
 
@@ -1486,9 +1486,9 @@ class RepresentationAgent(RetrievalBaseAgent):
             if len(results) > size:
                 for rest in results:
                     string = json.dumps(rest, ensure_ascii=False) + '\n'
-                    fw.write(string)
+                    inf_data.current_w_file.write(string)
                 results = []
         if len(results) > 0:
             for rest in results:
                 string = json.dumps(rest, ensure_ascii=False) + '\n'
-                fw.write(string)
+                inf_data.current_w_file.write(string)

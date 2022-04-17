@@ -45,7 +45,7 @@ def inference(**args):
         agent.inference(data_iter, size=args['cut_size'])
         pass
     elif work_mode in ['clean']:
-        agent.inference_clean(data_iter, data.current_w_file, size=args['cut_size'])
+        agent.inference_clean(data_iter, data, size=args['cut_size'])
     elif work_mode in ['generate']:
         agent.batch_generation_inference(data_iter)
     elif work_mode in ['phrase-generate']:
