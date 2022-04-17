@@ -145,10 +145,6 @@ class FilterDRInferenceDataset(Dataset):
         self.init_file()
 
     def init_file(self):
-        # close the previous file
-        if self.file_index > 0:
-            self.current_r_file.close()
-            self.current_w_file.close()
         # open the new file
         if self.file_index >= len(self.job):
             raise StopIteration

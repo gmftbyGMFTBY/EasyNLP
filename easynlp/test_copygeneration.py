@@ -66,7 +66,7 @@ def main_generation(**args):
         batch['topp'] = 0.93
         batch['beam_width'] = 5
         batch['model_prediction_confidence'] = 0.4
-        batch['phrase_alpha'] = 0.5
+        batch['phrase_alpha'] = 1.
         batch['generation_method'] = 'topk-topp-search'
         batch['update_step'] = 32
         
@@ -81,7 +81,7 @@ def main_generation(**args):
             batch['decoding_method'] = decoding_method
             res = agent.model.work(batch) 
             batch[f'{decoding_method}_response'] = res
-        string = json.dumps(batch, ensure_ascii=True)
+        string = json.dumps(batch, ensure_ascii=False)
         f.write(string + '\n')
         f.flush()
 

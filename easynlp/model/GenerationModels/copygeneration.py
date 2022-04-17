@@ -156,20 +156,33 @@ class CopyGenerationEncoder(nn.Module):
         self.generator.eval()
 
         ids, labels = [], []
+        cids, cpos = [], []
         for candidate in candidates: 
             candidate = self.generator.vocab.encode(candidate, add_special_tokens=False)
             ids_, candidate_ = self.truncation(input_ids.tolist(), candidate, self.args['max_rerank_len'])
             ids.append(ids_ + candidate_[:-1])
             labels.append([self.generator.pad] * (len(ids_) - 1) + candidate_) 
+            cids.append(ids_ + candidate_)
+            cpos.append((len(ids_), len(cids[-1])))
 
         ids = [torch.LongTensor(i) for i in ids]
+        cids = [torch.LongTensor(i) for i in cids]
         labels = [torch.LongTensor(i) for i in labels]
         ids = pad_sequence(ids, batch_first=True, padding_value=self.generator.pad)
+        cids = pad_sequence(cids, batch_first=True, padding_value=self.generator.pad)
         ods = pad_sequence(labels, batch_first=True, padding_value=self.generator.pad)
         ids_mask = generate_mask(ids)
-        ids, ods, ids_mask = to_cuda(ids, ods, ids_mask)
+        cids_mask = generate_mask(cids)
+        ids, ods, ids_mask, cids, cids_mask = to_cuda(ids, ods, ids_mask, cids, cids_mask)
 
-        scores = self.calculate_ppl(ids, ids_mask, ods)
+        # ppl scores
+        ppl_scores = self.calculate_ppl(ids, ids_mask, ods)
+
+        # contrastive scores
+        contrastive_scores = self.calculate_contrastive(cids, cids_mask, cpos)
+        scores = np.array(ppl_scores) + np.array(contrastive_scores) * self.args['contrastive_phrase_score_penalty']
+
+        # phrases = [(candidate, score) for candidate, score in zip(candidates, scores)]
         phrases = [(candidate, score) for candidate, score in zip(candidates, scores)]
         phrases = sorted(phrases, key=lambda x:x[1])
         return phrases[0][0]
@@ -267,6 +280,20 @@ class CopyGenerationEncoder(nn.Module):
         logits = self.generator.model(input_ids=input_ids).logits
         mle_loss = self.criterion(logits.view(-1, self.generator.vocab_size), labels.view(-1))
         return math.exp(mle_loss.item())
+
+    def calculate_contrastive(self, ids, ids_mask, pos):
+        # labels: [B, S]
+        output = self.generator.model(input_ids=ids, attention_mask=ids_mask, output_hidden_states=True)
+        hidden_states = output.hidden_states[-1]   # [B, S, E]
+        hidden_states = F.normalize(hidden_states, dim=-1)    # [B, S, E]
+        scores = []
+        for hidden_state, (pos_s, pos_e) in zip(hidden_states, pos):
+            context_hidden_state = hidden_state[:pos_s]    # [S_1, E]
+            target_hidden_state = hidden_state[pos_s:pos_e]    # [S_2, E]
+            s = torch.matmul(context_hidden_state, target_hidden_state.t()).t()    # [S_2, S_1]
+            s = s.max(dim=-1)[0].mean(dim=-1)    # [S_1]
+            scores.append(s.item())
+        return scores
 
     @torch.no_grad()
     def work(self, data):

@@ -6,7 +6,7 @@ min_phrase_length: 3
 max_phrase_length: 16
 max_doc_length: 256
 # the topk phrases that be considered
-search_topk: 10
+search_topk: 50
 threshold: 20.
 recall_topk: 50
 # the max seqlength for calculating the phrase ppl
@@ -17,6 +17,7 @@ update_step: 32
 test_max_len: 128
 # max query len for encoding SimCSE model
 max_query_len: 128
+contrastive_phrase_score_penalty: 100
 
 phrase_tokenizer: /apdcephfs/share_916081/johntianlan/bert-base-chinese
 phrase_encoder_model: /apdcephfs/share_916081/johntianlan/bert-base-chinese
