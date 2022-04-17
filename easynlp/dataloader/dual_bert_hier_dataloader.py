@@ -42,8 +42,8 @@ class BERTDualFullHierDataset(Dataset):
             data = read_text_data_utterances(path, lang=self.args['lang'])
             if args['mode'] == 'valid' and args['dataset'] in ['ubuntu']:
                 data = data[:10000]
-            for i in tqdm(range(0, len(data), 100)):
-                batch = data[i:i+100]
+            for i in tqdm(range(0, len(data), 10)):
+                batch = data[i:i+10]
                 rids = []
                 gt_text = []
                 for label, utterances in batch:

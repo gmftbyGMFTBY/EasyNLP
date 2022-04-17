@@ -749,6 +749,7 @@ class BertSAEmbeddings(nn.Module):
         self.position_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size)
         self.token_type_embeddings = nn.Embedding(config.type_vocab_size, config.hidden_size)
         self.speaker_embeddings = nn.Embedding(2, 768)
+        self.compare_embeddings = nn.Embedding(3, 768)
 
         # self.LayerNorm is not snake-cased to stick with TensorFlow model variable name and be able to load
         # any TensorFlow checkpoint file
@@ -765,7 +766,7 @@ class BertSAEmbeddings(nn.Module):
         )
 
     def forward(
-        self, input_ids=None, token_type_ids=None, position_ids=None, inputs_embeds=None, past_key_values_length=0, speaker_ids=None,
+        self, input_ids=None, token_type_ids=None, position_ids=None, inputs_embeds=None, past_key_values_length=0, speaker_ids=None, compare_ids=None
     ):
         if input_ids is not None:
             input_shape = input_ids.size()
@@ -795,6 +796,9 @@ class BertSAEmbeddings(nn.Module):
         if speaker_ids is not None:
             speaker_embeddings = self.speaker_embeddings(speaker_ids)
             embeddings += speaker_embeddings
+        if compare_ids is not None:
+            compare_embeddings = self.compare_embeddings(compare_ids)
+            embeddings += compare_embeddings
         embeddings += token_type_embeddings
         if self.position_embedding_type == "absolute":
             position_embeddings = self.position_embeddings(position_ids)
@@ -834,6 +838,7 @@ class BertSAModel(BertPreTrainedModel):
         token_type_ids=None,
         position_ids=None,
         speaker_ids=None,
+        compare_ids=None,
         head_mask=None,
         inputs_embeds=None,
         encoder_hidden_states=None,
@@ -910,6 +915,7 @@ class BertSAModel(BertPreTrainedModel):
             inputs_embeds=inputs_embeds,
             past_key_values_length=past_key_values_length,
             speaker_ids=speaker_ids,
+            compare_ids=compare_ids
         )
         encoder_outputs = self.encoder(
             embedding_output,

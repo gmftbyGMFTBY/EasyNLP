@@ -4,6 +4,7 @@ from copy import deepcopy
 import random
 import requests
 import json
+from itertools import (takewhile, repeat)
 
 
 def modify_sentence(ids, min_change=2, prob=0.1, k=2):
@@ -317,3 +318,10 @@ def texsmart_segmentation(engine, text, useful_pos_tag=None):
         if each_word.tag in useful_pos_tag:
             seg_sentence.append(each_word.str)
     return seg_sentence
+
+# count lines of the large file
+def iter_count(file_name):
+    buffer = 1024 * 1024
+    with open(file_name) as f:
+        buf_gen = takewhile(lambda x: x, (f.read(buffer) for _ in repeat(None)))
+        return sum(buf.count('\n') for buf in buf_gen)

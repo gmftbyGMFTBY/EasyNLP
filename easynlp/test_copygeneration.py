@@ -16,8 +16,6 @@ def parser_args():
 def main_generation(**args):
     args['mode'] = 'test'
     searcher_args = deepcopy(args)
-    searcher_args_ = deepcopy(args)
-    simcse_args = deepcopy(args)
     config = load_config(args)
     args.update(config)
 
@@ -37,13 +35,13 @@ def main_generation(**args):
     pretrained_model_name = args['pretrained_model'].replace('/', '_')
     save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}_{args["version"]}.pt'
     agent.load_model(save_path)
-    print(f'[!] init the generator over')
+    print(f'[!] init the copygeneration over')
 
-    # simsce searcher
+    # searcher
     searcher = Searcher(
-        searcher_args_['index_type'] ,
-        dimension=searcher_args_['dimension'],
-        nprobe=searcher_args_['index_nprobe']
+        searcher_args['index_type'],
+        dimension=searcher_args['dimension'],
+        nprobe=searcher_args['index_nprobe']
     )
     pretrained_model_name = searcher_args['pretrained_model'].replace('/', '_')
     model_name = searcher_args['model']
@@ -57,20 +55,36 @@ def main_generation(**args):
     searcher_agent.load_model(save_path)
     print(f'[!] init the searcher and dual-bert model over')
 
-    # generation
+    agent.model.init_searcher(searcher_agent, searcher, test_data.base_data)
+    print(f'[!] init model over')
+
     collection = []
     f = open(f'{args["root_dir"]}/rest/{args["dataset"]}/{args["model"]}/test_copygeneration.txt', 'w')
     for batch in tqdm(test_iter):
-        context_list = batch['context_list']
-        ground_truth = batch['ground_truth']
-        batch = searcher_agent.inference_context_one_sample(context_list)
-        retrieval_list = searcher._search(batch, topk=args['recall_topk'])[0]
-        res = agent.copygenerate(context_list, retrieval_list=retrieval_list, scorer=simcse_agent, copy_token_num=copy_token_num)
-        f.write(f'[Context     ] {context}\n')
-        f.write(f'[Ground-Truth] {ground_truth}\n')
-        f.write(f'[CL Res      ] {res}\n')
-        f.flush()
+        # batch['decoding_method'] = 'topk-topp-search'
+        # batch['decoding_method'] = 'greedy-search'
+        # batch['decoding_method'] = 'beam-search'
+        # batch['decoding_method'] = 'contrastive-search'
+        batch['decoding_method'] = 'retrieval-search'
+        # batch['decoding_method'] = 'retrieval-generation-search'
 
+        # parameters
+        batch['topk'] = 8
+        batch['topp'] = 0.93
+        batch['beam_width'] = 5
+        batch['model_prediction_confidence'] = 0.4
+        batch['phrase_alpha'] = 1.
+        batch['generation_method'] = 'greedy-search'
+        batch['update_step'] = 32
+
+        res = agent.model.work(batch)
+        
+        batch['response'] = res
+        f.write(f'[Context     ] {batch["prefix"]}\n')
+        f.write(f'[Ground-Truth] {batch["ground_truth"]}\n')
+        f.write(f'[Responese   ] {batch["response"]}\n')
+        f.flush()
+        ipdb.set_trace()
 
 if __name__ == "__main__":
     args = vars(parser_args())

@@ -17,11 +17,11 @@ train:
     masked_lm_prob: 0.15
     min_context_length: 2
     min_token_length: 20
-    epoch: 35
+    epoch: 50
     dropout: 0.1
     warmup_ratio: 0.01
     checkpoint: 
         # path: bert-post/best_nspmlm.pt
         path: bert-fp/best_bert-base-chinese.pt
         # path: bert-fp/best_bert-base-uncased.pt
-        is_load: true
+        is_load: false

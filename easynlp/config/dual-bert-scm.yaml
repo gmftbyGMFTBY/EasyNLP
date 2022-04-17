@@ -17,9 +17,9 @@ predict_ensemble: false
 tokenizer:
     zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
     en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
-# pretrained_model:
-#     zh: /apdcephfs/share_733425/johntianlan/bert-base-chinese
-#     en: /apdcephfs/share_733425/johntianlan/bert-base-uncased
+pretrained_model:
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
 
 # train configuration
 train:

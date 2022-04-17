@@ -28,6 +28,7 @@ class SABertForSequenceClassification(BertPreTrainedModel):
         output_attentions=None,
         output_hidden_states=None,
         speaker_ids=None,
+        compare_ids=None,
         return_dict=None,
     ):
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
@@ -43,6 +44,7 @@ class SABertForSequenceClassification(BertPreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
             speaker_ids=speaker_ids,
+            compare_ids=compare_ids
         )
 
         pooled_output = outputs[1]
@@ -114,6 +116,7 @@ class SABertForPreTraining(BertPreTrainedModel):
         output_hidden_states=None,
         return_dict=None,
         speaker_ids=None,
+        compare_ids=None,
     ):
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
@@ -128,6 +131,7 @@ class SABertForPreTraining(BertPreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
             speaker_ids=speaker_ids,
+            compare_ids=compare_ids
         )
 
         sequence_output, pooled_output = outputs[:2]

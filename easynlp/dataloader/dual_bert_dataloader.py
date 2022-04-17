@@ -298,8 +298,8 @@ class BERTDualFullDataset(Dataset):
         else:
             data = read_text_data_utterances(path, lang=self.args['lang'])
             # DEBUG for Ubuntu Corpus
-            # if args['dataset'] in ['ubuntu']:
-            if args['dataset'] in ['ubuntu'] and args['mode'] == 'valid':
+            if args['dataset'] in ['ubuntu']:
+            # if args['dataset'] in ['ubuntu'] and args['mode'] == 'valid':
                 data = data[:10000]    # 1000 sampels for ubunut
             for i in tqdm(range(0, len(data), 10)):
                 batch = data[i:i+10]

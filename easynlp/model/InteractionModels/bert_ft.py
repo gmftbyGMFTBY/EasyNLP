@@ -6,8 +6,9 @@ class BERTRetrieval(nn.Module):
         super(BERTRetrieval, self).__init__()
         model = args['pretrained_model']
         # bert-fp pre-trained model need to resize the token embedding
-        self.model = BertForSequenceClassification.from_pretrained(model, num_labels=1)
+        self.model = BertForSequenceClassification.from_pretrained(model, num_labels=2)
         self.model.resize_token_embeddings(self.model.config.vocab_size+1)
+        self.vocab = AutoTokenizer.from_pretrained(model)
 
     def forward(self, batch):
         inpt = batch['ids']
@@ -18,5 +19,5 @@ class BERTRetrieval(nn.Module):
             input_ids=inpt,
             attention_mask=attn_mask,
             token_type_ids=token_type_ids,
-        )[0]    # [B, 1]
-        return logits.squeeze(dim=-1)
+        )[0]    # [B, 2]
+        return logits

@@ -143,10 +143,20 @@ class RepresentationAgent(RetrievalBaseAgent):
 
     @torch.no_grad()
     def train_model_pq(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
-
-        save_path = f'{self.args["root_dir"]}/data/{self.args["dataset"]}/hash_inference.pt'
-        if os.path.exists(save_path):
-            reps = torch.load(save_path)
+        save_path = f'{self.args["root_dir"]}/data/{self.args["dataset"]}/hash_inference'
+        if os.path.exists(f'{save_path}_0.pt'):
+            reps = []
+            try:
+                for i in range(100):
+                    path = f'{save_path}_{i}.pt'
+                    reps_ = torch.load(path)
+                    reps.append(reps_)
+                # creps = torch.cat(reps).numpy()    # [B, E]
+            except:
+                reps = np.concatenate(reps)    # [B, E]
+            batch_num = 0
+            if self.args['local_rank'] != 0:
+                return batch_num
         else:
             batch_num = 0
             reps = []
@@ -155,12 +165,15 @@ class RepresentationAgent(RetrievalBaseAgent):
                 if self.args['local_rank'] == 0:
                     reps.append(rep)
                 batch_num += 1
+            if self.args['local_rank'] != 0:
+                return batch_num
             reps = torch.cat(reps).numpy()    # [B, E]
-            torch.save(reps, save_path)
-        if self.args['local_rank'] != 0:
-            return batch_num
-        print(f'[!] collect {len(reps)} samples for hash training')
-        reps = reps[:self.args['train_data_size'], :]
+            counter = 0
+            for i in range(0, len(reps), 500000):
+                reps_ = reps[i:i+500000]
+                torch.save(reps_, f"{save_path}_{counter}.pt")
+                counter += 1
+        print(f'[!] collect {len(reps)} samples for pq training')
 
         # begin to train the model
         pq = nanopq.PQ(M=self.args['M'])
@@ -1457,3 +1470,25 @@ class RepresentationAgent(RetrievalBaseAgent):
             return embd.cpu().numpy(), t
         except:
             return embd, t
+        
+    @torch.no_grad()
+    def inference_clean(self, inf_iter, fw, size=100000):
+        self.model.eval()
+        pbar = tqdm(inf_iter)
+
+        results = []
+        for batch in pbar:
+            raws = batch['raw']
+            scores = self.model.module.score(batch).tolist()    # [B]
+            for raw, s in zip(raws, scores):
+                raw['dr_bert_score'] = round(s, 4)
+            results.extend(raws)
+            if len(results) > size:
+                for rest in results:
+                    string = json.dumps(rest, ensure_ascii=False) + '\n'
+                    fw.write(string)
+                results = []
+        if len(results) > 0:
+            for rest in results:
+                string = json.dumps(rest, ensure_ascii=False) + '\n'
+                fw.write(string)

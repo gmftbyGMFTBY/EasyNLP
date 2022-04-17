@@ -48,27 +48,28 @@ class PipelineEvaluationAgent:
         sort_index = np.argsort(score)[::-1]
         score = [score[i] for i in sort_index]
         candidate = [candidate[i]['text'] for i in sort_index]
-        ground_truths = batch[0]['ground-truth']
+        # ground_truths = batch[0]['ground-truth']
 
         # update the evaluation and the collector
         # recall metrics
-        for idx in [1000, 500, 100, 50]:
-            counter = 0
-            for g in ground_truths:
-                if g in candidate[:idx]:
-                    counter += 1
-            m = 0 if len(ground_truths) == 0 else counter/len(ground_truths)
-            self.collection[f'R@{idx}'].append(m)
+        # for idx in [1000, 500, 100, 50]:
+        #     counter = 0
+        #     for g in ground_truths:
+        #         if g in candidate[:idx]:
+        #             counter += 1
+        #     m = 0 if len(ground_truths) == 0 else counter/len(ground_truths)
+        #     self.collection[f'R@{idx}'].append(m)
         # mrr 
-        count_1 = 0
-        sum_p = 0
-        for g in ground_truths:
-            if g in candidate:
-                count_1 += 1
-                sum_p += 1.0 * count_1 / (candidate.index(g) + 1)
-        mrr = sum_p / count_1 if count_1 > 0 else 0
-        self.collection['MRR'].append(mrr)
+        # count_1 = 0
+        # sum_p = 0
+        # for g in ground_truths:
+        #     if g in candidate:
+        #         count_1 += 1
+        #         sum_p += 1.0 * count_1 / (candidate.index(g) + 1)
+        # mrr = sum_p / count_1 if count_1 > 0 else 0
+        # self.collection['MRR'].append(mrr)
 
-        return [candidate[0]], [mrr], recall_t, rerank_t
+        # return [candidate[0]], [mrr], recall_t, rerank_t
+        return [candidate[0]], recall_t, rerank_t
 
 

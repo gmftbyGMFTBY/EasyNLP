@@ -1,5 +1,6 @@
 from model.utils import *
 from dataloader.util_func import *
+from inference_utils import *
 
 class TargetDialogAgent(RetrievalBaseAgent):
     
@@ -40,37 +41,14 @@ class TargetDialogAgent(RetrievalBaseAgent):
         batch_num = 0
         for idx, batch in enumerate(pbar):
 
-            # compatible with the curriculumn learning
-            batch['mode'] = 'hard' if hard is True else 'easy'
-
             self.optimizer.zero_grad()
-
-            if self.args['fgm']:
-                with autocast():
-                    loss, acc = self.model(batch)
-                self.scaler.scale(loss).backward()
-                self.fgm.attack()
-                with autocast():
-                    loss_adv, _ = self.model(batch)
-                self.scaler.scale(loss_adv).backward()
-                self.scaler.unscale_(self.optimizer)
-                clip_grad_norm_(
-                    self.model.parameters(), 
-                    self.args['grad_clip']
-                )
-                self.fgm.restore()
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
-            else:
-                with autocast():
-                    loss, acc = self.model(batch)
-                self.scaler.scale(loss).backward()
-                self.scaler.unscale_(self.optimizer)
-                clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
-
-            # comment for the constant learning ratio
+            with autocast():
+                loss, acc = self.model(batch)
+            self.scaler.scale(loss).backward()
+            self.scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
             self.scheduler.step()
 
             total_loss += loss.item()
@@ -103,22 +81,6 @@ class TargetDialogAgent(RetrievalBaseAgent):
         core_time_rest = 0
         for idx, batch in enumerate(pbar):                
             label = batch['label']
-            if 'context' in batch:
-                cid, cid_mask = self.totensor([batch['context']], ctx=True)
-                rid, rid_mask = self.totensor(batch['responses'], ctx=False)
-                batch['ids'], batch['ids_mask'] = cid, cid_mask
-                batch['rids'], batch['rids_mask'] = rid, rid_mask
-            elif 'ids' in batch:
-                if self.args['model'] in ['dual-bert-multi-ctx']:
-                    pass
-                elif self.args['model'] in ['dual-bert-session']:
-                    pass
-                else:
-                    cid = batch['ids'].unsqueeze(0)
-                    cid_mask = torch.ones_like(cid)
-                    batch['ids'] = cid
-                    batch['ids_mask'] = cid_mask
-
             if self.args['mode'] in ['train']:
                 scores = self.model.module.predict(batch).cpu().tolist()    # [B]
             else:
@@ -129,24 +91,6 @@ class TargetDialogAgent(RetrievalBaseAgent):
                     et = time.time()
                     core_time_rest += et - bt
 
-            # rerank by the compare model (bert-ft-compare)
-            if rerank_agent:
-                if 'context' in batch:
-                    context = batch['context']
-                    responses = batch['responses']
-                elif 'ids' in batch:
-                    context = self.convert_to_text(batch['ids'].squeeze(0), lang=self.args['lang'])
-                    responses = [self.convert_to_text(res, lang=self.args['lang']) for res in batch['rids']]
-                    context = [i.strip() for i in context.split('[SEP]')]
-                packup = {
-                    'context': context,
-                    'responses': responses,
-                    'scores': scores,
-                }
-                # only the scores has been update
-                scores = rerank_agent.compare_reorder(packup)
-
-            # print output
             if print_output:
                 if 'responses' in batch:
                     self.log_save_file.write(f'[CTX] {batch["context"]}\n')
@@ -228,3 +172,194 @@ class TargetDialogAgent(RetrievalBaseAgent):
             new_state_dict = self.checkpointadapeter.convert(state_dict)
             self.model.load_state_dict(new_state_dict)
         print(f'[!] load model from {path}')
+
+    # ===== init the memory of the topic ===== # 
+    @torch.no_grad()
+    def init(self, memory, topic, context_lists):
+        # memorys: the list of the sentences containing the given topics
+        self.topic = topic
+        self.memory = memory
+
+        # encode the memory by the response encoder
+        ids = self.vocab.batch_encode_plus(memory, add_special_tokens=False)['input_ids']
+        ids = [torch.LongTensor([self.cls] + i[:self.args['max_len']-2] + [self.sep]) for i in ids]
+        ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+        ids_mask = generate_mask(ids)
+        ids, ids_mask = to_cuda(ids, ids_mask)
+        self.memory_vector = self.model.get_cand(ids, ids_mask)    # [B, E]
+
+        print(f'[!] init the memory and topic over')
+
+        # load the ann searcher
+        model_name = self.args['model']
+        pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
+        self.searcher = Searcher(self.args['index_type'], dimension=self.args['dimension'], q_q=False, nprobe=self.args['index_nprobe'])
+        faiss_ckpt_path = f'{self.args["root_dir"]}/data/{self.args["dataset"]}/{model_name}_{pretrained_model_name}_faiss.ckpt'
+        corpus_ckpt_path = f'{self.args["root_dir"]}/data/{self.args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt'
+        self.searcher.load(faiss_ckpt_path, corpus_ckpt_path)
+        print(f'[!] init the ann searcher over')
+
+        # init the cache
+        self.cache = []
+        self.cache_sequence = []
+        print(f'[!] init the cache over')
+
+        # init the representations of the context_lists
+        # for utterance in context_lists:
+        #     self.work([utterance])
+        print(f'[!] init the given context lists over')
+
+    @torch.no_grad()
+    def work_no_topic(self, context_list):
+        # 1. encode
+        string = ' [SEP] '.join(context_list)
+        ids = self.vocab.encode(string, add_special_tokens=False)
+        ids = torch.LongTensor([self.cls] + ids[-self.args['max_len']+2:] + [self.sep])
+        ids = ids.unsqueeze(0)
+        ids_mask = torch.ones_like(ids)
+        ids, ids_mask = to_cuda(ids, ids_mask)
+        
+        # 2. obtian context representations
+        cid_rep = self.model.get_ctx_embedding(ids, ids_mask)    # [B, E]
+        # 3. search candidates
+        candidates = self.searcher._search(cid_rep.cpu().numpy(), topk=self.args['work_topk'])[0]
+        return random.choice(candidates), -1
+
+
+        assert len(context_list) == 1
+        # 1. encode
+        ids = self.vocab.encode(context_list[0], add_special_tokens=False)
+        ids = torch.LongTensor([self.cls] + ids[:self.args['max_len']-2] + [self.sep])
+        ids = ids.unsqueeze(0)
+        ids_mask = torch.ones_like(ids)
+        ids, ids_mask = to_cuda(ids, ids_mask)
+        
+        # 2. obtian context representations
+        cid_rep_ = self.model.get_ctx_embedding(ids, ids_mask)    # [B, E]
+        cid_rep = self.model.get_ctx_level_embedding(cid_rep_, self.cache, self.cache_sequence)
+        self.update_cache(cid_rep_[0])
+
+        # 3. search candidates
+        candidates = self.searcher._search(cid_rep.cpu().numpy(), topk=self.args['human_work_topk'])[0]
+        return random.choice(candidates), -1
+
+    @torch.no_grad()
+    def work(self, context_list):
+        # 1. encode
+        string = ' [SEP] '.join(context_list)
+        ids = self.vocab.encode(string, add_special_tokens=False)
+        ids = torch.LongTensor([self.cls] + ids[-self.args['max_len']+2:] + [self.sep])
+        ids = ids.unsqueeze(0)
+        ids_mask = torch.ones_like(ids)
+        ids, ids_mask = to_cuda(ids, ids_mask)
+        
+        # 2. obtian context representations
+        cid_rep = self.model.get_ctx_embedding(ids, ids_mask)    # [B, E]
+
+        # 3. search candidates
+        candidates_ = self.searcher._search(cid_rep.cpu().numpy(), topk=self.args['work_topk'])[0]
+
+        # 4. encode the candidates by the context encoder for candidates rerank
+        candidates = [string + ' [SEP] ' + candidate for candidate in candidates_]
+        cids = self.vocab.batch_encode_plus(candidates, add_special_tokens=False)['input_ids']
+        cids = [torch.LongTensor([self.cls] + i[-self.args['max_len']+2:] + [self.sep]) for i in cids]
+        cids = pad_sequence(cids, batch_first=True, padding_value=self.pad)
+        cids_mask = generate_mask(cids)
+        cids, cids_mask = to_cuda(cids, cids_mask)
+        cid_rep_ = self.model.get_ctx_embedding(cids, cids_mask)    # [B, E]
+
+        # 6. response embedding
+        # encode the memory by the response encoder
+        ids = self.vocab.batch_encode_plus(candidates_, add_special_tokens=False)['input_ids']
+        ids = [torch.LongTensor([self.cls] + i[:self.args['max_len']-2] + [self.sep]) for i in ids]
+        ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+        ids_mask = generate_mask(ids)
+        ids, ids_mask = to_cuda(ids, ids_mask)
+        cand_rep = self.model.get_cand(ids, ids_mask)    # [B, E]
+        
+        md_ = torch.matmul(cand_rep, self.memory_vector.t()).max(dim=-1)[0]
+        md__ = torch.matmul(cid_rep, cand_rep.t()).max(dim=-1)[0]
+        md = torch.matmul(cid_rep_, self.memory_vector.t()).max(dim=-1)[0]    # [K]
+
+        # given the scores
+        md = md + md_ + md__
+        md /= 3
+        dis, best = md.max(dim=-1)
+        dis, best = dis.item(), best.item()    # distance range from -1 to 1
+
+        # 6. return the best candidates and update the cache
+        best_candidate = candidates_[best]
+        return best_candidate, dis
+
+
+        ## dual-bert-hier-trs
+        assert len(context_list) == 1
+        # 1. encode
+        ids = self.vocab.encode(context_list[0], add_special_tokens=False)
+        ids = torch.LongTensor([self.cls] + ids[:self.args['max_len']-2] + [self.sep])
+        ids = ids.unsqueeze(0)
+        ids_mask = torch.ones_like(ids)
+        ids, ids_mask = to_cuda(ids, ids_mask)
+        
+        # 2. obtian context representations
+        cid_rep_ = self.model.get_ctx_embedding(ids, ids_mask)    # [B, E]
+        cid_rep = self.model.get_ctx_level_embedding(cid_rep_, self.cache, self.cache_sequence)
+        self.update_cache(cid_rep_[0])
+
+        # 3. search candidates
+        candidates = self.searcher._search(cid_rep.cpu().numpy(), topk=self.args['work_topk'])[0]
+
+        # 4. encode the candidates by the context encoder for candidates rerank
+        cids = self.vocab.batch_encode_plus(candidates, add_special_tokens=False)['input_ids']
+        cids = [torch.LongTensor([self.cls] + i[:self.args['max_len']-2] + [self.sep]) for i in cids]
+        cids = pad_sequence(cids, batch_first=True, padding_value=self.pad)
+        cids_mask = generate_mask(cids)
+        cids, cids_mask = to_cuda(cids, cids_mask)
+        ccid_rep = self.model.get_ctx_embedding(cids, cids_mask)    # [B, E]
+        cid_rep = self.model.get_ctx_level_embedding(ccid_rep, self.cache, self.cache_sequence)
+
+        # 5. average matching degree with the memory
+        md = torch.matmul(cid_rep, self.memory_vector.t()).max(dim=-1)[0]    # [K]
+        dis, best = md.max(dim=-1)
+        dis, best = dis.item(), best.item()    # distance range from -1 to 1
+
+        # 6. return the best candidates and update the cache
+        self.update_cache(ccid_rep[best])
+        best_candidate = candidates[best]
+        return best_candidate, dis
+
+    @torch.no_grad()
+    def update_cache(self, tensor):
+        self.cache.append(tensor)
+        if self.cache_sequence:
+            self.cache_sequence.extend([self.cache_sequence[-1] + 1] * len(tensor))
+        else:
+            self.cache_sequence.extend([0] * len(tensor))
+
+    @torch.no_grad()
+    def inference(self, inf_iter, size=500000):
+        self.model.eval()
+        pbar = tqdm(inf_iter)
+        embds, texts = [], []
+        counter = 0
+        for batch in pbar:
+            rid = batch['ids']
+            rid_mask = batch['mask']
+            text = batch['text']
+            res = self.model.module.get_cand(rid, rid_mask).cpu()
+            embds.append(res)
+            texts.extend(text)
+
+            if len(texts) >= size:
+                embds = torch.cat(embds, dim=0).numpy()
+                torch.save(
+                    (embds, texts), 
+                    f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
+                )
+                embds, texts = [], []
+                counter += 1
+        embds = torch.cat(embds, dim=0).numpy()
+        torch.save(
+            (embds, texts), 
+            f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
+        )

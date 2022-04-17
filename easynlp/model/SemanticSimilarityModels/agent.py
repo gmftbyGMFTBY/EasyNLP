@@ -214,6 +214,17 @@ class SemanticSimilarityAgent(SimCSEBaseAgent):
         }
 
     @torch.no_grad()
+    def inference_context_one_sample(self, doc):
+        self.model.eval()
+        ids = self.vocab.encode(doc, add_special_tokens=False)
+        ids = [self.vocab.cls_token_id] + ids[-510:] + [self.vocab.sep_token_id]
+        ids = torch.LongTensor(ids).unsqueeze(0)
+        ids_mask = torch.ones_like(ids)
+        ids, ids_mask = to_cuda(ids, ids_mask)
+        rep = self.model.get_embedding(ids, ids_mask)
+        return rep
+
+    @torch.no_grad()
     def inference(self, inf_iter, size=500000):
         '''for simcse model to generate the embeddings'''
         self.model.eval()
@@ -226,25 +237,23 @@ class SemanticSimilarityAgent(SimCSEBaseAgent):
         for batch in pbar:
             ids = batch['ids']
             ids_mask = batch['mask']
-            text = batch['text']
             text_id = batch['text_id']
             res = self.model.module.get_embedding(ids, ids_mask).cpu()
             embds.append(res)
-            texts.extend(text)
             text_ids.extend(text_id)
 
-            if len(texts) > size:
+            if len(text_ids) > size:
                 embds = torch.cat(embds, dim=0).numpy()
                 torch.save(
-                    (embds, texts, text_ids), 
+                    (embds, text_ids), 
                     f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
                 )
-                embds, texts = [], []
+                embds, text_ids = [], []
                 counter += 1
-        if len(texts) > 0:
+        if len(text_ids) > 0:
             embds = torch.cat(embds, dim=0).numpy()
             torch.save(
-                (embds, texts, text_ids), 
+                (embds, text_ids), 
                 f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
             )
 
@@ -260,18 +269,15 @@ class SemanticSimilarityAgent(SimCSEBaseAgent):
         for batch in pbar:
             ids = batch['ids']
             ids_mask = batch['mask']
-            text = batch['text']
-            # index = batch['index']
-            index = batch['text_id']
+            index = batch['index']
             res = self.model.module.get_embedding(ids, ids_mask)
             embds.append(res)
-            texts.extend(text)
             indexes.extend(index)
 
             if len(texts) > size:
                 embds = torch.cat(embds, dim=0).cpu().numpy()
                 torch.save(
-                    (embds, texts, indexes), 
+                    (embds, indexes), 
                     f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_context_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
                 )
                 embds, texts, indexes = [], [], []
@@ -279,7 +285,7 @@ class SemanticSimilarityAgent(SimCSEBaseAgent):
         if len(texts) > 0:
             embds = torch.cat(embds, dim=0).cpu().numpy()
             torch.save(
-                (embds, texts, indexes), 
+                (embds, indexes), 
                 f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_context_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
             )
 

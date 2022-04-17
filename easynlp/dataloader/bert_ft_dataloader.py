@@ -28,6 +28,8 @@ class BERTFTDataset(Dataset):
         self.data = []
         if self.args['mode'] == 'train':
             for label, utterances in tqdm(data):
+                if len(utterances) <= 1:
+                    continue
                 item = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']
                 context = []
                 for u in item[:-1]:
@@ -43,8 +45,8 @@ class BERTFTDataset(Dataset):
                     'tids': tids,
                 })
         else:
-            for i in tqdm(range(0, len(data), 1000)):
-                batch = data[i:i+1000]
+            for i in tqdm(range(0, len(data), 10)):
+                batch = data[i:i+10]
                 ids, tids = [], []
                 context, responses = [], []
                 for b in batch:

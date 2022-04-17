@@ -39,9 +39,9 @@ train:
     epoch: 1
     warmup_ratio: 0.0
     checkpoint: 
-        # path: dual-bert/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_1000.pt
+        path: dual-bert/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_1000.pt
         # path: dual-bert/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_800.pt
-        path: dual-bert/best__apdcephfs_share_916081_johntianlan_bert-base-uncased_1100.pt
+        # path: dual-bert/best__apdcephfs_share_916081_johntianlan_bert-base-uncased_1100.pt
         is_load: true
 
 # test configuration

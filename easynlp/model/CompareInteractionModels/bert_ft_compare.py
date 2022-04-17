@@ -8,8 +8,8 @@ class BERTCompareRetrieval(nn.Module):
         model = args['pretrained_model']
         self.inner_bsz = args['inner_bsz']
         self.num_labels = args['num_labels']
-        # self.model = SABertForSequenceClassification.from_pretrained(model, num_labels=self.num_labels)
-        self.model = BertForSequenceClassification.from_pretrained(model, num_labels=2)
+        # self.model = SABertForSequenceClassification.from_pretrained(model, num_labels=2)
+        self.model = SABertForSequenceClassification.from_pretrained(model, num_labels=3)
         self.model.resize_token_embeddings(self.model.config.vocab_size+1)
         self.criterion = nn.CrossEntropyLoss()
 
@@ -21,16 +21,18 @@ class BERTCompareRetrieval(nn.Module):
 
     def forward(self, batch, scaler=None, optimizer=None, scheduler=None, grad_clip=1.0):
         inpt = batch['ids']
-        sids = batch['sids']
         tids = batch['tids']
+        sids = batch['sids']
+        cpids = batch['cpids']
         label = batch['label']    # list
 
         # shuffle
         random_idx = list(range(len(inpt)))
         random.shuffle(random_idx)
         inpt = [inpt[i] for i in random_idx]
-        sids = [sids[i] for i in random_idx]
         tids = [tids[i] for i in random_idx]
+        sids = [sids[i] for i in random_idx]
+        cpids = [cpids[i] for i in random_idx]
         label = [label[i] for i in random_idx]
         label = torch.stack(label)
 
@@ -41,27 +43,32 @@ class BERTCompareRetrieval(nn.Module):
                 batch_first=True,
                 padding_value=self.pad,
             )
-            sub_sids = pad_sequence(
-                sids[i:i+self.inner_bsz],
-                batch_first=True,
-                padding_value=self.pad,
-            )
             sub_tids = pad_sequence(
                 tids[i:i+self.inner_bsz],
                 batch_first=True,
                 padding_value=self.pad,
             )
+            sub_sids = pad_sequence(
+                sids[i:i+self.inner_bsz],
+                batch_first=True,
+                padding_value=self.pad,
+            )
+            sub_cpids = pad_sequence(
+                cpids[i:i+self.inner_bsz],
+                batch_first=True,
+                padding_value=self.pad,
+            )
             sub_attn_mask = generate_mask(sub_ids)
             sub_label = label[i:i+self.inner_bsz]
-            # sub_label = sub_label.to(torch.float)
 
-            sub_ids, sub_sids, sub_tids, sub_attn_mask, sub_label = to_cuda(sub_ids, sub_sids, sub_tids, sub_attn_mask, sub_label)
+            sub_ids, sub_sids, sub_cpids, sub_tids, sub_attn_mask, sub_label = to_cuda(sub_ids, sub_sids, sub_cpids, sub_tids, sub_attn_mask, sub_label)
             with autocast():
                 output = self.model(
                     input_ids=sub_ids,
                     attention_mask=sub_attn_mask,
                     token_type_ids=sub_tids,
-                    # speaker_ids=sub_sids,
+                    speaker_ids=sub_sids,
+                    compare_ids=sub_cpids
                 )
                 logits = output.logits.squeeze(dim=1)     # [B]
                 loss = self.criterion(logits, sub_label)
@@ -77,21 +84,25 @@ class BERTCompareRetrieval(nn.Module):
             acc += (logits.max(dim=-1)[1] == sub_label).to(torch.float).mean().item()
             counter += 1
         tloss /= counter
+        acc /= counter
         return tloss, acc, counter
 
     def predict(self, batch):
         inpt = batch['ids']
         sids = batch['sids']
         tids = batch['tids']
+        cpids = batch['cpids']
         mask = batch['mask']   
         logits = self.model(
             input_ids=inpt,
             attention_mask=mask,
             token_type_ids=tids,
-            # speaker_ids=sids,
+            speaker_ids=sids,
+            compare_ids=cpids,
         )[0]
-        logits = F.softmax(logits, dim=-1)[:, 1]
-        return logits
+        return F.softmax(logits, dim=-1)    # [B, 3]
+        # logits = F.softmax(logits, dim=-1)[:, 1]
+        # return logits
 
 
 class BERTCompareTokenEncoder(nn.Module):

@@ -1,8 +1,9 @@
 # [inner_bsz] the batch for one train step is to big, split and run it in multiple times
-inner_bsz: 64
-gray_cand_num: 2
+inner_bsz: 48
+gray_cand_num: 3
 compare_turn_num: 2
-positive_margin: 0.05
+positive_margin: 0.1
+ambiguous_margin: 0.5
 positive_margin_delta: 0.0
 num_labels: 1
 test_interval: 0.05
@@ -18,15 +19,16 @@ tokenizer:
 
 # train configuration
 train:
-    lr: 0.00005
-    grad_clip: 5.0
+    lr: 0.00001
+    grad_clip: 1.0
     seed: 0
-    batch_size: 32
+    batch_size: 16
     max_len: 384    # 320 + 32 + 32
     epoch: 5
     warmup_ratio: 0.0
     checkpoint: 
-        path: bert-fp-comp/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_601.pt
+        path: bert-fp-comp/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_101.pt
+        # path: bert-fp/best_bert-base-chinese.pt
         # path: bert-fp-comp/best__apdcephfs_share_916081_johntianlan_bert-base-uncased_601.pt
         is_load: true
 

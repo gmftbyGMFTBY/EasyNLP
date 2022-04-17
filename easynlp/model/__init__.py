@@ -29,6 +29,7 @@ def load_model(args):
         'WriterRerank': WriterRerankAgent,
         'SemanticSimilarity': SemanticSimilarityAgent,
         'TraditionalResponseSelection': TraditionalResponseSelectionAgent,
+        'Target': TargetDialogAgent
     }
     if model_type in MAP:
         agent_t = MAP[model_type]

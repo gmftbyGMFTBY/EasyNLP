@@ -82,8 +82,8 @@ class BERTFTCompEasyDataset(Dataset):
         )
         other_speaker = 0 if sids[-1] == 1 else 1
         ids = [self.cls] + cids_ + [self.sep] + rids1_ + [self.sep] + rids2_ + [self.sep]
-        sids_ = [sids_[0]] + sids_ + [sids_[-1]] + [other_speaker] * (len(rids1_) + len(rids2_) + 2)
-        tids = [0] * (len(cids_) + 2) + [1] * (len(rids1_) + 1) + [0] * (len(rids2_) + 1)
+        sids_ = [0] * (2 + len(sids_)) + [1] * (len(rids1_) + 1) + [2] * (len(rids2_) + 1)
+        tids = [0] * (len(cids_) + 2) + [1] * (len(rids1_) + 1) + [1] * (len(rids2_) + 1)
         assert len(sids_) == len(ids)
         return ids, tids, sids_
 
@@ -96,20 +96,36 @@ class BERTFTCompEasyDataset(Dataset):
             ids, sids, tids, label, token_label = [], [], [], [], []
             e = random.choice(self.responses)
             e = self.vocab.encode(e, add_special_tokens=False)
-            if random.random() > 0.5:
-                ids_, tids_, sids_ = self._packup(cids, rids, e, sids=speaker_ids)
-                l = 1
-            else:
-                ids_, tids_, sids_ = self._packup(cids, e, rids, sids=speaker_ids)
-                l = 0
+            ids_, tids_, sids_ = self._packup(cids, rids, e, sids=speaker_ids)
+            l = 1
             ids.append(ids_)
-            sids.append(sids_)
             tids.append(tids_)
+            sids.append(sids_)
             label.append(l)
+            
+            ids_, tids_, sids_ = self._packup(cids, e, rids, sids=speaker_ids)
+            l = 0
+            ids.append(ids_)
+            tids.append(tids_)
+            sids.append(sids_)
+            label.append(l)
+
+            e2 = random.choice(self.responses)
+            e2 = self.vocab.encode(e2, add_special_tokens=False)
+            if random.random() > 0.5:
+                ids_, tids_, sids_ = self._packup(cids, e2, e, sids=speaker_ids)
+            else:
+                ids_, tids_, sids_ = self._packup(cids, e, e2, sids=speaker_ids)
+            l = 2
+            ids.append(ids_)
+            tids.append(tids_)
+            sids.append(sids_)
+            label.append(l)
+
             ids = [torch.LongTensor(i) for i in ids]
-            sids = [torch.LongTensor(i) for i in sids]
             tids = [torch.LongTensor(i) for i in tids]
-            return ids, sids, tids, label
+            sids = [torch.LongTensor(i) for i in sids]
+            return ids, tids, sids, label
         else:
             # random shuffle
             random_idx = list(range(len(bundle['label'])))
@@ -130,14 +146,14 @@ class BERTFTCompEasyDataset(Dataset):
             ids, sids, tids, label = [], [], [], []
             for b in batch:
                 ids.extend(b[0])
-                sids.extend(b[1])
-                tids.extend(b[2])
+                tids.extend(b[1])
+                sids.extend(b[2])
                 label.extend(b[3])
             label = torch.LongTensor(label)
             return {
                 'ids': ids, 
-                'sids': sids,
                 'tids': tids, 
+                'sids': sids, 
                 'label': label
             }
         else:
@@ -197,9 +213,7 @@ class BERTFTCompDataset(Dataset):
                     continue
 
                 rids = ids[-1]
-                responses.append(rids)
                 if response not in response_overlap:
-                    responses.append(rids)
                     response_overlap.add(response)
                 self.data.append({
                     'context': cids,
@@ -207,7 +221,7 @@ class BERTFTCompDataset(Dataset):
                     'response': rids,
                     'candidates': candidates,
                 })
-            self.responses = responses
+            self.responses = list(response_overlap)
         else:
             data = read_text_data_utterances(path, lang=self.args['lang'])
             if args['dataset'] in ['ubuntu'] and args['mode'] == 'valid':
@@ -226,42 +240,34 @@ class BERTFTCompDataset(Dataset):
     def __len__(self):
         return len(self.data)
 
-    def _packup(self, cids, rids1, rids2, sids=None):
+    def _packup(self, cids, rids1, rids2, sids):
         cids_, rids1_, rids2_ = deepcopy(cids), deepcopy(rids1), deepcopy(rids2)
         sids_ = deepcopy(sids)
         truncate_pair_two_candidates(
             cids_, rids1_, rids2_,
             self.args['max_len'],
-            sids=sids_,
+            sids=sids_
         )
-        other_speaker = 0 if sids[-1] == 1 else 1
+        next_speaker = 1 if sids_[-1] == 0 else 0
         ids = [self.cls] + cids_ + [self.sep] + rids1_ + [self.sep] + rids2_ + [self.sep]
-        sids_ = [sids_[0]] + sids_ + [sids_[-1]] + [other_speaker] * (len(rids1_) + len(rids2_) + 2)
-        tids = [0] * (len(cids_) + 2) + [1] * (len(rids1_) + 1) + [0] * (len(rids2_) + 1)
-        # if label == 0:
-        #     token_labels = [-100] * (len(cids_) + 2) + [0] * (len(rids1_) + 1) + [1] * (len(rids2_) + 1)
-        # else:
-        #     token_labels = [-100] * (len(cids_) + 2) + [1] * (len(rids1_) + 1) + [0] * (len(rids2_) + 1)
-        # assert len(sids_) == len(ids) == len(token_labels)
+        cpids = [0] * (2 + len(cids_)) + [1] * (len(rids1_) + 1) + [2] * (len(rids2_) + 1)
+        tids = [0] * (len(cids_) + 2) + [1] * (len(rids1_) + 1) + [1] * (len(rids2_) + 1)
+        sids_ = [sids_[0]] + sids_ + [sids[-1]] + [next_speaker] * (len(rids1_) + len(rids2_) + 2)
+        assert len(cpids) == len(ids)
         assert len(sids_) == len(ids)
-        return ids, tids, sids_
+        return ids, tids, sids_, cpids
 
     def __getitem__(self, i):
         bundle = self.data[i]
         if self.args['mode'] == 'train':
             cids, rids = bundle['context'], bundle['response']
-            speaker_ids = bundle['sids']
-
+            sids = bundle['sids']
             if self.args['no_hard_negative']:
                 hrids = random.sample(self.responses, self.topk)
             else:
                 if self.topk > len(bundle['candidates']):
-                    candidates = bundle['candidates']
-                    if candidates:
-                        hrids = self.vocab.batch_encode_plus(candidates, add_special_tokens=False)['input_ids']
-                    else:
-                        hrids = []
-                    hrids += random.sample(self.responses, self.topk - len(candidates))
+                    hrids = random.sample(self.responses, self.topk - len(bundle['candidates'])) + candidates
+                    hrids = self.vocab.batch_encode_plus(hrids, add_special_tokens=False)['input_ids']
                 else:
                     candidates = random.sample(bundle['candidates'], self.topk)
                     hrids = self.vocab.batch_encode_plus(candidates, add_special_tokens=False)['input_ids']
@@ -271,51 +277,54 @@ class BERTFTCompDataset(Dataset):
             # if self.topk > len(candidates):
             #     hrids2 += random.sample(self.responses, self.topk - len(hrids2))
 
-            ids, sids, tids, label, token_label = [], [], [], [], []
-
+            ids, ssids, tids, cpids, label = [], [], [], [], []
             # label 0/1: positive vs. easy negative
             for _ in range(self.topk):
                 e = random.choice(self.responses)
+                e = self.vocab.encode(e, add_special_tokens=False)
                 if random.random() > 0.5:
-                    ids_, tids_, sids_ = self._packup(cids, rids, e, sids=speaker_ids)
+                    ids_, tids_, sids_, cpids_ = self._packup(cids, rids, e, sids)
                     l = 1
                 else:
-                    ids_, tids_, sids_ = self._packup(cids, e, rids, sids=speaker_ids)
+                    ids_, tids_, sids_, cpids_ = self._packup(cids, e, rids, sids)
                     l = 0
                 ids.append(ids_)
-                sids.append(sids_)
+                ssids.append(sids_)
                 tids.append(tids_)
+                cpids.append(cpids_)
                 label.append(l)
             # label 0/1: positive negatives vs. bm25 hard negative
             for _ in range(self.topk):
                 h = random.choice(hrids)
                 if random.random() > 0.5:
-                    ids_, tids_, sids_ = self._packup(cids, rids, h, sids=speaker_ids)
+                    ids_, tids_, sids_, cpids_ = self._packup(cids, rids, h, sids)
                     l = 1
                 else:
-                    ids_, tids_, sids_ = self._packup(cids, h, rids, sids=speaker_ids)
+                    ids_, tids_, sids_, cpids_ = self._packup(cids, h, rids, sids)
                     l = 0
                 ids.append(ids_)
-                sids.append(sids_)
+                ssids.append(sids_)
                 tids.append(tids_)
+                cpids.append(cpids_)
                 label.append(l)
-            # label 0/1: hard negative from the session
-            # for h in hrids2:
-            #     if random.random() > 0.5:
-            #         ids_, tids_, sids_ = self._packup(cids, rids, h, sids=speaker_ids)
-            #         l = 1
-            #     else:
-            #         ids_, tids_, sids_ = self._packup(cids, h, rids, sids=speaker_ids)
-            #         l = 0
-            #     ids.append(ids_)
-            #     sids.append(sids_)
-            #     tids.append(tids_)
-            #     label.append(l)
+            # label 2: tie
+            for _ in range(self.topk):
+                e1, e2 = random.sample(self.responses, 2)
+                e1 = self.vocab.encode(e1, add_special_tokens=False)
+                e2 = self.vocab.encode(e2, add_special_tokens=False)
+                ids_, tids_, sids_, cpids_ = self._packup(cids, e1, e2, sids)
+                l = 2
+                ids.append(ids_)
+                ssids.append(sids_)
+                tids.append(tids_)
+                cpids.append(cpids_)
+                label.append(l)
             # whole samples
             ids = [torch.LongTensor(i) for i in ids]
-            sids = [torch.LongTensor(i) for i in sids]
+            ssids = [torch.LongTensor(i) for i in ssids]
+            cpids = [torch.LongTensor(i) for i in cpids]
             tids = [torch.LongTensor(i) for i in tids]
-            return ids, sids, tids, label
+            return ids, ssids, tids, cpids, label
         else:
             # random shuffle
             random_idx = list(range(len(bundle['label'])))
@@ -333,17 +342,19 @@ class BERTFTCompDataset(Dataset):
         
     def collate(self, batch):
         if self.args['mode'] == 'train':
-            ids, sids, tids, label = [], [], [], []
+            ids, sids, tids, cpids, label = [], [], [], [], []
             for b in batch:
                 ids.extend(b[0])
                 sids.extend(b[1])
                 tids.extend(b[2])
-                label.extend(b[3])
+                cpids.extend(b[3])
+                label.extend(b[4])
             label = torch.LongTensor(label)
             return {
                 'ids': ids, 
                 'sids': sids,
                 'tids': tids, 
+                'cpids': cpids,
                 'label': label
             }
         else:

@@ -5,7 +5,7 @@ dataset=$1
 prefix_name=$2
 python test_api.py \
     --url 9.91.66.241 \
-    --port 23330 \
+    --port 23331 \
     --mode pipeline \
     --dataset $dataset \
     --topk 100 \

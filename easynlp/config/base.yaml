@@ -1,4 +1,6 @@
 datasets: 
+    filter_scorer_sensitive: zh
+    filter_scorer: zh
     potter: zh
     english_wiki: en
     chinese_wiki: zh
@@ -26,6 +28,7 @@ datasets:
     # writer-gen-test only has the test file for generation testing (en/zh)
     writer-gen-test: en
     wikitext103: en
+    copygeneration: zh
 
 # pretrained model and tokenizer
 tokenizer:
@@ -57,6 +60,8 @@ no_test_models:
     - gpt2-contrastive-search
     - gpt2-token-rerank
     - simrag
+    - phrase-copy
+    - gpt2-original
 #     - writer-dual-bert-phrase
 
 no_train_models:
@@ -66,6 +71,7 @@ no_train_models:
     - bert-mask-da-sep
     - gpt2
     - bm25
+    - copygeneration
 
 curriculum_learning_models:
     - dual-bert-hn-cl
@@ -118,8 +124,8 @@ models:
         model_name: SimCSE
         dataset_name: SimCSEDataset
         # dataset_name: SimCSEUnlikelyhoodDataset
-        inference_dataset_name: BERTSimCSEInferenceDataset
-        # inference_dataset_name: BERTSimCSEInferenceContextDataset
+        # inference_dataset_name: BERTSimCSEInferenceDataset
+        inference_dataset_name: BERTSimCSEInferenceContextDataset
         # inference_dataset_name: BERTSimCSEUnlikelyhoodInferenceDataset
         # inference_dataset_name: BERTSimCSEUnlikelyhoodInferenceContextDataset
     dual-bert-mixup: 
@@ -437,14 +443,21 @@ models:
         dataset_name: BERTDualWRDataset
         # inference_dataset_name: BERTDualFullWRInferenceDataset
         inference_dataset_name: BERTDualInferenceFullContextDataset
+    phrase-copy: 
+        type: Representation
+        model_name: DensePhraseEncoder
+        dataset_name: CopyGenerationDataset
+        inference_dataset_name: InferenceCopyGenerationDataset
     dual-bert: 
         type: Representation
         model_name: BERTDualEncoder
+        # model_name: BERTDualHiddenEncoder
         # model_name: BERTDualMVEncoder
         # dataset_name: BERTDualFullFakeCtxDataset
         # dataset_name: BERTDualDataset
         # dataset_name: BERTDualFullWithHardNegDataset
-        dataset_name: BERTDualFullDataset
+        dataset_name: FilterDRDataset
+        # dataset_name: BERTDualFullDataset
         # dataset_name: HORSETestDataset
         # dataset_name: BERTDualDAFullDataset
         # dataset_name: BERTDualRandomFullDataset
@@ -458,7 +471,7 @@ models:
         # dataset_name: BERTDualFullWithSelfPlayDataset
         # dataset_name: BERTDualFullPseudoDataset
         # inference_dataset_name: BERTDualFullFilterInferenceDataset
-        inference_dataset_name: BERTDualInferenceDataset
+        # inference_dataset_name: BERTDualInferenceDataset
         # inference_dataset_name: BERTDualInferenceWithTestDataset
         # inference_dataset_name: BERTDualInferenceFullWithTestDataset
         # inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
@@ -470,6 +483,7 @@ models:
         # inference_dataset_name: BERTDualInferenceFullContextDataset
         # inference_dataset_name: BERTDualInferenceFullContextSingleExtendDataset
         # inference_dataset_name: BERTDualInferenceFullForOne2ManyDataset
+        inference_dataset_name: FilterDRInferenceDataset
     dual-bert-triplet:
         type: Representation
         model_name: BERTDualEncoderTripletMargin
@@ -503,6 +517,11 @@ models:
         model_name: GPT2MemoryEncoder
         dataset_name: GPT2MemoryDataset
         inference_dataset_name: null
+    copygeneration: 
+        type: Generation
+        model_name: CopyGenerationEncoder
+        dataset_name: CopyGenerationDataset
+        inference_dataset_name: InferenceCopyGenerationDataset
     gpt2-contrastive-search: 
         type: Generation
         model_name: ContrastiveGPT2Encoder
@@ -531,9 +550,10 @@ models:
         type: Generation
         # model_name: GPT2OriginalModel
         model_name: GPT2DialogModel
+        dataset_name: CopyGenerationOnlyGenDataset
         # dataset_name: GPT2TaCLDataset
         # dataset_name: GPT2ForContrastiveDataset
-        dataset_name: GPT2DialogDataset
+        # dataset_name: GPT2DialogDataset
         inference_dataset_name: GPT2DialogDataset
     gpt2-rerank: 
         type: Generation
@@ -690,6 +710,13 @@ models:
         # inference_dataset_name: BERTDualInferenceDataset
         # inference_dataset_name: BERTDualInferenceFullDataset
         inference_dataset_name: BERTDualInferenceFullWithTestDataset
+    target-dialog: 
+        type: Target
+        model_name: BERTDualTargetHierarchicalTrsMVEncoder
+        model_name: BERTDualTargetEncoder
+        dataset_name: BERTDualFullHierDataset
+        dataset_name: BERTDualFullDataset
+        inference_dataset_name: BERTDualInferenceFullDataset
     dual-bert-hier-trs: 
         type: Representation
         # model_name: BERTDualHierarchicalTrsMVEncoder
@@ -744,11 +771,12 @@ models:
         type: Interaction
         model_name: BERTRetrieval
         # dataset_name: FineGrainedTestInteractionDataset
-        dataset_name: BERTFTDataset
+        # dataset_name: BERTFTDataset
+        dataset_name: FilterDataset
         # dataset_name: BERTFTFullDataset
         # dataset_name: HORSETestInteractionDataset
         # dataset_name: BERTFTTimeDataset
-        inference_dataset_name: null 
+        inference_dataset_name: FilterInferenceDataset
     bert-ft-essay: 
         type: Evaluation
         model_name: BERTEssayRetrieval
@@ -786,7 +814,8 @@ models:
     bert-ft-compare: 
         type: CompareInteraction
         model_name: BERTCompareRetrieval
-        dataset_name: BERTFTCompEasyDataset
+        # dataset_name: BERTFTCompEasyDataset
+        dataset_name: BERTFTCompDataset
         # dataset_name: HORSECompTestDataset
         inference_dataset_name: null
     dual-bert-comp-hn: 
@@ -861,7 +890,7 @@ models:
     bert-fp-comp: 
         type: PostTrain
         model_name: BERTFPCompPostTrain
-        dataset_name: PostTrainComparisonDataset
+        dataset_nams: PostTrainComparisonDataset
         inference_dataset_name: null
     bert-fp: 
         type: PostTrain
@@ -921,7 +950,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 1200
+version: 11
 
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
@@ -947,22 +976,23 @@ deploy:
     max_len: 512
     res_max_len: 64
     recall:
-        activate: true
-        model: hash-dual-bert-hier-trs
+        activate: false
+        # model: hash-dual-bert-hier-trs
         # model: bpr
-        # model: dual-bert
+        model: dual-bert
         topk: 10
         with_source: false
-        index_type: BFlat
-        index_nprobe: 1
-        dimension: 512
+        # index_type: BFlat
+        index_type: IVF6000,PQ8
+        index_nprobe: 5
+        dimension: 768
     rerank:
         activate: false
         model: null
     pipeline:
         activate: false
     pipeline_evaluation:
-        activate: false
+        activate: true
     generation:
         activate: false
         model: gpt2

@@ -89,26 +89,26 @@ class BERTSimCSEInferenceDataset(Dataset):
 
     def __getitem__(self, i):
         line = self.reader.get_line(i).strip()
-        line = ''.join(line.split('\t')[:-1])
+        items = line.split('\t')
+        text_id = items[-1]
+        line = ''.join(items[:-1])
         rids = self.vocab.encode(line, add_special_tokens=False)
         rids = [self.cls] + rids[:self.args['max_len']-2] + [self.sep]
         rid = torch.LongTensor(rids)
-        return rid, line, i
+        return rid, text_id
 
     def save(self):
         pass
         
     def collate(self, batch):
         rid = [i[0] for i in batch]
-        rid_text = [i[1] for i in batch]
-        rid_text_id = [i[2] for i in batch]
+        rid_text_id = [i[1] for i in batch]
         rid = pad_sequence(rid, batch_first=True, padding_value=self.pad)
         rid_mask = generate_mask(rid)
         rid, rid_mask = to_cuda(rid, rid_mask)
         return {
             'ids': rid, 
             'mask': rid_mask, 
-            'text': rid_text,
             'text_id': rid_text_id
         }
 
@@ -121,58 +121,40 @@ class BERTSimCSEInferenceContextDataset(Dataset):
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
         self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
-        suffix = args['tokenizer'].replace('/', '_')
-        self.pp_path = f'{os.path.split(path)[0]}/inference_simcse_ctx_{suffix}.pt'
-        if os.path.exists(self.pp_path):
-            self.data = torch.load(self.pp_path)
-            print(f'[!] load preprocessed file from {self.pp_path}')
-            return None
-        if self.args['dataset'] in ['chinese_wiki']:
-            path = f'{args["root_dir"]}/data/{self.args["dataset"]}/sample_data.txt'
-            with open(path) as f:
-                dataset = []
-                for line in tqdm(f.readlines()):
-                    dataset.append(json.loads(line.strip())['q'])
-            dataset = list(set(dataset))
-        else:
-            dataset = read_text_data_utterances(path, lang=self.args['lang'])
 
-        self.data = []
-        counter = 0
-        # for label, utterances in tqdm(dataset):
-        #     if label == 0:
-        #         continue
-        for utterances in tqdm(dataset):
-            if not utterances.strip():
-                continue
-            item = self.vocab.encode(utterances, add_special_tokens=False)
-            ids = [self.cls] + item[:self.args['max_len']-2] + [self.sep]
-            self.data.append({
-                'ids': ids, 
-                'text': utterances,
-                'index': counter
-            })
-            counter += 1
-                
+        rar_path = f'{args["root_dir"]}/data/{args["dataset"]}/{args["mode"]}.rar'
+        if os.path.exists(rar_path):
+            self.reader = torch.load(rar_path)
+            print(f'[!] load RandomAccessReader Object over')
+        else:
+            path = f'{args["root_dir"]}/data/{self.args["dataset"]}/base_data_nore.txt'
+            self.reader = RandomAccessReader(path)
+            self.reader.init()
+            torch.save(self.reader, rar_path)
+        self.size = self.reader.size
+        self.reader.init_file_handler()
+        print(f'[!] dataset size: {self.size}')
+
     def __len__(self):
-        return len(self.data)
+        return self.size
 
     def __getitem__(self, i):
-        bundle = self.data[i]
-        # ids = [torch.LongTensor(i) for i in bundle['ids']]
-        ids = torch.LongTensor(bundle['ids'])
-        utterances = bundle['text']
-        return ids, utterances, bundle['index']
+        line = self.reader.get_line(i).strip()
+        items = line.split('\t')
+        text_id = items[-1]
+        line = ''.join(items[:-1])
+        rids = self.vocab.encode(line, add_special_tokens=False)
+        rids = [self.cls] + rids[:self.args['max_len']-2] + [self.sep]
+        rid = torch.LongTensor(rids)
+        return rid, text_id
 
     def save(self):
-        data = torch.save(self.data, self.pp_path)
-        print(f'[!] save preprocessed dataset into {self.pp_path}')
+        pass
         
     def collate(self, batch):
         ids, text, index = [], [], []
         for i, j, k in batch:
             ids.append(i)
-            text.append(j)
             index.append(k)
         ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
         ids_mask = generate_mask(ids)
@@ -180,7 +162,6 @@ class BERTSimCSEInferenceContextDataset(Dataset):
         return {
             'ids': ids, 
             'mask': ids_mask, 
-            'text': text,
             'index': index,
         }
 

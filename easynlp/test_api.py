@@ -30,8 +30,8 @@ def load_pipeline_data_with_worker_id(path, size=1000):
     '''for pipeline and recall test'''
     data = read_text_data_utterances(path, lang='zh')
     dataset = []
-    for i in range(0, len(data), 50):
-        session = data[i:i+50]
+    for i in range(0, len(data), 10):
+        session = data[i:i+10]
         cache = []
         for label, utterances in session:
             if label == 1:
@@ -313,8 +313,8 @@ def SendPOST(url, port, method, params):
 
 def test_recall(args):
     data = load_fake_recall_data(
-        # f'{args["root_dir"]}/data/{args["dataset"]}/test.txt',
-        f'{args["root_dir"]}/data/{args["dataset"]}/query.txt',
+        f'{args["root_dir"]}/data/{args["dataset"]}/test.txt',
+        # f'{args["root_dir"]}/data/{args["dataset"]}/query.txt',
         size=args['size'],
     )
     # data = load_wz_recall_data(
@@ -452,6 +452,7 @@ def test_pipeline(args):
     error_counter = 0
     pbar = tqdm(list(enumerate(data)))
     for idx, data in pbar:
+        data = {'segment_list': [{'str': '想不想一起出去踢球'}]}
         data = json.dumps(data)
         rest = SendPOST(args['url'], args['port'], '/pipeline_evaluation', data)
         # rest = SendPOST(args['url'], args['port'], '/pipeline', data)
@@ -460,10 +461,10 @@ def test_pipeline(args):
             print(f'[!] ERROR happens in sample {idx}')
         else:
             collections.append(rest)
-            avg_times.append(rest['header']['core_time_cost_ms'])
-            avg_recall_times.append(rest['header']['recall_core_time_cost_ms'])
-            avg_rerank_times.append(rest['header']['rerank_core_time_cost_ms'])
-        pbar.set_description(f'[!] time: {round(np.mean(avg_times), 2)} ms; error: {error_counter}')
+            # avg_times.append(rest['header']['core_time_cost_ms'])
+            # avg_recall_times.append(rest['header']['recall_core_time_cost_ms'])
+            # avg_rerank_times.append(rest['header']['rerank_core_time_cost_ms'])
+        # pbar.set_description(f'[!] time: {round(np.mean(avg_times), 2)} ms; error: {error_counter}')
         # for debug
         print(rest)
     # show the result

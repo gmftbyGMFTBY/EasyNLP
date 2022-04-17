@@ -69,7 +69,8 @@ def create_app():
         '''
         try:
             data = json.loads(request.data)
-            (responses, mrrs, recall_t, rerank_t), core_time = pipelineevaluationagent.work(
+            # (responses, mrrs, recall_t, rerank_t), core_time = pipelineevaluationagent.work(
+            (responses, recall_t, rerank_t), core_time = pipelineevaluationagent.work(
                 data['segment_list'],
                 topk=pipeline_evaluation_args['recall']['topk'],
             )
@@ -91,7 +92,8 @@ def create_app():
         }
         if succ:
             contexts = [i['str'] for i in data['segment_list']]
-            rest = [{'context': c, 'response': r, 'mrr': mrr} for c, r, mrr in zip(contexts, responses, mrrs)]
+            # rest = [{'context': c, 'response': r, 'mrr': mrr} for c, r, mrr in zip(contexts, responses, mrrs)]
+            rest = [{'context': c, 'response': r} for c, r in zip(contexts, responses)]
             result['item_list'] = rest
             result['results'] = {}
             # show the evaluation results

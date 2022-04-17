@@ -685,12 +685,14 @@ class PostTrainComparisonDataset(Dataset):
             self.args['max_len'],
             sids=sids_,
         )
-        other_speaker = 0 if sids[-1] == 1 else 1
+        next_speaker = 1 if sids_[-1] == 0 else 0
         ids = [self.cls] + cids_ + [self.sep] + rids1_ + [self.sep] + rids2_ + [self.sep]
-        sids_ = [sids_[0]] + sids_ + [sids_[-1]] + [other_speaker] * (len(rids1_) + len(rids2_) + 2)
-        tids = [0] * (len(cids_) + 2) + [1] * (len(rids1_) + 1) + [0] * (len(rids2_) + 1)
+        cpids = [0] * (2 + len(sids_)) + [1] * (len(rids1_) + 1) + [2] * (len(rids2_) + 1)
+        sids_ = [sids_[0]] + sids_ + [sids[-1]] + [next_speaker] * (len(rids1_) + len(rids2_) + 2)
+        tids = [0] * (len(cids_) + 2) + [1] * (len(rids1_) + 1) + [1] * (len(rids2_) + 1)
         assert len(sids_) == len(ids)
-        return ids, tids, sids_
+        assert len(cpids) == len(ids)
+        return ids, tids, sids_, cpids
 
     def __getitem__(self, i):
         begin, end, max_l = self.table[i]
@@ -720,10 +722,10 @@ class PostTrainComparisonDataset(Dataset):
             response = self.data[rand_idx]
         ratio = random.random()
         if ratio > 0.5:
-            ids, tids, sids = self._packup(cids, ground_truth, response, sids)
+            ids, tids, sids, cpids = self._packup(cids, ground_truth, response, sids)
             label = 1
         else:
-            ids, tids, sids = self._packup(cids, response, ground_truth, sids)
+            ids, tids, sids, cpids = self._packup(cids, response, ground_truth, sids)
             label = 0
         mask_labels = mask_sentence(
             ids,
@@ -734,7 +736,7 @@ class PostTrainComparisonDataset(Dataset):
             mask=self.mask, 
             vocab_size=len(self.vocab),
         )
-        return ids, tids, sids, mask_labels, label
+        return ids, tids, sids, cpids, mask_labels, label
 
     def save(self):
         data = torch.save((self.data, self.table), self.pp_path)
@@ -742,28 +744,33 @@ class PostTrainComparisonDataset(Dataset):
         
     def collate(self, batch):
         ids, tids, sids, mask_labels, labels = [], [], [], [], []
-        for ids_, tids_, sids_, mask_labels_, labels_ in batch:
+        cpids = []
+        for ids_, tids_, sids_, cpids_, mask_labels_, labels_ in batch:
             ids.append(ids_)
             sids.append(sids_)
+            cpids.append(cpids_)
             tids.append(tids_)
             mask_labels.append(mask_labels_)
             labels.append(labels_)
         ids = [torch.LongTensor(i) for i in ids]
         sids = [torch.LongTensor(i) for i in sids]
+        cpids = [torch.LongTensor(i) for i in cpids]
         tids = [torch.LongTensor(i) for i in tids]
         mask_labels = [torch.LongTensor(i) for i in mask_labels]
         labels = torch.LongTensor(labels)
 
         ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
         sids = pad_sequence(sids, batch_first=True, padding_value=self.pad)
+        cpids = pad_sequence(cpids, batch_first=True, padding_value=self.pad)
         tids = pad_sequence(tids, batch_first=True, padding_value=self.pad)
         mask_labels = pad_sequence(mask_labels, batch_first=True, padding_value=-1)    # pad is not calculated for MLM
         attn_mask = generate_mask(ids)
-        ids, sids, tids, mask_labels, attn_mask, labels = to_cuda(ids, sids, tids, mask_labels, attn_mask, labels)
+        ids, sids, tids, cpids, mask_labels, attn_mask, labels = to_cuda(ids, sids, tids, cpids, mask_labels, attn_mask, labels)
         return {
             'ids': ids, 
             'sids': sids, 
             'tids': tids, 
+            'cpids': cpids,
             'mask_labels': mask_labels, 
             'attn_mask': attn_mask, 
             'label': labels,

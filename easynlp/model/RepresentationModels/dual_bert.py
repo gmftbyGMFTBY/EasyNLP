@@ -64,6 +64,16 @@ class BERTDualEncoder(nn.Module):
         dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
         dot_product = (dot_product + 1)/2
         return dot_product
+
+    @torch.no_grad()
+    def score(self, batch):
+        self.ctx_encoder.eval()
+        self.can_encoder.eval()
+        cid, rid = batch['ids'], batch['rids']
+        cid_mask, rid_mask = batch['ids_mask'], batch['rids_mask']
+        cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
+        score = torch.einsum('ij,ij->i', cid_rep, rid_rep)
+        return score
     
     def forward(self, batch):
         cid = batch['ids']
@@ -481,4 +491,104 @@ class BERTDualHNEncoder(nn.Module):
         acc = acc_num / batch_size
 
         return loss, acc
+
+
+class BERTDualHiddenEncoder(nn.Module):
+
+    def __init__(self, **args):
+        super(BERTDualHiddenEncoder, self).__init__()
+
+        model = args['pretrained_model']
+        self.temp = args['temp']
+        self.ctx_encoder = BertModel.from_pretrained(model)
+        self.can_encoder = BertModel.from_pretrained(model)
+        self.ctx_encoder.resize_token_embeddings(self.ctx_encoder.config.vocab_size+1)
+        self.can_encoder.resize_token_embeddings(self.can_encoder.config.vocab_size+1)
+        self.args = args
+
+    def _encode(self, cid, rid, cid_mask, rid_mask):
+        ctx_output = self.ctx_encoder(cid, cid_mask, output_hidden_states=True)['hidden_states']
+        can_output = self.can_encoder(rid, rid_mask, output_hidden_states=True)['hidden_states']
+
+        ctx_output = torch.stack(ctx_output[-4:])[:, :, 0, :]    # [L, B, E]
+        can_output = torch.stack(can_output[-4:])[:, :, 0, :]    # [L, B, E]
+        ctx_output = ctx_output.mean(dim=0)
+        can_output = can_output.mean(dim=0)
+
+        cid_rep, rid_rep = F.normalize(ctx_output, dim=-1), F.normalize(can_output, dim=-1)
+        return cid_rep, rid_rep
+
+    @torch.no_grad()
+    def get_cand(self, ids, attn_mask):
+        rid_rep = self.can_encoder(ids, attn_mask)
+        rid_rep = F.normalize(rid_rep, dim=-1)
+        return rid_rep
+
+    @torch.no_grad()
+    def get_ctx(self, ids, attn_mask):
+        cid_rep = self.ctx_encoder(ids, attn_mask)
+        cid_rep = F.normalize(cid_rep, dim=-1)
+        return cid_rep
+
+    @torch.no_grad()
+    def self_play_one_turn(self, context_lists, vocab):
+        self.ctx_encoder.eval()
+        ids_ = []
+        for context_list in context_lists:
+            tokens = vocab.batch_encode_plus(context_list, add_special_tokens=False)['input_ids']
+            ids = []
+            for u in tokens:
+                ids.extend(u + [vocab.sep_token_id])
+            ids.pop()
+            ids = [vocab.cls_token_id] + ids[-510:] + [vocab.sep_token_id]
+            ids = torch.LongTensor(ids)
+            ids_.append(ids)
+        ids = pad_sequence(ids_, batch_first=True, padding_value=vocab.pad_token_id)
+        ids_mask = generate_mask(ids)
+        # ids, ids_mask = to_cuda(ids, ids_mask)
+
+        bt = time.time()
+        embd = self.get_ctx(ids, ids_mask) 
+        ct = time.time() - bt
+        return embd.cpu().numpy(), ct
+
+    @torch.no_grad()
+    def predict(self, batch):
+        cid = batch['ids']
+        cid_mask = torch.ones_like(cid)
+        rid = batch['rids']
+        rid_mask = batch['rids_mask']
+
+        batch_size = rid.shape[0]
+        cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
+
+        dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
+        dot_product = (dot_product + 1)/2
+        return dot_product
+    
+    def forward(self, batch):
+        cid = batch['ids']
+        rid = batch['rids']
+        cid_mask = batch['ids_mask']
+        rid_mask = batch['rids_mask']
+
+        cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
+        # cid_rep, rid_rep = distributed_collect(cid_rep, rid_rep)
+
+        dot_product = torch.matmul(cid_rep, rid_rep.t()) 
+        dot_product /= self.temp
+        batch_size = len(cid_rep)
+
+        # constrastive loss
+        mask = torch.zeros_like(dot_product)
+        mask[range(batch_size), range(batch_size)] = 1. 
+        loss_ = F.log_softmax(dot_product, dim=-1) * mask
+        loss = (-loss_.sum(dim=1)).mean()
+
+        # acc
+        acc_num = (F.softmax(dot_product, dim=-1).max(dim=-1)[1] == torch.LongTensor(torch.arange(batch_size)).cuda()).sum().item()
+        acc = acc_num / batch_size
+
+        return loss, acc
+
 

@@ -1,5 +1,5 @@
 test_interval: 0.05
-valid_during_training: true
+valid_during_training: false
 full_turn_length: 5
 
 M: 16
@@ -7,8 +7,10 @@ train_data_size: 500000
 
 pretrained_model:
     zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
 tokenizer:
     zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
 
 # train configuration
 train:
@@ -23,7 +25,8 @@ train:
     epoch: 1
     warmup_ratio: 0.0
     checkpoint: 
-        path: dual-bert/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_700.pt
+        # path: dual-bert/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_800.pt
+        path: dual-bert/best__apdcephfs_share_916081_johntianlan_bert-base-uncased_1100.pt
         is_load: true
 
 # test configuration

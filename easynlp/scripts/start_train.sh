@@ -26,10 +26,12 @@ model_name=${names[1]}
 
 # train
 # echo "RUN $model_name on $dataset_name"
-./scripts/train.sh $dataset_name $model_name $str
-# ./scripts/train_cl.sh $dataset_name $model_name $str
+# ./scripts/train.sh $dataset_name $model_name $str
 
 # test on one gpu
-./scripts/test_rerank.sh $dataset_name $model_name 0
+# ./scripts/test_rerank.sh $dataset_name $model_name 0
 # test the generation model
 # ./scripts/test_generation.sh $dataset_name $model_name 0
+
+# inference clean large-scale dataset
+./scripts/inference_clean.sh $dataset_name $model_name $str

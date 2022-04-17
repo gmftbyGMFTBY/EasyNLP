@@ -26,14 +26,15 @@ def simcse_response_strategy(args):
             text_ids.extend(text_id)
             already_added.append((i, idx))
             print(f'[!] collect embeddings: {current_num}')
-            if current_num > 2000000:
+            if current_num > 3000000:
                 break
-        if current_num > 2000000:
+        if current_num > 3000000:
             break
     embds = np.concatenate(embds) 
     searcher = Searcher(args['index_type'], dimension=args['dimension'])
     searcher._build(embds, text_ids, speedup=True)
     print(f'[!] train the searcher over')
+    # searcher.move_to_cpu()
 
     # add the external dataset
     for i in tqdm(range(args['nums'])):

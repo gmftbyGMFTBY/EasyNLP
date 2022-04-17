@@ -44,12 +44,46 @@ class GenerationAgent(GenerationBaseAgent):
             self.test_model = self.test_model_inference
         elif self.args['model'] in ['gpt2-contrastive-search']:
             self.train_model = self.train_model_contrastive_search
+        elif self.args['model'] in ['copygeneration']:
+            self.train_model = self.train_model_copygeneration
         elif self.args['model'] in ['gpt2-un', 'gpt2-un-seq']:
             self.train_model = self.train_model_un
 
     def build_offline_index(self, iter_):
         size = self.model.module.build_offline_index(iter_)
         print(f'[!] build offline index over, size is: {size}')
+
+    def train_model_copygeneration(self, batch, recoder=None, current_step=0, pbar=None):
+        self.model.train()
+        self.optimizer.zero_grad()
+
+        # debug
+        # if current_step <= 3331:
+        #     pbar.update(1)
+        #     return 
+
+        with autocast():
+            (mle_loss, cl_loss, phrase_loss), (mle_acc, phrase_acc) = self.model(batch)
+            cl_loss *= self.args['cl_loss_alpha']
+            loss = mle_loss + cl_loss + phrase_loss
+            loss /= self.args['iter_to_accumulate']
+        self.scaler.scale(loss).backward()
+        if (current_step + 1) % self.args['iter_to_accumulate'] == 0:
+            self.scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+        self.scheduler.step()
+        if recoder:
+            recoder.add_scalar(f'train/RunLoss', loss.item(), current_step)
+            recoder.add_scalar(f'train/RunMLELoss', mle_loss.item(), current_step)
+            recoder.add_scalar(f'train/RunCLLoss', cl_loss.item(), current_step)
+            recoder.add_scalar(f'train/RunPhraseLoss', phrase_loss.item(), current_step)
+            recoder.add_scalar(f'train/TokenAcc', mle_acc, current_step)
+            recoder.add_scalar(f'train/PhraseAcc', phrase_acc, current_step)
+        pbar.set_description(f'[!] loss(mle|cl|phrase): {round(mle_loss.item(), 4)}|{round(cl_loss.item(), 4)}|{round(phrase_loss.item(), 4)}; acc(token|phrase): {round(mle_acc*100, 2)}|{round(phrase_acc*100, 2)}')
+        pbar.update(1)
+        return
     
     def train_model_contrastive_search(self, batch, recoder=None, current_step=0, pbar=None):
         self.model.train()
@@ -333,8 +367,8 @@ class GenerationAgent(GenerationBaseAgent):
         }
 
     def load_model(self, path):
-        state_dict = torch.load(path, map_location=torch.device('cpu'))
-        if self.args['model'] in self.args['no_train_models']:
+        if self.args['model'] in self.args['no_train_models'] and self.args['model'] != 'copygeneration':
+            state_dict = torch.load(path, map_location=torch.device('cpu'))
             if self.args['decoding_method'] in ['token_rerank_search']:
                 self.checkpointadapeter.init(
                     state_dict.keys(),
@@ -345,6 +379,7 @@ class GenerationAgent(GenerationBaseAgent):
                 print(f'[!] load model from {path}')
             return
         if self.args['model'] in ['gpt2']:
+            state_dict = torch.load(path, map_location=torch.device('cpu'))
             self.checkpointadapeter.init(
                 state_dict.keys(),
                 self.model.model.state_dict().keys(),
@@ -352,12 +387,21 @@ class GenerationAgent(GenerationBaseAgent):
             new_state_dict = self.checkpointadapeter.convert(state_dict)
             self.model.model.load_state_dict(new_state_dict)
         elif self.args['model'] in ['gpt2-unlikely']:
+            state_dict = torch.load(path, map_location=torch.device('cpu'))
             self.checkpointadapeter.init(
                 state_dict.keys(),
                 self.model.model.state_dict().keys(),
             )
             new_state_dict = self.checkpointadapeter.convert(state_dict)
             self.model.model.load_state_dict(new_state_dict)
+        elif self.args['model'] in ['copygeneration']:
+            pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
+            retrieval_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/phrase-copy/best_{pretrained_model_name}_{self.args["version"]}.pt'
+            pretrinaed_model_name = self.args['phrase_encoder_model'].replace('/', '_')
+            generation_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/gpt2-original/best_{pretrained_model_name}_{self.args["version"]}.pt'
+            self.model.retriever.load_state_dict(torch.load(retrieval_path, map_location=torch.device('cpu')))
+            self.model.generator.load_state_dict(torch.load(generation_path, map_location=torch.device('cpu')))
+            print(f'[!] load model from:\n - {generation_path}\n - {retrieval_path}')
         else:
             if self.args['mode'] == 'train':
                 # the context encoder model has been loaded (GPT-2)
@@ -370,12 +414,14 @@ class GenerationAgent(GenerationBaseAgent):
             else:
                 # test and inference mode
                 # self.model.load_state_dict(state_dict)
-                self.checkpointadapeter.init(
-                    state_dict.keys(),
-                    self.model.state_dict().keys(),
-                )
-                new_state_dict = self.checkpointadapeter.convert(state_dict)
-                self.model.load_state_dict(new_state_dict)
+                # self.checkpointadapeter.init(
+                #     state_dict.keys(),
+                #     self.model.state_dict().keys(),
+                # )
+                # new_state_dict = self.checkpointadapeter.convert(state_dict)
+                # self.model.load_state_dict(new_state_dict)
+
+                self.model.load_state_dict(state_dict)
             print(f'[!] load model from {path}')
 
     @torch.no_grad()
@@ -585,3 +631,75 @@ class GenerationAgent(GenerationBaseAgent):
             res = res[:res.index('[SEP]')]
         res = ''.join(res.split())
         return res
+
+    @torch.no_grad()
+    def simrag_talk(self, context_list, retrieval_list=[], topk_topp=False, scorer=None, copy_token_num=0):
+        self.model.eval()
+
+        # process the context into the token ids for simrag model
+        ## 1. gpt2 tokens
+        tokens = self.gpt2_tokenizer.batch_encode_plus(context_list, add_special_tokens=False)['input_ids']
+        gpt2_tokens = []
+        for u in tokens:
+            gpt2_tokens.extend(u + [self.gpt2_tokenizer.sep_token_id])
+        gpt2_tokens = gpt2_tokens[-self.args['max_len']:]
+        if topk_topp is False:
+            # prepare
+            ids = torch.LongTensor(gpt2_tokens).unsqueeze(0)
+            mask = generate_mask(ids)
+            ids, mask = to_cuda(ids, mask)
+            batch = {
+                'ids': ids,
+                'ids_mask': mask,
+                'rag_sentences': retrieval_list
+            }
+            assert scorer is not None
+            logits = self.model.predict(batch, scorer, copy_token_num)
+        else:
+            ids = torch.LongTensor(gpt2_tokens).unsqueeze(0)
+            mask = generate_mask(ids)
+            ids, mask = to_cuda(ids, mask)
+            batch = {
+                'ids': ids,
+                'ids_mask': mask,
+                'rag_sentences': retrieval_list
+            }
+            logits = self.model.predict_topk_topp(batch, copy_token_num)
+        res = self.gpt2_tokenizer.decode(logits[0])
+        if '[SEP]' in res:
+            res = res[:res.index('[SEP]')]
+        res = ''.join(res.split())
+        return res
+
+    @torch.no_grad()
+    def inference_copygeneration(self, inf_iter, size=500000):
+        self.model.eval()
+        pbar = tqdm(inf_iter)
+        embds, metas, texts = [], [], []
+        counter = 0
+        for batch in pbar:
+            ids = batch['ids']
+            ids_mask = batch['ids_mask']
+            # phrase_pos = batch['phrase_pos']
+            phrase_text = batch['phrase_text']
+            rep = self.model.module.get_phrase_rep(ids, ids_mask, phrase_pos).cpu()
+            embds.append(rep)
+            texts.extend(phrase_text)
+            # metas.extend(phrase_meta)
+            if len(texts) > size:
+                embds = torch.cat(embds, dim=0).numpy()
+                torch.save(
+                    (embds, texts), 
+                    f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
+                )
+                counter += 1
+                texts = []
+                embds = []
+        if len(texts) > 0:
+            embds = torch.cat(embds, dim=0).numpy()
+            torch.save(
+                (embds, texts), 
+                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
+            )
+
+

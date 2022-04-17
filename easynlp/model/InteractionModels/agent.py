@@ -31,8 +31,8 @@ class InteractionAgent(RetrievalBaseAgent):
         elif self.args['model'] in ['bert-ft-hier']:
             self.train_model = self.train_model_hier
 
-
-        self.criterion = nn.BCEWithLogitsLoss()
+        # self.criterion = nn.BCEWithLogitsLoss()
+        self.criterion = nn.CrossEntropyLoss()
         self.show_parameters(self.args)
 
     def train_model(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
@@ -53,8 +53,9 @@ class InteractionAgent(RetrievalBaseAgent):
                 else:
                     # bert-ft
                     output = self.model(batch)    # [B]
+                    ipdb.set_trace()
                     label = batch['label']
-                    loss = self.criterion(output, label.to(torch.float))
+                    loss = self.criterion(output, label)
 
             self.scaler.scale(loss).backward()
             self.scaler.unscale_(self.optimizer)
@@ -73,8 +74,7 @@ class InteractionAgent(RetrievalBaseAgent):
                 now_correct = (output == label).sum().item()
                 s += len(label)
             else:
-                output = torch.sigmoid(output) > 0.5
-                now_correct = torch.sum(output == label).item()
+                now_correct = (output.max(dim=-1)[1] == label).sum().item()
                 s += len(label)
             correct += now_correct
 
@@ -102,13 +102,7 @@ class InteractionAgent(RetrievalBaseAgent):
             label = batch['label']
             if core_time:
                 bt = time.time()
-            if self.args['model'] in['bert-ft-hier']:
-                if self.args['mode'] == 'train':
-                    scores = torch.sigmoid(self.model.module.predict(batch)).cpu().tolist()
-                else:
-                    scores = torch.sigmoid(self.model.predict(batch)).cpu().tolist()
-            else:
-                scores = torch.sigmoid(self.model(batch)).cpu().tolist()
+            scores = F.softmax(self.model(batch), dim=-1)[:, 1].cpu().tolist()
             if core_time:
                 et = time.time()
                 core_time_rest += et - bt
@@ -339,3 +333,27 @@ class InteractionAgent(RetrievalBaseAgent):
             recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
             recoder.add_scalar(f'train-whole/Acc', correct/batch_num, idx_)
         return batch_num
+
+    @torch.no_grad()
+    def inference_clean(self, inf_iter, fw, size=100000):
+        self.model.eval()
+        pbar = tqdm(inf_iter)
+
+        results = []
+        for batch in pbar:
+            raws = batch['raw']
+            scores = self.model(batch)    # [B, 2]
+            scores = F.softmax(scores, dim=-1)[:, 1].tolist()    # [B]
+            for raw, s in zip(raws, scores):
+                raw['bert_ft_score'] = round(s, 4)
+            results.extend(raws)
+            ipdb.set_trace()
+            if len(results) > size:
+                for rest in results:
+                    string = json.dumps(rest, ensure_ascii=False) + '\n'
+                    fw.write(string)
+                results = []
+        if len(results) > 0:
+            for rest in results:
+                string = json.dumps(rest, ensure_ascii=False) + '\n'
+                fw.write(string)
