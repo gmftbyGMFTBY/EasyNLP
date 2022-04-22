@@ -8,6 +8,9 @@ min_phrase_length: 3
 max_phrase_length: 16
 max_doc_length: 256
 hard_neg_for_each_doc: 50
+index_type: PCA64,IVF65536_HNSW32,PQ16
+dimension: 1536
+index_nprobe: 10
 
 phrase_tokenizer: /apdcephfs/share_916081/johntianlan/bert-base-chinese
 phrase_encoder_model: /apdcephfs/share_916081/johntianlan/bert-base-chinese
@@ -39,3 +42,13 @@ test:
     batch_size: 1
     prefix_length_rate: 0.5
     max_len: 256
+
+inference:
+    seed: 0
+    batch_size: 256
+    inf_phrase_min_len: 4
+    inf_phrase_max_len: 32
+    max_len: 512
+    index_type: IVF262144_HNSW32,PQ16
+    dimension: 1536
+    index_nprobe: 5

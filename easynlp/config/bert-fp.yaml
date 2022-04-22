@@ -1,19 +1,26 @@
 # basic configuration for building the model
 dropout: 0.1
 
+tokenizer:
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
+pretrained_model:
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
+
 # train configuration
 train:
     lr: 0.00003
     grad_clip: 1.0
     seed: 0
-    batch_size: 64
-    max_len: 256
+    batch_size: 128
+    max_len: 128
     min_mask_num: 1
     max_mask_num: 40
     masked_lm_prob: 0.15
-    min_context_length: 2
+    min_context_length: 1
     min_token_length: 20
-    epoch: 70
+    epoch: 15
     warmup_ratio: 0.01
     checkpoint: 
         path: bert-post/best_nspmlm.pt

@@ -18,6 +18,8 @@ def parser_args():
     parser.add_argument('--cut_size', type=int, default=500000)
     parser.add_argument('--work_mode', type=str, default='response')
     parser.add_argument('--pool_size', type=int, default=200)
+    parser.add_argument('--train_size', type=int, default=200)
+    parser.add_argument('--overall_size', type=int, default=200)
     parser.add_argument('--data_filter_size', type=int, default=500000)
     return parser.parse_args()
 
@@ -43,6 +45,9 @@ def inference(**args):
 
     if work_mode in ['response', 'simcse-response']:
         agent.inference(data_iter, size=args['cut_size'])
+        pass
+    elif work_mode in ['phrases']:
+        # agent.inference_phrases(data_iter, size=args['cut_size'])
         pass
     elif work_mode in ['clean']:
         agent.inference_clean(data_iter, data, size=args['cut_size'])
@@ -113,6 +118,8 @@ if __name__ == "__main__":
         da_strategy(args)
     elif args['work_mode'] in ['response', 'wz-simcse']:
         response_strategy(args)
+    elif args['work_mode'] in ['phrases']:
+        phrases_strategy(args)
     elif args['work_mode'] in ['simcse-response']:
         simcse_response_strategy(args)
     elif args['work_mode'] in ['response-test']:

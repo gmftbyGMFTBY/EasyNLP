@@ -2,6 +2,7 @@ from header import *
 from .utils import *
 from .util_func import *
 from .randomaccess import *
+from itertools import accumulate
 
 
 class CopyGenerationDataset(Dataset):
@@ -68,15 +69,29 @@ class CopyGenerationDataset(Dataset):
             ground_truth = ''.join([i for i, _ in item['results'][index:]])
             return prefix, ground_truth
 
+        # random sample the start index
+        lengths = [len(i) for i, _ in item['results']]
+        lengths = list(accumulate(lengths))
+        lengths = lengths[-1] - np.array(lengths)
+        index_range = 0
+        for idx, l in enumerate(lengths):
+            if l < self.args['max_len']:
+                break
+            index_range = idx
+        try:
+            start_index = random.sample(range(0, index_range))
+        except:
+            start_index = 0
+        
         docs, ids, counter = [], [], 0
-        for item, docid in item['results']:
-            items = self.vocab.encode(item, add_special_tokens=False)
+        for item_, docid in item['results'][start_index:]:
+            items = self.vocab.encode(item_, add_special_tokens=False)
             if len(ids) + len(items) > self.args['max_len']:
                 break
             if docid:
                 docid = docid[0]
                 if counter > 0:
-                    docs.append((counter - 1, len(item), len(items), docid[0], docid[1]))
+                    docs.append((counter - 1, len(item_), len(items), docid[0], docid[1]))
             ids.extend(items)
             counter += len(items)
 

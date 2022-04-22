@@ -13,7 +13,7 @@ class BERTRetrieval(nn.Module):
     def forward(self, batch):
         inpt = batch['ids']
         token_type_ids = batch['tids']
-        attn_mask = batch['mask']
+        attn_mask = batch['ids_mask']
 
         logits = self.model(
             input_ids=inpt,

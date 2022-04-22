@@ -315,8 +315,8 @@ def texsmart_segmentation(engine, text, useful_pos_tag=None):
     output = engine.parse_text(text)
     seg_sentence = []
     for each_word in output.phrases():
-        if each_word.tag in useful_pos_tag:
-            seg_sentence.append(each_word.str)
+        # if each_word.tag in useful_pos_tag:
+        seg_sentence.append(each_word.str)
     return seg_sentence
 
 # count lines of the large file

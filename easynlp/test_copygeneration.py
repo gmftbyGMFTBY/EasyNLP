@@ -18,6 +18,11 @@ def main_generation(**args):
     searcher_args = deepcopy(args)
     config = load_config(args)
     args.update(config)
+    
+    faiss_searcher_args = deepcopy(args)
+    faiss_searcher_args['model'] = 'phrase-copy'
+    config = load_config(faiss_searcher_args)
+    faiss_searcher_args.update(config)
 
     searcher_args['model'] = 'simcse'
     config = load_config(searcher_args)
@@ -56,6 +61,20 @@ def main_generation(**args):
     print(f'[!] init the searcher and dual-bert model over')
 
     agent.model.init_searcher(searcher_agent, searcher, test_data.base_data)
+
+    # faiss searcher
+    faiss_searcher = Searcher(
+        faiss_searcher_args['index_type'] ,
+        dimension=faiss_searcher_args['dimension'],
+        nprobe=faiss_searcher_args['index_nprobe']
+    )
+    pretrained_model_name = faiss_searcher_args['pretrained_model'].replace('/', '_')
+    model_name = faiss_searcher_args['model']
+    faiss_searcher.load(
+        f'{faiss_searcher_args["root_dir"]}/data/{faiss_searcher_args["dataset"]}/{model_name}_{pretrained_model_name}_faiss.ckpt',
+        f'{faiss_searcher_args["root_dir"]}/data/{faiss_searcher_args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt'        
+    )
+    agent.model.init_faiss_searcher(faiss_searcher)
     print(f'[!] init model over')
 
     collection = []
@@ -67,16 +86,21 @@ def main_generation(**args):
         batch['beam_width'] = 5
         batch['model_prediction_confidence'] = 0.4
         batch['phrase_alpha'] = 1.
-        batch['generation_method'] = 'topk-topp-search'
-        batch['update_step'] = 32
+        # batch['generation_method'] = 'topk-topp-search'
+        batch['generation_method'] = 'contrastive-search'
+        batch['update_step'] = 64
+
+        if not batch['prefix']:
+            continue
         
         for decoding_method in [
             'topk-topp-search', 
-            'greedy-search', 
-            'beam-search', 
+            # 'greedy-search', 
+            # 'beam-search', 
             'contrastive-search', 
-            'retrieval-search', 
-            'retrieval-generation-search'
+            # 'retrieval-search', 
+            # 'retrieval-generation-search'
+            'retrieval-generation-search-e2e'
         ]:
             batch['decoding_method'] = decoding_method
             res = agent.model.work(batch) 

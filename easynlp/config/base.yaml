@@ -62,6 +62,7 @@ no_test_models:
     - simrag
     - phrase-copy
     - gpt2-original
+    - scorer
 #     - writer-dual-bert-phrase
 
 no_train_models:
@@ -72,6 +73,7 @@ no_train_models:
     - gpt2
     - bm25
     - copygeneration
+    - scorer
 
 curriculum_learning_models:
     - dual-bert-hn-cl
@@ -447,16 +449,16 @@ models:
         type: Representation
         model_name: DensePhraseEncoder
         dataset_name: CopyGenerationDataset
-        inference_dataset_name: InferenceCopyGenerationDataset
+        inference_dataset_name: PhrasesInferenceDataset
     dual-bert: 
         type: Representation
         model_name: BERTDualEncoder
         # model_name: BERTDualHiddenEncoder
         # model_name: BERTDualMVEncoder
         # dataset_name: BERTDualFullFakeCtxDataset
-        # dataset_name: BERTDualDataset
+        dataset_name: BERTDualDataset
         # dataset_name: BERTDualFullWithHardNegDataset
-        dataset_name: FilterDRDataset
+        # dataset_name: FilterDRDataset
         # dataset_name: BERTDualFullDataset
         # dataset_name: HORSETestDataset
         # dataset_name: BERTDualDAFullDataset
@@ -773,6 +775,7 @@ models:
         # dataset_name: FineGrainedTestInteractionDataset
         # dataset_name: BERTFTDataset
         dataset_name: FilterDataset
+        # dataset_name: FilterSensitiveTestDataset
         # dataset_name: BERTFTFullDataset
         # dataset_name: HORSETestInteractionDataset
         # dataset_name: BERTFTTimeDataset
@@ -895,7 +898,8 @@ models:
     bert-fp: 
         type: PostTrain
         model_name: BERTFPPostTrain
-        dataset_name: PostTrainDataset
+        # dataset_name: PostTrainDataset
+        dataset_name: FilterPostTrainDataset
         inference_dataset_name: null 
     bert-fp-mono-plus: 
         type: PostTrain
@@ -939,18 +943,24 @@ models:
         model_name: TransEncoder
         dataset_name: MutualTrainingDataset
         inference_dataset_name: null
+    # scorer model do not exist, just the placeholder for bert-ft and dr-bert scorers
+    scorer: 
+        type: Scorer
+        model_name: Scorer
+        dataset_name: null
+        inference_dataset_name: FilterInferenceCombinationDataset
 
 # ========= Global configuration ========== #
 # huge file are saved in the root dir
-# root_dir: /apdcephfs/share_733425/johntianlan/MyReDial
-root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
+root_dir: /apdcephfs/share_733425/johntianlan/MyReDial
+# root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # root_dir: /apdcephfs/share_916081/dongyangma/johntianlan/MyReDial
 # root_dir: /apdcephfs/share_733425/johntianlan/MyReDial
 # root_dir: /home/johntianlan/sources/EasyNLP
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 11
+version: 15
 
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5

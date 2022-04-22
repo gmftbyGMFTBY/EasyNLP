@@ -26,11 +26,18 @@ class CopyGenerationEncoder(nn.Module):
         self.criterion_ = nn.CrossEntropyLoss(ignore_index=self.generator.vocab.pad_token_id, reduction='none')
         self.criterion = nn.CrossEntropyLoss(ignore_index=self.generator.vocab.pad_token_id)
 
+        # texsmart engine
+        # self.engine = NluEngine('/home/johntianlan/sources/texsmart-sdk-0.3.0-m-zh/data/nlu/kb', 1)
+
     def init_searcher(self, agent, searcher, base_data):
         self.search_agent = agent
         self.searcher = searcher  
         self.base_data = base_data
         print(f'[!] init the simcse search agent over')
+
+    def init_faiss_searcher(self, searcher):
+        self.faiss_searcher = searcher
+        print(f'[!] init the faiss searcher agent over')
 
     def search_docs(self, prefix):
         batch = self.searcher_agent.inference_context_one_sample(prefix).cpu().numpy()
@@ -46,6 +53,28 @@ class CopyGenerationEncoder(nn.Module):
         topk = dp.topk(self.args['search_topk'], dim=-1)[1]    # [K]
         candidates = [''.join(phrase_source[i][-1].split()) for i in topk]
         return candidates
+
+    def search_from_faiss(self, query):
+        candidates = self.faiss_searcher._search(query.cpu().numpy(), topk=self.args['recall_topk'])[0]
+        return candiates
+
+    def chinese_tokenization(self, doc, seg_url="http://100.77.13.7:8082"):
+        req = {
+            "str": doc,
+            "options": {
+                "pos_tagging":{"enable":False,"alg":"dnn"},
+                "ner": {
+                    "enable": False,
+                    "alg": "fine.high_acc"
+                }
+            }
+        }
+        result = requests.post(seg_url, data=json.dumps(req))
+        word_list = json.loads(result.content)["phrase_list"]
+        seg_sentence = []
+        for each_word in word_list:
+            seg_sentence.append(each_word["str"])
+        return seg_sentence
  
     @torch.no_grad()
     def process_documents(self, documents):
@@ -65,7 +94,12 @@ class CopyGenerationEncoder(nn.Module):
         # collect candidate phrases
         docs, doc_labels = [], []
         for doc in documents:
+
+            # texsmart segmentation
             segments = list(jieba.cut(doc))
+            # segments = texsmart_segmentation(self.engine, doc)
+            # segments = self.chinese_tokenization(doc)
+
             segments_label = []
             for seg in segments:
                 if _check_valid(seg):
@@ -186,6 +220,56 @@ class CopyGenerationEncoder(nn.Module):
         phrases = [(candidate, score) for candidate, score in zip(candidates, scores)]
         phrases = sorted(phrases, key=lambda x:x[1])
         return phrases[0][0]
+
+    @torch.no_grad()
+    def retrieval_generation_search_e2e(self, batch):
+        '''contrastive search + copy from the retrieved documents'''
+        self.retriever.eval()
+        self.generator.eval()
+        generation_method = batch['generation_method']
+        topk, topp, beam_width, model_prediction_confidence = batch['topk'], batch['topp'], batch['beam_width'], batch['model_prediction_confidence']
+        phrase_alpha = batch['phrase_alpha']
+        update_step = batch['update_step']
+        ids = batch['ids']
+        batch_size, seqlen = ids.size()
+        generated = []
+        while len(ids[0]) < seqlen + self.generator.test_max_len:
+            # init the query
+            query = self.retriever.get_query_rep(ids)
+            # search candidate phrases
+            candidates = self.search_from_faiss(query)
+            ipdb.set_trace()
+            break
+            # rerank candidates by ppl
+            candidate = self.rerank(ids[0], candidates)
+            # phrase ppl
+            candidate_ids = torch.LongTensor(
+                self.generator.vocab.encode(candidate, add_special_tokens=False)
+            ).cuda().unsqueeze(0)
+            candidate_length = len(candidate_ids[0])
+            phrase_ids = torch.cat([ids, candidate_ids], dim=-1)
+            ods = phrase_ids.clone().detach()
+            ods[:, :-candidate_length] = self.generator.vocab.pad_token_id
+            phrase_ids = phrase_ids[:, :-1]
+            ods = ods[:, 1:]
+            candidate_ppl = self.calculate_ppl_v2(phrase_ids, ods)
+            # token ppl
+            # cs_ids = ids.clone().detach()
+            # for _ in range(candidate_length):
+            cs_ids = self.decoding_one_step(ids, generation_method, topk=topk, topp=topp, beam_width=beam_width, model_prediction_confidence=model_prediction_confidence)
+            cs_ods = cs_ids.clone().detach()
+            cs_ods[:, :-candidate_length] = self.generator.vocab.pad_token_id
+            cs_ids_ = cs_ids.clone().detach()[:, :-1]
+            cs_ods = cs_ods[:, 1:]
+            token_ppl = self.calculate_ppl_v2(cs_ids_, cs_ods)
+            # dynamci switching
+            if candidate_ppl < phrase_alpha * token_ppl:
+                ids = torch.cat([ids, candidate_ids], dim=-1)
+                generated.append(f' [{candidate}] ')
+            else:
+                ids = cs_ids
+                generated.append(self.generator.vocab.convert_ids_to_tokens(ids[0, -1].item()))
+        return ''.join(generated)
     
     @torch.no_grad()
     def retrieval_generation_search(self, batch):
@@ -221,9 +305,11 @@ class CopyGenerationEncoder(nn.Module):
             ods = ods[:, 1:]
             candidate_ppl = self.calculate_ppl_v2(phrase_ids, ods)
             # token ppl
+            # cs_ids = ids.clone().detach()
+            # for _ in range(candidate_length):
             cs_ids = self.decoding_one_step(ids, generation_method, topk=topk, topp=topp, beam_width=beam_width, model_prediction_confidence=model_prediction_confidence)
             cs_ods = cs_ids.clone().detach()
-            cs_ods[:, :-1] = self.generator.vocab.pad_token_id
+            cs_ods[:, :-candidate_length] = self.generator.vocab.pad_token_id
             cs_ids_ = cs_ids.clone().detach()[:, :-1]
             cs_ods = cs_ods[:, 1:]
             token_ppl = self.calculate_ppl_v2(cs_ids_, cs_ods)
@@ -336,7 +422,8 @@ class CopyGenerationEncoder(nn.Module):
                 'topp': topp,
                 'beam_width': beam_width,
                 'model_prediction_confidence': model_prediction_confidence,
-                'update_step': update_step
+                'update_step': update_step,
+                'prefix_text': prefix,
             }
             response = self.retrieval_generation_search(batch)
         elif decoding_method == 'retrieval-generation-search':
@@ -352,9 +439,25 @@ class CopyGenerationEncoder(nn.Module):
                 'topp': topp,
                 'beam_width': beam_width,
                 'model_prediction_confidence': model_prediction_confidence,
-                'update_step': update_step
+                'update_step': update_step,
+                'prefix_text': prefix,
             }
             response = self.retrieval_generation_search(batch)
+        elif decoding_method == 'retrieval-generation-search-e2e':
+            ids = self.retriever.tokenizer.encode(prefix, add_special_tokens=False)
+            ids = torch.LongTensor(ids).unsqueeze(0).cuda()
+            batch = {
+                'ids': ids, 
+                'phrase_alpha': phrase_alpha, 
+                'generation_method': generation_method,
+                'topk': topk, 
+                'topp': topp,
+                'beam_width': beam_width,
+                'model_prediction_confidence': model_prediction_confidence,
+                'update_step': update_step,
+                'prefix_text': prefix,
+            }
+            response = self.retrieval_generation_search_e2e(batch)
         else:
             raise Exception(f'[!] Unknow search method: {decoding_method}')
         return response

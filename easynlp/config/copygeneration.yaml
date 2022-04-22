@@ -1,22 +1,22 @@
 test_max_len: 128
 prefix_len: 32
 doc_max_length: 256
-max_doc_num: 10
-min_phrase_length: 3
+max_doc_num: 50
+min_phrase_length: 2
 max_phrase_length: 16
 max_doc_length: 256
 # the topk phrases that be considered
-search_topk: 50
+search_topk: 20
 threshold: 20.
-recall_topk: 50
+recall_topk: 100
 # the max seqlength for calculating the phrase ppl
 max_rerank_len: 128
-phrase_alpha: 1.
+phrase_alpha: 0.8
 # dynamic update the docs
-update_step: 32
+update_step: 64
 test_max_len: 128
 # max query len for encoding SimCSE model
-max_query_len: 128
+max_query_len: 512
 contrastive_phrase_score_penalty: 100
 
 phrase_tokenizer: /apdcephfs/share_916081/johntianlan/bert-base-chinese

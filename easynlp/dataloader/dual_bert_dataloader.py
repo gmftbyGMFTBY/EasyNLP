@@ -31,16 +31,19 @@ class BERTDualDataset(Dataset):
             for label, utterances in tqdm(data):
                 if label == 0:
                     continue
-                item = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']
-                cids, rids = item[:-1], item[-1]
-                ids = []
-                for u in cids:
-                    ids.extend(u + [self.sep])
-                ids.pop()
-                ids = ids[-(self.args['max_len']-2):]    # ignore [CLS] and [SEP]
-                rids = rids[:(self.args['res_max_len']-2)]
-                ids = [self.cls] + ids + [self.sep]
-                rids = [self.cls] + rids + [self.sep]
+                try:
+                    item = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']
+                    cids, rids = item[:-1], item[-1]
+                    ids = []
+                    for u in cids:
+                        ids.extend(u + [self.sep])
+                    ids.pop()
+                    ids = ids[-(self.args['max_len']-2):]    # ignore [CLS] and [SEP]
+                    rids = rids[:(self.args['res_max_len']-2)]
+                    ids = [self.cls] + ids + [self.sep]
+                    rids = [self.cls] + rids + [self.sep]
+                except:
+                    continue
                 self.data.append({
                     'ids': ids,
                     'rids': rids,

@@ -1,0 +1,27 @@
+tokenizer: 
+    zh: /apdcephfs/share_733425/johntianlan/bert-base-chinese
+    en: /apdcephfs/share_733425/johntianlan/bert-base-uncased
+pretrained_model: 
+    zh: /apdcephfs/share_733425/johntianlan/bert-base-chinese
+    en: /apdcephfs/share_733425/johntianlan/bert-base-uncased
+
+inference:
+    seed: 0
+    batch_size: 512
+    max_len: 128
+    # ctx_max_len, res_max_len for DR-BERT
+    res_max_len: 64
+    ctx_max_len: 256
+    buff_size: 100000
+    # r_data_root_path: /apdcephfs/share_733425/johntianlan/chatbot-data-clean/weibo_clean
+    # w_data_root_path: /apdcephfs/share_733425/johntianlan/chatbot-data-clean/weibo_clean_v2
+    # r_data_root_path: /apdcephfs/share_916081/johntianlan/chatbot-data-clean/comments_clean
+    # w_data_root_path: /apdcephfs/share_916081/johntianlan/chatbot-data-clean/comments_clean_v2
+    r_data_root_path: /apdcephfs/share_916081/johntianlan/chatbot-data-clean/chat_270M_data_clean
+    w_data_root_path: /apdcephfs/share_916081/johntianlan/chatbot-data-clean/chat_270M_data_clean_v2
+    # r_data_root_path: /apdcephfs/share_733425/johntianlan/chatbot-data-clean/chat_1B_data_clean_part1
+    # w_data_root_path: /apdcephfs/share_733425/johntianlan/chatbot-data-clean/chat_1B_data_clean_part1_v2
+    # r_data_root_path: /apdcephfs/share_733425/johntianlan/chatbot-data-clean/comments_clean_part4
+    # w_data_root_path: /apdcephfs/share_733425/johntianlan/chatbot-data-clean/comments_clean_part4_v2
+    # r_data_root_path: /apdcephfs/share_733425/johntianlan/chatbot-data-clean/chat_270M_data_clean_part3
+    # w_data_root_path: /apdcephfs/share_733425/johntianlan/chatbot-data-clean/chat_270M_data_clean_part3_v2

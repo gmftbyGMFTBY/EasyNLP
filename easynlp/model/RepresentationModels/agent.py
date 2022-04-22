@@ -1155,6 +1155,9 @@ class RepresentationAgent(RetrievalBaseAgent):
                 path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_pq_model_{self.args["version"]}.pt'
                 self.model.pq = torch.load(path)
                 print(f'[!] load pq model from {path}')
+            elif self.args['model'] in ['phrase-copy']:
+                state_dict = torch.load(path, map_location=torch.device('cpu'))
+                self.model.module.load_state_dict(state_dict)
             else:
                 state_dict = torch.load(path, map_location=torch.device('cpu'))
                 # test and inference mode
@@ -1476,19 +1479,55 @@ class RepresentationAgent(RetrievalBaseAgent):
         self.model.eval()
         pbar = tqdm(inf_iter)
 
-        results = []
+        results, writers = [], []
         for batch in pbar:
+            if batch['ids'] is None:
+                break
             raws = batch['raw']
             scores = self.model.module.score(batch).tolist()    # [B]
             for raw, s in zip(raws, scores):
                 raw['dr_bert_score'] = round(s, 4)
             results.extend(raws)
-            if len(results) > size:
-                for rest in results:
+            writers.extend(batch['writers'])
+            if len(results) >= size:
+                for rest, fw in zip(results, writers):
                     string = json.dumps(rest, ensure_ascii=False) + '\n'
-                    inf_data.current_w_file.write(string)
+                    fw.write(string)
                 results = []
+                writers = []
         if len(results) > 0:
-            for rest in results:
+            for rest, fw in zip(results, writers):
                 string = json.dumps(rest, ensure_ascii=False) + '\n'
-                inf_data.current_w_file.write(string)
+                fw.write(string)
+
+    @torch.no_grad()
+    def inference_phrases(self, inf_iter, size=500000):
+        self.model.eval()
+        pbar = tqdm(inf_iter)
+        phrases, reps = [], []
+        idx = 0 
+        counter = 0
+        for batch in pbar:
+            ids = batch['ids']
+            ids_mask = batch['ids_mask']
+            pos = batch['pos']
+            text = batch['text']
+            p, t = self.model.module.get_phrase_rep(ids, ids_mask, pos, text)
+            reps.append(p)
+            phrases.extend(t)
+            if len(phrases) >= size:
+                reps = torch.cat(reps, dim=0).cpu().numpy()
+                torch.save(
+                    (reps, phrases), 
+                    f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
+                )
+                phrases, reps = [], []
+                idx += 1
+            counter += len(t)
+            pbar.set_description(f'[!] collect {counter} phrases for worker {self.args["local_rank"]}')
+        if len(phrases) > 0:
+            reps = torch.cat(reps, dim=0).cpu().numpy()
+            torch.save(
+                (reps, phrases), 
+                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
+            )

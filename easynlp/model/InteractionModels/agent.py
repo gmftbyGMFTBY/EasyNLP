@@ -31,7 +31,6 @@ class InteractionAgent(RetrievalBaseAgent):
         elif self.args['model'] in ['bert-ft-hier']:
             self.train_model = self.train_model_hier
 
-        # self.criterion = nn.BCEWithLogitsLoss()
         self.criterion = nn.CrossEntropyLoss()
         self.show_parameters(self.args)
 
@@ -53,7 +52,6 @@ class InteractionAgent(RetrievalBaseAgent):
                 else:
                     # bert-ft
                     output = self.model(batch)    # [B]
-                    ipdb.set_trace()
                     label = batch['label']
                     loss = self.criterion(output, label)
 
@@ -335,25 +333,27 @@ class InteractionAgent(RetrievalBaseAgent):
         return batch_num
 
     @torch.no_grad()
-    def inference_clean(self, inf_iter, fw, size=100000):
+    def inference_clean(self, inf_iter, inf_data, size=100000):
         self.model.eval()
         pbar = tqdm(inf_iter)
 
-        results = []
+        results, writers = [], []
         for batch in pbar:
+            if batch['ids'] is None:
+                break
             raws = batch['raw']
             scores = self.model(batch)    # [B, 2]
             scores = F.softmax(scores, dim=-1)[:, 1].tolist()    # [B]
             for raw, s in zip(raws, scores):
                 raw['bert_ft_score'] = round(s, 4)
             results.extend(raws)
-            ipdb.set_trace()
-            if len(results) > size:
-                for rest in results:
+            writers.extend(batch['writers'])
+            if len(results) >= size:
+                for rest, fw in zip(results, writers):
                     string = json.dumps(rest, ensure_ascii=False) + '\n'
                     fw.write(string)
-                results = []
+                results, writers = [], []
         if len(results) > 0:
-            for rest in results:
+            for rest, fw in zip(results, writers):
                 string = json.dumps(rest, ensure_ascii=False) + '\n'
                 fw.write(string)

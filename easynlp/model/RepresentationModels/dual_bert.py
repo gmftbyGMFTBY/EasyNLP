@@ -69,10 +69,12 @@ class BERTDualEncoder(nn.Module):
     def score(self, batch):
         self.ctx_encoder.eval()
         self.can_encoder.eval()
-        cid, rid = batch['ids'], batch['rids']
-        cid_mask, rid_mask = batch['ids_mask'], batch['rids_mask']
+        cid, rid = batch['ids_'], batch['rids_']
+        cid_mask, rid_mask = batch['ids_mask_'], batch['rids_mask_']
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
         score = torch.einsum('ij,ij->i', cid_rep, rid_rep)
+        # normalize to 0 ~ 1
+        # score = (score + 1)/2
         return score
     
     def forward(self, batch):

@@ -43,8 +43,11 @@ import linecache
 import nanopq
 
 # texsmart
-# sys.path.append('/home/johntianlan/sources/texsmart-sdk-0.3.0-m-zh/lib')
-# from tencent_ai_texsmart import *
+try:
+    sys.path.append('/home/johntianlan/sources/texsmart-sdk-0.3.0-m-zh/lib')
+    from tencent_ai_texsmart import *
+except:
+    pass
 
 logging.getLogger("transformers").setLevel(logging.WARNING)
 logging.getLogger("transformers.tokenization_utils").setLevel(logging.ERROR)

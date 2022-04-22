@@ -11,11 +11,11 @@ mv_num: 1
 
 # network issue, load locally
 tokenizer:
-    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
-    en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
-# pretrained_model:
-#     zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
-#     en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
+    zh: /apdcephfs/share_733425/johntianlan/bert-base-chinese
+    en: /apdcephfs/share_733425/johntianlan/bert-base-uncased
+pretrained_model:
+    zh: /apdcephfs/share_733425/johntianlan/bert-base-chinese
+    en: /apdcephfs/share_733425/johntianlan/bert-base-uncased
 
 # train configuration
 train:
@@ -36,12 +36,12 @@ train:
         # path: dual-bert-pt/best_bert-base-chinese.pt
         # path: bert-fp-no-cls/best_bert-base-chinese.pt
         # path: bert-fp/best_bert-base-chinese.pt
-        path: bert-fp-mono/best_bert-base-chinese.pt
-        # path: bert-fp-mono/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_709.pt
+        # path: bert-fp-mono/best_bert-base-chinese.pt
+        path: bert-fp/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_11.pt
         # path: bert-fp-mono/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_801.pt
         # path: bert-fp-mono/best_bert-base-uncased.pt
         # path: simcse/best_bert-base-chinese.pt
-        is_load: false
+        is_load: true
 
 # test configuration
 test:
@@ -65,7 +65,7 @@ inference:
     index_nprobe: 5
     dimension: 768
     buff_size: 100000
-    r_data_root_path: /apdcephfs/share_916081/johntianlan/chatbot-data-clean/weibo_clean
-    w_data_root_path: /apdcephfs/share_916081/johntianlan/chatbot-data-clean/weibo_clean_v2
+    r_data_root_path: /apdcephfs/share_733425/johntianlan/chatbot-data-clean/weibo_clean
+    w_data_root_path: /apdcephfs/share_733425/johntianlan/chatbot-data-clean/weibo_clean_v2
     # r_data_root_path: /home/johntianlan/chatbot-pretrain-data-split-test/weibo_clean
     # w_data_root_path: /home/johntianlan/chatbot-pretrain-data-split-test/weibo_clean_v2

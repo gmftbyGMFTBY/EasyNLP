@@ -24,17 +24,15 @@ IFS=$OLD_IFS
 dataset_name=${names[0]}
 model_name=${names[1]}
 
-# inference
-echo "IFNERENCE $model_name on $dataset_name"
-# self-play work mode
-# ./scripts/inference_self_play.sh $dataset_name $model_name $str
-# response work mode
-# ./scripts/inference_response.sh $dataset_name $model_name $str
-# context work mode
-# ./scripts/inference_context.sh $dataset_name $model_name $str
-# extend work mode
-# ./scripts/inference_ext_dialog.sh $dataset_name $model_name $str
-# bert mask data augmentation
-./scripts/inference_da.sh $dataset_name $model_name $str
-# simcse gray augmentation
-# ./scripts/inference_gray_simcse.sh $dataset_name $model_name $str
+# train
+# echo "RUN $model_name on $dataset_name"
+# ./scripts/train.sh $dataset_name $model_name $str
+
+# test on one gpu
+# ./scripts/test_rerank.sh $dataset_name $model_name 0
+# test the generation model
+# ./scripts/test_generation.sh $dataset_name $model_name 0
+
+# inference clean large-scale dataset
+./scripts/inference_clean.sh $dataset_name $model_name $str
+# ./scripts/inference_phrases.sh $dataset_name $model_name $str

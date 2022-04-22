@@ -33,6 +33,22 @@ class DensePhraseEncoder(nn.Module):
         )
 
     @torch.no_grad()
+    def get_phrase_rep(self, ids, ids_mask, pos, text):
+        self.eval()
+        rep = self.phrase_encoder(ids, ids_mask, output_hidden_states=True)['hidden_states'][-1]    # [B, S, E]
+        phrases, texts = [], []
+        for rep_, pos_, text_ in zip(rep, pos, text):
+            for (b, e) in pos_:
+                b_rep = rep_[b, :]
+                e_rep = rep_[e, :]
+                p_rep = torch.cat([b_rep, e_rep], dim=-1)
+                phrases.append(p_rep)
+            texts.extend(text_)
+        phrases = torch.stack(phrases)
+        phrases = F.normalize(phrases, dim=-1)
+        return phrases, texts
+
+    @torch.no_grad()
     def get_query_rep(self, ids):
         rep = self.model(input_ids=ids).last_hidden_state
         query = torch.cat([
