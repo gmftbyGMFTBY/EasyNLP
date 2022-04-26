@@ -1,17 +1,25 @@
 pretrained_model:
-    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    # zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    zh: /apdcephfs/share_916081/johntianlan/chinese-roberta-wwm-ext-large
+    # zh: /apdcephfs/share_916081/johntianlan/chinese-roberta-wwm-ext
     en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
 tokenizer:
-    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    # zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    zh: /apdcephfs/share_916081/johntianlan/chinese-roberta-wwm-ext-large
+    # zh: /apdcephfs/share_916081/johntianlan/chinese-roberta-wwm-ext
     en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
+
+is_step_for_training: true
+total_step: 240010
+save_every: 20000
 
 # train configuration
 train:
     lr: 0.00003
-    grad_clip: 5.0
+    grad_clip: 1.0
     seed: 0
-    batch_size: 48
-    max_len: 328
+    batch_size: 64
+    max_len: 128
     min_mask_num: 1
     max_mask_num: 20
     masked_lm_prob: 0.15

@@ -27,6 +27,9 @@ class PostTrainAgent(RetrievalBaseAgent):
             self.train_model = self.train_model_seed
         self.show_parameters(self.args)
 
+        if self.args['is_step_for_training']:
+            self.train_model = self.train_model_step
+
         # best metric (acc)
         self.best_acc = -1
         
@@ -328,3 +331,26 @@ class PostTrainAgent(RetrievalBaseAgent):
         ids, ids_mask, tids = to_cuda(ids, ids_mask, tids)
         vectors = self.model.get_embedding(ids, tids, ids_mask)    # [B, E]
         return vectors.cpu().numpy()
+
+    def train_model_step(self, batch, recoder=None, current_step=0, pbar=0):
+        self.model.train()
+        self.optimizer.zero_grad()
+        with autocast():
+            mlm_loss, cls_loss, token_acc, cls_acc = self.model(batch)
+            loss = mlm_loss + cls_loss
+        self.scaler.scale(loss).backward()
+        self.scaler.unscale_(self.optimizer)
+        clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+        self.scaler.step(self.optimizer)
+        self.scaler.update()
+        self.scheduler.step()
+        if recoder:
+            recoder.add_scalar(f'train/RunLoss', loss.item(), current_step)
+            recoder.add_scalar(f'train/RunCLSLoss', cls_loss.item(), current_step)
+            recoder.add_scalar(f'train/RunMLMLoss', mlm_loss.item(), current_step)
+            recoder.add_scalar(f'train/RunTokenAcc', token_acc, current_step)
+            recoder.add_scalar(f'train/RunAcc', cls_acc, current_step)
+        pbar.set_description(f'[!] loss: {round(cls_loss.item(), 4)}|{round(mlm_loss.item(), 4)}; acc: {round(100*cls_acc, 2)}|{round(100*token_acc, 2)}')
+        pbar.update(1)
+        return
+

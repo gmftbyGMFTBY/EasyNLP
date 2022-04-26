@@ -30,7 +30,7 @@ import hashlib
 import logging
 from copy import deepcopy
 import ipdb
-from transformers import BertTokenizer, BertTokenizerFast, XLMRobertaTokenizerFast, AutoModel, AutoTokenizer
+from transformers import BertTokenizer, BertTokenizerFast, XLMRobertaTokenizerFast, AutoModel, AutoTokenizer, T5ForConditionalGeneration
 import pickle
 import argparse
 from torch.nn.utils.rnn import pad_sequence

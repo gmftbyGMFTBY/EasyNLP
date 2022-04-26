@@ -1,14 +1,20 @@
 # basic configuration for building the model
 dropout: 0.1
 ext_read: false
-is_step_for_training: false
+is_step_for_training: true
+total_step: 240000
+save_every: 20000
 
 # network issue, load locally
 tokenizer:
-    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    # zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    zh: /apdcephfs/share_916081/johntianlan/chinese-roberta-wwm-ext-large
+    # zh: /apdcephfs/share_916081/johntianlan/chinese-roberta-wwm-ext
     en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
 pretrained_model:
-    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    # zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    zh: /apdcephfs/share_916081/johntianlan/chinese-roberta-wwm-ext-large
+    # zh: /apdcephfs/share_916081/johntianlan/chinese-roberta-wwm-ext
     en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
 
 # train configuration
@@ -16,8 +22,8 @@ train:
     lr: 0.00003
     grad_clip: 1.0
     seed: 0
-    batch_size: 256
-    max_len: 64
+    batch_size: 128
+    max_len: 32
     # minimum valid tokens number
     min_len: 5
     min_mask_num: 2

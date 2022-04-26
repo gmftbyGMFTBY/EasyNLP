@@ -99,8 +99,8 @@ def main_generation(**args):
             # 'beam-search', 
             'contrastive-search', 
             # 'retrieval-search', 
-            # 'retrieval-generation-search'
-            'retrieval-generation-search-e2e'
+            'retrieval-generation-search'
+            # 'retrieval-generation-search-e2e'
         ]:
             batch['decoding_method'] = decoding_method
             res = agent.model.work(batch) 

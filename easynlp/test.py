@@ -439,6 +439,26 @@ def main_recall(**args):
                     f.write(f'{neg}\n')
                 f.write('\n')
 
+
+def main_acc_test(**args):
+    args['mode'] = 'test'
+    new_args = deepcopy(args)
+    config = load_config(args)
+    args.update(config)
+
+    random.seed(args['seed'])
+    torch.manual_seed(args['seed'])
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args['seed'])
+
+    test_data, test_iter, _ = load_dataset(args)
+    agent = load_model(args)
+    pretrained_model_name = args['pretrained_model'].replace('/', '_')
+    save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}_{args["version"]}.pt'
+    agent.load_model(save_path)
+    agent.test_model_acc(test_iter)
+
+
 def main_horse_human(**args):
     args['mode'] = 'test'
     new_args = deepcopy(args)
@@ -697,5 +717,7 @@ if __name__ == "__main__":
         main_compare(**args)
     elif args['mode'] == 'rerank_time':
         main_rerank_time(**args)
+    elif args['mode'] == 'rerank_acc':
+        main_acc_test(**args)
     else:
         raise Exception(f'[!] Unknown mode: {args["mode"]}')

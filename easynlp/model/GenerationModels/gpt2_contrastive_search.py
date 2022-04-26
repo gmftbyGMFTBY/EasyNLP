@@ -18,6 +18,12 @@ class ContrastiveGPT2Encoder(nn.Module):
             self.special_tokens = set([self.tokenizer.pad_token_id, self.tokenizer.cls_token_id, self.tokenizer.unk_token_id, self.tokenizer.sep_token_id])
             self.unk = self.tokenizer.unk_token_id
             self.sep = self.tokenizer.sep_token_id
+        elif args['dataset'] in ['magic_wit', 'magic_laion400m']:
+            self.sos_token = '<-start_of_text->'
+            self.pad_token = '<-pad->'
+            self.tokenizer.add_tokens([self.sos_token, self.pad_token])
+            self.sos, self.pad = self.tokenizer.convert_tokens_to_ids([self.sos_token, self.pad_token])
+            self.eos_token, self.eos_token_id = self.tokenizer.bos_token, self.tokenizer.bos_token_id
         else:
             self.pad = self.tokenizer.bos_token_id
             self.unk = self.tokenizer.bos_token_id
@@ -27,6 +33,7 @@ class ContrastiveGPT2Encoder(nn.Module):
 
         # model
         self.model = GPT2LMHeadModel.from_pretrained(model_name)
+        self.model.resize_token_embeddings(len(self.tokenizer))
         self.embed_dim = self.model.config.hidden_size
         # decoding length
         self.test_max_len = args['test_gen_max_len']

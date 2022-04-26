@@ -1,10 +1,9 @@
 import torch
-import pickle
 from tqdm import tqdm
 
 class RandomAccessReader(object):
 
-    def __init__(self, filepath, endline_character='\n', print_interval=10000):
+    def __init__(self, filepath, endline_character='\n', print_interval=1000):
         """
         :param filepath:  Absolute path to file
         :param endline_character: Delimiter for lines. Defaults to newline character (\n)
@@ -57,43 +56,20 @@ class RandomAccessReader(object):
 
     def get_line(self, line_number):
         line_data = self._lines[line_number]
-        # self.file_handler.seek(line_data['position'])
-        # string = self.file_handler.read(line_data['length'])
-        self.file_handler.seek(line_data[0])
-        string = self.file_handler.read(line_data[1])
+        self.file_handler.seek(line_data['position'])
+        string = self.file_handler.read(line_data['length'])
         return string
 
     def reset_filepath(self, new_path):
         print(f'[!] make sure raw text keep the same, only its path is changed!!!')
         self._filepath = new_path
 
-    def save_to_text(self, path):
-        with open(path, 'w', encoding='utf-8') as f:
-            for item in tqdm(self._lines):
-                start_idx = item['position']
-                length = item['length']
-                f.write(f'{start_idx}\t{length}\n')
-        print(f'[!] save the start position and length into {path}')
-            
-    def load_from_text(self, path, size=-1):
-        with open(path, encoding='utf-8') as f:
-            lines = []
-            for line in f:
-                start, length = line.strip().split('\t')
-                start, length = int(start), int(length)
-                lines.append((start, length))
-                if len(lines) % self._print_interval == 0:
-                    print(f'[!] load {len(lines)}', end='\r')
-                if len(lines) == size:
-                    break
-        self._lines = lines
-        print(f'[!] load {len(lines)} from {path}')
-
-
 if __name__ == "__main__":
-    with open('/apdcephfs/share_916081/johntianlan/chatbot-large-scale-dataset-final-version/train.rar', 'rb') as f:
-        reader = pickle.load(f)
-    exit()
+    # reader = RandomAccessReader('train.txt')
+    # reader.init()
+    reader = torch.load('test.rar')
+    print(f'[!] reader lines: {reader.size}')
+    # torch.save(reader, 'test.rar')
 
     # test error
     reader.init_file_handler()

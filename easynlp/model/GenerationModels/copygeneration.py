@@ -56,7 +56,7 @@ class CopyGenerationEncoder(nn.Module):
 
     def search_from_faiss(self, query):
         candidates = self.faiss_searcher._search(query.cpu().numpy(), topk=self.args['recall_topk'])[0]
-        return candiates
+        return candidates
 
     def chinese_tokenization(self, doc, seg_url="http://100.77.13.7:8082"):
         req = {
@@ -291,6 +291,8 @@ class CopyGenerationEncoder(nn.Module):
             query = self.retriever.get_query_rep(ids)
             # search candidate phrases
             candidates = self.search_from_documents(query, phrase_reps, phrase_sources)
+            ipdb.set_trace()
+            break
             # rerank candidates by ppl
             candidate = self.rerank(ids[0], candidates)
             # phrase ppl

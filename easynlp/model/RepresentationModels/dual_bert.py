@@ -66,6 +66,17 @@ class BERTDualEncoder(nn.Module):
         return dot_product
 
     @torch.no_grad()
+    def predict_acc(self, batch):
+        cid = batch['ids']
+        cid_mask = batch['ids_mask']
+        rid = batch['rids']
+        rid_mask = batch['rids_mask']
+
+        cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
+        dp = torch.einsum('ij,ij->i', cid_rep, rid_rep)
+        return dp
+
+    @torch.no_grad()
     def score(self, batch):
         self.ctx_encoder.eval()
         self.can_encoder.eval()

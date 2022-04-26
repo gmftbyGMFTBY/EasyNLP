@@ -1,4 +1,7 @@
 datasets: 
+    chinese_dialog_pretrain: zh
+    magic_laion400m: en
+    magic_wit: en
     filter_scorer_sensitive: zh
     filter_scorer: zh
     potter: zh
@@ -63,6 +66,8 @@ no_test_models:
     - phrase-copy
     - gpt2-original
     - scorer
+    - dialog-simctg
+    - dialog-eva
 #     - writer-dual-bert-phrase
 
 no_train_models:
@@ -456,7 +461,8 @@ models:
         # model_name: BERTDualHiddenEncoder
         # model_name: BERTDualMVEncoder
         # dataset_name: BERTDualFullFakeCtxDataset
-        dataset_name: BERTDualDataset
+        # dataset_name: BERTDualDataset
+        dataset_name: BERTDualAccDataset
         # dataset_name: BERTDualFullWithHardNegDataset
         # dataset_name: FilterDRDataset
         # dataset_name: BERTDualFullDataset
@@ -531,7 +537,8 @@ models:
         # dataset_name: GPT2ForContrastiveForBigDataset
         # dataset_name: GPT2ForContrastiveForBigArxivDataset
         # dataset_name: GPT2ForContrastiveEnDataset
-        dataset_name: GPT2WikiTextDataset
+        # dataset_name: GPT2WikiTextDataset
+        dataset_name: MAGICGPT2Dataset
         inference_dataset_name: WriterInferenceDataset
     gpt2-cl: 
         type: Generation
@@ -774,7 +781,8 @@ models:
         model_name: BERTRetrieval
         # dataset_name: FineGrainedTestInteractionDataset
         # dataset_name: BERTFTDataset
-        dataset_name: FilterDataset
+        # dataset_name: FilterDataset
+        dataset_name: BERTFTAccDataset
         # dataset_name: FilterSensitiveTestDataset
         # dataset_name: BERTFTFullDataset
         # dataset_name: HORSETestInteractionDataset
@@ -893,7 +901,8 @@ models:
     bert-fp-comp: 
         type: PostTrain
         model_name: BERTFPCompPostTrain
-        dataset_nams: PostTrainComparisonDataset
+        # dataset_nams: PostTrainComparisonDataset
+        dataset_name: PostTrainComparisonBigDataset
         inference_dataset_name: null
     bert-fp: 
         type: PostTrain
@@ -914,7 +923,8 @@ models:
     bert-fp-mono: 
         type: PostTrain
         model_name: BERTMonolingualPostTrain
-        dataset_name: PostTrainMonoDataset
+        # dataset_name: PostTrainMonoDataset
+        dataset_name: PostTrainMonoBigDataset
         # dataset_name: PostTrainMonoWriterDataset
         # dataset_name: WZPostTrainMonoDataset
         inference_dataset_name: null 
@@ -949,18 +959,32 @@ models:
         model_name: Scorer
         dataset_name: null
         inference_dataset_name: FilterInferenceCombinationDataset
+    # ===== dialog prtraining model ===== #
+    dialog-simctg: 
+        type: Generation
+        model_name: DialogSimCTG
+        dataset_name: DialogSimCTGDataset
+        inference_dataset_name: null
+    dialog-eva: 
+        type: Generation
+        model_name: DialogEVA
+        dataset_name: DialogEVADataset
+        inference_dataset_name: null
+    
+
+    
 
 # ========= Global configuration ========== #
 # huge file are saved in the root dir
-root_dir: /apdcephfs/share_733425/johntianlan/MyReDial
-# root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
+# root_dir: /apdcephfs/share_733425/johntianlan/MyReDial
+root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # root_dir: /apdcephfs/share_916081/dongyangma/johntianlan/MyReDial
 # root_dir: /apdcephfs/share_733425/johntianlan/MyReDial
 # root_dir: /home/johntianlan/sources/EasyNLP
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 15
+version: 16
 
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5

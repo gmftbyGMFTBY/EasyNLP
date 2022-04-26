@@ -1,4 +1,5 @@
 from header import *
+from randomaccess import RandomAccessReader
 from .utils import *
 from .util_func import *
 
@@ -632,14 +633,12 @@ class PostTrainComparisonDataset(Dataset):
         self.args = args
         self.vocab = vocab
         self.vocab.add_tokens(['[EOS]'])
-
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
         self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
         self.unk = self.vocab.convert_tokens_to_ids('[UNK]')
         self.mask = self.vocab.convert_tokens_to_ids('[MASK]')
         self.eos = self.vocab.convert_tokens_to_ids('[EOS]')
-
         self.special_tokens = set([self.pad, self.sep, self.cls, self.unk, self.mask, self.eos])
 
         suffix = args['tokenizer'].replace('/', '_')
@@ -1084,6 +1083,203 @@ class WZPostTrainMonoDataset(Dataset):
         for ids_, mask_labels_ in batch:
             ids.append(ids_)
             mask_labels.append(mask_labels_)
+        ids = [torch.LongTensor(i) for i in ids]
+        mask_labels = [torch.LongTensor(i) for i in mask_labels]
+        ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+        mask_labels = pad_sequence(mask_labels, batch_first=True, padding_value=-1)    # pad is not calculated for MLM
+        attn_mask = generate_mask(ids)
+        ids, mask_labels, attn_mask = to_cuda(ids, mask_labels, attn_mask)
+        return {
+            'ids': ids, 
+            'mask_labels': mask_labels, 
+            'attn_mask': attn_mask, 
+        }
+
+
+# for bigger dataset that can not be loaded into the RAM
+class PostTrainComparisonBigDataset(Dataset):
+
+    '''Dynamic Mask: no mask token will be set as the -1 label
+    For chinese corpus, the train.txt and test.txt must have been tokenzied by the white space'''
+    
+    def __init__(self, vocab, path, **args):
+        self.args = args
+        self.vocab = vocab
+        self.vocab.add_tokens(['[EOS]'])
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
+        self.unk = self.vocab.convert_tokens_to_ids('[UNK]')
+        self.mask = self.vocab.convert_tokens_to_ids('[MASK]')
+        self.eos = self.vocab.convert_tokens_to_ids('[EOS]')
+        self.special_tokens = set([self.pad, self.sep, self.cls, self.unk, self.mask, self.eos])
+
+        rar_path = f'{args["root_dir"]}/data/{args["dataset"]}/train_rar.txt'
+        path = f'{args["root_dir"]}/data/{args["dataset"]}/data.txt'
+        self.reader = RandomAccessReader(path)
+        self.reader.load_from_text(rar_path, size=10000)
+        self.size = self.reader.size
+        self.reader.init_file_handler()
+        print(f'[!] load RandomAccessReader over, dataset size: {self.size}')
+
+    def __len__(self):
+        return self.size
+    
+    def _packup(self, cids, rids1, rids2):
+        cids_, rids1_, rids2_ = deepcopy(cids), deepcopy(rids1), deepcopy(rids2)
+        truncate_pair_two_candidates(
+            cids_, rids1_, rids2_,
+            self.args['max_len'],
+        )
+        ids = [self.cls] + cids_ + [self.sep] + rids1_ + [self.sep] + rids2_ + [self.sep]
+        cpids = [0] * (2 + len(cids_)) + [1] * (len(rids1_) + 1) + [2] * (len(rids2_) + 1)
+        tids = [0] * (len(cids_) + 2) + [1] * (len(rids1_) + 1) + [1] * (len(rids2_) + 1)
+        assert len(cpids) == len(ids) == len(tids)
+        return ids, tids, cpids
+
+    def __getitem__(self, i):
+        try:
+            line = json.loads(self.reader.get_line(i))
+            session = self.vocab.batch_encode_plus(line['data'], add_special_tokens=False)['input_ids']
+            cids = []
+            for u in session[:-1]:
+                cids.extend(u + [self.eos])
+            cids.pop()
+            # ground-truth
+            ground_truth = session[-1]
+            # negative samples
+            ratio = random.random()
+            if ratio > 0.7:
+                response = random.choice(session[:-1])
+            else:
+                random_sample = json.loads(self.reader.get_line(random.choice(range(self.size))))['data']
+                response = random.choice(random_sample)
+                response = self.vocab.encode(response, add_special_tokens=False)
+            ratio = random.random()
+            if ratio > 0.5:
+                ids, tids, cpids = self._packup(cids, ground_truth, response)
+                label = 1
+            else:
+                ids, tids, cpids = self._packup(cids, response, ground_truth)
+                label = 0
+            mask_labels = mask_sentence(
+                ids,
+                self.args['min_mask_num'], 
+                self.args['max_mask_num'], 
+                self.args['masked_lm_prob'], 
+                special_tokens=self.special_tokens, 
+                mask=self.mask, 
+                vocab_size=len(self.vocab),
+            )
+            return {
+                'ids': ids, 
+                'tids': tids, 
+                'cpids': cpids, 
+                'mask_labels': mask_labels, 
+                'label': label
+            }
+        except Exception as error:
+            print(error)
+            return None
+
+    def save(self):
+        pass
+        
+    def collate(self, batch):
+        ids, tids, mask_labels, labels = [], [], [], []
+        cpids = []
+        for batch in batch:
+            if batch is None:
+                continue
+            ids.append(batch['ids'])
+            cpids.append(batch['cpids'])
+            tids.append(batch['tids'])
+            mask_labels.append(batch['mask_labels'])
+            labels.append(batch['label'])
+        ids = [torch.LongTensor(i) for i in ids]
+        cpids = [torch.LongTensor(i) for i in cpids]
+        tids = [torch.LongTensor(i) for i in tids]
+        mask_labels = [torch.LongTensor(i) for i in mask_labels]
+        labels = torch.LongTensor(labels)
+
+        ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+        cpids = pad_sequence(cpids, batch_first=True, padding_value=self.pad)
+        tids = pad_sequence(tids, batch_first=True, padding_value=self.pad)
+        mask_labels = pad_sequence(mask_labels, batch_first=True, padding_value=-1)    # pad is not calculated for MLM
+        attn_mask = generate_mask(ids)
+        ids, tids, cpids, mask_labels, attn_mask, labels = to_cuda(ids, tids, cpids, mask_labels, attn_mask, labels)
+        return {
+            'ids': ids, 
+            'tids': tids, 
+            'cpids': cpids,
+            'mask_labels': mask_labels, 
+            'attn_mask': attn_mask, 
+            'label': labels,
+        }
+
+
+class PostTrainMonoBigDataset(Dataset):
+
+    def __init__(self, vocab, path, **args):
+        self.args = args
+        self.vocab = vocab
+        self.vocab.add_tokens(['[EOS]'])
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
+        self.unk = self.vocab.convert_tokens_to_ids('[UNK]')
+        self.mask = self.vocab.convert_tokens_to_ids('[MASK]')
+        self.eos = self.vocab.convert_tokens_to_ids('[EOS]')
+
+        self.special_tokens = set([self.pad, self.sep, self.cls, self.unk, self.mask, self.eos])
+        rar_path = f'{args["root_dir"]}/data/{args["dataset"]}/train_rar.txt'
+        path = f'{args["root_dir"]}/data/{args["dataset"]}/data.txt'
+        self.reader = RandomAccessReader(path)
+        self.reader.load_from_text(rar_path)
+        self.size = self.reader.size
+        self.reader.init_file_handler()
+        print(f'[!] load RandomAccessReader over, dataset size: {self.size}')
+
+    def __len__(self):
+        return self.size
+
+    def __getitem__(self, i):
+        try:
+            line = json.loads(self.reader.get_line(i))
+            sentences = line['data']
+            max_l = -1
+            for s in sentences:
+                if len(s) > max_l:
+                    max_l = len(s)
+                    sentence = s
+
+            ids = [self.cls] + self.vocab.encode(sentence, add_special_tokens=False)[:self.args['max_len']-2] + [self.sep]
+            mask_label = mask_sentence(
+                ids,
+                self.args['min_mask_num'], 
+                self.args['max_mask_num'], 
+                self.args['masked_lm_prob'], 
+                special_tokens=self.special_tokens, 
+                mask=self.mask, 
+                vocab_size=len(self.vocab),
+            )
+            return {
+                'ids': ids,
+                'mask_labels': mask_label
+            }
+        except:
+            return None
+
+    def save(self):
+        pass
+        
+    def collate(self, batch):
+        ids, mask_labels = [], []
+        for batch in batch:
+            if batch is None:
+                continue
+            ids.append(batch['ids'])
+            mask_labels.append(batch['mask_labels'])
         ids = [torch.LongTensor(i) for i in ids]
         mask_labels = [torch.LongTensor(i) for i in mask_labels]
         ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)

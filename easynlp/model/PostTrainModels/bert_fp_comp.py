@@ -13,7 +13,7 @@ class BERTFPCompPostTrain(nn.Module):
 
     def forward(self, batch):
         inpt = batch['ids']
-        speaker_ids = batch['sids']
+        # speaker_ids = batch['sids']
         token_type_ids = batch['tids']
         cpids = batch['cpids']
         attn_mask = batch['attn_mask']

@@ -87,6 +87,22 @@ class InteractionAgent(RetrievalBaseAgent):
             recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
             recoder.add_scalar(f'train-whole/Acc', correct/s, idx_)
         return batch_num
+
+    @torch.no_grad()
+    def test_model_acc(self, test_iter, print_output=False, rerank_agent=None, core_time=False):
+        self.model.eval()
+        pbar = tqdm(test_iter)
+        total_mrr, total_prec_at_one, total_map = 0, 0, 0
+        total_examples, total_correct = 0, 0
+        k_list = [1, 2, 5, 10]
+        core_time_rest = 0
+        acc = []
+        for idx, batch in enumerate(pbar):
+            label = batch['label']
+            scores = F.softmax(self.model(batch), dim=-1)[:, 1]
+            acc.append(((scores > 0.5) == label).to(torch.float).mean().item())
+        acc = round(np.mean(acc), 4)
+        print(f'[!] acc ratio: {acc}')
     
     @torch.no_grad()
     def test_model(self, test_iter, print_output=False, rerank_agent=None, core_time=False):

@@ -42,7 +42,7 @@ class GenerationAgent(GenerationBaseAgent):
             self.train_model = self.train_model_rerank
         elif self.args['model'] in ['gpt2']:
             self.test_model = self.test_model_inference
-        elif self.args['model'] in ['gpt2-contrastive-search']:
+        elif self.args['model'] in ['gpt2-contrastive-search', 'dialog-simctg', 'dialog-eva']:
             self.train_model = self.train_model_contrastive_search
         elif self.args['model'] in ['copygeneration']:
             self.train_model = self.train_model_copygeneration

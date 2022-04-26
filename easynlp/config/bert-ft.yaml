@@ -7,10 +7,10 @@ test_interval: 0.05
 valid_during_training: false
 
 tokenizer:
-    zh: /apdcephfs/share_733425/johntianlan/bert-base-chinese
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
     en: /apdcephfs/share_733425/johntianlan/bert-base-uncased
 pretrained_model:
-    zh: /apdcephfs/share_733425/johntianlan/bert-base-chinese
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
     en: /apdcephfs/share_733425/johntianlan/bert-base-uncased
 
 # train configuration
@@ -32,7 +32,7 @@ train:
 test:
     seed: 0
     # batch_size: 32
-    batch_size: 1
+    batch_size: 128
     max_len: 256
 
 # for inference_clean mode

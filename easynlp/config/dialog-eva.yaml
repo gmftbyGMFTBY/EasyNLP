@@ -1,0 +1,48 @@
+valid_during_training: false
+is_step_for_training: true
+total_step: 2000010
+save_every: 100000
+test_gen_max_len: 128
+beam_width: 5
+model_prediction_confidence: 0.6
+sampling_probability: 0.
+sep_smooth_length: 50
+contrastive_topk: 8
+contrastive_topp: 0.93
+prefix_len: 32
+margin: 0.5
+cl_loss_alpha: 1.
+sampling_prefix_len: 3
+
+# gpt2 configuration load locally
+tokenizer: 
+    # zh: /apdcephfs/share_916081/johntianlan/dialog_pretrain_basement/gpt2-chinese-12layers-1555000
+    zh: /apdcephfs/share_916081/johntianlan/dialog_pretrain_basement/t5-base-chinese-cluecorpussmall
+    # zh: /apdcephfs/share_733425/johntianlan/dialog_pretrain_basement/gpt2-chinese-12layers-1555000
+    en: /apdcephfs/share_916081/johntianlan/gpt2_english
+pretrained_model: 
+    # zh: /apdcephfs/share_916081/johntianlan/dialog_pretrain_basement/gpt2-chinese-12layers-1555000
+    zh: /apdcephfs/share_916081/johntianlan/dialog_pretrain_basement/t5-base-chinese-cluecorpussmall
+    # zh: /apdcephfs/share_733425/johntianlan/dialog_pretrain_basement/gpt2-chinese-12layers-1555000
+    en: /apdcephfs/share_916081/johntianlan/gpt2_english
+
+# train configuration
+train:
+    load_param: true
+    lr: 0.00005
+    grad_clip: 1.0
+    seed: 0
+    batch_size: 128
+    max_len: 64
+    res_max_len: 64
+    warmup_ratio: 0.
+    iter_to_accumulate: 16
+    checkpoint: 
+        path: bert-post/best_nspmlm.pt
+        is_load: false
+
+# test configuration
+test:
+    seed: 0
+    batch_size: 16
+    max_len: 128
