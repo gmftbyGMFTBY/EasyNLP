@@ -81,7 +81,6 @@ class DialogEVA(nn.Module):
             decoder_attention_mask=output_ids_mask,
         )
         logits = outputs.logits
-        cl_loss = torch.tensor(0.)
         mle_loss = self.criterion(logits.view(-1, self.vocab_size), labels.view(-1))
         # token_acc
         chosen_tokens = torch.max(logits, dim=-1)[1]
@@ -89,7 +88,7 @@ class DialogEVA(nn.Module):
         valid_mask = (labels != self.pad).view(-1)
         valid_tokens = gen_acc & valid_mask
         gen_acc = valid_tokens.sum().item() / valid_mask.sum().item()
-        return mle_loss, gen_acc, cl_loss
+        return mle_loss, gen_acc
 
     def calculate_ppl(self, input_ids, ids_mask, pos_ids, labels):
         outputs = self.model(input_ids=input_ids, attention_mask=ids_mask, position_ids=pos_ids)

@@ -1,4 +1,5 @@
 from .rerank import *
+from .evaluation import *
 from .generation import *
 from .recall import *
 from .pipeline import *

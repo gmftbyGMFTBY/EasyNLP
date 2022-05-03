@@ -515,6 +515,55 @@ def test_generation(args):
     print(f'[!] avg rerank time cost: {avg_t} ms; error ratio: {round(error_counter/len(data), 4)}')
     return collections
 
+def test_copygeneration(args):
+    args['mode'] = 'test'
+    args['model'] = 'copygeneration'
+    config = load_config(args)
+    args.update(config)
+    test_data, test_iter, _ = load_dataset(args)
+    pbar = tqdm(test_iter)
+    for batch in pbar:
+        data = {
+            'prefix': batch['prefix'],
+            'ground_truth': batch['ground_truth'],
+            'decoding_method': 'retrieval-generation-search-e2e',
+            'generation_method': 'contrastive-search',
+            'beam_width': 5,
+            'model_prediction_confidence': 0.6,
+            'generation_num': 20,
+            'max_gen_len': 64,
+            'recall_topk': 20
+        }
+        data = json.dumps(data)
+        rest = SendPOST(args['url'], args['port'], '/copygeneration', data)
+        pprint.pprint(rest)
+    return collections
+
+def test_evaluation(args):
+    data = {
+        'segment_list': [
+            {
+                'context': ['今天要不要一起去踢个球放松一下'],
+                'candidate1': '好啊好啊',
+                'candidate2': '我今天就不去了，下次约'
+            },
+            {
+                'context': ['今天要不要一起去踢个球放松一下'],
+                'candidate1': '这道题怎么做啊',
+                'candidate2': '我今天就不去了，下次约'
+            },    
+            {
+                'context': ['今天要不要一起去踢个球放松一下', '要不今天就算了'],
+                'candidate1': '今天为什么不行啊',
+                'candidate2': '明天可不可以啊'
+            },
+        ]        
+    }
+    data = json.dumps(data)
+    rest = SendPOST(args['url'], args['port'], '/evaluation', data)
+    pprint.pprint(rest)
+    ipdb.set_trace()
+
 if __name__ == '__main__':
     # topk rewrite
     args = vars(parser_args())
@@ -529,6 +578,8 @@ if __name__ == '__main__':
         'partial_rerank': test_partial_rerank,
         'pipeline': test_pipeline,
         'generation': test_generation,
+        'copygeneration': test_copygeneration,
+        'evaluation': test_evaluation,
     }
     collections = MAP[args['mode']](args)
     

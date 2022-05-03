@@ -33,8 +33,26 @@ class CompareInteractionAgent(RetrievalBaseAgent):
             self.test_model_horse_human = self.test_model_horse_human_dual_bert
         elif args['model'] in ['bert-ft-scm']:
             self.test_model = self.test_model_bert_ft
+        elif args['model'] in ['bert-ft-compare']:
+            if self.args['is_step_for_training']:
+                self.train_model = self.train_model_step_compare
 
         self.show_parameters(self.args)
+
+    def train_model_step_compare(self, batch, recoder=None, current_step=0, pbar=None):
+        self.model.train()
+        loss, acc = self.model(
+            batch, 
+            optimizer=self.optimizer, 
+            scaler=self.scaler, 
+            grad_clip=self.args['grad_clip'], 
+            scheduler=self.scheduler,
+        )
+        if recoder:
+            recoder.add_scalar(f'train/RunLoss', loss.item(), current_step)
+            recoder.add_scalar(f'train/RunAcc', acc, current_step)
+        pbar.set_description(f'[!] train loss: {round(loss.item(), 4)}; acc: {round(acc, 4)}')
+        pbar.update(1)
     
     def train_model_step(self, batch, recoder=None, current_step=0, pbar=None):
         self.model.train()
@@ -276,37 +294,31 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         }
 
     @torch.no_grad()
-    def compare_one_turn(self, cids, sids, rids, tickets, margin=0.0, soft=False):
+    def compare_one_turn(self, cids, rids, tickets, margin=0.0, soft=False):
         '''Each item pair in the tickets (i, j), the i has the bigger scores than j'''
         ids, tids, speaker_ids, recoder = [], [], [], []
         cpids = []
-        other_speaker = 1 if sids[-1] == 0 else 0
         for i, j in tickets:
-            cids_, sids_, rids1, rids2 = deepcopy(cids), deepcopy(sids), deepcopy(rids[i]), deepcopy(rids[j])
-            truncate_pair_two_candidates(cids_, rids1, rids2, self.args['max_len'], sids=sids_)
+            cids_, rids1, rids2 = deepcopy(cids), deepcopy(rids[i]), deepcopy(rids[j])
+            truncate_pair_two_candidates(cids_, rids1, rids2, self.args['max_len'])
             ids_ = [self.cls] + cids_ + [self.sep] + rids1 + [self.sep] + rids2 + [self.sep]
-            sids_ = [sids_[0]] + sids_ + [sids[-1]] + [other_speaker] * (len(rids1) + len(rids2) + 2)
             cpids_ = [0] * (len(cids_) + 2) + [1] * (len(rids1) + 1)  + [2] * (len(rids2) + 1)
             tids_ = [0] * (len(cids_) + 2) + [1] * (len(rids1) + 1) + [1] * (len(rids2) + 1)
             ids.append(ids_)
             cpids.append(cpids_)
-            speaker_ids.append(sids_)
             tids.append(tids_)
             recoder.append((i, j))
         ids = [torch.LongTensor(i) for i in ids]
         cpids = [torch.LongTensor(i) for i in cpids]
-        speaker_ids = [torch.LongTensor(i) for i in speaker_ids]
         tids = [torch.LongTensor(i) for i in tids]
         ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
         cpids = pad_sequence(cpids, batch_first=True, padding_value=self.pad)
-        speaker_ids = pad_sequence(speaker_ids, batch_first=True, padding_value=self.pad)
         tids = pad_sequence(tids, batch_first=True, padding_value=self.pad)
         mask = generate_mask(ids)
-        ids, speaker_ids, tids, cpids, mask = to_cuda(ids, speaker_ids, tids, cpids, mask)
+        ids, tids, cpids, mask = to_cuda(ids, tids, cpids, mask)
         # ===== make compare ===== # 
         batch_packup = {
             'ids': ids,
-            'sids': speaker_ids,
             'tids': tids,
             'cpids': cpids,
             'mask': mask,
@@ -331,23 +343,19 @@ class CompareInteractionAgent(RetrievalBaseAgent):
                 n_recoder.append((i, j))
         return comp_label, n_recoder
 
-
-        # three clasificaition
-        # if soft:
-        #     return comp_scores, recoder
-        # else:
-        comp_label, n_recoder = [], []
-        for s, (i, j) in zip(comp_scores, recoder):
-            if s[-1] >= self.args['ambiguous_margin']:
-                # ambiguous cases
-                pass
-            elif s[1] >= margin + s[0]:
-                comp_label.append(True)
-                n_recoder.append((i, j))
-            elif s[1] < margin - s[0]:
-                comp_label.append(False)
-                n_recoder.append((i, j))
-        return comp_label, n_recoder
+        # three classification
+        # comp_label, n_recoder = [], []
+        # for s, (i, j) in zip(comp_scores, recoder):
+        #     if s[-1] >= self.args['ambiguous_margin']:
+        #         # ambiguous cases
+        #       pass
+        #     elif s[1] >= margin + s[0]:
+        #         comp_label.append(True)
+        #         n_recoder.append((i, j))
+        #     elif s[1] < margin - s[0]:
+        #         comp_label.append(False)
+        #         n_recoder.append((i, j))
+        # return comp_label, n_recoder
     
     @torch.no_grad()
     def fully_compare_with_base(self, batch):
@@ -425,12 +433,8 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         items = self.convert_text_to_ids(batch['context'] + batch['responses'])
         cids_ = items[:len(batch['context'])]
         cids = []
-        sids, cache = [], 0
         for u in cids_:
             cids.extend(u + [self.eos])
-            sids.extend([cache] * (len(u) + 1))
-            cache = 1 if cache == 0 else 0
-        sids.pop()
         cids.pop()
         rids = items[len(batch['context']):]
         tickets = []
@@ -438,8 +442,9 @@ class CompareInteractionAgent(RetrievalBaseAgent):
             for j in range(len(rids)):
                 if i != j:
                     tickets.append((i, j))
-        soft = True
-        label, recoder = self.compare_one_turn(cids, sids, rids, tickets, margin=pos_margin, soft=soft)
+        soft = False
+        # label, recoder = self.compare_one_turn(cids, sids, rids, tickets, margin=pos_margin, soft=soft)
+        label, recoder = self.compare_one_turn(cids, rids, tickets, margin=pos_margin, soft=soft)
         if soft is False:
             chain = {i: [] for i in range(len(rids))}
             # key is bigger than values
@@ -1034,3 +1039,45 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         ids, ids_mask = self.totensor(texts, ctx=True)
         vectors = self.model.get_ctx(ids, ids_mask)    # [B, E]
         return vectors.cpu().numpy()
+
+    @torch.no_grad()
+    def compare_candidates(self, context_list, candidate1, candidate2):
+        self.model.eval()
+        items = self.vocab.batch_encode_plus(context_list + [candidate1, candidate2], add_special_tokens=False)['input_ids']
+        cids = []
+        rids1, rids2 = items[-2], items[-1]
+        for u in items[:-2]:
+            cids.extend(u + [self.eos])
+        cids.pop()
+        ids, tids, cpids = [], [], []
+        ids_, tids_, cpids_ = self._packup(cids, rids1, rids2)
+        ids.append(ids_)
+        tids.append(tids_)
+        cpids.append(cpids_)
+        ids_, tids_, cpids_ = self._packup(cids, rids2, rids1)
+        ids.append(ids_)
+        tids.append(tids_)
+        cpids.append(cpids_)
+
+        ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+        tids = pad_sequence(tids, batch_first=True, padding_value=self.pad)
+        cpids = pad_sequence(cpids, batch_first=True, padding_value=self.pad)
+        mask = generate_mask(ids)
+        ids, tids, cpids, mask = to_cuda(ids, tids, cpids, mask)
+        batch = {
+            'ids': ids,
+            'tids': tids,
+            'cpids': cpids,
+            'mask': mask
+        }
+        score = self.model.predict(batch)    # [2, 2]
+        score = (score[0, 1] + score[1, 0])/2
+        return score.item()
+        
+    def _packup(self, cids_, rids1_, rids2_):
+        cids, rids1, rids2 = deepcopy(cids_), deepcopy(rids1_), deepcopy(rids2_)
+        truncate_pair_two_candidates(cids, rids1, rids2, self.args['max_len'])
+        ids = [self.cls] + cids + [self.sep] + rids1 + [self.sep] + rids2 + [self.sep]
+        cpids = [0] * (2 + len(cids)) + [1] * (len(rids1) + 1) + [2] * (len(rids2) + 1)
+        tids = [0] * (len(cids) + 2) + [1] * (len(rids1) + 1) + [1] * (len(rids2) + 1)
+        return torch.LongTensor(ids), torch.LongTensor(tids), torch.LongTensor(cpids)

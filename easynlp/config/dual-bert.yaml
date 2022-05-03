@@ -1,22 +1,29 @@
 temp: 0.05
 # five for restoration-200k is enough
 # test 100 full_turn_length for ubuntu corpus
-full_turn_length: 5
-test_interval: 0.05
+full_turn_length: 1
+test_interval: 0.00001
 multi_ctx: 1
 min_conv_length: 3
 data_filter_size: 650000
 valid_during_training: false
 mv_num: 1
+is_step_for_training: false
+
+#
+data_root_path: /apdcephfs/share_916081/johntianlan/chatbot-large-scale-dataset-final-version
+buffer_size: 409600
 
 # network issue, load locally
 tokenizer:
     # zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
     zh: /apdcephfs/share_916081/johntianlan/chinese-roberta-wwm-ext
+    # zh: /apdcephfs/share_916081/johntianlan/chinese-roberta-wwm-ext-large
     en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
 pretrained_model:
     # zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
     zh: /apdcephfs/share_916081/johntianlan/chinese-roberta-wwm-ext
+    # zh: /apdcephfs/share_916081/johntianlan/chinese-roberta-wwm-ext-large
     en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
 
 # train configuration
@@ -26,7 +33,7 @@ train:
     grad_clip: 5.0
     seed: 0
     batch_size: 64
-    max_len: 256
+    max_len: 128
     res_max_len: 64
     epoch: 5
     warmup_ratio: 0.
@@ -39,7 +46,8 @@ train:
         # path: bert-fp-no-cls/best_bert-base-chinese.pt
         # path: bert-fp/best_bert-base-chinese.pt
         # path: bert-fp-mono/best_bert-base-chinese.pt
-        path: bert-fp/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_11.pt
+        # path: bert-fp/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_11.pt
+        path: bert-fp-mono/best__apdcephfs_share_916081_johntianlan_chinese-roberta-wwm-ext_16.pt
         # path: bert-fp-mono/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_801.pt
         # path: bert-fp-mono/best_bert-base-uncased.pt
         # path: simcse/best_bert-base-chinese.pt
@@ -48,8 +56,8 @@ train:
 # test configuration
 test:
     seed: 0
-    batch_size: 128
-    max_len: 512
+    batch_size: 1
+    max_len: 128
     res_max_len: 64
 
 # inference configuration

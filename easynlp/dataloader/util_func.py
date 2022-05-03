@@ -4,7 +4,7 @@ from copy import deepcopy
 import random
 import requests
 import json
-from itertools import (takewhile, repeat)
+from itertools import (takewhile, repeat, islice)
 
 
 def modify_sentence(ids, min_change=2, prob=0.1, k=2):
@@ -325,3 +325,8 @@ def iter_count(file_name):
     with open(file_name) as f:
         buf_gen = takewhile(lambda x: x, (f.read(buffer) for _ in repeat(None)))
         return sum(buf.count('\n') for buf in buf_gen)
+
+# iter load the lines
+def load_lines_chunk(file, num_lines):
+    next_n_lines = list(islice(file, num_lines))
+    return next_n_lines

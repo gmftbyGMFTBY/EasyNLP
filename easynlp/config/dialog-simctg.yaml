@@ -14,6 +14,10 @@ margin: 0.5
 cl_loss_alpha: 1.
 sampling_prefix_len: 3
 
+# 
+data_root_path: /apdcephfs/share_916081/johntianlan/chatbot-large-scale-dataset-final-version
+buffer_size: 409600
+
 # gpt2 configuration load locally
 tokenizer: 
     zh: /apdcephfs/share_916081/johntianlan/dialog_pretrain_basement/gpt2-chinese-12layers-1555000
@@ -33,7 +37,7 @@ train:
     batch_size: 128
     max_len: 128
     warmup_ratio: 0.
-    iter_to_accumulate: 16
+    iter_to_accumulate: 1
     checkpoint: 
         path: bert-post/best_nspmlm.pt
         is_load: false

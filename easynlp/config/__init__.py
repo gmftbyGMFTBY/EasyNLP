@@ -82,5 +82,23 @@ def load_deploy_config(api_name):
         args['rerank'] = rerank_args
         args['recall'] = recall_args
         return args
+    elif api_name in ['evaluation']:
+        args.update(args['deploy'])
+        args.update(args['deploy'][api_name])
+        model = args['model']
+        config_path = f'config/{model}.yaml'
+        with open(config_path) as f:
+            configuration = yaml.load(f, Loader=yaml.FullLoader)
+        print(f'[!] load configuration: {config_path}')
+        # update and append the special config for base config
+        args.update(configuration)
+
+        # load by lang
+        args['lang'] = args['datasets'][args['dataset']]
+        args['tokenizer'] = args['tokenizer'][args['lang']]
+        args['pretrained_model'] = args['pretrained_model'][args['lang']]
+
+        args['mode'] = 'test'
+        return args
     else:
         raise Exception(f'[!] Unknow deploy mode: {api_name}')

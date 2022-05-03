@@ -14,6 +14,7 @@ class DialogSimCTG(nn.Module):
         self.pad = self.tokenizer.pad_token_id
         self.unk = self.tokenizer.unk_token_id
         self.sep = self.tokenizer.sep_token_id
+        self.cls = self.tokenizer.cls_token_id
         self.vocab_size = len(self.tokenizer)
 
         # model
@@ -78,7 +79,6 @@ class DialogSimCTG(nn.Module):
 
     def forward(self, batch):
         input_ids, ids_mask, labels = batch['ids'], batch['ids_mask'], batch['ods']
-        ipdb.set_trace()
         bsz, seqlen = input_ids.size()
         outputs = self.model(input_ids=input_ids, attention_mask=ids_mask, output_hidden_states=True)
         logits = outputs.logits

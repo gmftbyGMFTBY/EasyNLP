@@ -1,4 +1,5 @@
 import torch
+from typing import List, Optional, Tuple, Union
 from io import StringIO
 import numpy as np
 import torch.distributed as dist
@@ -30,7 +31,7 @@ import hashlib
 import logging
 from copy import deepcopy
 import ipdb
-from transformers import BertTokenizer, BertTokenizerFast, XLMRobertaTokenizerFast, AutoModel, AutoTokenizer, T5ForConditionalGeneration
+from transformers import BertTokenizer, BertTokenizerFast, XLMRobertaTokenizerFast, AutoModel, AutoTokenizer, T5ForConditionalGeneration, BartForSequenceClassification, BartModel
 import pickle
 import argparse
 from torch.nn.utils.rnn import pad_sequence

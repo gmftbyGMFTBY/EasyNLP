@@ -50,13 +50,23 @@ class CopyGenerationEncoder(nn.Module):
         self.retriever.eval()
         self.generator.eval()
         dp = torch.matmul(query, phrase_reps.t()).squeeze(0)   
-        topk = dp.topk(self.args['search_topk'], dim=-1)[1]    # [K]
-        candidates = [''.join(phrase_source[i][-1].split()) for i in topk]
+        dis, topk = dp.topk(self.args['search_topk'], dim=-1)    # [K]
+        dis = dis.tolist()
+        candidates = [(''.join(phrase_source[i][-1].split()), round(d, 4)) for i, d in zip(topk, dis)]
         return candidates
 
     def search_from_faiss(self, query):
-        candidates = self.faiss_searcher._search(query.cpu().numpy(), topk=self.args['recall_topk'])[0]
-        return candidates
+        # candidates = self.faiss_searcher._search(query.cpu().numpy(), topk=self.args['recall_topk'])[0]
+        candidates, distance = self.faiss_searcher._search_dis(query.cpu().numpy(), topk=500)
+        candidates, distance = candidates[0], [i.item() for i in distance[0]]
+        new_candidates = []
+        new_candidates_pool = set()
+        for c, d in zip(candidates, distance):
+            if c in new_candidates_pool:
+                continue
+            new_candidates_pool.add(c)
+            new_candidates.append((c, d))
+        return new_candidates[:self.args['recall_topk']]
 
     def chinese_tokenization(self, doc, seg_url="http://100.77.13.7:8082"):
         req = {
@@ -173,6 +183,7 @@ class CopyGenerationEncoder(nn.Module):
         phrase_reps = torch.cat(phrase_reps)
         assert len(phrase_reps) == len(phrase_sources)
         print(f'[!] collect {len(phrase_reps)} phrases')
+        phrase_reps = F.normalize(phrase_reps, dim=-1)
         return phrase_reps, phrase_sources
 
     def truncation(self, a, b, max_len):
@@ -238,8 +249,7 @@ class CopyGenerationEncoder(nn.Module):
             query = self.retriever.get_query_rep(ids)
             # search candidate phrases
             candidates = self.search_from_faiss(query)
-            ipdb.set_trace()
-            break
+            return candidates
             # rerank candidates by ppl
             candidate = self.rerank(ids[0], candidates)
             # phrase ppl
@@ -291,8 +301,9 @@ class CopyGenerationEncoder(nn.Module):
             query = self.retriever.get_query_rep(ids)
             # search candidate phrases
             candidates = self.search_from_documents(query, phrase_reps, phrase_sources)
-            ipdb.set_trace()
-            break
+            return candidates
+            # ipdb.set_trace()
+            # break
             # rerank candidates by ppl
             candidate = self.rerank(ids[0], candidates)
             # phrase ppl

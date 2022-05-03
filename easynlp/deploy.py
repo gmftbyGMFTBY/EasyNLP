@@ -17,6 +17,7 @@ def create_app():
     recall_args = load_deploy_config('recall')
     pipeline_args = load_deploy_config('pipeline')
     pipeline_evaluation_args = load_deploy_config('pipeline_evaluation')
+    evaluation_args = load_deploy_config('evaluation')
     if rerank_args['activate']:
         rerankagent = RerankAgent(rerank_args)
         print(f'[!] Rerank agent activate')
@@ -37,6 +38,10 @@ def create_app():
         pipelineevaluationagent = PipelineEvaluationAgent(pipeline_evaluation_args)
         print(f'[!] Pipeline evaluation agent activate')
         pipeline_evaluation_logger = init_logging(pipeline_evaluation_args, pipeline=True)
+    if evaluation_args['activate']:
+        evaluationagent = DeployEvaluationAgent(evaluation_args)
+        print(f'[!] Evaluation evaluation agent activate')
+        evaluation_logger = init_logging(evaluation_args)
     
     @app.route('/pipeline_evaluation', methods=['POST'])
     def pipeline_evaluation_api():
@@ -308,7 +313,62 @@ def create_app():
         # log
         #push_to_log(result, recall_logger)
         return jsonify(result)
-     
+
+    @app.route('/evaluation', methods=['POST'])
+    def evaluation_api():
+        '''
+        {
+            'segment_list': [
+                {
+                    'context': 'context1', 
+                    'candidate1': 'candidate1',
+                    'candidate2': 'candidate2',
+                    'status': 'editing'
+                },
+                ...
+            ],
+        }
+        {
+            'header': {
+                'time_cost_ms': 0.01,
+                'time_cost': 0.01,
+                'core_time_cost_ms': 0.01,
+                'core_time_cost': 0.01,
+                'ret_code': 'succ'
+            },
+            'item_list': [
+                {
+                    'context': ['context sentence1'],
+                    'candidate1': 'candidate1',
+                    'candidate2': 'candidate2',
+                    'score': advantage score of candidate1 over candidate2
+                }
+            ]
+        }
+        '''
+        try:
+            # data = request.json
+            data = json.loads(request.data)
+            item_list, core_time = evaluationagent.work(data['segment_list'])
+            succ = True
+        except Exception as error:
+            item_list = []
+            core_time = 0
+            print(error)
+            succ = False
+
+        # packup
+        result = {
+            'header': {
+                'core_time_cost_ms': 1000 * core_time,
+                'core_time_cost': core_time,
+                'ret_code': 'succ' if succ else 'fail',
+            }, 
+        }
+        result['item_list'] = item_list
+        push_to_log(result, evaluation_logger)
+        return jsonify(result)
+
     @app.route('/generation', methods=['POST'])
     def generation_api():
         '''

@@ -42,8 +42,12 @@ class GenerationAgent(GenerationBaseAgent):
             self.train_model = self.train_model_rerank
         elif self.args['model'] in ['gpt2']:
             self.test_model = self.test_model_inference
-        elif self.args['model'] in ['gpt2-contrastive-search', 'dialog-simctg', 'dialog-eva']:
+        elif self.args['model'] in ['gpt2-contrastive-search', 'dialog-simctg']:
             self.train_model = self.train_model_contrastive_search
+        elif self.args['model'] in ['dialog-eva']:
+            self.train_model = self.train_model_dialog_eva
+        elif self.args['model'] in ['dialog-plato-v1']:
+            self.train_model = self.train_model_plato_v1
         elif self.args['model'] in ['copygeneration']:
             self.train_model = self.train_model_copygeneration
         elif self.args['model'] in ['gpt2-un', 'gpt2-un-seq']:
@@ -68,11 +72,10 @@ class GenerationAgent(GenerationBaseAgent):
             loss = mle_loss + cl_loss + phrase_loss
             loss /= self.args['iter_to_accumulate']
         self.scaler.scale(loss).backward()
-        if (current_step + 1) % self.args['iter_to_accumulate'] == 0:
-            self.scaler.unscale_(self.optimizer)
-            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
+        self.scaler.unscale_(self.optimizer)
+        clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+        self.scaler.step(self.optimizer)
+        self.scaler.update()
         self.scheduler.step()
         if recoder:
             recoder.add_scalar(f'train/RunLoss', loss.item(), current_step)
@@ -84,6 +87,49 @@ class GenerationAgent(GenerationBaseAgent):
         pbar.set_description(f'[!] loss(mle|cl|phrase): {round(mle_loss.item(), 4)}|{round(cl_loss.item(), 4)}|{round(phrase_loss.item(), 4)}; acc(token|phrase): {round(mle_acc*100, 2)}|{round(phrase_acc*100, 2)}')
         pbar.update(1)
         return
+
+    def train_model_plato_v1(self, batch, recoder=None, current_step=0, pbar=None):
+        self.model.train()
+        self.optimizer.zero_grad()
+        with autocast():
+            mle_loss, rs_loss, bow_loss, token_acc = self.model(batch)
+            loss = mle_loss + rs_loss + bow_loss
+            loss /= self.args['iter_to_accumulate']
+        self.scaler.scale(loss).backward()
+        self.scaler.unscale_(self.optimizer)
+        clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+        self.scaler.step(self.optimizer)
+        self.scaler.update()
+        self.scheduler.step()
+        if recoder:
+            recoder.add_scalar(f'train/RunLoss', loss.item(), current_step)
+            recoder.add_scalar(f'train/RunMLELoss', mle_loss.item(), current_step)
+            recoder.add_scalar(f'train/RunRSLoss', rs_loss.item(), current_step)
+            recoder.add_scalar(f'train/RunBOWLoss', bow_loss.item(), current_step)
+            recoder.add_scalar(f'train/TokenAcc', token_acc, current_step)
+        pbar.set_description(f'[!] loss(mle|rs|bow): {round(mle_loss.item(), 4)}|{round(rs_loss.item(), 4)}|{round(bow_loss.item(), 4)}; token_acc: {round(token_acc*100, 2)}')
+        pbar.update(1)
+        return
+
+    def train_model_dialog_eva(self, batch, recoder=None, current_step=0, pbar=None):
+        self.model.train()
+        self.optimizer.zero_grad()
+        
+        with autocast():
+            loss, mle_acc = self.model(batch)
+        if loss.isnan().item() is False:
+            self.scaler.scale(loss).backward()
+            self.scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            self.scheduler.step()
+            if recoder:
+                recoder.add_scalar(f'train/RunMLELoss', loss.item(), current_step)
+                recoder.add_scalar(f'train/TokenAcc', mle_acc, current_step)
+            pbar.set_description(f'[!] loss: {round(loss.item(), 4)}; token_acc: {round(mle_acc*100, 2)}')
+        pbar.update(1)
+        return
     
     def train_model_contrastive_search(self, batch, recoder=None, current_step=0, pbar=None):
         self.model.train()
@@ -92,13 +138,11 @@ class GenerationAgent(GenerationBaseAgent):
             mle_loss, mle_acc, cl_loss = self.model(batch)
             cl_loss *= self.args['cl_loss_alpha']
             loss = mle_loss + cl_loss
-            loss /= self.args['iter_to_accumulate']
         self.scaler.scale(loss).backward()
-        if (current_step + 1) % self.args['iter_to_accumulate'] == 0:
-            self.scaler.unscale_(self.optimizer)
-            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
+        self.scaler.unscale_(self.optimizer)
+        clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+        self.scaler.step(self.optimizer)
+        self.scaler.update()
         self.scheduler.step()
         if recoder:
             recoder.add_scalar(f'train/RunLoss', loss.item(), current_step)
@@ -175,7 +219,6 @@ class GenerationAgent(GenerationBaseAgent):
         self.optimizer.zero_grad()
         with autocast():
             loss, token_acc = self.model(batch)
-            loss /= self.args['iter_to_accumulate']
         self.scaler.scale(loss).backward()
         if (current_step + 1) % self.args['iter_to_accumulate'] == 0:
             self.scaler.unscale_(self.optimizer)

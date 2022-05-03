@@ -57,10 +57,10 @@ class RandomAccessReader(object):
 
     def get_line(self, line_number):
         line_data = self._lines[line_number]
-        # self.file_handler.seek(line_data['position'])
-        # string = self.file_handler.read(line_data['length'])
-        self.file_handler.seek(line_data[0])
-        string = self.file_handler.read(line_data[1])
+        self.file_handler.seek(line_data['position'])
+        string = self.file_handler.read(line_data['length'])
+        # self.file_handler.seek(line_data[0])
+        # string = self.file_handler.read(line_data[1])
         return string
 
     def reset_filepath(self, new_path):

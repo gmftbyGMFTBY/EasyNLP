@@ -1,4 +1,5 @@
 datasets: 
+    persona_chat: en
     chinese_dialog_pretrain: zh
     magic_laion400m: en
     magic_wit: en
@@ -67,7 +68,9 @@ no_test_models:
     - gpt2-original
     - scorer
     - dialog-simctg
+    - dialog-plato-v1
     - dialog-eva
+    - bert-ft-compare
 #     - writer-dual-bert-phrase
 
 no_train_models:
@@ -462,7 +465,8 @@ models:
         # model_name: BERTDualMVEncoder
         # dataset_name: BERTDualFullFakeCtxDataset
         # dataset_name: BERTDualDataset
-        dataset_name: BERTDualAccDataset
+        dataset_name: DRBERTDataset
+        # dataset_name: BERTDualAccDataset
         # dataset_name: BERTDualFullWithHardNegDataset
         # dataset_name: FilterDRDataset
         # dataset_name: BERTDualFullDataset
@@ -776,6 +780,11 @@ models:
         model_name: BERTFTHierEncoder
         dataset_name: BERTFTFullHierDataset
         inference_dataset_name: null 
+    bart-ft: 
+        type: Interaction
+        model_name: BARTRetrieval
+        dataset_name: BARTFTDataset
+        inference_dataset_name: null
     bert-ft: 
         type: Interaction
         model_name: BERTRetrieval
@@ -826,7 +835,8 @@ models:
         type: CompareInteraction
         model_name: BERTCompareRetrieval
         # dataset_name: BERTFTCompEasyDataset
-        dataset_name: BERTFTCompDataset
+        # dataset_name: BERTFTCompDataset
+        dataset_name: BERTCompBigDataset
         # dataset_name: HORSECompTestDataset
         inference_dataset_name: null
     dual-bert-comp-hn: 
@@ -924,7 +934,8 @@ models:
         type: PostTrain
         model_name: BERTMonolingualPostTrain
         # dataset_name: PostTrainMonoDataset
-        dataset_name: PostTrainMonoBigDataset
+        # dataset_name: PostTrainMonoBigDataset
+        dataset_name: PostTrainMonoPersonaChatDataset
         # dataset_name: PostTrainMonoWriterDataset
         # dataset_name: WZPostTrainMonoDataset
         inference_dataset_name: null 
@@ -960,6 +971,11 @@ models:
         dataset_name: null
         inference_dataset_name: FilterInferenceCombinationDataset
     # ===== dialog prtraining model ===== #
+    dialog-plato-v1: 
+        type: Generation
+        model_name: DialogPLATOV1
+        dataset_name: DialogPLATOV1Dataset
+        inference_dataset_name: null
     dialog-simctg: 
         type: Generation
         model_name: DialogSimCTG
@@ -972,8 +988,6 @@ models:
         inference_dataset_name: null
     
 
-    
-
 # ========= Global configuration ========== #
 # huge file are saved in the root dir
 # root_dir: /apdcephfs/share_733425/johntianlan/MyReDial
@@ -984,7 +998,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 16
+version: 11
 
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
@@ -1005,7 +1019,8 @@ deploy:
     port: 23331
     # dataset: writer-rank
     # dataset: wz_game
-    dataset: restoration-200k
+    # dataset: restoration-200k
+    dataset: chinese_dialog_pretrain
     # dataset: potter
     max_len: 512
     res_max_len: 64
@@ -1026,7 +1041,7 @@ deploy:
     pipeline:
         activate: false
     pipeline_evaluation:
-        activate: true
+        activate: false
     generation:
         activate: false
         model: gpt2
@@ -1036,4 +1051,7 @@ deploy:
         # the maximum innert batch size for processing
         inner_bsz: 16
         default_decoding_method: contrastive_batch_search
+    evaluation:
+        activate: true
+        model: bert-ft-compare
 # ========== Deploy configuration ========== #

@@ -1,7 +1,7 @@
 # basic configuration for building the model
 dropout: 0.1
 ext_read: false
-is_step_for_training: true
+is_step_for_training: false
 total_step: 240000
 save_every: 20000
 
@@ -29,7 +29,7 @@ train:
     min_mask_num: 2
     max_mask_num: 10
     masked_lm_prob: 0.2
-    epoch: 10
+    epoch: 35
     warmup_ratio: 0.01
     checkpoint: 
         path: bert-fp/best_bert-base-chinese.pt

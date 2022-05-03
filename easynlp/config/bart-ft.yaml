@@ -1,0 +1,34 @@
+full_turn_length: 1
+test_interval: 0.05
+valid_during_training: false
+dropout: 0.9
+
+tokenizer:
+    zh: /apdcephfs/share_916081/johntianlan/bart-base-chinese
+    # en: /apdcephfs/share_733425/johntianlan/bert-base-uncased
+pretrained_model:
+    zh: /apdcephfs/share_916081/johntianlan/bart-base-chinese
+    # en: /apdcephfs/share_733425/johntianlan/bert-base-uncased
+
+# train configuration
+train:
+    lr: 0.00005
+    grad_clip: 5.0
+    seed: 0
+    batch_size: 128
+    max_len: 128
+    res_max_len: 64
+    epoch: 5
+    warmup_ratio: 0.0
+    checkpoint: 
+        # path: bert-post/best_nspmlm.pt
+        path: bert-fp/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_11.pt
+        # path: bert-fp-mono/best_bert-base-uncased.pt
+        is_load: false
+
+# test configuration
+test:
+    seed: 0
+    batch_size: 1
+    max_len: 128
+    res_max_len: 64

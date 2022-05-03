@@ -39,8 +39,11 @@ def load_model(args):
     else:
         raise Exception(f'[!] Unknown type {model_type} for {model_name}')
 
-    vocab = AutoTokenizer.from_pretrained(args['tokenizer'])
-    vocab.add_tokens(['[EOS]'])
+    if args['model'] in ['bart-ft']:
+        vocab = BertTokenizer.from_pretrained(args['tokenizer'])
+    else:
+        vocab = AutoTokenizer.from_pretrained(args['tokenizer'])
+        vocab.add_tokens(['[EOS]'])
     args['vocab_size'] = vocab.vocab_size
 
     if model_type in ['MutualTrainingModel']:

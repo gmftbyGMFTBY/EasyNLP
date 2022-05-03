@@ -1,5 +1,6 @@
 from header import *
 from .generative_dialog_pretrain_dataloader import *
+from .retrieval_dialog_pretrain_dataloader import *
 from .acc_test_dataloader import *
 from .magic_contrastive_search_dataloader import *
 from .inference_copygeneration_dataloader import *
@@ -35,6 +36,7 @@ from .dual_bert_full_dataloader import *
 from .dual_bert_arxiv_dataloader import *
 from .sa_bert_dataloader import *
 from .bert_ft_dataloader import *
+from .bart_ft_dataloader import *
 from .bert_ft_scm_dataloader import *
 from .bert_ft_auxiliary_dataloader import *
 from .bert_ft_compare_dataloader import *
@@ -61,8 +63,14 @@ def load_dataset(args):
         path = f'{args["root_dir"]}/data/{args["dataset"]}/train.txt'
     else:
         path = f'{args["root_dir"]}/data/{args["dataset"]}/{args["mode"]}.txt'
-    # vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
-    vocab = AutoTokenizer.from_pretrained(args['tokenizer'])
+    try:
+        if args['model'] in ['bart-ft']:
+            vocab = BertTokenizer.from_pretraiend(args['tokenizer'])
+        else:
+            vocab = AutoTokenizer.from_pretrained(args['tokenizer'])
+    except:
+        vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
+
     data = dataset_t(vocab, path, **args)
 
     if args['mode'] in ['train', 'inference']:
