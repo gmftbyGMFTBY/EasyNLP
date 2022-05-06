@@ -14,6 +14,7 @@ def create_app():
 
     rerank_args = load_deploy_config('rerank')
     generation_args = load_deploy_config('generation')
+    generation_dialog_args = load_deploy_config('generation_dialog')
     recall_args = load_deploy_config('recall')
     pipeline_args = load_deploy_config('pipeline')
     pipeline_evaluation_args = load_deploy_config('pipeline_evaluation')
@@ -22,6 +23,10 @@ def create_app():
         rerankagent = RerankAgent(rerank_args)
         print(f'[!] Rerank agent activate')
         rerank_logger = init_logging(rerank_args)
+    if generation_dialog_args['activate']:
+        generationdialogagent = DeployGenerationDialogAgent(generation_dialog_args)
+        print(f'[!] Generation Dialog agent activate')
+        generation_dialog_logger = init_logging(generation_dialog_args)
     if generation_args['activate']:
         generationagent = DeployGenerationAgent(generation_args)
         print(f'[!] Generation agent activate')
@@ -445,6 +450,67 @@ def create_app():
         else:
             result['item_list'] = None
         push_to_log(result, generation_logger)
+        return jsonify(result)
+
+    @app.route('/generation_dialog', methods=['POST'])
+    def generation_dialog_api():
+        '''
+        {
+            'segment_list': [
+                {
+                    'context': ['context1', 'context2', ...], 
+                    'status': 'editing'
+                },
+                ...
+            ],
+            'lang': 'zh',
+            'uuid': '',
+            'user': '',
+        }
+        {
+            'header': {
+                'time_cost_ms': 0.01,
+                'time_cost': 0.01,
+                'core_time_cost_ms': 0.01,
+                'core_time_cost': 0.01,
+                'ret_code': 'succ'
+            },
+            'item_list': [
+                {
+                    'context': ['context1', 'context2', ...], 
+                    'response': 'response1',
+                }
+            ]
+        }
+        '''
+        try:
+            # data = request.json
+            data = json.loads(request.data)
+            g, core_time = generationdialogagent.work(data['segment_list'])
+            succ = True
+        except Exception as error:
+            core_time = 0
+            print(error)
+            succ = False
+
+        # packup
+        result = {
+            'header': {
+                'core_time_cost_ms': 1000 * core_time,
+                'core_time_cost': core_time,
+                'ret_code': 'succ' if succ else 'fail',
+            }, 
+        }
+        if succ:
+            rest_ = []
+            for g_, batch in zip(g, data['segment_list']):
+                item = {'context': batch['context']}
+                item['response'] = g_
+                rest_.append(item)
+            result['item_list'] = rest_
+        else:
+            result['item_list'] = None
+        push_to_log(result, generation_dialog_logger)
         return jsonify(result)
 
     return app

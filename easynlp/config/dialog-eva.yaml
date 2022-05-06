@@ -22,12 +22,14 @@ buffer_size: 409600
 # gpt2 configuration load locally
 tokenizer: 
     # zh: /apdcephfs/share_916081/johntianlan/dialog_pretrain_basement/gpt2-chinese-12layers-1555000
-    zh: /apdcephfs/share_916081/johntianlan/dialog_pretrain_basement/t5-base-chinese-cluecorpussmall
+    # zh: /apdcephfs/share_916081/johntianlan/dialog_pretrain_basement/t5-base-chinese-cluecorpussmall
+    zh: /apdcephfs/share_916081/johntianlan/dialog_pretrain_basement/bart-base-chinese
     # zh: /apdcephfs/share_733425/johntianlan/dialog_pretrain_basement/gpt2-chinese-12layers-1555000
     en: /apdcephfs/share_916081/johntianlan/gpt2_english
 pretrained_model: 
     # zh: /apdcephfs/share_916081/johntianlan/dialog_pretrain_basement/gpt2-chinese-12layers-1555000
-    zh: /apdcephfs/share_916081/johntianlan/dialog_pretrain_basement/t5-base-chinese-cluecorpussmall
+    # zh: /apdcephfs/share_916081/johntianlan/dialog_pretrain_basement/t5-base-chinese-cluecorpussmall
+    zh: /apdcephfs/share_916081/johntianlan/dialog_pretrain_basement/bart-base-chinese
     # zh: /apdcephfs/share_733425/johntianlan/dialog_pretrain_basement/gpt2-chinese-12layers-1555000
     en: /apdcephfs/share_916081/johntianlan/gpt2_english
 

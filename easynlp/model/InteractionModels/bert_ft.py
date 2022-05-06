@@ -20,4 +20,5 @@ class BERTRetrieval(nn.Module):
             attention_mask=attn_mask,
             token_type_ids=token_type_ids,
         )[0]    # [B, 2]
+
         return logits

@@ -5,6 +5,12 @@ full_turn_length: 1
 test_interval: 0.05
 # true for ubuntu and horse, false for douban and ecommerce
 valid_during_training: false
+is_step_for_training: true
+total_step: 1000010
+save_every: 50000
+
+data_root_path: /apdcephfs/share_916081/johntianlan/chatbot-large-scale-dataset-final-version
+buffer_size: 409600
 
 tokenizer:
     zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
@@ -18,13 +24,13 @@ train:
     lr: 0.00005
     grad_clip: 5.0
     seed: 0
-    batch_size: 196
+    batch_size: 128
     max_len: 128
     epoch: 5
     warmup_ratio: 0.0
     checkpoint: 
         # path: bert-post/best_nspmlm.pt
-        path: bert-fp/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_11.pt
+        path: bert-fp/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_19.pt
         # path: bert-fp-mono/best_bert-base-uncased.pt
         is_load: true
 

@@ -10,6 +10,8 @@ datasets:
     chinese_wiki: zh
     chinese_pretrain: zh
     chinese_high_quality_300g: zh
+    # english common crawl 300 Gb
+    english_cc: en
     english_pretrain: en
     wz_game: zh
     ecommerce: zh
@@ -62,6 +64,7 @@ no_test_models:
     - bert-mask-da-sep
     - dual-bert-unsup
     - gpt2-contrastive-search
+    - simctg
     - gpt2-token-rerank
     - simrag
     - phrase-copy
@@ -71,6 +74,7 @@ no_test_models:
     - dialog-plato-v1
     - dialog-eva
     - bert-ft-compare
+    - bert-ft
 #     - writer-dual-bert-phrase
 
 no_train_models:
@@ -455,7 +459,8 @@ models:
         inference_dataset_name: BERTDualInferenceFullContextDataset
     phrase-copy: 
         type: Representation
-        model_name: DensePhraseEncoder
+        # model_name: DensePhraseEncoder
+        model_name: DensePhraseV2Encoder
         dataset_name: CopyGenerationDataset
         inference_dataset_name: PhrasesInferenceDataset
     dual-bert: 
@@ -465,11 +470,12 @@ models:
         # model_name: BERTDualMVEncoder
         # dataset_name: BERTDualFullFakeCtxDataset
         # dataset_name: BERTDualDataset
-        dataset_name: DRBERTDataset
+        # dataset_name: DRBERTDataset
         # dataset_name: BERTDualAccDataset
         # dataset_name: BERTDualFullWithHardNegDataset
         # dataset_name: FilterDRDataset
         # dataset_name: BERTDualFullDataset
+        dataset_name: PersonaBERTDualFullDataset 
         # dataset_name: HORSETestDataset
         # dataset_name: BERTDualDAFullDataset
         # dataset_name: BERTDualRandomFullDataset
@@ -495,7 +501,8 @@ models:
         # inference_dataset_name: BERTDualInferenceFullContextDataset
         # inference_dataset_name: BERTDualInferenceFullContextSingleExtendDataset
         # inference_dataset_name: BERTDualInferenceFullForOne2ManyDataset
-        inference_dataset_name: FilterDRInferenceDataset
+        # inference_dataset_name: FilterDRInferenceDataset
+        inference_dataset_name: InferenceDRBERTDataset
     dual-bert-triplet:
         type: Representation
         model_name: BERTDualEncoderTripletMargin
@@ -534,6 +541,11 @@ models:
         model_name: CopyGenerationEncoder
         dataset_name: CopyGenerationDataset
         inference_dataset_name: InferenceCopyGenerationDataset
+    simctg: 
+        type: Generation
+        model_name: SimCTGModel
+        dataset_name: GPT2ForContrastiveCommonCrawlForBigDataset
+        inference_dataset_name: null
     gpt2-contrastive-search: 
         type: Generation
         model_name: ContrastiveGPT2Encoder
@@ -541,8 +553,8 @@ models:
         # dataset_name: GPT2ForContrastiveForBigDataset
         # dataset_name: GPT2ForContrastiveForBigArxivDataset
         # dataset_name: GPT2ForContrastiveEnDataset
-        # dataset_name: GPT2WikiTextDataset
-        dataset_name: MAGICGPT2Dataset
+        dataset_name: GPT2WikiTextDataset
+        # dataset_name: MAGICGPT2Dataset
         inference_dataset_name: WriterInferenceDataset
     gpt2-cl: 
         type: Generation
@@ -791,7 +803,8 @@ models:
         # dataset_name: FineGrainedTestInteractionDataset
         # dataset_name: BERTFTDataset
         # dataset_name: FilterDataset
-        dataset_name: BERTFTAccDataset
+        # dataset_name: BERTFTAccDataset
+        dataset_name: BERTFTBigDataset
         # dataset_name: FilterSensitiveTestDataset
         # dataset_name: BERTFTFullDataset
         # dataset_name: HORSETestInteractionDataset
@@ -836,7 +849,8 @@ models:
         model_name: BERTCompareRetrieval
         # dataset_name: BERTFTCompEasyDataset
         # dataset_name: BERTFTCompDataset
-        dataset_name: BERTCompBigDataset
+        # dataset_name: BERTCompBigDataset
+        dataset_name: BERTCompHNBigDataset
         # dataset_name: HORSECompTestDataset
         inference_dataset_name: null
     dual-bert-comp-hn: 
@@ -918,7 +932,8 @@ models:
         type: PostTrain
         model_name: BERTFPPostTrain
         # dataset_name: PostTrainDataset
-        dataset_name: FilterPostTrainDataset
+        # dataset_name: FilterPostTrainDataset
+        dataset_name: PostTrainBigDataset
         inference_dataset_name: null 
     bert-fp-mono-plus: 
         type: PostTrain
@@ -935,7 +950,8 @@ models:
         model_name: BERTMonolingualPostTrain
         # dataset_name: PostTrainMonoDataset
         # dataset_name: PostTrainMonoBigDataset
-        dataset_name: PostTrainMonoPersonaChatDataset
+        dataset_name: PostTrainMonoBigDatasetV2
+        # dataset_name: PostTrainMonoPersonaChatDataset
         # dataset_name: PostTrainMonoWriterDataset
         # dataset_name: WZPostTrainMonoDataset
         inference_dataset_name: null 
@@ -990,8 +1006,8 @@ models:
 
 # ========= Global configuration ========== #
 # huge file are saved in the root dir
-# root_dir: /apdcephfs/share_733425/johntianlan/MyReDial
-root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
+root_dir: /apdcephfs/share_733425/johntianlan/MyReDial
+# root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # root_dir: /apdcephfs/share_916081/dongyangma/johntianlan/MyReDial
 # root_dir: /apdcephfs/share_733425/johntianlan/MyReDial
 # root_dir: /home/johntianlan/sources/EasyNLP
@@ -1032,7 +1048,7 @@ deploy:
         topk: 10
         with_source: false
         # index_type: BFlat
-        index_type: IVF6000,PQ8
+        index_type: IVF65536_HNSW32,PQ8
         index_nprobe: 5
         dimension: 768
     rerank:
@@ -1042,6 +1058,9 @@ deploy:
         activate: false
     pipeline_evaluation:
         activate: false
+    generation_dialog:
+        activate: true
+        model: dialog-simctg
     generation:
         activate: false
         model: gpt2
@@ -1052,6 +1071,6 @@ deploy:
         inner_bsz: 16
         default_decoding_method: contrastive_batch_search
     evaluation:
-        activate: true
+        activate: false
         model: bert-ft-compare
 # ========== Deploy configuration ========== #

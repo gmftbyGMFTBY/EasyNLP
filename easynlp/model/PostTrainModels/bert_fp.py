@@ -13,7 +13,7 @@ class BERTFPPostTrain(nn.Module):
         self.model.resize_token_embeddings(self.model.config.vocab_size+1)    # [EOS]
         self.model.cls.seq_relationship = nn.Sequential(
             nn.Dropout(p=p),
-            nn.Linear(768, 3)
+            nn.Linear(self.model.config.hidden_size, 3)
         )
         self.criterion = nn.CrossEntropyLoss(ignore_index=-1)
         self.vocab_size = self.model.config.vocab_size

@@ -137,3 +137,68 @@ class GPT2ForContrastiveForBigArxivDataset(Dataset):
             pos_ids = (ids_mask.long().cumsum(-1) - 1).masked_fill(ids_mask == 0, 0)
             ids, ods, ids_mask, pos_ids = to_cuda(ids, ods, ids_mask, pos_ids)
             return {'ids': ids, 'ids_label': ods, 'ids_mask': ids_mask, 'pos_ids': pos_ids}
+
+
+class GPT2ForContrastiveCommonCrawlForBigDataset(Dataset):
+
+    def __init__(self, vocab, path, **args):
+        self.args = args
+        self.vocab = vocab
+        self.pad = self.vocab.bos_token_id
+        self.size = 1000000000
+        self.file_lists = [f'{self.args["data_root_path"]}/train_{i}.txt' for i in range(16)]
+        self.current_file_index = 0
+        self.current_file_handler = open(self.file_lists[self.current_file_index], 'r')
+        self.cache = []
+        self.buffer_size = args['buffer_size']
+
+        new_seed = args['seed'] + args['local_rank']
+        random.seed(new_seed)
+        torch.manual_seed(new_seed)
+        torch.cuda.manual_seed_all(new_seed)
+        random.shuffle(self.file_lists)
+                
+    def __len__(self):
+        return self.size
+
+    def load_one_chunk(self):
+        assert len(self.cache) == 0
+        self.cache = load_lines_chunk(self.current_file_handler, self.buffer_size)
+        if len(self.cache) == 0:
+            # current file runs over, cyclely loading
+            self.current_file_index = 0 if self.current_file_index == 7 else self.current_file_index + 1
+            self.current_file_handler = open(self.file_lists[self.current_file_index], 'r')
+            self.cache = load_lines_chunk(self.current_file_handler, self.buffer_size)
+
+    def __getitem__(self, i):
+        tokens = []
+        # read to the max_length or the document ending accure
+        while len(tokens) < self.args['max_len']:
+            if len(self.cache) == 0:
+                self.load_one_chunk()
+            line = self.cache[0].strip()
+            if line.strip():
+                t = self.vocab.encode(line, add_special_tokens=False)
+                if len(tokens) + len(t) > self.args['max_len']:
+                    break
+                else:
+                    tokens.extend(t)
+                    self.cache.pop(0)
+            else:
+                self.cache.pop(0)
+                if len(tokens) > 0:
+                    break
+        return tokens
+
+    def save(self):
+        pass
+        
+    def collate(self, batch):
+        ids = [torch.LongTensor(i) for i in batch]
+        ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+        ids_mask = generate_mask(ids, pad_token_idx=self.pad)
+        ids, ods, ids_mask = ids[:, :-1], ids[:, 1:], ids_mask[:, :-1]
+        ids, ods, ids_mask = to_cuda(ids, ods, ids_mask)
+        return {'ids': ids, 'ods': ods, 'ids_mask': ids_mask}
+
+

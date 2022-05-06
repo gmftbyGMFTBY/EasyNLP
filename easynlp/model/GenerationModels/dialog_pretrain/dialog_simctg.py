@@ -21,66 +21,42 @@ class DialogSimCTG(nn.Module):
         self.model = GPT2LMHeadModel.from_pretrained(model_name)
         self.model.resize_token_embeddings(len(self.tokenizer))
         self.embed_dim = self.model.config.hidden_size
-        # decoding length
         self.test_max_len = args['test_gen_max_len']
-        # ignore the pad_token (-100)
         self.criterion = nn.CrossEntropyLoss(ignore_index=self.pad)
         self.margin = args['margin']
-        self.topk = self.args['contrastive_topk']
-        self.topp = self.args['contrastive_topp']
     
     @torch.no_grad()
-    def predict(self, batch):
+    def predict(self, context_list):
         '''contrastive search'''
         self.model.eval()
-        ids = batch['ids']
-        ids_mask = batch['ids_mask']
-        ids_pos = batch['pos_ids']
-        batch_size, seqlen = ids.size()
-        generated = [[] for _ in range(batch_size)]
+        items = self.tokenizer.batch_encode_plus(context_list, add_special_tokens=False)['input_ids']
+        # convert string to tokens
+        context_ids = []
+        for u in items:
+            context_ids.extend(u + [self.sep])
+        context_ids.pop()
+        ids = [self.cls] + context_ids[-self.args['max_prefix_len']:] + [self.sep]
+        prefix_length = len(ids)
+        ids = torch.LongTensor(ids).unsqueeze(0).cuda()
 
-        past_key_values = None
-        last_hidden_states = None
-        first_step = 0
-        logits = None
-        for step in range(self.test_max_len):
-            ids, past_key_values, last_hidden_states, logits = ContrastiveDecodingOneStepBatch(
+        for _ in range(self.test_max_len):
+            ids = ContrastiveDecodingOneStep(
                 self.model,
                 ids,
-                ids_mask,
-                ids_pos,
                 self.args['beam_width'],
                 self.args['model_prediction_confidence'],
-                self.args['contrastive_topk'],
-                self.args['contrastive_topp'],
-                self.pad,
-                min(1., (step+1)/self.args['sep_smooth_length']),
-                past_key_values,
-                last_hidden_states,
-                self.tokenizer,
-                logits,
-                step,
-                step < self.args['sampling_prefix_len'],
+                self.unk
             )
-            ids_pos = 1 + ids_pos[:, -1].unsqueeze(dim=-1)
-            ids_mask = torch.ones_like(ids)
-            # collect ids: [B, 1]
-            tokens = ids.squeeze(dim=-1).tolist()
-            for idx, t in enumerate(tokens):
-                generated[idx].append(t)
-            if max([len(i) for i in generated]) > self.test_max_len:
-                break
-        # ignore the special tokens
-        rest = []
-        for g in generated:
-            g = [i for i in g if i not in self.special_tokens]
-            rest.append(g)
-        return rest
+        ids = ids[0, prefix_length:].tolist()
+        string = ''.join(self.tokenizer.convert_ids_to_tokens(ids))
+        if '[SEP]' in string:
+            string = string[:string.index('[SEP]')]
+        return string
 
     def forward(self, batch):
         input_ids, ids_mask, labels = batch['ids'], batch['ids_mask'], batch['ods']
         bsz, seqlen = input_ids.size()
-        outputs = self.model(input_ids=input_ids, attention_mask=ids_mask, output_hidden_states=True)
+        outputs = self.model(nput_ids=input_ids, attention_mask=ids_mask, output_hidden_states=True)
         logits = outputs.logits
         last_hidden_states = outputs.hidden_states[-1]
         mle_loss = self.criterion(logits.view(-1, self.vocab_size), labels.view(-1))

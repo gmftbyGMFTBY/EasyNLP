@@ -9,7 +9,8 @@ class DialogEVA(nn.Module):
         model_name = args['pretrained_model']
 
         # tokenizer
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        # self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.tokenizer = BertTokenizer.from_pretrained(model_name)
         self.special_tokens = set([self.tokenizer.pad_token_id, self.tokenizer.cls_token_id, self.tokenizer.unk_token_id, self.tokenizer.sep_token_id])
         self.pad = self.tokenizer.pad_token_id
         self.unk = self.tokenizer.unk_token_id
@@ -17,7 +18,7 @@ class DialogEVA(nn.Module):
         self.vocab_size = len(self.tokenizer)
 
         # model
-        self.model = T5ForConditionalGeneration.from_pretrained(model_name)
+        self.model = BartForConditionalGeneration.from_pretrained(model_name)
         self.model.resize_token_embeddings(len(self.tokenizer))
         self.embed_dim = self.model.config.hidden_size
         self.test_max_len = args['test_gen_max_len']

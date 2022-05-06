@@ -39,7 +39,7 @@ def load_model(args):
     else:
         raise Exception(f'[!] Unknown type {model_type} for {model_name}')
 
-    if args['model'] in ['bart-ft']:
+    if args['model'] in ['bart-ft', 'dialog-eva']:
         vocab = BertTokenizer.from_pretrained(args['tokenizer'])
     else:
         vocab = AutoTokenizer.from_pretrained(args['tokenizer'])

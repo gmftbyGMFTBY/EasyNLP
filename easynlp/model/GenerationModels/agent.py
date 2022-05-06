@@ -42,7 +42,7 @@ class GenerationAgent(GenerationBaseAgent):
             self.train_model = self.train_model_rerank
         elif self.args['model'] in ['gpt2']:
             self.test_model = self.test_model_inference
-        elif self.args['model'] in ['gpt2-contrastive-search', 'dialog-simctg']:
+        elif self.args['model'] in ['gpt2-contrastive-search', 'dialog-simctg', 'simctg']:
             self.train_model = self.train_model_contrastive_search
         elif self.args['model'] in ['dialog-eva']:
             self.train_model = self.train_model_dialog_eva
@@ -133,16 +133,19 @@ class GenerationAgent(GenerationBaseAgent):
     
     def train_model_contrastive_search(self, batch, recoder=None, current_step=0, pbar=None):
         self.model.train()
-        self.optimizer.zero_grad()
         with autocast():
             mle_loss, mle_acc, cl_loss = self.model(batch)
             cl_loss *= self.args['cl_loss_alpha']
             loss = mle_loss + cl_loss
+            loss /= self.args['iter_to_accumulate']
+
         self.scaler.scale(loss).backward()
-        self.scaler.unscale_(self.optimizer)
-        clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
-        self.scaler.step(self.optimizer)
-        self.scaler.update()
+        if (current_step + 1) % self.args['iter_to_accumulate'] == 0:
+            self.scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            self.optimizer.zero_grad()
         self.scheduler.step()
         if recoder:
             recoder.add_scalar(f'train/RunLoss', loss.item(), current_step)
@@ -463,7 +466,7 @@ class GenerationAgent(GenerationBaseAgent):
                 # )
                 # new_state_dict = self.checkpointadapeter.convert(state_dict)
                 # self.model.load_state_dict(new_state_dict)
-
+                state_dict = torch.load(path, map_location=torch.device('cpu'))
                 self.model.load_state_dict(state_dict)
             print(f'[!] load model from {path}')
 
@@ -547,6 +550,16 @@ class GenerationAgent(GenerationBaseAgent):
         for idx, batch in enumerate(pbar):            
             if self.args['mode'] == 'train':
                 logits = self.model.module.predict(batch)     # [B, S, V]
+
+    @torch.no_grad()
+    def generate_dialog(self, batches):
+        '''work with the deploy/genetation_dialog.py; batch size must be 1'''
+        self.model.eval()
+        rests = []
+        for batch in batches:
+            generation = self.model.predict(batch['context'])
+            rests.append(generation)
+        return rests
 
     @torch.no_grad()
     def generate(self, batch):
@@ -744,5 +757,3 @@ class GenerationAgent(GenerationBaseAgent):
                 (embds, texts), 
                 f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
             )
-
-

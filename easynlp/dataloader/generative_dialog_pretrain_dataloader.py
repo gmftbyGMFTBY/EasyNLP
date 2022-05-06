@@ -14,16 +14,8 @@ class DialogSimCTGDataset(Dataset):
         self.sep = self.vocab.sep_token_id
         self.cls = self.vocab.cls_token_id
 
-        # rar_path = f'{args["root_dir"]}/data/{args["dataset"]}/train_rar.txt'
-        # path = f'{args["root_dir"]}/data/{args["dataset"]}/data.txt'
-        # self.reader = RandomAccessReader(path)
-        # self.reader.load_from_text(rar_path)
-        # self.size = self.reader.size
-        # self.reader.init_file_handler()
-        # print(f'[!] dataset size: {self.size}')
         root_path = args['data_root_path']
         self.file_lists = [f'{root_path}/train_{i}.txt' for i in range(8)]
-        # self.file_lists = [f'{root_path}/train_test_{i}.txt' for i in range(8)]
         random.shuffle(self.file_lists)
         self.current_file_index = 0
         self.current_file_handler = None

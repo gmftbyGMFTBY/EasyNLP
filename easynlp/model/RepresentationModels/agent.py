@@ -44,6 +44,8 @@ class RepresentationAgent(RetrievalBaseAgent):
                 self.train_model = self.train_model_seed
             elif self.args['model'] in ['dual-bert-tacl', 'dual-bert-tacl-hn']:
                 self.train_model = self.train_model_tacl
+            elif self.args['model'] in ['phrase-copy']:
+                self.train_model = self.train_model_phrase_copy
 
             self.set_test_interval()
             self.load_checkpoint()
@@ -633,7 +635,7 @@ class RepresentationAgent(RetrievalBaseAgent):
             calculate_candidates_ranking(
                 np.array(scores), 
                 np.array(label.cpu().tolist()),
-                10)
+                20)
             num_correct = logits_recall_at_k(pos_index, k_list)
             if self.args['dataset'] in ["douban", "restoration-200k"]:
                 total_prec_at_one += precision_at_one(rank_by_pred)
@@ -1485,7 +1487,8 @@ class RepresentationAgent(RetrievalBaseAgent):
         ids_mask = torch.ones_like(ids)
         ids, ids_mask = to_cuda(ids, ids_mask)
         bt = time.time()
-        embd = self.model.module.get_ctx(ids, ids_mask)
+        # embd = self.model.module.get_ctx(ids, ids_mask)
+        embd = self.model.get_ctx(ids, ids_mask)
         t = time.time() - bt
         try:
             return embd.cpu().numpy(), t
@@ -1549,3 +1552,45 @@ class RepresentationAgent(RetrievalBaseAgent):
                 (reps, phrases), 
                 f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
             )
+
+    def train_model_phrase_copy(self, train_iter, test_iter, recoder=None, idx_=0, hard=False, whole_batch_num=0):
+        self.model.train()
+        total_loss, total_phrase_acc, total_token_acc = 0, 0, 0
+        total_tloss, total_bloss = 0, 0
+        total_token_loss, total_phrase_loss = 0, 0
+        pbar = tqdm(train_iter)
+        correct, s, oom_t = 0, 0, 0
+        batch_num = 0
+        for idx, batch in enumerate(pbar):
+            self.optimizer.zero_grad()
+            with autocast():
+                # loss, acc = self.model(batch)
+                phrase_loss, phrase_acc, token_loss, token_acc = self.model(batch)
+                loss = phrase_loss + token_loss
+            self.scaler.scale(loss).backward()
+            self.scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            self.scheduler.step()
+
+            total_loss += loss.item()
+            total_phrase_loss += phrase_loss.item()
+            total_token_loss += token_loss.item()
+            total_token_acc += token_acc
+            total_phrase_acc += phrase_acc
+            batch_num += 1
+
+            if whole_batch_num + batch_num in self.args['test_step']:
+                self.test_now(test_iter, recoder)
+
+            if recoder:
+                recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/PhraseLoss', total_phrase_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/TokenLoss', total_token_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/TokenAcc', total_token_acc/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/PhraseAcc', total_phrase_acc/batch_num, idx)
+            pbar.set_description(f'[!] loss(phrase|token): {round(total_phrase_loss/batch_num, 4)}|{round(total_token_loss/batch_num, 4)}; acc(phrase|token): {round(total_phrase_acc/batch_num, 4)}|{round(total_token_acc/batch_num, 4)}')
+        return batch_num
+
+

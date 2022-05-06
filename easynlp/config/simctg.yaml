@@ -1,0 +1,34 @@
+valid_during_training: false
+is_step_for_training: true
+total_step: 10000010
+save_every: 200000
+beam_width: 5
+model_prediction_confidence: 0.4
+margin: 0.5
+cl_loss_alpha: 1.
+sampling_prefix_len: 3
+
+# gpt2 configuration load locally
+tokenizer: 
+    zh: /apdcephfs/share_733425/johntianlan/gpt2-l-300g
+    en: /apdcephfs/share_733425/johntianlan/gpt2-large
+pretrained_model: 
+    zh: /apdcephfs/share_733425/johntianlan/gpt2-l-300g
+    en: /apdcephfs/share_733425/johntianlan/gpt2-large
+
+data_root_path: /apdcephfs/share_733425/johntianlan/english_common_crawl
+buffer_size: 409600
+
+# train configuration
+train:
+    load_param: true
+    lr: 0.00003
+    grad_clip: 1.0
+    seed: 0
+    batch_size: 8
+    max_len: 256
+    warmup_ratio: 0.
+    iter_to_accumulate: 32
+    checkpoint: 
+        path: bert-post/best_nspmlm.pt
+        is_load: false

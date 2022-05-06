@@ -1,4 +1,6 @@
 from header import *
+from .post_dialog_pretrain_dataloader import *
+from .inference_dialog_pretrain_dataloader import *
 from .generative_dialog_pretrain_dataloader import *
 from .retrieval_dialog_pretrain_dataloader import *
 from .acc_test_dataloader import *
@@ -64,7 +66,7 @@ def load_dataset(args):
     else:
         path = f'{args["root_dir"]}/data/{args["dataset"]}/{args["mode"]}.txt'
     try:
-        if args['model'] in ['bart-ft']:
+        if args['model'] in ['bart-ft', 'dialog-eva']:
             vocab = BertTokenizer.from_pretraiend(args['tokenizer'])
         else:
             vocab = AutoTokenizer.from_pretrained(args['tokenizer'])

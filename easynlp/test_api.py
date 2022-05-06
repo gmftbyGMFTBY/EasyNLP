@@ -312,21 +312,41 @@ def SendPOST(url, port, method, params):
     return data
 
 def test_recall(args):
-    data = load_fake_recall_data(
-        f'{args["root_dir"]}/data/{args["dataset"]}/test.txt',
-        # f'{args["root_dir"]}/data/{args["dataset"]}/query.txt',
-        size=args['size'],
-    )
+    # data = load_fake_recall_data(
+    #     f'{args["root_dir"]}/data/{args["dataset"]}/test.txt',
+    #     # f'{args["root_dir"]}/data/{args["dataset"]}/query.txt',
+    #     size=args['size'],
+    # )
     # data = load_wz_recall_data(
     #     f'{args["root_dir"]}/data/{args["dataset"]}/test.txt',
     #     size=args['size'],
     # )
+
+    data = [
+        {
+            'segment_list': [
+                {'str': '今天要不要一起去看个电影呢'}
+            ],'lang': 'zh'
+        },
+        {
+            'segment_list': [
+                {'str': '我女朋友终于要毕业啦'},
+            ],'lang': 'zh'
+        },
+        {
+            'segment_list': [
+                {'str': '辛苦啦'},
+            ],'lang': 'zh'
+        },
+    ]
+
     # recall test begin
     avg_times = []
     collections = []
     error_counter = 0
     pbar = tqdm(data)
     for data in pbar:
+        ipdb.set_trace()
         data = json.dumps(data)
         rest = SendPOST(args['url'], args['port'], '/recall', data)
         if rest['header']['ret_code'] == 'fail':
@@ -476,6 +496,24 @@ def test_pipeline(args):
     print(f'[!] avg time cost: {avg_t} ms; avg recall time cost: {avg_recall_t} ms; avg rerank time cost {avg_rerank_t} ms; error ratio: {round(error_counter/len(data), 4)}')
     return collections
 
+def test_generation_dialog(args):
+    data = [{
+        'segment_list': [
+            {'context': ['几天跑了半个小时，真的太累了']},
+            {'context': ['几天跑了半个小时，真的太累了', '那你现在在干嘛']},
+            {'context': ['几天跑了半个小时，真的太累了', '那你现在在干嘛', '没干嘛']},
+        ],
+    }]
+
+    pbar = tqdm(data)
+    error_counter = 0
+    for data in pbar:
+        data = json.dumps(data)
+        rest = SendPOST(args['url'], args['port'], '/generation_dialog', data)
+        if rest['header']['ret_code'] == 'fail':
+            error_counter += 1
+        pprint.pprint(rest)
+
 def test_generation(args):
     data = load_fake_generation_data_from_writer_rank_corpus(
         f'{args["root_dir"]}/data/{args["dataset"]}/test.txt',
@@ -534,6 +572,7 @@ def test_copygeneration(args):
             'max_gen_len': 64,
             'recall_topk': 20
         }
+        ipdb.set_trace()
         data = json.dumps(data)
         rest = SendPOST(args['url'], args['port'], '/copygeneration', data)
         pprint.pprint(rest)
@@ -557,6 +596,21 @@ def test_evaluation(args):
                 'candidate1': '今天为什么不行啊',
                 'candidate2': '明天可不可以啊'
             },
+            {
+                'context': ['你到底为什么要和我在一起'],
+                'candidate1': '为了更好的照顾你',
+                'candidate2': '你是谁啊，你配吗'
+            },
+            {
+                'context': ['你到底为什么要和我在一起'],
+                'candidate1': '为了更好的照顾你',
+                'candidate2': '为了更好的照顾你',
+            },
+            {
+                'context': ['你到底为什么要和我在一起'],
+                'candidate1': '你到底为什么要和我在一起',
+                'candidate2': '为了更好的照顾你',
+            },
         ]        
     }
     data = json.dumps(data)
@@ -578,6 +632,7 @@ if __name__ == '__main__':
         'partial_rerank': test_partial_rerank,
         'pipeline': test_pipeline,
         'generation': test_generation,
+        'generation_dialog': test_generation_dialog,
         'copygeneration': test_copygeneration,
         'evaluation': test_evaluation,
     }

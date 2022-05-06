@@ -1,11 +1,20 @@
 # basic configuration for building the model
 dropout: 0.1
 
+data_root_path: /apdcephfs/share_916081/johntianlan/chatbot-large-scale-dataset-final-version
+buffer_size: 409600
+
+is_step_for_training: true
+total_step: 410010
+save_every: 20000
+
 tokenizer:
-    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    # zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    zh: /apdcephfs/share_916081/johntianlan/chinese-roberta-wwm-ext-large
     en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
 pretrained_model:
-    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    # zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    zh: /apdcephfs/share_916081/johntianlan/chinese-roberta-wwm-ext-large
     en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
 
 # train configuration
@@ -13,7 +22,7 @@ train:
     lr: 0.00003
     grad_clip: 1.0
     seed: 0
-    batch_size: 128
+    batch_size: 64
     max_len: 128
     min_mask_num: 1
     max_mask_num: 40

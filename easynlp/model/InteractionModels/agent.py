@@ -9,9 +9,10 @@ class InteractionAgent(RetrievalBaseAgent):
 
         if self.args['model'] in ['bert-fp-original', 'bert-ft']:
             self.vocab.add_tokens(['[EOS]'])
-
-        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+            self.eos = self.vocab.convert_tokens_to_ids('[EOS]')
+        self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
 
         if args['mode'] == 'train':
             self.set_test_interval()
@@ -31,8 +32,30 @@ class InteractionAgent(RetrievalBaseAgent):
         elif self.args['model'] in ['bert-ft-hier']:
             self.train_model = self.train_model_hier
 
+        if self.args['is_step_for_training']:
+            self.train_model = self.train_model_step
+
         self.criterion = nn.CrossEntropyLoss()
         self.show_parameters(self.args)
+        
+    def train_model_step(self, batch, recoder=None, current_step=0, pbar=None):
+        self.model.train()
+        self.optimizer.zero_grad()
+        with autocast():
+            output = self.model(batch)
+            loss = self.criterion(output, batch['label'])
+            acc = (output.max(dim=-1)[1] == batch['label']).to(torch.float).mean().item()
+        self.scaler.scale(loss).backward()
+        self.scaler.unscale_(self.optimizer)
+        clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+        self.scaler.step(self.optimizer)
+        self.scaler.update()
+        self.scheduler.step()
+        if recoder:
+            recoder.add_scalar(f'train/RunLoss', loss.item(), current_step)
+            recoder.add_scalar(f'train/RunAcc', acc, current_step)
+        pbar.set_description(f'[!] train loss: {round(loss.item(), 4)}; acc: {round(acc, 4)}')
+        pbar.update(1)
 
     def train_model(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
         self.model.train()
@@ -185,6 +208,63 @@ class InteractionAgent(RetrievalBaseAgent):
                 'P@1': round(100*avg_prec_at_one, 2),
                 'MAP': round(100*avg_map, 2),
             }
+
+    @torch.no_grad()
+    def rerank_and_return(self, batches, rank_num=64, keep_num=5):
+        self.model.eval()
+        ids, tids = [], []
+        for batch in batches:
+            context = batch['context']
+            # select from the bad responses
+            candidate = batch['candidates'][-rank_num:]
+            assert len(candidate) == rank_num
+            ids_, tids_ = self.make_tensor(context, candidates)
+            ids.extend(ids_)
+            tids.extend(tids_)
+        ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+        tids = pad_sequence(tids, batch_first=True, padding_value=self.pad)
+        mask = generate_mask(ids)
+        ids, tids, mask = to_cuda(ids, tids, mask)
+        batch = {
+            'ids': ids,
+            'tids': tids,
+            'mask': mask
+        }
+        score = self.model(batch)
+        min_indexes = []
+        for i in range(0, len(score), rank_num):
+            _, min_index = score[i:i+rank_num].topk(keep_num, largest=False)
+            min_indexes.append(min_index.tolist())
+        assert len(min_indexes) == len(batches)
+        results = []
+        for batch, index in zip(batches, min_indexes):
+            p = [batch['candidates'][i] for i in index]
+            results.append(p)
+        return results
+
+    def make_tensor(self, ctx_, responses_):
+        def _encode_one_session(ctx, responses):
+            context_length = len(ctx)
+            utterances = self.vocab.batch_encode_plus(ctx + responses, add_special_tokens=False)['input_ids']
+            context_utterances = utterances[:context_length]
+            response_utterances = utterances[context_length:]
+
+            context = []
+            for u in context_utterances:
+                context.extend(u + [self.eos])
+            context.pop()
+    
+            ids, tids = [], []
+            for res in response_utterances:
+                ctx = deepcopy(context)
+                truncate_pair(ctx, res, self.args['max_len'])
+                ids_ = [self.cls] + ctx + [self.sep] + res + [self.sep]
+                tids_ = [0] * (len(ctx) + 2) + [1] * (len(res) + 1)
+                ids.append(torch.LongTensor(ids_))
+                tids.append(torch.LongTensor(tids_))
+            return ids, tids
+        ids, tids = _encode_one_session(ctx_, responses_)
+        return ids, tids
 
     @torch.no_grad()
     def rerank(self, batches, inner_bsz=512):

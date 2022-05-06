@@ -46,7 +46,7 @@ def load_deploy_config(api_name):
     # base config
     args = load_base_config()
 
-    if api_name in ['recall', 'rerank', 'generation']:
+    if api_name in ['recall', 'rerank', 'generation', 'generation_dialog']:
         # load deploy parameters from base config
         args.update(args['deploy'])
         args.update(args['deploy'][api_name])

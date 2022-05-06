@@ -555,6 +555,32 @@ def read_text_data_utterances_full_ft(path, lang='zh', turn_length=5):
     print(f'[!] collect {len(data)} samples for training')
     return data
 
+def read_text_data_utterances_full_persona(path, lang='zh', turn_length=5):
+    '''the full conversation context will be used'''
+    dataset = read_text_data_utterances(path, lang=lang)
+    data = []
+    for label, utterances in dataset:
+        if label == 0:
+            continue
+        start_num = 0
+        new_utterances = []
+        persona = []
+        counter = 0
+        for u in utterances:
+            counter += 1
+            if '[split]' in u:
+                sub_utterances = [i.strip() for i in u.split('[split]')]
+                persona = new_utterances + sub_utterances[:1]
+                new_utterances = sub_utterances[1:]
+            else:
+                new_utterances.append(u)
+        utterances = new_utterances
+        start_num = max(1, len(utterances) - turn_length)
+        for i in range(start_num, len(utterances)):
+            # i is the index of the response
+            data.append((1, persona + utterances[:i+1]))
+    print(f'[!] collect {len(data)} samples for training')
+    return data
 
 def read_text_data_utterances_full(path, lang='zh', turn_length=5):
     '''the full conversation context will be used'''

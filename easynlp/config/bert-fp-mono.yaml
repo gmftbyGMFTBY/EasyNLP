@@ -5,6 +5,13 @@ is_step_for_training: false
 total_step: 240000
 save_every: 20000
 
+data_root_path: /apdcephfs/share_916081/johntianlan/chatbot-large-scale-dataset-final-version
+buffer_size: 409600
+
+is_step_for_training: true
+total_step: 240010
+save_every: 20000
+
 # network issue, load locally
 tokenizer:
     # zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese

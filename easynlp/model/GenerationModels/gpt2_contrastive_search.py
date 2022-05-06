@@ -313,3 +313,63 @@ class ContrastiveGPT2DialogEncoder(nn.Module):
         logits = outputs.logits
         mle_loss = self.criterion(logits.view(-1, self.vocab_size), labels.view(-1))
         return math.exp(mle_loss.item())
+
+class SimCTGModel(nn.Module):
+
+    '''contrastive search for gpt2 model.
+    For inference, please load the model into the gpt2 model (model_name in the GenerationModels)'''
+
+    def __init__(self, **args):
+        super(SimCTGModel, self).__init__()
+        self.args = args
+        model_name = args['pretrained_model']
+
+        # tokenizer
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.special_tokens = set([self.tokenizer.pad_token_id, self.tokenizer.cls_token_id, self.tokenizer.unk_token_id, self.tokenizer.sep_token_id])
+        self.unk = self.tokenizer.bos_token_id
+        self.pad = self.tokenizer.bos_token_id
+        self.sep = self.tokenizer.bos_token_id
+        self.vocab_size = len(self.tokenizer)
+
+        # model
+        self.model = GPT2LMHeadModel.from_pretrained(model_name)
+        self.criterion = nn.CrossEntropyLoss(ignore_index=self.pad)
+        self.margin = args['margin']
+
+    def compute_contrastive_loss(self, score_matrix, margin):
+        '''
+           margin: predefined margin to push similarity score away
+           score_matrix: bsz x seqlen x seqlen; cosine similarity matrix
+           input_ids: bsz x seqlen
+        '''
+        bsz, seqlen, _ = score_matrix.size()
+        gold_score = torch.diagonal(score_matrix, offset=0, dim1=1, dim2=2) # bsz x seqlen
+        gold_score = torch.unsqueeze(gold_score, -1)
+        assert gold_score.size() == torch.Size([bsz, seqlen, 1])
+        difference_matrix = gold_score - score_matrix
+        assert difference_matrix.size() == torch.Size([bsz, seqlen, seqlen])
+        loss_matrix = margin - difference_matrix # bsz x seqlen x seqlen
+        loss_matrix = torch.nn.functional.relu(loss_matrix)
+        cl_loss = torch.mean(loss_matrix)
+        return cl_loss 
+
+    def forward(self, batch):
+        input_ids, ids_mask, labels = batch['ids'], batch['ids_mask'], batch['ods']
+        bsz, seqlen = input_ids.size()
+        outputs = self.model(input_ids=input_ids, attention_mask=ids_mask, output_hidden_states=True)
+        logits = outputs.logits
+        last_hidden_states = outputs.hidden_states[-1]
+        mle_loss = self.criterion(logits.view(-1, self.vocab_size), labels.view(-1))
+        # token_acc
+        chosen_tokens = torch.max(logits, dim=-1)[1]
+        gen_acc = (chosen_tokens.view(-1) == labels.view(-1)).to(torch.long)
+        valid_mask = (labels != self.pad).view(-1)
+        valid_tokens = gen_acc & valid_mask
+        gen_acc = valid_tokens.sum().item() / valid_mask.sum().item()
+
+        norm_rep = last_hidden_states / last_hidden_states.norm(dim=2, keepdim=True)
+        cosine_scores = torch.matmul(norm_rep, norm_rep.transpose(1,2)) 
+        assert cosine_scores.size() == torch.Size([bsz, seqlen, seqlen])
+        cl_loss = self.compute_contrastive_loss(cosine_scores, self.margin)
+        return mle_loss, gen_acc, cl_loss

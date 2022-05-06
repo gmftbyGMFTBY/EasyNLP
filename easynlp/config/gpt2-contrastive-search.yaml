@@ -1,7 +1,7 @@
 valid_during_training: false
 is_step_for_training: true
-total_step: 1000010
-save_every: 20000
+total_step: 50010
+save_every: 1000
 test_gen_max_len: 128
 beam_width: 5
 model_prediction_confidence: 0.6
@@ -22,8 +22,9 @@ tokenizer:
     # zh: /apdcephfs/share_916081/johntianlan/gpt2-l-300g
     # zh: /apdcephfs/share_916081/johntianlan/gpt2-l-300g
     # zh: /apdcephfs/share_733425/johntianlan/gpt2-chinese-cluecorpussmall
-    en: /apdcephfs/share_916081/johntianlan/gpt2_english
+    # en: /apdcephfs/share_916081/johntianlan/gpt2_english
     # en: /apdcephfs/share_733425/johntianlan/gpt2-large
+    en: /apdcephfs/share_916081/johntianlan/distilgpt2
     # en: /apdcephfs/share_916081/johntianlan/gpt2-large
     # en: /apdcephfs/share_916081/johntianlan/gpt2-arxiv-simctg
     # en: /apdcephfs/share_916081/johntianlan/gpt2_small_contrastive_finetune
@@ -34,9 +35,10 @@ pretrained_model:
     # zh: /apdcephfs/share_916081/johntianlan/gpt2-l-300g
     # zh: /apdcephfs/share_916081/johntianlan/gpt2-l-300g
     # zh: /apdcephfs/share_733425/johntianlan/gpt2-chinese-cluecorpussmall
-    en: /apdcephfs/share_916081/johntianlan/gpt2_english
+    # en: /apdcephfs/share_916081/johntianlan/gpt2_english
     # en: /apdcephfs/share_733425/johntianlan/gpt2-arxiv
     # en: /apdcephfs/share_916081/johntianlan/gpt2-arxiv-simctg
+    en: /apdcephfs/share_916081/johntianlan/distilgpt2
     # en: /apdcephfs/share_733425/johntianlan/gpt2-large
     # en: /apdcephfs/share_916081/johntianlan/gpt2-large
     # en: /apdcephfs/share_916081/johntianlan/gpt2_small_contrastive_finetune
@@ -44,12 +46,12 @@ pretrained_model:
 # train configuration
 train:
     load_param: true
-    lr: 0.00003
+    lr: 0.00001
     grad_clip: 1.0
     seed: 0
-    batch_size: 128
-    max_len: 64
-    warmup_ratio: 0.
+    batch_size: 16
+    max_len: 512
+    warmup_ratio: 0.06
     iter_to_accumulate: 1
     checkpoint: 
         path: bert-post/best_nspmlm.pt
