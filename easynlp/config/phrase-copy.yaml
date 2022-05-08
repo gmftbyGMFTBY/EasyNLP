@@ -11,7 +11,8 @@ hard_neg_for_each_doc: 50
 index_type: PCA64,IVF65536_HNSW32,PQ16
 dimension: 1536
 index_nprobe: 10
-token_cl_sample_num: 2048
+token_cl_sample_num: 128
+margin: 0.9
 
 phrase_tokenizer: /apdcephfs/share_916081/johntianlan/bert-base-chinese
 phrase_encoder_model: /apdcephfs/share_916081/johntianlan/bert-base-chinese

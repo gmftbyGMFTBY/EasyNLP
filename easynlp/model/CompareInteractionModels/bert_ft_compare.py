@@ -8,10 +8,11 @@ class BERTCompareRetrieval(nn.Module):
         model = args['pretrained_model']
         self.inner_bsz = args['inner_bsz']
         self.num_labels = args['num_labels']
-        self.model = SABertForSequenceClassification.from_pretrained(model, num_labels=2)
+        self.model = SABertForSequenceClassification.from_pretrained(model, num_labels=1)
         # self.model = SABertForSequenceClassification.from_pretrained(model, num_labels=3)
         self.model.resize_token_embeddings(self.model.config.vocab_size+1)
-        self.criterion = nn.CrossEntropyLoss()
+        # self.criterion = nn.CrossEntropyLoss()
+        self.criterion = nn.MSELoss()
 
         # vocabulary
         self.vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
@@ -63,7 +64,7 @@ class BERTCompareRetrieval(nn.Module):
                     token_type_ids=sub_tids,
                     compare_ids=sub_cpids
                 )
-                logits = output.logits.squeeze(dim=1)     # [B]
+                logits = F.sigmoid(output.logits).squeeze(dim=-1)    # [B]
                 loss = self.criterion(logits, sub_label)
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)
@@ -71,13 +72,11 @@ class BERTCompareRetrieval(nn.Module):
             scaler.step(optimizer)
             scaler.update()
             scheduler.step()
-
             tloss += loss
-            acc += (logits.max(dim=-1)[1] == sub_label).to(torch.float).mean().item()
+            acc += ((logits > 0.5) == (sub_label > 0.5)).to(torch.float).mean().item()
             counter += 1
         tloss /= counter
         acc /= counter
-        # return tloss, acc, counter
         return tloss, acc
 
     def predict(self, batch):
@@ -85,13 +84,14 @@ class BERTCompareRetrieval(nn.Module):
         tids = batch['tids']
         cpids = batch['cpids']
         mask = batch['mask']   
-        logits = self.model(
+        output = self.model(
             input_ids=inpt,
             attention_mask=mask,
             token_type_ids=tids,
             compare_ids=cpids,
-        )[0]
-        return F.softmax(logits, dim=-1)    # [B, 3]
+        )
+        logit = F.sigmoid(output.logits).squeeze(dim=-1)
+        return logit
 
 
 class BERTCompareTokenEncoder(nn.Module):

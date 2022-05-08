@@ -1,6 +1,6 @@
 from model.utils import *
 from .gpt2_original import GPT2OriginalModel
-from model.RepresentationModels import DensePhraseEncoder
+from model.RepresentationModels import DensePhraseEncoder, DensePhraseV2Encoder
 from .utils import *
 from config import *
 
@@ -21,7 +21,7 @@ class CopyGenerationEncoder(nn.Module):
         config = load_config(generator_args)
         generator_args.update(config)
 
-        self.retriever = DensePhraseEncoder(**retriever_args) 
+        self.retriever = DensePhraseV2Encoder(**retriever_args) 
         self.generator = GPT2OriginalModel(**generator_args)
         self.criterion_ = nn.CrossEntropyLoss(ignore_index=self.generator.vocab.pad_token_id, reduction='none')
         self.criterion = nn.CrossEntropyLoss(ignore_index=self.generator.vocab.pad_token_id)
@@ -44,6 +44,16 @@ class CopyGenerationEncoder(nn.Module):
         retrieval_list = self.searcher._search(batch, topk=self.args['recall_topk'])[0]
         docs = [test_data.base_data[key] for jey in retrieval_list]
         return docs
+
+    @torch.no_grad()
+    def search_from_words(self, query):
+        self.retriever.eval()
+        dp = torch.matmul(query, F.normalize(self.retriever.token_embeddings, dim=-1).t()).squeeze(0)
+        dis, topk = dp.topk(self.args['search_topk'], dim=-1)
+        dis = dis.tolist()
+        topk = topk.tolist()
+        candidates = [(self.retriever.tokenizer.convert_ids_to_tokens(i), round(d, 4)) for i, d in zip(topk, dis)]
+        return candidates
 
     @torch.no_grad()
     def search_from_documents(self, query, phrase_reps, phrase_source):
@@ -300,7 +310,11 @@ class CopyGenerationEncoder(nn.Module):
             # init the query
             query = self.retriever.get_query_rep(ids)
             # search candidate phrases
-            candidates = self.search_from_documents(query, phrase_reps, phrase_sources)
+            phrase_candidates = self.search_from_documents(query, phrase_reps, phrase_sources)
+            word_candidates = self.search_from_words(query)
+            candidates = phrase_candidates + word_candidates
+            candidates = sorted(candidates, key=lambda x:x[1], reverse=True)
+            ipdb.set_trace()
             return candidates
             # ipdb.set_trace()
             # break

@@ -44,7 +44,7 @@ def inference(**args):
         agent.load_model(f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}_{args["version"]}.pt')
 
     if work_mode in ['response', 'simcse-response']:
-        # agent.inference(data_iter, size=args['cut_size'])
+        agent.inference(data_iter, size=args['cut_size'])
         pass
     elif work_mode in ['phrases']:
         # agent.inference_phrases(data_iter, size=args['cut_size'])

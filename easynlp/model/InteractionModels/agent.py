@@ -210,14 +210,16 @@ class InteractionAgent(RetrievalBaseAgent):
             }
 
     @torch.no_grad()
-    def rerank_and_return(self, batches, rank_num=64, keep_num=5):
+    def rerank_and_return(self, batches, rank_num=64, keep_num=5, score_threshold=0.2, score_threshold_positive=0.7):
         self.model.eval()
+        # hard negative selection
+        '''
         ids, tids = [], []
         for batch in batches:
             context = batch['context']
             # select from the bad responses
-            candidate = batch['candidates'][-rank_num:]
-            assert len(candidate) == rank_num
+            candidates = batch['candidates'][-rank_num:]
+            assert len(candidates) == rank_num
             ids_, tids_ = self.make_tensor(context, candidates)
             ids.extend(ids_)
             tids.extend(tids_)
@@ -228,19 +230,55 @@ class InteractionAgent(RetrievalBaseAgent):
         batch = {
             'ids': ids,
             'tids': tids,
-            'mask': mask
+            'ids_mask': mask
         }
-        score = self.model(batch)
+        score = F.softmax(self.model(batch), dim=-1)[:, 1]
         min_indexes = []
+        min_scores = []
+        max_indexes, max_scores = [], []
         for i in range(0, len(score), rank_num):
-            _, min_index = score[i:i+rank_num].topk(keep_num, largest=False)
+            min_score, min_index = score[i:i+rank_num].topk(keep_num, largest=False)
             min_indexes.append(min_index.tolist())
-        assert len(min_indexes) == len(batches)
-        results = []
-        for batch, index in zip(batches, min_indexes):
-            p = [batch['candidates'][i] for i in index]
-            results.append(p)
-        return results
+            min_scores.append(min_score.tolist())
+        '''
+
+        # hard positive selection
+        ids, tids = [], []
+        for batch in batches:
+            context = batch['context']
+            candidates = batch['candidates'][:rank_num]
+            assert len(candidates) == rank_num
+            ids_, tids_ = self.make_tensor(context, candidates)
+            ids.extend(ids_)
+            tids.extend(tids_)
+        ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+        tids = pad_sequence(tids, batch_first=True, padding_value=self.pad)
+        mask = generate_mask(ids)
+        ids, tids, mask = to_cuda(ids, tids, mask)
+        batch = {
+            'ids': ids,
+            'tids': tids,
+            'ids_mask': mask
+        }
+        score = F.softmax(self.model(batch), dim=-1)[:, 1]
+        max_indexes, max_scores = [], []
+        for i in range(0, len(score), rank_num):
+            max_score, max_index = score[i:i+rank_num].topk(keep_num)
+            max_indexes.append(max_index.tolist())
+            max_scores.append(max_score.tolist())
+        assert len(max_indexes) == len(batches)
+
+        #
+        # hard_negative = []
+        # for batch, score, index in zip(batches, min_scores, min_indexes):
+        #     p = [(batch['candidates'][i], j) for i, j in zip(index, score) if j <= score_threshold]
+        #     hard_negative.append(p)
+        hard_positive = []
+        for batch, score, index in zip(batches, max_scores, max_indexes):
+            p = [(batch['candidates'][i], j) for i, j in zip(index, score) if j >= score_threshold_positive]
+            hard_positive.append(p)
+        # return hard_negative, hard_positive
+        return hard_positive
 
     def make_tensor(self, ctx_, responses_):
         def _encode_one_session(ctx, responses):

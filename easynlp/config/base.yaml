@@ -1006,8 +1006,8 @@ models:
 
 # ========= Global configuration ========== #
 # huge file are saved in the root dir
-root_dir: /apdcephfs/share_733425/johntianlan/MyReDial
-# root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
+# root_dir: /apdcephfs/share_733425/johntianlan/MyReDial
+root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # root_dir: /apdcephfs/share_916081/dongyangma/johntianlan/MyReDial
 # root_dir: /apdcephfs/share_733425/johntianlan/MyReDial
 # root_dir: /home/johntianlan/sources/EasyNLP

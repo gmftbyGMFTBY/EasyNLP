@@ -105,6 +105,7 @@ def main_generation(**args):
             batch['decoding_method'] = decoding_method
             res = agent.model.work(batch) 
             batch[f'{decoding_method}_response'] = res
+            print(batch)
         string = json.dumps(batch, ensure_ascii=False)
         f.write(string + '\n')
         f.flush()

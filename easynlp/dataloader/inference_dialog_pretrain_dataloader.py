@@ -29,6 +29,7 @@ class InferenceDRBERTDataset(Dataset):
         torch.cuda.manual_seed_all(new_seed)
                 
     def __len__(self):
+        # inference only a partial of the dataset
         return 10000000
 
     def __getitem__(self, i):

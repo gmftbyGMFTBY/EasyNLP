@@ -67,18 +67,29 @@ class DensePhraseEncoder(nn.Module):
 
         # phrase begin position
         pos_index = batch['pos_ids']    # [B_p]
+        pos_index_end = batch['pos_ids_end']
         ext_last_hidden_states = []
         hard_ext_last_hidden_states = []
-        for hs, pos_list in zip(last_hidden_states, pos_index):
+
+        repetition_penalty_query = []
+        length = ids_mask.sum(dim=-1)
+        for hs, pos_list, pos_end_list, l in zip(last_hidden_states, pos_index, pos_index_end, length):
             # hs: [S, E]
             ext_last_hidden_states.append(hs[pos_list, :])
             window_index = set(range(len(hs)))
             window_index = list(window_index - set(pos_list))
             hard_ext_last_hidden_states.append(hs[window_index, :])
+
+            hard_list = [random.choice(range(i, l)) for i in pos_end_list]
+            repetition_penalty_query.append(hs[hard_list, :])
         query_rep = torch.cat(ext_last_hidden_states)    # [B_q]
+        repetition_penalty_query_rep = torch.cat(repetition_penalty_query)    # [B_q]
         hard_query_rep = torch.cat(hard_ext_last_hidden_states)
         query_rep = torch.cat(
             [self.s_proj(query_rep), self.e_proj(query_rep)], dim=-1        # [B_p, 2*E]
+        )
+        repetition_penalty_query_rep = torch.cat(
+            [self.s_proj(repetition_penalty_query_rep), self.e_proj(repetition_penalty_query_rep)], dim=-1        # [B_p, 2*E]
         )
         hard_query_rep = torch.cat(
             [self.s_proj(hard_query_rep), self.e_proj(hard_query_rep)], dim=-1        # [B_p, 2*E]
@@ -118,9 +129,6 @@ class DensePhraseEncoder(nn.Module):
         phrase_rep = torch.cat([phrase_rep, hn_phrase_rep, hard_query_rep], dim=0)    # [B_p, 2*E]
 
         query_rep, phrase_rep = F.normalize(query_rep, dim=-1), F.normalize(phrase_rep, dim=-1)
-        # distributed collection
-        # query_rep, phrase_rep = distributed_collect(query_rep, phrase_rep)
-        # doc_bsz = len(query_rep)
         
         dp = torch.matmul(query_rep, phrase_rep.t())    # [B_p, B_p]
         dp /= self.args['temp']
@@ -129,7 +137,21 @@ class DensePhraseEncoder(nn.Module):
         loss_ = F.log_softmax(dp, dim=-1) * mask
         phrase_loss = (-loss_.sum(dim=1)).mean()
         phrase_acc = (dp.max(dim=-1)[1].cpu() == torch.LongTensor(torch.arange(doc_bsz))).to(torch.float).mean().item()
-        return phrase_loss, phrase_acc
+
+        # repetitiaon penalty
+        # repetition_penalty_query_rep, phrase_rep
+        repetition_phrase_rep = torch.cat([s_rep, e_rep], dim=-1)    # [B_p, 2*E]
+        repetition_phrase_rep = F.normalize(repetition_phrase_rep, dim=-1)
+        repetition_penalty_query_rep = F.normalize(repetition_penalty_query_rep, dim=-1)
+        assert repetition_penalty_query_rep.size() == repetition_phrase_rep.size()
+
+        score_matrix = torch.matmul(repetition_penalty_query_rep, repetition_phrase_rep.t())
+        gold_score = torch.diagonal(score_matrix).unsqueeze(1)
+        difference_matrix = gold_score - score_matrix
+        loss_matrix = self.args['margin'] - difference_matrix # bsz x seqlen x seqlen
+        loss_matrix = torch.nn.functional.relu(loss_matrix)
+        cl_loss = torch.mean(loss_matrix)
+        return phrase_loss, phrase_acc, cl_loss
 
 
 class DensePhraseV2Encoder(nn.Module):
@@ -272,16 +294,16 @@ class DensePhraseV2Encoder(nn.Module):
             hidden_rep_ = hidden_rep[:l-1, :]
             k.append(hidden_rep_)
             v.extend(label_)
-        if len(k) > self.args['token_cl_sample_num']:
-            random_sample_index = list(range(len(k)))
-            random_sample_index = random.sample(random_sample_index, self.args['token_cl_sample_num'])
-        else:
-            random_sample_index = list(range(len(k)))
+        # if len(k) > self.args['token_cl_sample_num']:
+        #     random_sample_index = list(range(len(k)))
+        #     random_sample_index = random.sample(random_sample_index, self.args['token_cl_sample_num'])
+        # else:
+        #     random_sample_index = list(range(len(k)))
         k = torch.cat(k)
         k = torch.cat([self.s_proj(k), self.e_proj(k)], dim=-1)
         k = F.normalize(k, dim=-1)
-        k = k[random_sample_index, :]
-        v = [v[i] for i in random_sample_index]
+        # k = k[random_sample_index, :]
+        # v = [v[i] for i in random_sample_index]
         dp = torch.matmul(k, F.normalize(self.token_embeddings, dim=-1).t())
         dp /= self.args['temp']
         mask = torch.zeros_like(dp)
@@ -289,4 +311,5 @@ class DensePhraseV2Encoder(nn.Module):
         loss_ = F.log_softmax(dp, dim=-1) * mask
         token_loss = (-loss_.sum(dim=1)).mean()
         token_acc = (dp.max(dim=-1)[1].cpu() == torch.LongTensor(v)).to(torch.float).mean().item()
+
         return phrase_loss, phrase_acc, token_loss, token_acc

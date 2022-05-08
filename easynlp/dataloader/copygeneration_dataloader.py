@@ -103,7 +103,7 @@ class CopyGenerationDataset(Dataset):
             docs = random.sample(docs, self.args['max_doc_num'])
 
         # encode the documents
-        doc_ids, doc_index, pos_index = [], [], []
+        doc_ids, doc_index, pos_index, pos_index_end = [], [], [], []
         for pos_in_ids, length_s, length_i, docid, pos_in_doc in docs:
             doc_ = self.base_data[docid]
             pre_phrase, post_phrase = doc_[:pos_in_doc], doc_[pos_in_doc+length_s:]
@@ -121,7 +121,8 @@ class CopyGenerationDataset(Dataset):
             doc_ids.append(doc_ids_)
             doc_index.append((doc_s_pos, doc_e_pos))
             pos_index.append(pos_in_ids)
-        return ids, doc_ids, doc_index, pos_index
+            pos_index_end.append(pos_in_ids + length_i)
+        return ids, doc_ids, doc_index, pos_index, pos_index_end
 
     def save(self):
         pass
@@ -136,13 +137,14 @@ class CopyGenerationDataset(Dataset):
                 'ground_truth': batch[1]
             }
 
-        ids, dids, dindex_s, dindex_e, pos_ids = [], [], [], [], []
-        for a, b, c, d in batch:
+        ids, dids, dindex_s, dindex_e, pos_ids, pos_ids_end = [], [], [], [], [], []
+        for a, b, c, d, e in batch:
             ids.append(torch.LongTensor(a))
             dids.extend([torch.LongTensor(i) for i in b])
             dindex_s.extend([i for i, _ in c])
             dindex_e.extend([i for _, i in c])
             pos_ids.append(d)
+            pos_ids_end.append(e)
         dindex_s = torch.LongTensor(dindex_s)
         dindex_e = torch.LongTensor(dindex_e)
         ids = pad_sequence(ids, batch_first=True, padding_value=self.vocab.pad_token_id)
@@ -157,6 +159,7 @@ class CopyGenerationDataset(Dataset):
             'dindex_s': dindex_s,
             'dindex_e': dindex_e,
             'pos_ids': pos_ids,
+            'pos_ids_end': pos_ids_end,
         }
 
 

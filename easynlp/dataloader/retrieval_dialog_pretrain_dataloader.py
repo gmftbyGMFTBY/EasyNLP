@@ -484,12 +484,6 @@ class BERTCompHNBigDataset(Dataset):
             config = load_config(bert_ft_args)
             bert_ft_args.update(config)
 
-            self.bert_ft_agent = load_model(bert_ft_args)
-            pretrained_model_name = bert_ft_args['pretrained_model'].replace('/', '_')
-            save_path = f'{bert_ft_args["root_dir"]}/ckpt/{bert_ft_args["dataset"]}/{bert_ft_args["model"]}/best_{pretrained_model_name}_{bert_ft_args["version"]}.pt'
-            self.bert_ft_agent.load_model(save_path)
-            print(f'[!] init the bert-ft agent over')
-
             # load the searcher
             self.searcher = Searcher(
                 'IVF65536_HNSW32,PQ8',
@@ -500,6 +494,13 @@ class BERTCompHNBigDataset(Dataset):
                 f'{dr_bert_args["root_dir"]}/data/{dr_bert_args["dataset"]}/dual-bert_{pretrained_model_name}_faiss.ckpt',        
                 f'{dr_bert_args["root_dir"]}/data/{dr_bert_args["dataset"]}/dual-bert_{pretrained_model_name}_corpus.ckpt',        
             )
+
+
+            self.bert_ft_agent = load_model(bert_ft_args)
+            pretrained_model_name = bert_ft_args['pretrained_model'].replace('/', '_')
+            save_path = f'{bert_ft_args["root_dir"]}/ckpt/{bert_ft_args["dataset"]}/{bert_ft_args["model"]}/best_{pretrained_model_name}_{bert_ft_args["version"]}.pt'
+            self.bert_ft_agent.load_model(save_path)
+            print(f'[!] init the bert-ft agent over')
         else:
             path = f'{root_path}/test.txt'
             data = read_text_data_utterances(path, lang=self.args['lang'])
@@ -569,27 +570,41 @@ class BERTCompHNBigDataset(Dataset):
             # retrieve
             context_list = [i[:-1] for i in batch]
             embd, _ = self.dr_bert_agent.inference_context_one_batch(context_list)
-            hard_negative = self.searcher._search(embd, topk=self.args['recall_pool_size'])
+            hard_negative_samples = self.searcher._search(embd, topk=self.args['recall_pool_size'])
+            # re-duplicate
+            hard_negative = []
+            for idx, item in enumerate(hard_negative_samples):
+                gt = batch[idx][-1]
+                p, pool = [], set()
+                for u in item:
+                    if u != gt and u not in pool:
+                        pool.add(u)
+                        p.append(u)
+                hard_negative.append(p[:-1])
+            
             # rerank
             rerank_batches = [{'context': context_list[i], 'candidates': hard_negative[i]} for i in range(len(batch))]
-            hard_negative = self.bert_ft_agent.rerank_and_return(rerank_batches, rank_num=self.args['rank_num'], keep_num=self.args['gray_cand_num'])
+            hard_positive = self.bert_ft_agent.rerank_and_return(rerank_batches, rank_num=self.args['rank_num'], keep_num=self.args['gray_cand_num'], score_threshold=self.args['rank_score_threshold'], score_threshold_positive=self.args['rank_score_threshold_positive'])
+            hard_negative = [random.sample(item[-self.args['rank_num']:], self.args['gray_cand_num']) for item in hard_negative]
+            hard_positive = [[i for i, j in item] for item in hard_positive]
 
             easy_negative = self.sample_easy_negative(len(batch), self.args['gray_cand_num'])
             ids, tids, cpids, label = [], [], [], []
-            for item, hn, en in zip(batch, hard_negative, easy_negative):
-                
-                hn = hn[-self.args['gray_cand_num']:]
+            for item, hn, en, hp in zip(batch, hard_negative, easy_negative, hard_positive):
 
+                # hn size range from 0 to gray_cand_num
+                # hn = hn[:self.args['gray_cand_num']]
                 if random.random() < 0.05:
                     # replace one of the easy negative with the context utterance
                     uttr = random.choice(item[:-1])
                     en[0] = uttr
 
-                items = self.vocab.batch_encode_plus(item + hn + en, add_special_tokens=False)['input_ids']
+                items = self.vocab.batch_encode_plus(item + hn + en + hp, add_special_tokens=False)['input_ids']
                 context = items[:len(item)-1]
                 rids = items[len(item)-1]
                 hardn = items[len(item):len(item)+len(hn)]
-                easyn = items[-len(en):]
+                easyn = items[len(item)+len(hn):len(item)+len(hn)+len(en)]
+                hardp = items[-len(hp):]
                 cids = []
                 for s in context:
                     cids.extend(s + [self.eos])
@@ -617,11 +632,22 @@ class BERTCompHNBigDataset(Dataset):
                     tids.append(tids_)
                     cpids.append(cpids_)
                     label.append(l)
+                for hp_ in hardp:
+                    if random.random() > 0.5:
+                        ids_, tids_, cpids_ = self._packup(cids, rids, hp_)
+                    else:
+                        ids_, tids_, cpids_ = self._packup(cids, hp_, rids)
+                    l = 0.5
+                    ids.append(ids_)
+                    tids.append(tids_)
+                    cpids.append(cpids_)
+                    label.append(l)
+
             # whole samples
             ids = [torch.LongTensor(i) for i in ids]
             cpids = [torch.LongTensor(i) for i in cpids]
             tids = [torch.LongTensor(i) for i in tids]
-            label = torch.LongTensor(label)
+            label = torch.tensor(label)
             return {
                 'ids': ids, 
                 'tids': tids, 

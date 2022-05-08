@@ -1557,16 +1557,18 @@ class RepresentationAgent(RetrievalBaseAgent):
         self.model.train()
         total_loss, total_phrase_acc, total_token_acc = 0, 0, 0
         total_tloss, total_bloss = 0, 0
-        total_token_loss, total_phrase_loss = 0, 0
+        total_token_loss, total_phrase_loss, total_cl_loss = 0, 0, 0
         pbar = tqdm(train_iter)
         correct, s, oom_t = 0, 0, 0
         batch_num = 0
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
             with autocast():
-                # loss, acc = self.model(batch)
                 phrase_loss, phrase_acc, token_loss, token_acc = self.model(batch)
                 loss = phrase_loss + token_loss
+
+                # phrase_loss, phrase_acc, cl_loss = self.model(batch)
+                # loss = phrase_loss + cl_loss
             self.scaler.scale(loss).backward()
             self.scaler.unscale_(self.optimizer)
             clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
@@ -1576,8 +1578,12 @@ class RepresentationAgent(RetrievalBaseAgent):
 
             total_loss += loss.item()
             total_phrase_loss += phrase_loss.item()
-            total_token_loss += token_loss.item()
+            
+            total_token_loss += token_loss.item() 
+            # total_cl_loss += cl_loss.item()
+            
             total_token_acc += token_acc
+            
             total_phrase_acc += phrase_acc
             batch_num += 1
 
@@ -1587,10 +1593,13 @@ class RepresentationAgent(RetrievalBaseAgent):
             if recoder:
                 recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
                 recoder.add_scalar(f'train-epoch-{idx_}/PhraseLoss', total_phrase_loss/batch_num, idx)
-                recoder.add_scalar(f'train-epoch-{idx_}/TokenLoss', total_token_loss/batch_num, idx)
+                
+                # recoder.add_scalar(f'train-epoch-{idx_}/CLLoss', total_cl_loss/batch_num, idx)
                 recoder.add_scalar(f'train-epoch-{idx_}/TokenAcc', total_token_acc/batch_num, idx)
+                
                 recoder.add_scalar(f'train-epoch-{idx_}/PhraseAcc', total_phrase_acc/batch_num, idx)
             pbar.set_description(f'[!] loss(phrase|token): {round(total_phrase_loss/batch_num, 4)}|{round(total_token_loss/batch_num, 4)}; acc(phrase|token): {round(total_phrase_acc/batch_num, 4)}|{round(total_token_acc/batch_num, 4)}')
+            # pbar.set_description(f'[!] loss(phrase|cl): {round(total_phrase_loss/batch_num, 4)}|{round(total_cl_loss/batch_num, 4)}; acc: {round(total_phrase_acc/batch_num, 4)}')
         return batch_num
 
 

@@ -180,6 +180,10 @@ class GPT2ForContrastiveCommonCrawlForBigDataset(Dataset):
             if line.strip():
                 t = self.vocab.encode(line, add_special_tokens=False)
                 if len(tokens) + len(t) > self.args['max_len']:
+                    tokens += t[:self.args['max_len'] - len(tokens)]
+                    t = t[self.args['max_len'] - len(tokens):]
+                    raw_text = self.vocab.decode(t)
+                    self.cache[0] = raw_text
                     break
                 else:
                     tokens.extend(t)

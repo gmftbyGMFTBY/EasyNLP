@@ -1,6 +1,5 @@
 # [inner_bsz] the batch for one train step is to big, split and run it in multiple times
-inner_bsz: 48
-gray_cand_num: 2
+inner_bsz: 64
 positive_margin: 0.1
 ambiguous_margin: 0.5
 positive_margin_delta: 0.0
@@ -10,9 +9,16 @@ no_hard_negative: false
 valid_during_training: false
 random_sample_pool_size: 10000
 is_step_for_training: true
-total_step: 4000000
+total_step: 2000000
 save_every: 100000
-recall_pool_size: 256
+dropout: 0.1
+
+# for ranking
+gray_cand_num: 2
+recall_pool_size: 1024
+rank_num: 32
+rank_score_threshold: 0.3
+rank_score_threshold_positive: 0.85
 
 data_root_path: /apdcephfs/share_916081/johntianlan/chatbot-large-scale-dataset-final-version
 buffer_size: 409600
@@ -29,7 +35,7 @@ train:
     lr: 0.00003
     grad_clip: 1.0
     seed: 0
-    batch_size: 16
+    batch_size: 32
     max_len: 256
     epoch: 5
     warmup_ratio: 0.0

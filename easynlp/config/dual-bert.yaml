@@ -18,12 +18,12 @@ buffer_size: 409600
 tokenizer:
     # zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
     zh: /apdcephfs/share_916081/johntianlan/chinese-roberta-wwm-ext
-    # zh: /apdcephfs/share_916081/johntianlan/chinese-roberta-wwm-ext-large
+    # zh: /apdcephfs/share_733425/johntianlan/chinese-roberta-wwm-ext-large
     en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
 pretrained_model:
     # zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
     zh: /apdcephfs/share_916081/johntianlan/chinese-roberta-wwm-ext
-    # zh: /apdcephfs/share_916081/johntianlan/chinese-roberta-wwm-ext-large
+    # zh: /apdcephfs/share_733425/johntianlan/chinese-roberta-wwm-ext-large
     en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
 
 # train configuration
@@ -48,7 +48,7 @@ train:
         # path: bert-fp-mono/best_bert-base-chinese.pt
         # path: bert-fp/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_11.pt
         # path: bert-fp-mono/best__apdcephfs_share_916081_johntianlan_chinese-roberta-wwm-ext_16.pt
-        path: bert-fp-mono/best__apdcephfs_share_916081_johntianlan_bert-base-uncased_14.pt
+        path: bert-fp-mono/best__apdcephfs_share_733425_johntianlan_chinese-roberta-wwm-ext-large_19.pt
         # path: bert-fp-mono/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_801.pt
         # path: bert-fp-mono/best_bert-base-uncased.pt
         # path: simcse/best_bert-base-chinese.pt

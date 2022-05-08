@@ -34,5 +34,6 @@ model_name=${names[1]}
 # ./scripts/test_generation.sh $dataset_name $model_name 0
 
 # inference clean large-scale dataset
-./scripts/inference_clean.sh $dataset_name $model_name $str
+# ./scripts/inference_clean.sh $dataset_name $model_name $str
 # ./scripts/inference_phrases.sh $dataset_name $model_name $str
+./scripts/inference_response.sh $dataset_name $model_name $str
