@@ -39,7 +39,6 @@ def create_app(**args):
 
     test_data, test_iter, _ = load_dataset(args)
 
-    # load the dialogue genenerator
     agent = load_model(args)
     pretrained_model_name = args['pretrained_model'].replace('/', '_')
     save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}_{args["version"]}.pt'
@@ -67,18 +66,18 @@ def create_app(**args):
     agent.model.init_searcher(searcher_agent, searcher, test_data.base_data)
 
     # faiss searcher
-    faiss_searcher = Searcher(
-        faiss_searcher_args['index_type'] ,
-        dimension=faiss_searcher_args['dimension'],
-        nprobe=faiss_searcher_args['index_nprobe']
-    )
-    pretrained_model_name = faiss_searcher_args['pretrained_model'].replace('/', '_')
-    model_name = faiss_searcher_args['model']
-    faiss_searcher.load(
-        f'{faiss_searcher_args["root_dir"]}/data/{faiss_searcher_args["dataset"]}/{model_name}_{pretrained_model_name}_faiss.ckpt',
-        f'{faiss_searcher_args["root_dir"]}/data/{faiss_searcher_args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt'        
-    )
-    agent.model.init_faiss_searcher(faiss_searcher)
+    # faiss_searcher = Searcher(
+    #     faiss_searcher_args['index_type'] ,
+    #     dimension=faiss_searcher_args['dimension'],
+    #     nprobe=faiss_searcher_args['index_nprobe']
+    # )
+    # pretrained_model_name = faiss_searcher_args['pretrained_model'].replace('/', '_')
+    # model_name = faiss_searcher_args['model']
+    # faiss_searcher.load(
+    #     f'{faiss_searcher_args["root_dir"]}/data/{faiss_searcher_args["dataset"]}/{model_name}_{pretrained_model_name}_faiss.ckpt',
+    #     f'{faiss_searcher_args["root_dir"]}/data/{faiss_searcher_args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt'        
+    # )
+    # agent.model.init_faiss_searcher(faiss_searcher)
     print(f'[!] init model over')
 
     @app.route('/copygeneration', methods=['POST'])

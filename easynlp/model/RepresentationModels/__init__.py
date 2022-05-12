@@ -1,4 +1,5 @@
 from .agent import *
+from .dual_bert_mutual import *
 from .phrase_copymodel import *
 from .hash_bert_boost import *
 from .dual_bert_mv import *

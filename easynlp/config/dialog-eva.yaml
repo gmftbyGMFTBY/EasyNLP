@@ -2,7 +2,7 @@ valid_during_training: false
 is_step_for_training: true
 total_step: 2000010
 save_every: 100000
-test_gen_max_len: 128
+test_gen_max_len: 32
 beam_width: 5
 model_prediction_confidence: 0.6
 sampling_probability: 0.
@@ -13,6 +13,9 @@ prefix_len: 32
 margin: 0.5
 cl_loss_alpha: 1.
 sampling_prefix_len: 3
+max_prefix_len: 128
+topp: 0.93
+topk: 8
 
 
 #

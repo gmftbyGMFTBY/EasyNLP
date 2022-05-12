@@ -443,11 +443,13 @@ class GenerationAgent(GenerationBaseAgent):
         elif self.args['model'] in ['copygeneration']:
             pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
             retrieval_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/phrase-copy/best_{pretrained_model_name}_{self.args["version"]}.pt'
-            pretrinaed_model_name = self.args['phrase_encoder_model'].replace('/', '_')
-            generation_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/gpt2-original/best_{pretrained_model_name}_{self.args["version"]}.pt'
             self.model.retriever.load_state_dict(torch.load(retrieval_path, map_location=torch.device('cpu')))
-            self.model.generator.load_state_dict(torch.load(generation_path, map_location=torch.device('cpu')))
-            print(f'[!] load model from:\n - {generation_path}\n - {retrieval_path}')
+            print(f'[!] load model from:\n - {retrieval_path}')
+
+            pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
+            retrieval_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/gpt2-original/best_{pretrained_model_name}_{self.args["version"]}.pt'
+            self.model.generator.load_state_dict(torch.load(retrieval_path, map_location=torch.device('cpu')))
+            print(f'\n - {retrieval_path}')
         else:
             if self.args['mode'] == 'train':
                 # the context encoder model has been loaded (GPT-2)

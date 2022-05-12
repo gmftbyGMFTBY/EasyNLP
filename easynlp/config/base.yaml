@@ -1,4 +1,6 @@
 datasets: 
+    mutual: en
+    mutual_plus: en
     persona_chat: en
     chinese_dialog_pretrain: zh
     magic_laion400m: en
@@ -138,8 +140,8 @@ models:
         model_name: SimCSE
         dataset_name: SimCSEDataset
         # dataset_name: SimCSEUnlikelyhoodDataset
-        # inference_dataset_name: BERTSimCSEInferenceDataset
-        inference_dataset_name: BERTSimCSEInferenceContextDataset
+        inference_dataset_name: BERTSimCSEInferenceDataset
+        # inference_dataset_name: BERTSimCSEInferenceContextDataset
         # inference_dataset_name: BERTSimCSEUnlikelyhoodInferenceDataset
         # inference_dataset_name: BERTSimCSEUnlikelyhoodInferenceContextDataset
     dual-bert-mixup: 
@@ -362,6 +364,11 @@ models:
         dataset_name: BERTDualBM25SCMLiteDataset
         # dataset_name: HORSETestDataset
         inference_dataset_name: null
+    dual-bert-scm-mutual: 
+        type: CompareInteraction
+        model_name: BERTDualSCMHNMutualEncoder
+        dataset_name: BERTDualMutualFullDataset
+        inference_dataset_name: null
     dual-bert-scm-hn: 
         type: CompareInteraction
         model_name: BERTDualSCMHNEncoder
@@ -460,9 +467,15 @@ models:
     phrase-copy: 
         type: Representation
         # model_name: DensePhraseEncoder
-        model_name: DensePhraseV2Encoder
+        # model_name: DensePhraseV2Encoder
+        model_name: DensePhraseV3Encoder
         dataset_name: CopyGenerationDataset
         inference_dataset_name: PhrasesInferenceDataset
+    dual-bert-mutual: 
+        type: Representation
+        model_name: BERTDualMutualDatasetEncoder
+        dataset_name: BERTDualMutualFullDataset
+        inference_dataset_name: null 
     dual-bert: 
         type: Representation
         model_name: BERTDualEncoder
@@ -797,6 +810,10 @@ models:
         model_name: BARTRetrieval
         dataset_name: BARTFTDataset
         inference_dataset_name: null
+    bert-ft-mutual: 
+        type: Interaction
+        model_name: BERTMutualDatasetRetrieval
+        dataset_name: BERTFTMutualDataset
     bert-ft: 
         type: Interaction
         model_name: BERTRetrieval
@@ -932,8 +949,9 @@ models:
         type: PostTrain
         model_name: BERTFPPostTrain
         # dataset_name: PostTrainDataset
+        dataset_name: PostTrainMutualDataset
         # dataset_name: FilterPostTrainDataset
-        dataset_name: PostTrainBigDataset
+        # dataset_name: PostTrainBigDataset
         inference_dataset_name: null 
     bert-fp-mono-plus: 
         type: PostTrain
@@ -950,7 +968,8 @@ models:
         model_name: BERTMonolingualPostTrain
         # dataset_name: PostTrainMonoDataset
         # dataset_name: PostTrainMonoBigDataset
-        dataset_name: PostTrainMonoBigDatasetV2
+        # dataset_name: PostTrainMonoBigDatasetV2
+        dataset_name: PostTrainMonoMutualDataset 
         # dataset_name: PostTrainMonoPersonaChatDataset
         # dataset_name: PostTrainMonoWriterDataset
         # dataset_name: WZPostTrainMonoDataset
@@ -1014,7 +1033,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 11
+version: 29
 
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
@@ -1060,7 +1079,8 @@ deploy:
         activate: false
     generation_dialog:
         activate: true
-        model: dialog-simctg
+        # model: dialog-simctg
+        model: dialog-eva
     generation:
         activate: false
         model: gpt2

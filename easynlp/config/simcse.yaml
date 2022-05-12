@@ -20,7 +20,7 @@ train:
 test:
     seed: 0
     batch_size: 1
-    index_type: IVF65536_HNSW32,Flat
+    index_type: IVF65536_HNSW32,PQ8
     index_nprobe: 70
     dimension: 768
 
@@ -29,7 +29,7 @@ inference:
     batch_size: 128
     max_len: 512
     topk: 20
-    index_type: IVF65536_HNSW32,Flat
+    index_type: IVF65536_HNSW32,PQ8
     index_nprobe: 70
     dimension: 768
     min_test_len: 16

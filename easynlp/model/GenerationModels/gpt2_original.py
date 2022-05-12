@@ -53,6 +53,7 @@ class GPT2OriginalModel(nn.Module):
             )[0]    # [1, S, V]
             next_token_logits = output[-1, -1, :]    # [V]
             next_token_logits[self.unk] = -np.inf
+            ipdb.set_trace()
             next_token = next_token_logits.max(dim=-1)[1].unsqueeze(0)
             if len(generated) > self.test_max_len:
                 break

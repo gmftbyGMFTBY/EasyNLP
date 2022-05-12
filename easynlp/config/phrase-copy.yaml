@@ -1,6 +1,8 @@
 valid_during_training: false
-is_step_for_training: false
-temp: 0.05
+is_step_for_training: true
+total_step: 500000
+save_every: 25000
+temp: 1.0 
 doc_max_length: 256
 dropout: 0.1
 max_doc_num: 10
@@ -12,7 +14,9 @@ index_type: PCA64,IVF65536_HNSW32,PQ16
 dimension: 1536
 index_nprobe: 10
 token_cl_sample_num: 128
-margin: 0.9
+margin: 0.5
+max_moving_step: 10
+gray_cand_num: 3
 
 phrase_tokenizer: /apdcephfs/share_916081/johntianlan/bert-base-chinese
 phrase_encoder_model: /apdcephfs/share_916081/johntianlan/bert-base-chinese
@@ -43,7 +47,7 @@ test:
     seed: 0
     batch_size: 1
     prefix_length_rate: 0.5
-    max_len: 256
+    max_len: 512
 
 inference:
     seed: 0

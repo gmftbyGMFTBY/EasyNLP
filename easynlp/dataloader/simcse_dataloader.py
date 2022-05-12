@@ -76,7 +76,7 @@ class BERTSimCSEInferenceDataset(Dataset):
             self.reader = torch.load(rar_path)
             print(f'[!] load RandomAccessReader Object over')
         else:
-            path = f'{args["root_dir"]}/data/{self.args["dataset"]}/base_data_nore.txt'
+            path = f'{args["root_dir"]}/data/{self.args["dataset"]}/base_data.txt'
             self.reader = RandomAccessReader(path)
             self.reader.init()
             torch.save(self.reader, rar_path)
@@ -146,6 +146,7 @@ class BERTSimCSEInferenceContextDataset(Dataset):
         rids = self.vocab.encode(line, add_special_tokens=False)
         rids = [self.cls] + rids[:self.args['max_len']-2] + [self.sep]
         rid = torch.LongTensor(rids)
+        ipdb.set_trace()
         return rid, text_id
 
     def save(self):

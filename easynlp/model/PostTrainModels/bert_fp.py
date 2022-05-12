@@ -10,7 +10,8 @@ class BERTFPPostTrain(nn.Module):
         p = args['dropout']
 
         self.model = BertForPreTraining.from_pretrained(model)
-        self.model.resize_token_embeddings(self.model.config.vocab_size+1)    # [EOS]
+        # self.model.resize_token_embeddings(self.model.config.vocab_size+1)    # [EOS]
+        self.model.resize_token_embeddings(self.model.config.vocab_size+3)    # [EOS]
         self.model.cls.seq_relationship = nn.Sequential(
             nn.Dropout(p=p),
             nn.Linear(self.model.config.hidden_size, 3)

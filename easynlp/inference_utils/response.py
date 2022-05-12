@@ -10,7 +10,8 @@ def response_strategy(args):
     embds, texts = [], []
     already_added = []
     current_num = 0
-    for i in tqdm(range(args['nums'])):
+    # for i in tqdm(range(args['nums'])):
+    for i in tqdm(range(8)):
         for idx in range(100):
             try:
                 embd, text = torch.load(

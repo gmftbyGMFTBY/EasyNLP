@@ -992,10 +992,10 @@ class ConditionalTopKBertEmbedding(nn.Module):
 
     '''bert embedding with m query heads'''
     
-    def __init__(self, model='bert-base-chinese', m=5, dropout=0.1):
+    def __init__(self, model='bert-base-chinese', m=5, dropout=0.1, add_token=1):
         super(ConditionalTopKBertEmbedding, self).__init__()
         self.model = BertModel.from_pretrained(model)
-        self.model.resize_token_embeddings(self.model.config.vocab_size + 1)
+        self.model.resize_token_embeddings(self.model.config.vocab_size + add_token)
 
     def get_padding_mask_weight(self, attn_mask):
         weight = torch.where(attn_mask != 0, torch.zeros_like(attn_mask), torch.ones_like(attn_mask))

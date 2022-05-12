@@ -11,7 +11,8 @@ def simcse_response_strategy(args):
     text_ids = []
     already_added = []
     current_num = 0
-    for i in tqdm(range(args['nums'])):
+    # for i in tqdm(range(args['nums'])):
+    for i in tqdm(range(8)):
         for idx in range(100):
             try:
                 embd, text, text_id = torch.load(

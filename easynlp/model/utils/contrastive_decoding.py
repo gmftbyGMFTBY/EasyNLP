@@ -1,5 +1,6 @@
 from .header import *
 from .gen_utils import *
+from dataloader.util_func import generate_mask
 
 def ranking(context_hidden, next_hidden, next_top_k_ids, next_top_k_probs, model_prediction_confidence):
     '''
@@ -24,6 +25,26 @@ def ranking(context_hidden, next_hidden, next_top_k_ids, next_top_k_probs, model
     next_id = torch.gather(next_top_k_ids, dim = 0, index=selected_idx)
     assert next_id.size() == torch.Size([1,1])
     return next_id
+
+def rankinggiveprob(context_hidden, next_hidden, next_top_k_probs, model_prediction_confidence):
+    '''
+        context_hidden: beam_width x context_len x embed_dim
+        next_hidden: beam_width x 1 x embed_dim
+    '''
+    beam_width, context_len, embed_dim = context_hidden.size()
+    assert next_hidden.size() == torch.Size([beam_width, 1, embed_dim])
+    norm_context_hidden = context_hidden / context_hidden.norm(dim=2, keepdim=True)
+    norm_next_hidden = next_hidden / next_hidden.norm(dim=2, keepdim=True)
+    cosine_matrix = torch.matmul(norm_context_hidden, norm_next_hidden.transpose(1,2)).squeeze(-1)
+    assert cosine_matrix.size() == torch.Size([beam_width, context_len])
+    scores, _ = torch.max(cosine_matrix, dim = -1)
+    assert scores.size() == torch.Size([beam_width])
+    next_top_k_probs = next_top_k_probs.view(-1)
+    scores = model_prediction_confidence * next_top_k_probs - (1.0 - model_prediction_confidence) * scores 
+    _, selected_idx = torch.topk(scores, k = 1)
+    assert selected_idx.size() == torch.Size([1])
+    return selected_idx
+
 
 def ContrastiveDecodingOneStep(model, input_ids, beam_width, model_prediction_confidence, unk_id):
     '''
@@ -71,6 +92,26 @@ def ContrastiveDecodingOneStep(model, input_ids, beam_width, model_prediction_co
     next_input_ids = torch.cat([input_ids, next_id], dim = -1)
     assert next_input_ids.size() == torch.Size([1, seqlen+1])
     return next_input_ids
+
+def ContrastiveDecodingOneStepGiveProb(model, input_ids, candidates, candidates_prob, beam_width, model_prediction_confidence, unk_id):
+    '''
+        model: the generation model, e.g., gpt2
+        input_ids: 1 x seqlen
+    '''
+    candidates = candidates[:beam_width].reshape(-1, 1)    # [B, 1]
+    ids = input_ids.expand(beam_width, -1)    # [B, S]
+    ids = torch.cat([ids, candidates], dim=-1)
+
+    output = model(input_ids=ids, output_hidden_states=True)
+    new_hidden_states = output.hidden_states[-1]    # [B, S, E]
+    next_hidden = new_hidden_states[:, -1:, :]    # [B, S_, E]
+    context_hidden = new_hidden_states[:, :-1, :]
+    
+    selected_index = rankinggiveprob(context_hidden, next_hidden, candidates_prob[:beam_width], model_prediction_confidence)
+    candidate = candidates[selected_index.item()].reshape(1, -1)
+    next_input_ids = torch.cat([input_ids, candidate], dim=-1)
+    return next_input_ids, selected_index
+
 
 # ========== batch version ========= #
 def ranking_batch(context_hidden, next_hidden, next_top_k_probs, model_prediction_confidence, beam_width):
@@ -632,3 +673,59 @@ def ContrastiveDecodingOneStepForCopyGeneration(model, input_ids, beam_width, mo
     next_input_ids = torch.cat([input_ids, next_id], dim = -1)
     assert next_input_ids.size() == torch.Size([1, seqlen+1])
     return next_input_ids
+
+# unify token and phrase 
+def ranking_unify(context_hidden, next_hidden, next_probs, model_prediction_confidence, mask):
+    '''
+        context_hidden: beam_width x context_len x embed_dim
+        next_hidden: beam_width x slen x embed_dim
+        mask: beam_width x slen
+    '''
+    beam_width, context_len, embed_dim = context_hidden.size()
+    norm_context_hidden = context_hidden / context_hidden.norm(dim=2, keepdim=True)
+    norm_next_hidden = next_hidden / next_hidden.norm(dim=2, keepdim=True)
+    cosine_matrix = torch.bmm(norm_next_hidden, norm_context_hidden.permute(0, 2, 1))    # [beam_width, slen, context_len]
+    scores, _ = torch.max(cosine_matrix, dim=-1)    # [beam_width, slen]
+    valid_length = mask.sum(dim=-1)    # [beam_width]
+    scores = [s[:l].mean() for s, l in zip(scores, valid_length)]
+    scores = torch.stack(scores)
+    
+    scores = model_prediction_confidence * next_probs - (1.0 - model_prediction_confidence) * scores 
+    _, selected_idx = torch.topk(scores, k=1)
+    return selected_idx.item()
+
+def ContrastiveDecodingOneStepUnify(model, input_ids, candidates, candidates_prob, model_prediction_confidence, pad, temp):
+    '''
+        model: the generation model, e.g., gpt2
+        input_ids: 1 x seqlen
+    '''
+    output = model(input_ids=input_ids, output_hidden_states=True)
+    prev_hidden_states = output.hidden_states[-1]
+
+    _, seqlen, embed_dim = prev_hidden_states.size()
+    candidates_prob /= temp
+    candidates_prob = F.softmax(candidates_prob, dim=-1)
+
+    ids = []
+    for c in candidates:
+        c = torch.LongTensor(c).cuda()
+        ids.append(torch.cat([input_ids[0], c], dim=-1))
+    ids = pad_sequence(ids, batch_first=True, padding_value=pad)
+    mask = generate_mask(ids)
+
+    output = model(input_ids=ids, attention_mask=mask, output_hidden_states=True)
+    new_hidden_states = output.hidden_states[-1]    # [B, S, E]
+    next_hidden = new_hidden_states[:, seqlen:, :]    # [B, S_, E]
+    context_hidden = new_hidden_states[:, :seqlen, :]
+    mask = mask[:, seqlen:]    # [B, S_]
+
+    next_index = ranking_unify(
+        context_hidden, 
+        next_hidden, 
+        candidates_prob,
+        model_prediction_confidence,
+        mask
+    )
+    candidate = torch.LongTensor(candidates[next_index]).unsqueeze(0).cuda()
+    next_input_ids = torch.cat([input_ids, candidate], dim=-1)
+    return next_input_ids, next_index

@@ -247,8 +247,8 @@ class BERTDualSCMHNEncoder(nn.Module):
     def __init__(self, **args):
         super(BERTDualSCMHNEncoder, self).__init__()
         model = args['pretrained_model']
-        self.ctx_encoder = BertEmbedding(model=model)
-        self.can_encoder = BertEmbedding(model=model)
+        self.ctx_encoder = BertEmbedding(model=model, add_token=1)
+        self.can_encoder = BertEmbedding(model=model, add_token=1)
         decoder_layer = nn.TransformerDecoderLayer(d_model=768, nhead=args['nhead'])
         self.fusion_encoder = nn.TransformerDecoder(decoder_layer, num_layers=args['num_layers'])
         self.topk = 1 + args['gray_cand_num']

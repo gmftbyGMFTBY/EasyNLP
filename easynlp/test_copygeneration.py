@@ -58,54 +58,63 @@ def main_generation(**args):
     searcher_agent = load_model(searcher_args)
     save_path = f'{args["root_dir"]}/ckpt/{searcher_args["dataset"]}/{searcher_args["model"]}/best_{pretrained_model_name}_{searcher_args["version"]}.pt'
     searcher_agent.load_model(save_path)
-    print(f'[!] init the searcher and dual-bert model over')
-
+    print(f'[!] init the searcher and simcse model over')
     agent.model.init_searcher(searcher_agent, searcher, test_data.base_data)
 
     # faiss searcher
-    faiss_searcher = Searcher(
-        faiss_searcher_args['index_type'] ,
-        dimension=faiss_searcher_args['dimension'],
-        nprobe=faiss_searcher_args['index_nprobe']
-    )
-    pretrained_model_name = faiss_searcher_args['pretrained_model'].replace('/', '_')
-    model_name = faiss_searcher_args['model']
-    faiss_searcher.load(
-        f'{faiss_searcher_args["root_dir"]}/data/{faiss_searcher_args["dataset"]}/{model_name}_{pretrained_model_name}_faiss.ckpt',
-        f'{faiss_searcher_args["root_dir"]}/data/{faiss_searcher_args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt'        
-    )
-    agent.model.init_faiss_searcher(faiss_searcher)
-    print(f'[!] init model over')
+    # faiss_searcher = Searcher(
+    #     faiss_searcher_args['index_type'] ,
+    #     dimension=faiss_searcher_args['dimension'],
+    #     nprobe=faiss_searcher_args['index_nprobe']
+    # )
+    # pretrained_model_name = faiss_searcher_args['pretrained_model'].replace('/', '_')
+    # model_name = faiss_searcher_args['model']
+    # faiss_searcher.load(
+    #     f'{faiss_searcher_args["root_dir"]}/data/{faiss_searcher_args["dataset"]}/{model_name}_{pretrained_model_name}_faiss.ckpt',
+    #     f'{faiss_searcher_args["root_dir"]}/data/{faiss_searcher_args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt'        
+    # )
+    # agent.model.init_faiss_searcher(faiss_searcher)
+    # print(f'[!] init model over')
 
     collection = []
     f = open(f'{args["root_dir"]}/rest/{args["dataset"]}/{args["model"]}/test_copygeneration.txt', 'w')
+    debug_index = 0
     for batch in tqdm(test_iter):
         # parameters of decoding strategies
+        batch['debug_index'] = debug_index
+        debug_index += 1
         batch['topk'] = 8
-        batch['topp'] = 0.93
+        batch['topp'] = 0.95
         batch['beam_width'] = 5
         batch['model_prediction_confidence'] = 0.4
         batch['phrase_alpha'] = 1.
-        # batch['generation_method'] = 'topk-topp-search'
-        batch['generation_method'] = 'contrastive-search'
-        batch['update_step'] = 64
+        
+        # decoding_method = 'retrieval-generation-search'
+        # decoding_method = 'word-greedy-search'
+        # decoding_method = 'word-nucleus-search'
+        decoding_method = 'word-contrastive-search'
+        # decoding_method = 'greedy-search'
+        batch['decoding_method'] = decoding_method
+        batch['update_step'] = 256
 
         if not batch['prefix']:
             continue
-        
-        for decoding_method in [
-            'topk-topp-search', 
-            # 'greedy-search', 
-            # 'beam-search', 
-            'contrastive-search', 
-            # 'retrieval-search', 
-            'retrieval-generation-search'
-            # 'retrieval-generation-search-e2e'
-        ]:
-            batch['decoding_method'] = decoding_method
+
+        if decoding_method in ['word-greedy-search', 'word-nucleus-search', 'word-contrastive-search']:
+            batch['generation_method'] = 'greedy-search'
             res = agent.model.work(batch) 
             batch[f'{decoding_method}_response'] = res
-            print(batch)
+        else:
+            for generation_method in [
+                # 'nucleus-search', 
+                'greedy-search', 
+                # 'contrastive-search', 
+            ]:
+                batch['generation_method'] = generation_method
+                res = agent.model.work(batch) 
+                batch[f'{decoding_method}_{generation_method}_response'] = res
+        pprint.pprint(batch)
+        ipdb.set_trace()
         string = json.dumps(batch, ensure_ascii=False)
         f.write(string + '\n')
         f.flush()

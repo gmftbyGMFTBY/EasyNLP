@@ -184,6 +184,7 @@ class PostTrainAgent(RetrievalBaseAgent):
         embds, texts, contexts = [], [], []
         counter = 0
         for batch in pbar:
+            ipdb.set_trace()
             ids = batch['ids']
             ids_mask = batch['mask']
             text = batch['text']

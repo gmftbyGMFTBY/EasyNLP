@@ -26,7 +26,7 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         if args['mode'] in ['train', 'inference']:
             self.set_optimizer_scheduler_ddp()
 
-        if args['model'] in ['dual-bert-scm', 'dual-bert-scm-hn', 'dual-bert-scm-hn-mch', 'dual-bert-scm-hn-with-easy', 'dual-bert-scm-hn-dist', 'dual-bert-scm-hn-dm', 'dual-bert-scm-hn-topk', 'dual-bert-scm-compare', 'dual-bert-scm-sdl', 'dual-bert-scm-hn-pos', 'dual-bert-scm-hn-g', 'dual-bert-scm-hn-dm']:
+        if args['model'] in ['dual-bert-scm', 'dual-bert-scm-hn', 'dual-bert-scm-hn-mch', 'dual-bert-scm-hn-with-easy', 'dual-bert-scm-hn-dist', 'dual-bert-scm-hn-dm', 'dual-bert-scm-hn-topk', 'dual-bert-scm-compare', 'dual-bert-scm-sdl', 'dual-bert-scm-hn-pos', 'dual-bert-scm-hn-g', 'dual-bert-scm-hn-dm', 'dual-bert-scm-mutual']:
             if self.args['is_step_for_training']:
                 self.train_model = self.train_model_step
             self.test_model = self.test_model_dual_bert

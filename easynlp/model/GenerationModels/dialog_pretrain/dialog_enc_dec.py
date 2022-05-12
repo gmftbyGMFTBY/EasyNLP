@@ -13,9 +13,13 @@ class DialogEVA(nn.Module):
         self.tokenizer = BertTokenizer.from_pretrained(model_name)
         self.special_tokens = set([self.tokenizer.pad_token_id, self.tokenizer.cls_token_id, self.tokenizer.unk_token_id, self.tokenizer.sep_token_id])
         self.pad = self.tokenizer.pad_token_id
+        self.cls = self.tokenizer.cls_token_id
         self.unk = self.tokenizer.unk_token_id
         self.sep = self.tokenizer.sep_token_id
         self.vocab_size = len(self.tokenizer)
+
+        self.topp = self.args['topp']
+        self.topk = self.args['topk']
 
         # model
         self.model = BartForConditionalGeneration.from_pretrained(model_name)
@@ -25,52 +29,28 @@ class DialogEVA(nn.Module):
         self.criterion = nn.CrossEntropyLoss(ignore_index=self.pad)
     
     @torch.no_grad()
-    def predict(self, batch):
-        '''contrastive search'''
+    def predict(self, context_list):
         self.model.eval()
-        ids = batch['ids']
-        ids_mask = batch['ids_mask']
-        ids_pos = batch['pos_ids']
-        batch_size, seqlen = ids.size()
-        generated = [[] for _ in range(batch_size)]
-
-        past_key_values = None
-        last_hidden_states = None
-        first_step = 0
-        logits = None
-        for step in range(self.test_max_len):
-            ids, past_key_values, last_hidden_states, logits = ContrastiveDecodingOneStepBatch(
-                self.model,
-                ids,
-                ids_mask,
-                ids_pos,
-                self.args['beam_width'],
-                self.args['model_prediction_confidence'],
-                self.args['contrastive_topk'],
-                self.args['contrastive_topp'],
-                self.pad,
-                min(1., (step+1)/self.args['sep_smooth_length']),
-                past_key_values,
-                last_hidden_states,
-                self.tokenizer,
-                logits,
-                step,
-                step < self.args['sampling_prefix_len'],
-            )
-            ids_pos = 1 + ids_pos[:, -1].unsqueeze(dim=-1)
-            ids_mask = torch.ones_like(ids)
-            # collect ids: [B, 1]
-            tokens = ids.squeeze(dim=-1).tolist()
-            for idx, t in enumerate(tokens):
-                generated[idx].append(t)
-            if max([len(i) for i in generated]) > self.test_max_len:
-                break
-        # ignore the special tokens
-        rest = []
-        for g in generated:
-            g = [i for i in g if i not in self.special_tokens]
-            rest.append(g)
-        return rest
+        items = self.tokenizer.batch_encode_plus(context_list, add_special_tokens=False)['input_ids']
+        # convert string to tokens
+        context_ids = []
+        for u in items:
+            context_ids.extend(u + [self.sep])
+        context_ids.pop()
+        ids = [self.cls] + context_ids[-self.args['max_prefix_len']:] + [self.sep]
+        ids = torch.LongTensor(ids).unsqueeze(0).cuda()
+        beam_output = self.model.generate(
+            ids,
+            self.test_max_len,
+            pad_token_id=self.pad,
+            eos_token_id=self.sep,
+            top_p=self.topp,
+            top_k=self.topk,
+            do_sample=True
+        )
+        beam_output = beam_output[0]
+        string = ''.join(self.tokenizer.convert_ids_to_tokens(beam_output.tolist())).replace('[SEP]', '')
+        return string
 
     def forward(self, batch):
         input_ids, input_ids_mask = batch['input_ids'], batch['input_ids_mask']

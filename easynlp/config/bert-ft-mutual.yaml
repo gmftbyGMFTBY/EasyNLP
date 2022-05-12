@@ -1,0 +1,38 @@
+test_interval: 0.05
+valid_during_training: true
+
+tokenizer:
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
+pretrained_model:
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
+
+# train configuration
+train:
+    lr: 0.00005
+    grad_clip: 5.0
+    seed: 0
+    batch_size: 64
+    max_len: 256
+    epoch: 5
+    warmup_ratio: 0.0
+    checkpoint: 
+        path: bert-fp/best__apdcephfs_share_916081_johntianlan_bert-base-uncased_12.pt
+        is_load: true
+
+# test configuration
+test:
+    seed: 0
+    batch_size: 1
+    max_len: 256
+
+# for inference_clean mode
+# inference clean parameters
+inference:
+    seed: 0
+    batch_size: 512
+    max_len: 128
+    buff_size: 100000
+    r_data_root_path: /apdcephfs/share_733425/johntianlan/chatbot-data-clean/weibo_clean
+    w_data_root_path: /apdcephfs/share_733425/johntianlan/chatbot-data-clean/weibo_clean_ft_v2

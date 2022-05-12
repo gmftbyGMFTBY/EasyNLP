@@ -807,3 +807,150 @@ def read_text_data_utterances_full_add_next_history_prediction(path, lang='zh', 
             data.append((1, utterances[:i], utterances[i:]))
     print(f'[!] collect {len(data)} samples for training')
     return data
+
+def read_text_data_utterances_full_mutual(path):
+    with open(path, 'rb') as f:
+        dataset = pickle.load(f)
+    data = []
+    for item in dataset:
+        items = re.split('(\[M\]|\[F\])', item['article'])
+        utterances = [[]]
+        for u in items:
+            if u:
+                if u in ['[M]', '[F]']:
+                    utterances.append([u])
+                else:
+                    utterances[-1].append(u)
+        utterances = [' '.join(u) for u in utterances if u]
+        options = item['options']
+        gt_index = item['answers']
+        length = len(utterances)
+        samples = []
+        for i in range(1, length):
+            context = utterances[:i]
+            response = utterances[i]
+            hn_responses = options + utterances[i+1:]
+            samples.append((context, response, hn_responses))
+        samples.append((utterances, options[gt_index], [options[i] for i in range(len(options)) if i != gt_index]))
+        data.extend(samples)
+    print(f'[!] collect {len(data)} samples for training')
+    return data
+
+
+def read_text_data_utterances_test_mutual(path):
+    with open(path, 'rb') as f:
+        dataset = pickle.load(f)
+    data = []
+    for item in dataset:
+        items = re.split('(\[M\]|\[F\])', item['article'])
+        utterances = [[]]
+        for u in items:
+            if u:
+                if u in ['[M]', '[F]']:
+                    utterances.append([u])
+                else:
+                    utterances[-1].append(u)
+        utterances = [' '.join(u) for u in utterances if u]
+        options = item['options']
+        gt_index = item['answers']
+        samples = (
+            utterances, 
+            options,
+            gt_index
+        )
+        data.append(samples)
+    print(f'[!] collect {len(data)} samples for training')
+    return data
+
+
+def read_text_data_utterances_mutual_fp(path):
+    with open(path, 'rb') as f:
+        dataset = pickle.load(f)
+    data = []
+    for item in dataset:
+        items = re.split('(\[M\]|\[F\])', item['article'])
+        utterances = [[]]
+        try:
+            for u in items:
+                if u:
+                    if u in ['[M]', '[F]']:
+                        utterances.append([u])
+                    else:
+                        utterances[-1].append(u)
+        except:
+            ipdb.set_trace()
+        utterances = [' '.join(u) for u in utterances if u]
+        utterances.append(item['options'][item['answers']])
+        data.append(utterances)
+    return data 
+
+
+def read_text_data_utterances_mutual_mono(path):
+    with open(path, 'rb') as f:
+        dataset = pickle.load(f)
+    data = []
+    for item in dataset:
+        items = re.split('(\[M\]|\[F\])', item['article'])
+        utterances = [[]]
+        try:
+            for u in items:
+                if u:
+                    if u in ['[M]', '[F]']:
+                        utterances.append([u])
+                    else:
+                        utterances[-1].append(u)
+        except:
+            ipdb.set_trace()
+        utterances = [' '.join(u) for u in utterances if u]
+        utterances.extend(item['options'])
+        data.extend(utterances)
+    return data 
+
+
+def read_text_data_utterances_mutual_ft(path):
+    with open(path, 'rb') as f:
+        dataset = pickle.load(f)
+    data = []
+    for item in dataset:
+        items = re.split('(\[M\]|\[F\])', item['article'])
+        utterances = [[]]
+        for u in items:
+            if u:
+                if u in ['[M]', '[F]']:
+                    utterances.append([u])
+                else:
+                    utterances[-1].append(u)
+        utterances = [' '.join(u) for u in utterances if u]
+        options = item['options']
+        gt_index = item['answers']
+        data.append((utterances, options, gt_index))
+    print(f'[!] collect {len(data)} samples for training')
+    return data
+
+
+def read_text_data_utterances_test_mutual_ft(path):
+    with open(path, 'rb') as f:
+        dataset = pickle.load(f)
+    data = []
+    for item in dataset:
+        items = re.split('(\[M\]|\[F\])', item['article'])
+        utterances = [[]]
+        for u in items:
+            if u:
+                if u in ['[M]', '[F]']:
+                    utterances.append([u])
+                else:
+                    utterances[-1].append(u)
+        utterances = [' '.join(u) for u in utterances if u]
+        options = item['options']
+        gt_index = item['answers']
+        samples = (
+            utterances, 
+            options,
+            gt_index
+        )
+        data.append(samples)
+    print(f'[!] collect {len(data)} samples for training')
+    return data
+
+
