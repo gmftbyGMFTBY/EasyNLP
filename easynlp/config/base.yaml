@@ -468,7 +468,7 @@ models:
         type: Representation
         # model_name: DensePhraseEncoder
         # model_name: DensePhraseV2Encoder
-        model_name: DensePhraseV3Encoder
+        model_name: DensePhraseV4Encoder
         dataset_name: CopyGenerationDataset
         inference_dataset_name: PhrasesInferenceDataset
     dual-bert-mutual: 
@@ -907,7 +907,8 @@ models:
     colbertv2: 
         type: LatentInteraction
         model_name: ColBERTV2Encoder
-        dataset_name: ColBERTV2Dataset
+        dataset_name: BERTDualMutualFullDataset
+        # dataset_name: ColBERTV2Dataset
         # dataset_name: ColBERTV2HNDataset
         # dataset_name: HORSETestDataset
     colbert: 
@@ -1033,7 +1034,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 29
+version: 30
 
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5

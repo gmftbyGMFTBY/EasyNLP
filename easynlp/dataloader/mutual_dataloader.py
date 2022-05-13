@@ -70,10 +70,10 @@ class BERTDualMutualFullDataset(Dataset):
             ids = torch.LongTensor(bundle['ids'])
             rids = torch.LongTensor(bundle['rids'])
             hn_rids = [torch.LongTensor(i) for i in bundle['hn_rids']]
-            if len(hn_rids) < self.args['gray_cand_num']:
-                hn_rids.extend(random.sample(self.responses, self.args['gray_cand_num'] - len(hn_rids)))
-            else:
-                hn_rids = random.sample(hn_rids, self.args['gray_cand_num'])
+            # if len(hn_rids) < self.args['gray_cand_num']:
+            #     hn_rids.extend(random.sample(self.responses, self.args['gray_cand_num'] - len(hn_rids)))
+            # else:
+            #     hn_rids = random.sample(hn_rids, self.args['gray_cand_num'])
             return ids, rids, hn_rids
         else:
             ids = torch.LongTensor(bundle['ids'])

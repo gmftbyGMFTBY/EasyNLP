@@ -3,13 +3,12 @@ is_step_for_training: true
 total_step: 500000
 save_every: 25000
 temp: 1.0 
-doc_max_length: 256
 dropout: 0.1
-max_doc_num: 10
 min_phrase_length: 3
 max_phrase_length: 16
+max_doc_num: 64
+doc_max_length: 64
 max_doc_length: 256
-hard_neg_for_each_doc: 50
 index_type: PCA64,IVF65536_HNSW32,PQ16
 dimension: 1536
 index_nprobe: 10

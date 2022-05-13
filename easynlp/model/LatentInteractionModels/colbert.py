@@ -91,8 +91,11 @@ class ColBERTV2Encoder(nn.Module):
     def __init__(self, **args):
         super(ColBERTV2Encoder, self).__init__()
         model = args['pretrained_model']
-        self.can_encoder = BertEmbedding(model=model)
-        self.ctx_encoder = BertEmbedding(model=model)
+        self.can_encoder = BertEmbedding(model=model, add_tokens=3)
+        self.ctx_encoder = BertEmbedding(model=model, add_tokens=3)
+        self.vocab = AutoTokenizer.from_pretrained(model)
+        self.vocab.add_tokens(['[EOS]', '[M]', '[F]'])
+        self.pad = self.vocab.pad_token_id
         self.args = args
         
     def _encode(self, cid, rid, cid_mask, rid_mask, test=True):
@@ -137,10 +140,21 @@ class ColBERTV2Encoder(nn.Module):
         return dp.squeeze(dim=0)
         
     def forward(self, batch):
+        # cid = batch['ids']
+        # rid = batch['rids']
+        # cid_mask = batch['ids_mask']
+        # rid_mask = batch['rids_mask']
+
         cid = batch['ids']
         rid = batch['rids']
-        cid_mask = batch['ids_mask']
-        rid_mask = batch['rids_mask']
+        # hn_rid = batch['hn_rids']
+        # hn_rid = list(chain(*hn_rid))
+        # rid += hn_rid
+        cid = pad_sequence(cid, batch_first=True, padding_value=self.pad)
+        rid = pad_sequence(rid, batch_first=True, padding_value=self.pad)
+        cid_mask = generate_mask(cid)
+        rid_mask = generate_mask(rid)
+
         dp = self._encode(cid, rid, cid_mask, rid_mask)
         dp /= self.args['temp']
         batch_size = len(dp)

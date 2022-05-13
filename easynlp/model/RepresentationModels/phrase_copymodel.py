@@ -527,3 +527,191 @@ class DensePhraseV3Encoder(nn.Module):
         input_ids = input_ids[0, prefix_length:]
         generated = ''.join(self.tokenizer.convert_ids_to_tokens(input_ids))
         return generated
+
+
+class DensePhraseV4Encoder(nn.Module):
+
+    def __init__(self, **args):
+        super(DensePhraseV4Encoder, self).__init__()
+        self.args = args
+        model_name = args['pretrained_model']
+
+        # bert-encoder model
+        self.phrase_encoder = BertModel.from_pretrained(self.args['phrase_encoder_model'])
+        self.bert_tokenizer = AutoTokenizer.from_pretrained(self.args['phrase_tokenizer'])
+        self.pad = self.bert_tokenizer.pad_token_id
+        self.unk = self.bert_tokenizer.unk_token_id
+        self.sep = self.bert_tokenizer.sep_token_id
+        
+        # model and tokenizer
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.vocab_size = len(self.tokenizer)
+        self.model = GPT2LMHeadModel.from_pretrained(model_name)
+        self.token_embeddings = nn.Parameter(
+            list(self.model.lm_head.parameters())[0]
+        )
+        # self.token_embeddings = nn.Parameter(torch.randn(len(self.tokenizer), self.model.config.hidden_size*2))
+
+        self.s_proj = nn.Sequential(
+            nn.Dropout(p=args['dropout']),
+            nn.Tanh(),
+            nn.Linear(self.model.config.hidden_size, self.model.config.hidden_size//2)       
+        )
+        self.e_proj = nn.Sequential(
+            nn.Dropout(p=args['dropout']),
+            nn.Tanh(),
+            nn.Linear(self.model.config.hidden_size, self.model.config.hidden_size//2)        
+        )
+        self.gen_loss_fct = nn.CrossEntropyLoss(ignore_index=self.pad)
+
+    @torch.no_grad()
+    def get_phrase_rep(self, ids, ids_mask, pos, text):
+        self.eval()
+        rep = self.phrase_encoder(ids, ids_mask, output_hidden_states=True)['hidden_states'][-1]    # [B, S, E]
+        phrases, texts = [], []
+        for rep_, pos_, text_ in zip(rep, pos, text):
+            for (b, e) in pos_:
+                b_rep = rep_[b, :]
+                e_rep = rep_[e, :]
+                p_rep = torch.cat([b_rep, e_rep], dim=-1)
+                phrases.append(p_rep)
+            texts.extend(text_)
+        phrases = torch.stack(phrases)
+        return phrases, texts
+
+    @torch.no_grad()
+    def get_query_rep(self, ids):
+        self.eval()
+        rep = self.model(input_ids=ids).last_hidden_state[:, -1, :]
+        rep = torch.cat([self.s_proj(rep), self.e_proj(rep)], dim=-1)
+        return rep
+
+    def forward(self, batch):
+        ## gpt2 query encoder
+        ids, ids_mask = batch['ids'], batch['ids_mask']
+        bsz, seqlen = ids.size()
+        outputs = self.model(input_ids=ids, attention_mask=ids_mask, output_hidden_states=True)
+        last_hidden_states = outputs.hidden_states[-1]
+        # last_hidden_states = torch.cat([
+        #     self.s_proj(last_hidden_states), self.e_proj(last_hidden_states)
+        # ], dim=-1)
+
+        ## bert
+        dids, dids_mask = batch['dids'], batch['dids_mask']
+        dindex_s, dindex_e = batch['dindex_s'], batch['dindex_e']
+        output = self.phrase_encoder(dids, dids_mask, output_hidden_states=True)['hidden_states'][-1]   # [B, S, E]
+        doc_bsz, seqlen, _ = output.size()
+        s_rep = output[range(doc_bsz), dindex_s, :]    # [B, E]
+        e_rep = output[range(doc_bsz), dindex_e, :]
+        phrase_rep_base = torch.cat([self.s_proj(s_rep), self.e_proj(e_rep)], dim=-1)    # [B_p, 2*E]
+        phrase_num = len(phrase_rep_base)
+
+        # candidates representations
+        reps = torch.cat([self.token_embeddings, phrase_rep_base], dim=0)    # [V+B, 2*E]
+
+        # query representations
+        pos_index = batch['pos_ids']    # [B_p]
+        phrase_query = []
+        label = []
+        vl = ids_mask.sum(dim=-1)
+        counter = 0
+        for ids_, hn, pos_list, l in zip(ids, last_hidden_states, pos_index, vl):
+            l = l.item()
+            for i in range(l-1):
+                phrase_query.append(hn[i])
+                if i in pos_list:
+                    label.append(self.vocab_size + counter)
+                    counter += 1
+                else:
+                    label.append(ids_[i+1].item())
+        phrase_query = torch.stack(phrase_query)
+        assert counter == phrase_num
+        logits = torch.matmul(phrase_query, reps.t())    # [Total, V+B]
+        label = torch.LongTensor(label).cuda()
+
+        loss = self.gen_loss_fct(logits, label)
+        acc = (logits.max(dim=-1)[1] == label).to(torch.float).mean().item()
+        ## 4. simctg
+        # cosine_scores = torch.matmul(k, k.t()) 
+        # cl_loss = self.compute_contrastive_loss(cosine_scores, self.args['margin'])
+        return loss, acc
+
+    def compute_contrastive_loss(self, score_matrix, margin):
+        difference_matrix = score_matrix - score_matrix.diagonal().unsqueeze(1)
+        loss_matrix = margin - difference_matrix
+        loss_matrix = torch.nn.functional.relu(loss_matrix)
+        cl_loss = torch.mean(loss_matrix)
+        return cl_loss 
+
+    @torch.no_grad()
+    def nucleus_search(self, batch):
+        self.eval()
+        ids = batch['ids']
+        generated = []
+        for _ in range(batch['test_max_len']) :
+            output = self.model(
+                input_ids=ids,
+                use_cache=True,
+                output_hidden_states=True
+            )
+            hidden_state = output.last_hidden_state[:, -1, :]    # [B, E]
+            hidden_state = torch.cat([self.s_proj(hidden_state), self.e_proj(hidden_state)], dim=-1)
+            logits = torch.matmul(hidden_state, self.token_embeddings.t())[0]    # [ V]
+            logits[self.unk] = -np.inf
+            filtered_logits = top_k_top_p_filtering(
+                logits, 
+                top_k=batch['topk'], 
+                top_p=batch['topp']
+            )
+            next_token = torch.multinomial(
+                F.softmax(filtered_logits, dim=-1),
+                num_samples=1,
+            )
+            generated.append(next_token.item())
+            ids = torch.cat([ids, next_token.reshape(1, 1)], dim=-1)
+        return ''.join(self.tokenizer.convert_ids_to_tokens(generated))
+
+    @torch.no_grad()
+    def greedy_search(self, batch):
+        self.eval()
+        ids = batch['ids']
+        generated = []
+        for _ in range(batch['test_max_len']) :
+            output = self.model(
+                input_ids=ids,
+                output_hidden_states=True
+            )
+            hidden_state = output.last_hidden_state[:, -1, :]    # [B, E]
+            hidden_state = torch.cat([self.s_proj(hidden_state), self.e_proj(hidden_state)], dim=-1)
+            logits = torch.matmul(hidden_state, self.token_embeddings.t())[0]    # [ V]
+            logits[self.unk] = -np.inf
+            next_token = logits.max(dim=-1)[1]
+            generated.append(next_token.item())
+            ids = torch.cat([ids, next_token.reshape(1, 1)], dim=-1)
+        return ''.join(self.tokenizer.convert_ids_to_tokens(generated))
+
+    @torch.no_grad()
+    def contrastive_search(self, batch):
+        self.eval()
+        input_ids = batch['ids']
+        _, prefix_length = input_ids.size()
+        generated = []
+        for step in range(batch['test_max_len']):
+            output = self.model(input_ids=input_ids, output_hidden_states=True)
+            hidden_state = output.last_hidden_state[:, -1, :]
+            hidden_state = torch.cat([self.s_proj(hidden_state), self.e_proj(hidden_state)], dim=-1)
+            logit = torch.matmul(hidden_state, self.token_embeddings.t())[0]     # [V]
+            logit[self.unk] = -np.inf
+            topk_, topk = logit.topk(batch['beam_width'], dim=-1)
+            input_ids, next_index = ContrastiveDecodingOneStepGiveProb(
+                self.model,
+                input_ids,
+                topk,
+                F.softmax(topk_, dim=-1),
+                batch['beam_width'],
+                batch['model_prediction_confidence'],
+                self.unk
+            )
+        input_ids = input_ids[0, prefix_length:]
+        generated = ''.join(self.tokenizer.convert_ids_to_tokens(input_ids))
+        return generated

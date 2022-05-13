@@ -136,7 +136,7 @@ class CopyGenerationEncoder(nn.Module):
                     p_cache_dids = deepcopy(cache_dids)
                     while p_index < len(doc) and label[p_index] == 1:
                         p_cache_dids.extend(doc[p_index])
-                        if min_length <= len(p_cache_dids) - 1 - b_ + 1 <= max_length:
+                        if min_length <= len(p_cache_dids) - b_ <= max_length:
                             phrases.append((b_, len(p_cache_dids) - 1))
                         p_index += 1
                 cache_dids.extend(item_s)
@@ -159,7 +159,7 @@ class CopyGenerationEncoder(nn.Module):
             e_rep = doc_rep[e_pos, :]
             rep = torch.cat([s_rep, e_rep], dim=-1)
             phrase_reps.append(rep)
-            phrase_sources.extend([(s, e, self.retriever.bert_tokenizer.decode(doc_id[s:e])) for s, e in zip(s_pos, e_pos)])
+            phrase_sources.extend([(s, e, self.retriever.bert_tokenizer.decode(doc_id[s:e+1])) for s, e in zip(s_pos, e_pos)])
         phrase_reps = torch.cat(phrase_reps)
         assert len(phrase_reps) == len(phrase_sources)
         print(f'[!] collect {len(phrase_reps)} phrases')
