@@ -1608,9 +1608,9 @@ class RepresentationAgent(RetrievalBaseAgent):
     def train_model_phrase_copy_step(self, batch, recoder=None, current_step=0, pbar=None):
         self.model.train()
         with autocast():
-            # phrase_loss, phrase_acc, token_loss, token_acc, cl_loss = self.model(batch)
-            # loss = phrase_loss + token_loss + cl_loss
-            oloss, token_acc = self.model(batch)
+            batch['if_freeze_gpt2'] = False
+            batch['if_freeze_bert'] = True
+            oloss, phrase_acc, total_acc = self.model(batch)
             loss = oloss / self.args['iter_to_accumulate']
         self.scaler.scale(loss).backward()
         if (current_step + 1) % self.args['iter_to_accumulate'] == 0:
@@ -1620,14 +1620,32 @@ class RepresentationAgent(RetrievalBaseAgent):
             self.scaler.update()
             self.scheduler.step()
             self.optimizer.zero_grad()
+
         if recoder:
             recoder.add_scalar(f'train/Loss', oloss.item(), current_step)
-            # recoder.add_scalar(f'train/PhraseLoss', phrase_loss.item(), current_step)
-            # recoder.add_scalar(f'train/TokenLoss', token_loss.item(), current_step)
-            # recoder.add_scalar(f'train/CLLoss', cl_loss.item(), current_step) 
-            recoder.add_scalar(f'train/TokenAcc', token_acc, current_step)
-            # recoder.add_scalar(f'train/PhraseAcc', phrase_acc, current_step)
-        # pbar.set_description(f'[!] loss(phrase|token|cl): {round(phrase_loss.item(), 2)}|{round(token_loss.item(), 2)}|{round(cl_loss.item(), 2)}; acc(phrase|token): {round(phrase_acc, 4)}|{round(token_acc, 4)}')
-        pbar.set_description(f'[!] loss: {round(oloss.item(), 2)}; acc: {round(token_acc, 4)}')
-        pbar.update(1)
+            recoder.add_scalar(f'train/PhraseAcc', phrase_acc, current_step)
+            recoder.add_scalar(f'train/TotalAcc', total_acc, current_step)
+        pbar.set_description(f'[!] loss: {round(oloss.item(), 2)}; acc(phrase|total): {round(phrase_acc, 4)}|{round(total_acc, 4)}')
 
+        # optimize bert 
+        '''
+        if (current_step + 1) % self.args['optimize_bert_time'] == 0:
+            batch['if_freeze_gpt2'] = True
+            batch['if_freeze_bert'] = False
+            counter = 0
+            for _ in tqdm(range(self.args['optimize_bert_step'])):
+                batch['bert_chunk_index'] = list(range(counter, min(len(batch['dids']), counter+self.args['bert_chunk_size'])))
+                oloss, _, _ = self.model(batch)
+                loss = oloss / self.args['optimize_bert_step']
+                self.scaler.scale(loss).backward()
+                counter += self.args['bert_chunk_size']
+                if counter >= len(batch['dids']):
+                    counter = 0
+            self.scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            self.optimizer.zero_grad()
+        '''
+
+        pbar.update(1)

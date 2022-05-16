@@ -1,6 +1,6 @@
 from model.utils import *
 from .gpt2_original import GPT2OriginalModel
-from model.RepresentationModels import DensePhraseEncoder, DensePhraseV2Encoder, DensePhraseV3Encoder
+from model.RepresentationModels import DensePhraseEncoder, DensePhraseV2Encoder, DensePhraseV3Encoder, DensePhraseV4Encoder
 from .utils import *
 from config import *
 
@@ -21,7 +21,7 @@ class CopyGenerationEncoder(nn.Module):
         retriever_args['model'] = 'phrase-copy'
         config = load_config(retriever_args)
         retriever_args.update(config)
-        self.retriever = DensePhraseV3Encoder(**retriever_args) 
+        self.retriever = DensePhraseV4Encoder(**retriever_args) 
         self.test_max_len = self.args['test_max_len']
 
     def init_searcher(self, agent, searcher, base_data):
@@ -104,7 +104,7 @@ class CopyGenerationEncoder(nn.Module):
             # split the subchunk by the length
             segment_ids, seg_labels, cache, cache_label = [], [], [[self.retriever.bert_tokenizer.cls_token_id]], [0]
             for label, ids in zip(segments_label, seg_ids):
-                if sum([len(i) for i in cache]) + len(ids) + 2 > self.args['max_doc_length']:   # [CLS] and [SEP] tokens
+                if sum([len(i) for i in cache]) + len(ids) + 2 > self.args['doc_max_length']:   # [CLS] and [SEP] tokens
                     cache.append([self.retriever.bert_tokenizer.sep_token_id])
                     cache_label.append(0)
                     segment_ids.append(cache)
@@ -161,6 +161,7 @@ class CopyGenerationEncoder(nn.Module):
             phrase_reps.append(rep)
             phrase_sources.extend([(s, e, self.retriever.bert_tokenizer.decode(doc_id[s:e+1])) for s, e in zip(s_pos, e_pos)])
         phrase_reps = torch.cat(phrase_reps)
+        hidden_states = F.normalize(hidden_states, dim=-1)
         assert len(phrase_reps) == len(phrase_sources)
         print(f'[!] collect {len(phrase_reps)} phrases')
         return phrase_reps, phrase_sources

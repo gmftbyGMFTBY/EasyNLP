@@ -1,22 +1,29 @@
 valid_during_training: false
 is_step_for_training: true
-total_step: 500000
-save_every: 25000
-temp: 1.0 
+total_step: 500
+save_every: 100
+temp: 0.01
 dropout: 0.1
 min_phrase_length: 3
 max_phrase_length: 16
-max_doc_num: 64
-doc_max_length: 64
-max_doc_length: 256
+max_doc_num: 16
+doc_max_length: 128
+max_doc_length: 128
 index_type: PCA64,IVF65536_HNSW32,PQ16
 dimension: 1536
 index_nprobe: 10
 token_cl_sample_num: 128
 margin: 0.5
-max_moving_step: 10
+max_moving_step: 15
+min_moving_step: 2
 gray_cand_num: 3
+hard_neg_for_each_doc: 10
+optimize_bert_step: 5
+optimize_bert_time: 50
+bert_chunk_size: 128
 
+max_doc_size: 128
+buffer_size: 40960
 phrase_tokenizer: /apdcephfs/share_916081/johntianlan/bert-base-chinese
 phrase_encoder_model: /apdcephfs/share_916081/johntianlan/bert-base-chinese
 tokenizer: 
@@ -29,14 +36,14 @@ pretrained_model:
 # train configuration
 train:
     load_param: true
-    lr: 0.00005
+    lr: 0.0001
     grad_clip: 1.0
     seed: 0
-    batch_size: 8
+    batch_size: 1
     max_len: 512
     warmup_ratio: 0.
     epoch: 5
-    iter_to_accumulate: 16
+    iter_to_accumulate: 1
     checkpoint: 
         path: bert-post/best_nspmlm.pt
         is_load: false

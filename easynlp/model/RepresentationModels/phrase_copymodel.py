@@ -573,68 +573,209 @@ class DensePhraseV4Encoder(nn.Module):
             for (b, e) in pos_:
                 b_rep = rep_[b, :]
                 e_rep = rep_[e, :]
-                p_rep = torch.cat([b_rep, e_rep], dim=-1)
+                p_rep = torch.cat([self.s_proj(b_rep), self.e_proj(e_rep)], dim=-1)
                 phrases.append(p_rep)
             texts.extend(text_)
         phrases = torch.stack(phrases)
+        phrases = F.normalize(phrases, dim=-1)
         return phrases, texts
 
     @torch.no_grad()
     def get_query_rep(self, ids):
         self.eval()
-        rep = self.model(input_ids=ids).last_hidden_state[:, -1, :]
-        rep = torch.cat([self.s_proj(rep), self.e_proj(rep)], dim=-1)
-        return rep
+        output = self.model(input_ids=ids, output_hidden_states=True)
+        rep = output['hidden_state'][-1][:, -1, :]
+        return F.normalize(rep, dim=-1)
+    
+    def _forward(self, batch):
+        ## gpt2
+        ids, ids_mask = batch['ids'], batch['ids_mask']
+        bsz, seqlen = ids.size()
+        outputs = self.model(input_ids=ids, attention_mask=ids_mask, output_hidden_states=True)
+        gpt2_reps = outputs.hidden_states[-1]     # [B, S, E]
+
+        ## bert
+        bert_reps = self.phrase_encoder(ids, ids_mask, output_hidden_states=True).hidden_states[-1]
+        
+        vl = ids_mask.sum(dim=-1)
+        gr, br_begin, br_end, tl = [], [], [], []
+        min_window_size, max_window_size = 2, 10
+        counter = 0
+        for ghn, bhn, l, ids_ in zip(gpt2_reps, bert_reps, vl, ids):
+            for i in range(l-2):
+                gr.append(ghn[i])
+                if random.random() < -0.1:
+                    # token
+                    tl.append(ids_[i+1])
+                else:
+                    w = random.choice(range(min_window_size, max_window_size))
+                    begin_index = i + 1
+                    end_index = min(i + 1 + w, l - 1)
+                    begin = bhn[begin_index]
+                    end = bhn[end_index]
+                    br_begin.append(begin)
+                    br_end.append(end)
+                    tl.append(self.vocab_size + counter)
+                    counter += 1
+        gr = torch.stack(gr)
+        br_begin = torch.stack(br_begin)
+        br_end = torch.stack(br_end)
+        br_begin, br_end = self.s_proj(br_begin), self.e_proj(br_end)
+        br = torch.cat([br_begin, br_end], dim=-1)
+        br = torch.cat([self.token_embeddings, br], dim=0)
+        gr, br = F.normalize(gr, dim=-1), F.normalize(br, dim=-1)
+
+        dot_product = torch.matmul(gr, br.t())
+        dot_product /= self.args['temp']
+        l1, l2 = dot_product.size()
+        mask = torch.zeros_like(dot_product)
+        mask[range(l1), tl] = 1.
+        loss_ = F.log_softmax(dot_product, dim=-1) * mask
+        loss = (-loss_.sum(dim=1)).mean()
+        # acc = (dot_product.max(dim=-1)[1].cpu() == torch.LongTensor(tl)).to(torch.float).mean().item()
+        acc = (dot_product.max(dim=-1)[1] == torch.LongTensor(tl).cuda())
+        acc = acc[torch.LongTensor(tl) >= self.vocab_size]
+        acc = acc.to(torch.float).mean().item()
+        return loss, acc
 
     def forward(self, batch):
+        if_freeze_gpt2 = batch['if_freeze_gpt2']
+        if_freeze_bert = batch['if_freeze_bert']
+        assert not (if_freeze_gpt2 is True and if_freeze_bert is True)
+        assert not (if_freeze_gpt2 is False and if_freeze_bert is False)
+
         ## gpt2 query encoder
         ids, ids_mask = batch['ids'], batch['ids_mask']
         bsz, seqlen = ids.size()
         outputs = self.model(input_ids=ids, attention_mask=ids_mask, output_hidden_states=True)
+        # if if_freeze_gpt2:
+        #     with torch.no_grad():
+        #         outputs = self.model(input_ids=ids, attention_mask=ids_mask, output_hidden_states=True)
+        # else:
+        #     outputs = self.model(input_ids=ids, attention_mask=ids_mask, output_hidden_states=True)
         last_hidden_states = outputs.hidden_states[-1]
-        # last_hidden_states = torch.cat([
-        #     self.s_proj(last_hidden_states), self.e_proj(last_hidden_states)
-        # ], dim=-1)
 
         ## bert
         dids, dids_mask = batch['dids'], batch['dids_mask']
         dindex_s, dindex_e = batch['dindex_s'], batch['dindex_e']
         output = self.phrase_encoder(dids, dids_mask, output_hidden_states=True)['hidden_states'][-1]   # [B, S, E]
+
+        '''
+        if if_freeze_bert:
+            with torch.no_grad():
+                output = self.phrase_encoder(dids, dids_mask, output_hidden_states=True)['hidden_states'][-1]   # [B, S, E]
+        else:
+            # optimize partial bert encoder output: output [B, S, E]
+            bsz, seqlen = dids.size()
+            bert_chunk_index = batch['bert_chunk_index']
+            bert_chunk_index_ = [i for i in range(bsz) if i not in bert_chunk_index]
+            dids_optimize, dids_mask_optimize = [], []
+            dids_not_optimize, dids_mask_not_optimize = [], []
+            for idx, (a, b) in enumerate(zip(dids, dids_mask)):
+                if idx not in bert_chunk_index:
+                    dids_not_optimize.append(a.detach())
+                    dids_mask_not_optimize.append(b.detach())
+                else:
+                    dids_optimize.append(a)
+                    dids_mask_optimize.append(b)
+            dids_optimize = torch.stack(dids_optimize)
+            dids_mask_optimize = torch.stack(dids_mask_optimize)
+            output = torch.zeros(bsz, seqlen, 768).cuda()
+            output_optimize = self.phrase_encoder(dids_optimize, dids_mask_optimize, output_hidden_states=True)['hidden_states'][-1]   # [B, S, E]
+            output[bert_chunk_index] = output_optimize
+
+            if dids_not_optimize:
+                dids_not_optimize = torch.stack(dids_not_optimize)
+                dids_mask_not_optimize = torch.stack(dids_mask_not_optimize)
+                with torch.no_grad():
+                    output_not_optimize = self.phrase_encoder(dids_not_optimize, dids_mask_not_optimize, output_hidden_states=True)['hidden_states'][-1]   # [B, S, E]
+
+                output[bert_chunk_index_] = output_not_optimize
+        '''
+
         doc_bsz, seqlen, _ = output.size()
         s_rep = output[range(doc_bsz), dindex_s, :]    # [B, E]
         e_rep = output[range(doc_bsz), dindex_e, :]
         phrase_rep_base = torch.cat([self.s_proj(s_rep), self.e_proj(e_rep)], dim=-1)    # [B_p, 2*E]
         phrase_num = len(phrase_rep_base)
 
+        # hard negative
+        '''
+        hard_phrase_reps_v1_begin, hard_phrase_reps_v1_end = [], []
+        valid_length = dids_mask.sum(dim=-1).tolist()
+        for opt, dindex_s_, dindex_e_, vl in zip(output, dindex_s, dindex_e, valid_length):
+            dindex_s_, dindex_e_ = dindex_s_.item(), dindex_e_.item()
+            new_left_bounding = min(dindex_e_ + self.args['min_moving_step'], vl)
+            new_right_bounding = min(dindex_e_ + self.args['max_moving_step'], vl)
+            indexes = list(range(new_left_bounding, new_right_bounding))
+            if indexes:
+                gray_num = min(self.args['gray_cand_num'], len(indexes))
+                indexes = random.sample(indexes, gray_num)
+                hard_phrase_reps_v1_end.append(opt[indexes])
+                hard_phrase_reps_v1_begin.extend([opt[dindex_s_]] * gray_num)
+        hard_phrase_reps_v1_end = torch.cat(hard_phrase_reps_v1_end)
+        hard_phrase_reps_v1_begin = torch.stack(hard_phrase_reps_v1_begin)
+        assert len(hard_phrase_reps_v1_end) == len(hard_phrase_reps_v1_begin)
+        hard_phrase_reps_v1 = torch.cat([self.s_proj(hard_phrase_reps_v1_begin), self.e_proj(hard_phrase_reps_v1_end)], dim=-1)
+        '''
+
         # candidates representations
+        # reps = torch.cat([self.token_embeddings, phrase_rep_base, hard_phrase_reps_v1], dim=0)    # [V+B, 2*E]
         reps = torch.cat([self.token_embeddings, phrase_rep_base], dim=0)    # [V+B, 2*E]
 
         # query representations
         pos_index = batch['pos_ids']    # [B_p]
-        phrase_query = []
-        label = []
+        pos_end_index = batch['pos_ids_end']
+        label, phrase_query = [], []
         vl = ids_mask.sum(dim=-1)
         counter = 0
+
+        '''
         for ids_, hn, pos_list, l in zip(ids, last_hidden_states, pos_index, vl):
-            l = l.item()
-            for i in range(l-1):
+            l = l.item() - 1
+            for i in range(l):
                 phrase_query.append(hn[i])
                 if i in pos_list:
                     label.append(self.vocab_size + counter)
                     counter += 1
                 else:
-                    label.append(ids_[i+1].item())
+                    label.append(ids_[i+1])
         phrase_query = torch.stack(phrase_query)
-        assert counter == phrase_num
-        logits = torch.matmul(phrase_query, reps.t())    # [Total, V+B]
         label = torch.LongTensor(label).cuda()
+        assert counter == phrase_num
+        '''
+
+        for ids_, hn, pos_list, pos_list_end, l in zip(ids, last_hidden_states, pos_index, pos_end_index, vl):
+            token_index = set(range(l.item() - 1))
+            for s, e in zip(pos_list, pos_list_end):
+                token_index -= set(range(s, e))
+            token_index = torch.LongTensor(sorted(token_index))
+            phrase_query.append(hn[token_index])
+            label.append(ids_[token_index+1])
+
+            phrase_query.append(hn[pos_list])
+            phrase_label = torch.LongTensor([counter+i for i in range(len(pos_list))]).cuda()
+            phrase_label += self.vocab_size
+            label.append(phrase_label)
+            counter += len(pos_list)
+        phrase_query = torch.cat(phrase_query)
+        label = torch.cat(label)
+        assert counter == phrase_num
+
+        query = F.normalize(phrase_query, dim=-1)
+        reps = F.normalize(reps, dim=-1)
+        logits = torch.matmul(query, reps.t())    # [Total, V+B]
+        logits /= self.args['temp']
 
         loss = self.gen_loss_fct(logits, label)
-        acc = (logits.max(dim=-1)[1] == label).to(torch.float).mean().item()
+        total_acc = (logits.max(dim=-1)[1] == label).to(torch.float).mean().item()
+        acc = (logits.max(dim=-1)[1] == label)
+        acc = acc[label >= self.vocab_size]
+        phrase_acc = acc.to(torch.float).mean().item()
         ## 4. simctg
         # cosine_scores = torch.matmul(k, k.t()) 
         # cl_loss = self.compute_contrastive_loss(cosine_scores, self.args['margin'])
-        return loss, acc
+        return loss, phrase_acc, total_acc
 
     def compute_contrastive_loss(self, score_matrix, margin):
         difference_matrix = score_matrix - score_matrix.diagonal().unsqueeze(1)
@@ -654,9 +795,9 @@ class DensePhraseV4Encoder(nn.Module):
                 use_cache=True,
                 output_hidden_states=True
             )
-            hidden_state = output.last_hidden_state[:, -1, :]    # [B, E]
-            hidden_state = torch.cat([self.s_proj(hidden_state), self.e_proj(hidden_state)], dim=-1)
-            logits = torch.matmul(hidden_state, self.token_embeddings.t())[0]    # [ V]
+            hidden_state = output.hidden_states[-1][:, -1, :]
+            hidden_state = F.normalize(hidden_state)
+            logits = torch.matmul(hidden_state, F.normalize(self.token_embeddings, dim=-1).t())[0]    # [ V]
             logits[self.unk] = -np.inf
             filtered_logits = top_k_top_p_filtering(
                 logits, 
@@ -681,9 +822,9 @@ class DensePhraseV4Encoder(nn.Module):
                 input_ids=ids,
                 output_hidden_states=True
             )
-            hidden_state = output.last_hidden_state[:, -1, :]    # [B, E]
-            hidden_state = torch.cat([self.s_proj(hidden_state), self.e_proj(hidden_state)], dim=-1)
-            logits = torch.matmul(hidden_state, self.token_embeddings.t())[0]    # [ V]
+            hidden_state = output.hidden_states[-1][:, -1, :]
+            hidden_state = F.normalize(hidden_state)
+            logits = torch.matmul(hidden_state, F.normalize(self.token_embeddings, dim=-1).t())[0]    # [ V]
             logits[self.unk] = -np.inf
             next_token = logits.max(dim=-1)[1]
             generated.append(next_token.item())
@@ -698,9 +839,9 @@ class DensePhraseV4Encoder(nn.Module):
         generated = []
         for step in range(batch['test_max_len']):
             output = self.model(input_ids=input_ids, output_hidden_states=True)
-            hidden_state = output.last_hidden_state[:, -1, :]
-            hidden_state = torch.cat([self.s_proj(hidden_state), self.e_proj(hidden_state)], dim=-1)
-            logit = torch.matmul(hidden_state, self.token_embeddings.t())[0]     # [V]
+            hidden_state = output.hidden_states[-1][:, -1, :]
+            hidden_state = F.normalize(hidden_state)
+            logit = torch.matmul(hidden_state, F.normalize(self.token_embeddings, dim=-1).t())[0]     # [V]
             logit[self.unk] = -np.inf
             topk_, topk = logit.topk(batch['beam_width'], dim=-1)
             input_ids, next_index = ContrastiveDecodingOneStepGiveProb(
