@@ -393,8 +393,8 @@ class CopyGenerationCompactDataset(Dataset):
         self.data_root_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_data'
 
         self.size = 500000
-        # self.file_lists = [f'{self.args["data_root_path"]}/searched_results_{i}.txt' for i in range(32)]
-        self.file_lists = [f'{self.data_root_path}/searched_results_debug.txt']
+        self.file_lists = [f'{self.data_root_path}/searched_results_{i}.txt' for i in range(16)]
+        # self.file_lists = [f'{self.data_root_path}/searched_results_debug.txt']
         self.current_file_index = 0
         self.current_file_handler = open(self.file_lists[self.current_file_index], 'r')
         self.cache = []
@@ -520,4 +520,158 @@ class CopyGenerationCompactDataset(Dataset):
             'dindex_e': dindex_e,
             'pos_ids': pos_ids,
             'pos_ids_end': pos_ids_end,
+        }
+
+
+class CopyGenerationCompactV2Dataset(Dataset):
+
+    '''faster'''
+    
+    def __init__(self, vocab, path, **args):
+        self.args = args
+        self.vocab = vocab
+        self.bert_vocab = BertTokenizer.from_pretrained(args['phrase_tokenizer'])
+        self.data_root_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_data'
+
+        self.size = 500
+        self.file_lists = [f'{self.data_root_path}/searched_results_{i}.txt' for i in range(16)]
+        # self.file_lists = [f'{self.data_root_path}/searched_results_debug.txt']
+        self.current_file_index = 0
+        self.current_file_handler = open(self.file_lists[self.current_file_index], 'r')
+        self.cache = []
+        self.buffer_size = args['buffer_size']
+        self.if_last_over = True
+        self.last_delta = 0
+
+        new_seed = args['seed'] + args['local_rank']
+        random.seed(new_seed)
+        torch.manual_seed(new_seed)
+        torch.cuda.manual_seed_all(new_seed)
+        random.shuffle(self.file_lists)
+
+        base_data = {}
+        with open(f'{self.data_root_path}/base_data.txt') as f:
+            for line in tqdm(f.readlines()):
+                line = line.strip().split('\t')
+                chunk = ' [SEP] '.join(line[:-1])
+                id_label = line[-1]
+                base_data[id_label] = chunk
+        self.base_data = base_data
+        print(f'[!] load base data over')
+
+    def __len__(self):
+        return self.size
+
+    def load_one_chunk(self):
+        assert len(self.cache) == 0
+        self.cache = load_lines_chunk(self.current_file_handler, self.buffer_size)
+        if len(self.cache) == 0:
+            # current file runs over, cyclely loading
+            self.current_file_index = 0 if self.current_file_index == len(self.file_lists) - 1 else self.current_file_index + 1
+            self.current_file_handler = open(self.file_lists[self.current_file_index], 'r')
+            self.cache = load_lines_chunk(self.current_file_handler, self.buffer_size)
+
+    def _truncate_triplet(self, a, b, c, max_length):
+        while True:
+            if len(a) + len(b) + len(c) <= max_length:
+                break
+            else:
+                if len(a) > len(c):
+                    a.pop(0)
+                else:
+                    c.pop()
+
+    def __getitem__(self, i):
+        # read till the max bert dids are achieved
+        ids_total, doc_ids, doc_index, pos_index_total, pos_index_end_total = [], [], [], [], []
+        token_pos_total = []
+        while len(doc_ids) < self.args["max_doc_size"]:
+            if len(self.cache) == 0:
+                self.load_one_chunk()
+            item = json.loads(self.cache[0].strip())
+
+            # collect documents
+            docs, ids, counter, delta_ = [], [], 0, 0
+            token_pos = []
+            for item_, docid in item['results'][self.last_delta:]:
+                items = self.vocab.encode(item_, add_special_tokens=False)
+                if len(ids) + len(items) > self.args['max_len']:
+                    break
+                if docid:
+                    docid = docid[0]
+                    if counter > 0:
+                        docs.append((counter - 1, len(item_), len(items), docid[0], docid[1]))
+                        # replace the last token with the end of the phrase
+                        token_pos[-1] += len(items) 
+                    else:
+                        token_pos.extend([len(ids) + i for i in range(len(items))])
+                else:
+                    token_pos.extend([len(ids) + i for i in range(len(items))])
+                ids.extend(items)
+                counter += len(items)
+                if len(docs) + len(doc_ids) > self.args['max_doc_size']:
+                    self.last_delta = delta_
+                    self.if_last_over = False
+                    break
+                delta_ += 1
+            else:
+                self.if_last_over = True
+
+            if len(docs) > 0 and counter - docs[-1][0] <= 2:
+                docs.pop()
+            ids_total.append(torch.LongTensor(ids))
+            token_pos.pop()
+            token_pos_total.append(token_pos)
+
+            if self.if_last_over is True:
+                self.last_delta = 0
+                self.cache.pop(0)
+
+            # encode the documents
+            pos_index, pos_index_end = [], []
+            for pos_in_ids, length_s, length_i, docid, pos_in_doc in docs:
+                doc_ = self.base_data[docid]
+                pre_phrase, post_phrase = doc_[:pos_in_doc], doc_[pos_in_doc+length_s:]
+                phrase = doc_[pos_in_doc:pos_in_doc+length_s]
+                phrase_ids = self.bert_vocab.encode(phrase, add_special_tokens=False)
+                pre_phrase_ids = self.bert_vocab.encode(pre_phrase, add_special_tokens=False)
+                post_phrase_ids = self.bert_vocab.encode(post_phrase, add_special_tokens=False)
+                try:
+                    self._truncate_triplet(pre_phrase_ids, phrase_ids, post_phrase_ids, self.args['doc_max_length'] - 2)
+                except:
+                    continue
+                doc_ids_ = [self.bert_vocab.cls_token_id] + pre_phrase_ids + phrase_ids + post_phrase_ids + [self.bert_vocab.sep_token_id]
+                doc_s_pos, doc_e_pos = 1 + len(pre_phrase_ids), len(pre_phrase_ids) + len(phrase_ids)
+                doc_ids.append(torch.LongTensor(doc_ids_))
+                doc_index.append((doc_s_pos, doc_e_pos))
+                pos_index.append(pos_in_ids)
+                pos_index_end.append(pos_in_ids + length_i)
+            pos_index_total.append(pos_index)
+            pos_index_end_total.append(pos_index_end)
+            print(f'[!] doc size: {len(ids_total)}', end='\r')
+
+        return ids_total, doc_ids, doc_index, pos_index_total, pos_index_end_total, token_pos_total
+
+    def save(self):
+        pass
+        
+    def collate(self, batch):
+        assert len(batch) == 1
+        ids, dids, dindex, pos_ids, pos_ids_end, token_pos_total = batch[0]
+        dindex_s = torch.LongTensor([i for i, _ in dindex])
+        dindex_e = torch.LongTensor([i for _, i in dindex])
+        ids = pad_sequence(ids, batch_first=True, padding_value=self.vocab.pad_token_id)
+        dids = pad_sequence(dids, batch_first=True, padding_value=self.bert_vocab.pad_token_id)
+        ids_mask, dids_mask = generate_mask(ids), generate_mask(dids)
+        ids, dids, ids_mask, dids_mask, dindex_s, dindex_e = to_cuda(ids, dids, ids_mask, dids_mask, dindex_s, dindex_e)
+        return {
+            'ids': ids, 
+            'dids': dids, 
+            'ids_mask': ids_mask, 
+            'dids_mask': dids_mask, 
+            'dindex_s': dindex_s,
+            'dindex_e': dindex_e,
+            'pos_ids': pos_ids,
+            'pos_ids_end': pos_ids_end,
+            'token_pos_total': token_pos_total,
         }

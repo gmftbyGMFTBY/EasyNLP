@@ -1,7 +1,7 @@
 valid_during_training: false
 is_step_for_training: true
-total_step: 500
-save_every: 100
+total_step: 500000
+save_every: 5000
 temp: 0.01
 dropout: 0.1
 min_phrase_length: 3

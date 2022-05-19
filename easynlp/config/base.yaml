@@ -469,10 +469,13 @@ models:
         # model_name: DensePhraseEncoder
         # model_name: DensePhraseV2Encoder
         model_name: DensePhraseV4Encoder
+        # model_name: DensePhraseV5Encoder
         # dataset_name: CopyGenerationDataset
         dataset_name: CopyGenerationCompactDataset
+        # dataset_name: CopyGenerationCompactV2Dataset
         # dataset_name: CopyGenerationGADataset
-        inference_dataset_name: PhrasesInferenceDataset
+        # inference_dataset_name: PhrasesInferenceDataset
+        inference_dataset_name: PhrasesInferenceV2Dataset
     dual-bert-mutual: 
         type: Representation
         model_name: BERTDualMutualDatasetEncoder
@@ -1036,7 +1039,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 44
+version: 46
 
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5

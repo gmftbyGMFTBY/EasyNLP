@@ -25,6 +25,7 @@ def parser_args():
 
 
 def inference(**args):
+    args['global_rank'] = dist.get_rank()
     work_mode = args['work_mode']
     data, data_iter, sampler = load_dataset(args)
     sampler.set_epoch(0)
@@ -47,7 +48,7 @@ def inference(**args):
         # agent.inference(data_iter, size=args['cut_size'])
         pass
     elif work_mode in ['phrases']:
-        # agent.inference_phrases(data_iter, size=args['cut_size'])
+        agent.inference_phrases(data_iter, size=args['cut_size'])
         pass
     elif work_mode in ['clean']:
         agent.inference_clean(data_iter, data, size=args['cut_size'])

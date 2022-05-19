@@ -29,4 +29,4 @@ CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=$
     --dataset $dataset \
     --model $model \
     --multi_gpu $cuda \
-    --total_workers ${#gpu_ids[@]} | tee $recoder_file
+    --total_workers ${#gpu_ids[@]} > $recoder_file
