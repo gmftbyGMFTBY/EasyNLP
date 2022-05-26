@@ -25,8 +25,8 @@ rm -rf $root_dir/rest/$dataset/$model/$version
 
 
 gpu_ids=(${cuda//,/ })
-CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 28455 train.py \
+CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 28456 train.py \
     --dataset $dataset \
     --model $model \
     --multi_gpu $cuda \
-    --total_workers ${#gpu_ids[@]} > $recoder_file
+    --total_workers ${#gpu_ids[@]}

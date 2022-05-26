@@ -138,6 +138,7 @@ benchmarks/*.md
 indexdir/
 post_train/runs
 easynlp/playground
+easynlp/playground/test-phrase-copy/english/bleurt
 
 !data/vocab/*
 !data/config/*

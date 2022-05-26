@@ -26,9 +26,9 @@ def response_strategy(args):
             texts.extend(text)
             already_added.append((i, idx))
             print(f'[!] collect embeddings: {current_num}')
-            if current_num > 30000000:
+            if current_num > 40000000:
                 break
-        if current_num > 30000000:
+        if current_num > 40000000:
             break
     embds = np.concatenate(embds) 
     searcher = Searcher(args['index_type'], dimension=args['dimension'])

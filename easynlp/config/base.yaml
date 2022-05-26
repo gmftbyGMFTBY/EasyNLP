@@ -70,7 +70,6 @@ no_test_models:
     - gpt2-token-rerank
     - simrag
     - phrase-copy
-    - gpt2-original
     - scorer
     - dialog-simctg
     - dialog-plato-v1
@@ -78,6 +77,7 @@ no_test_models:
     - bert-ft-compare
     - bert-ft
 #     - writer-dual-bert-phrase
+# - gpt2-original
 
 no_train_models:
     - bert-fp-original
@@ -88,6 +88,7 @@ no_train_models:
     - bm25
     - copygeneration
     - scorer
+    - knn-lm
 
 curriculum_learning_models:
     - dual-bert-hn-cl
@@ -468,8 +469,11 @@ models:
         type: Representation
         # model_name: DensePhraseEncoder
         # model_name: DensePhraseV2Encoder
-        model_name: DensePhraseV4Encoder
+        # model_name: DensePhraseV4Encoder
         # model_name: DensePhraseV5Encoder
+        # model_name: DensePhraseV6Encoder
+        # model_name: DensePhraseV7Encoder
+        model_name: DensePhraseV8Encoder
         # dataset_name: CopyGenerationDataset
         dataset_name: CopyGenerationCompactDataset
         # dataset_name: CopyGenerationCompactV2Dataset
@@ -557,7 +561,8 @@ models:
     copygeneration: 
         type: Generation
         model_name: CopyGenerationEncoder
-        dataset_name: CopyGenerationDataset
+        # dataset_name: CopyGenerationDataset
+        dataset_name: CopyGenerationCompactDataset
         inference_dataset_name: InferenceCopyGenerationDataset
     simctg: 
         type: Generation
@@ -589,11 +594,19 @@ models:
         model_name: SimRAGEncoder
         dataset_name: GPT2DialogDataset
         inference_dataset_name: GPT2DialogDataset
+    knn-lm: 
+        type: Generation
+        model_name: KNNLMModel
+        dataset_name: null
+        inference_dataset_name: KNNLMInferenceDataset
     gpt2-original: 
         type: Generation
-        # model_name: GPT2OriginalModel
-        model_name: GPT2DialogModel
-        dataset_name: CopyGenerationOnlyGenDataset
+        model_name: GPT2OriginalModel
+        # model_name: GPT2DialogModel
+        # dataset_name: CopyGenerationOnlyGenDataset
+        # dataset_name: CopyGenerationOnlyGenWikiText103Dataset
+        dataset_name: CopyGenerationOnlyGenWikiText103TestDataset
+        # dataset_name: CopyGenerationHoldoutCompactDataset
         # dataset_name: GPT2TaCLDataset
         # dataset_name: GPT2ForContrastiveDataset
         # dataset_name: GPT2DialogDataset
@@ -1039,7 +1052,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 46
+version: 54
 
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
@@ -1066,14 +1079,15 @@ deploy:
     max_len: 512
     res_max_len: 64
     recall:
-        activate: false
+        activate: true
         # model: hash-dual-bert-hier-trs
         # model: bpr
         model: dual-bert
         topk: 10
         with_source: false
         # index_type: BFlat
-        index_type: IVF65536_HNSW32,PQ8
+        # index_type: IVF65536_HNSW32,PQ8
+        index_type: Flat
         index_nprobe: 5
         dimension: 768
     rerank:
@@ -1084,7 +1098,7 @@ deploy:
     pipeline_evaluation:
         activate: false
     generation_dialog:
-        activate: true
+        activate: false
         # model: dialog-simctg
         model: dialog-eva
     generation:

@@ -90,6 +90,16 @@ def main(**args):
                     pretrained_model_name = args['pretrained_model'].replace('/', '_')
                     save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}_{args["version"]}_{current_step}.pt'
                     agent.save_model(save_path)
+                    
+                    # valiadtion the ppl
+                    # if args['model'] in ['gpt2-original']:
+                    #     ppl = []
+                    #     for batch in tqdm(test_iter):
+                    #         ppl_ = agent.model.module.calculate_ppl(batch['ids'], batch['ids_mask'], batch['label'])
+                    #         ppl.append(ppl_)
+                    #     ppl = np.mean(ppl)
+                    #     sum_writer.add_scalar(f'test/ppl', ppl, current_step)
+                    #     print(f'[!] ppl on test set: {round(ppl, 4)}')
 
                 current_step += 1
                 if current_step > args['total_step']:

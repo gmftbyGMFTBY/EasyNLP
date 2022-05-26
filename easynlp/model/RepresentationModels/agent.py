@@ -1528,31 +1528,36 @@ class RepresentationAgent(RetrievalBaseAgent):
     def inference_phrases(self, inf_iter, size=500000):
         self.model.eval()
         pbar = tqdm(inf_iter)
-        phrases, reps = [], []
+        phrases, reps, sources = [], [], []
         idx = 0 
         counter = 0
         for batch in pbar:
+            if batch is None:
+                break
             ids = batch['ids']
             ids_mask = batch['ids_mask']
             pos = batch['pos']
             text = batch['text']
+            source = batch['source']
             p, t = self.model.module.get_phrase_rep(ids, ids_mask, pos, text)
             reps.append(p)
             phrases.extend(t)
+            sources.extend(source)
             if len(phrases) >= size:
                 reps = torch.cat(reps, dim=0).cpu().numpy()
+                assert len(phrases) == len(sources) == len(reps)
                 torch.save(
-                    (reps, phrases), 
+                    (reps, phrases, sources), 
                     f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
                 )
-                phrases, reps = [], []
+                phrases, reps, sources = [], [], []
                 idx += 1
             counter += len(t)
             pbar.set_description(f'[!] collect {counter} phrases for worker {self.args["local_rank"]}')
         if len(phrases) > 0:
             reps = torch.cat(reps, dim=0).cpu().numpy()
             torch.save(
-                (reps, phrases), 
+                (reps, phrases, sources), 
                 f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{idx}.pt'
             )
 
@@ -1607,9 +1612,12 @@ class RepresentationAgent(RetrievalBaseAgent):
 
     def train_model_phrase_copy_step(self, batch, recoder=None, current_step=0, pbar=None):
         self.model.train()
+        # batch_size = batch['ids'].size(0)
+        # pbar.set_description(f'[!] batch size: {batch_size}')
+        # pbar.update(1)
+        # return batch_size
+
         with autocast():
-            batch['if_freeze_gpt2'] = False
-            batch['if_freeze_bert'] = True
             oloss, phrase_acc, total_acc = self.model(batch)
             loss = oloss / self.args['iter_to_accumulate']
         self.scaler.scale(loss).backward()
@@ -1626,26 +1634,4 @@ class RepresentationAgent(RetrievalBaseAgent):
             recoder.add_scalar(f'train/PhraseAcc', phrase_acc, current_step)
             recoder.add_scalar(f'train/TotalAcc', total_acc, current_step)
         pbar.set_description(f'[!] loss: {round(oloss.item(), 2)}; acc(phrase|total): {round(phrase_acc, 4)}|{round(total_acc, 4)}')
-
-        # optimize bert 
-        '''
-        if (current_step + 1) % self.args['optimize_bert_time'] == 0:
-            batch['if_freeze_gpt2'] = True
-            batch['if_freeze_bert'] = False
-            counter = 0
-            for _ in tqdm(range(self.args['optimize_bert_step'])):
-                batch['bert_chunk_index'] = list(range(counter, min(len(batch['dids']), counter+self.args['bert_chunk_size'])))
-                oloss, _, _ = self.model(batch)
-                loss = oloss / self.args['optimize_bert_step']
-                self.scaler.scale(loss).backward()
-                counter += self.args['bert_chunk_size']
-                if counter >= len(batch['dids']):
-                    counter = 0
-            self.scaler.unscale_(self.optimizer)
-            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
-            self.optimizer.zero_grad()
-        '''
-
         pbar.update(1)

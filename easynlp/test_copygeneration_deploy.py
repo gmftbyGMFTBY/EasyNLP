@@ -78,12 +78,11 @@ def create_app(**args):
     #     f'{faiss_searcher_args["root_dir"]}/data/{faiss_searcher_args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt'        
     # )
     # agent.model.init_faiss_searcher(faiss_searcher)
-    print(f'[!] init model over')
+    # print(f'[!] init model over')
 
     @app.route('/copygeneration', methods=['POST'])
     def generation_api():
         try:
-
             data = json.loads(request.data)
             batch = {}
             batch['prefix'] = data['prefix']
@@ -112,7 +111,6 @@ def create_app(**args):
             'ground-truth': data['ground_truth'],
             'succ': succ
         }
-        ipdb.set_trace()
         return jsonify(result)
 
     return app

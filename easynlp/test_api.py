@@ -346,7 +346,6 @@ def test_recall(args):
     error_counter = 0
     pbar = tqdm(data)
     for data in pbar:
-        ipdb.set_trace()
         data = json.dumps(data)
         rest = SendPOST(args['url'], args['port'], '/recall', data)
         if rest['header']['ret_code'] == 'fail':
@@ -355,6 +354,8 @@ def test_recall(args):
             collections.append(rest)
             avg_times.append(rest['header']['core_time_cost_ms'])
         pbar.set_description(f'[!] time: {round(np.mean(avg_times), 2)} ms; error: {error_counter}')
+        pprint.pprint(rest)
+        ipdb.set_trace()
     avg_t = round(np.mean(avg_times), 4)
     print(f'[!] avg recall time cost: {avg_t} ms; error ratio: {round(error_counter/len(data), 4)}')
     return collections
@@ -582,13 +583,16 @@ def test_copygeneration(args):
         data = {
             'prefix': batch['prefix'],
             'ground_truth': batch['ground_truth'],
-            'decoding_method': 'retrieval-generation-search-e2e',
-            'generation_method': 'contrastive-search',
+            'decoding_method': 'retrieval-generation-search',
+            'generation_method': 'nucleus-search',
             'beam_width': 5,
-            'model_prediction_confidence': 0.6,
+            'model_prediction_confidence': 0.9,
             'generation_num': 20,
             'max_gen_len': 64,
-            'recall_topk': 20
+            'recall_topk': 20,
+            'topk': 8,
+            'topp': 0.93,
+            'lang': 'en'
         }
         ipdb.set_trace()
         data = json.dumps(data)

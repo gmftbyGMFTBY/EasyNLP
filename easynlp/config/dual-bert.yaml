@@ -70,8 +70,8 @@ inference:
     ctx_max_len: 256
     topk: 10
     # index_type: IVF6000,PQ8
-    index_type: IVF65536_HNSW32,PQ8
-    # index_type: Flat
+    # index_type: IVF65536_HNSW32,PQ8
+    index_type: Flat
     # index_type: PQ8
     # index_type: HNSW32,Flat
     index_nprobe: 5

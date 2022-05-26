@@ -1,4 +1,4 @@
-temperature: 0.05
+temperature: 1.0
 test_max_len: 128
 prefix_len: 32
 doc_max_length: 256
@@ -7,21 +7,27 @@ min_phrase_length: 2
 max_phrase_length: 32
 max_doc_length: 256
 # the topk phrases that be considered
-search_topk: 50
+search_topk: 5
 threshold: 20.
 recall_topk: 100
 # the max seqlength for calculating the phrase ppl
 max_rerank_len: 128
 phrase_alpha: 0.8
 # dynamic update the docs
-update_step: 64
-test_max_len: 128
+update_step: 128
 # max query len for encoding SimCSE model
 max_query_len: 512
 contrastive_phrase_score_penalty: 100
+coarse_score_alpha: 0.3
 
-phrase_tokenizer: /apdcephfs/share_916081/johntianlan/bert-base-chinese
-phrase_encoder_model: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+buffer_size: 40960
+
+phrase_tokenizer: 
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    en: /apdcephfs/share_916081/johntianlan/gpt2_english
+phrase_encoder_model: 
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    en: /apdcephfs/share_916081/johntianlan/gpt2_english
 tokenizer: 
     zh: /apdcephfs/share_916081/johntianlan/gpt2-chinese-cluecorpussmall
     en: /apdcephfs/share_916081/johntianlan/gpt2_english

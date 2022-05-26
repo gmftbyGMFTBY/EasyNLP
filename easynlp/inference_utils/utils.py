@@ -23,7 +23,8 @@ class Searcher:
             else:
                 self.searcher = faiss.index_binary_factory(dimension, index_type)
         else:
-            self.searcher = faiss.index_factory(dimension, index_type)
+            # self.searcher = faiss.index_factory(dimension, index_type)
+            self.searcher = faiss.index_factory(dimension, index_type, faiss.METRIC_L2)
             # self.searcher = faiss.index_factory(dimension, index_type, faiss.METRIC_INNER_PRODUCT)
         self.corpus = []
         self.binary = binary

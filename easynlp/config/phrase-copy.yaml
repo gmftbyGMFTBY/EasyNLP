@@ -1,7 +1,7 @@
 valid_during_training: false
 is_step_for_training: true
-total_step: 500000
-save_every: 5000
+total_step: 200000
+save_every: 10000
 temp: 0.01
 dropout: 0.1
 min_phrase_length: 3
@@ -9,23 +9,30 @@ max_phrase_length: 16
 max_doc_num: 16
 doc_max_length: 128
 max_doc_length: 128
-index_type: PCA64,IVF65536_HNSW32,PQ16
-dimension: 1536
-index_nprobe: 10
+
+index_type: IVF20000,Flat
+# index_type: Flat
+dimension: 768
+index_nprobe: 10000
+
 token_cl_sample_num: 128
 margin: 0.5
-max_moving_step: 15
+max_moving_step: 5
 min_moving_step: 2
-gray_cand_num: 3
+gray_cand_num: 5
 hard_neg_for_each_doc: 10
 optimize_bert_step: 5
 optimize_bert_time: 50
 bert_chunk_size: 128
 
-max_doc_size: 128
+max_doc_size: 116
 buffer_size: 40960
-phrase_tokenizer: /apdcephfs/share_916081/johntianlan/bert-base-chinese
-phrase_encoder_model: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+phrase_tokenizer: 
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    en: /apdcephfs/share_916081/johntianlan/bert-base-cased
+phrase_encoder_model: 
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    en: /apdcephfs/share_916081/johntianlan/bert-base-cased
 tokenizer: 
     zh: /apdcephfs/share_916081/johntianlan/gpt2-chinese-cluecorpussmall
     en: /apdcephfs/share_916081/johntianlan/gpt2_english
@@ -61,6 +68,7 @@ inference:
     inf_phrase_min_len: 4
     inf_phrase_max_len: 32
     max_len: 512
-    index_type: IVF262144_HNSW32,PQ16
-    dimension: 1536
-    index_nprobe: 5
+    index_type: IVF20000,Flat
+    # index_type: Flat
+    dimension: 768
+    index_nprobe: 10000

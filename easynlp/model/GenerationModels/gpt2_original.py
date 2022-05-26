@@ -8,23 +8,33 @@ class GPT2OriginalModel(nn.Module):
         super(GPT2OriginalModel, self).__init__()
         model = args['pretrained_model']
         self.model = GPT2LMHeadModel.from_pretrained(model)
-        self.vocab = BertTokenizerFast.from_pretrained(model)
+        self.vocab = AutoTokenizer.from_pretrained(model)
         self.vocab_size = len(self.vocab)
-        self.unk, self.pad, self.cls, self.sep = self.vocab.convert_tokens_to_ids(['[UNK]', '[PAD]', '[CLS]', '[SEP]'])
+        self.args = args
+
+        if args['lang'] == 'en':
+            self.pad = self.vocab.eos_token_id
+            self.unk = self.vocab.unk_token_id
+            self.special_tokens = set([self.pad])
+        else:
+            self.unk, self.pad, self.cls, self.sep = self.vocab.convert_tokens_to_ids(['[UNK]', '[PAD]', '[CLS]', '[SEP]'])
+            self.special_tokens = set([self.pad, self.unk, self.cls, self.sep])
+        self.topk = args['topk']
+        self.topp = args['topp']
+        
         self.test_max_len = args['test_max_len']
         self.test_max_ctx_len = args['test_max_ctx_len']
         self.gen_loss_fct = nn.CrossEntropyLoss(ignore_index=self.pad)
-        self.special_tokens = set([self.pad, self.unk, self.cls, self.sep])
-        self.args = args
-        self.topk = args['topk']
-        self.topp = args['topp']
 
     @torch.no_grad()
-    def calculate_ppl(self, ids, ids_mask, pos_ids, label):
-        output = self.model(input_ids=ids, attention_mask=ids_mask, position_ids=pos_ids)
+    def calculate_ppl(self, ids, ids_mask, label):
+        self.model.eval()
+        ids, ids_mask, label = ids[:, :-1], ids_mask[:, :-1], label[:, 1:]
+        output = self.model(input_ids=ids, attention_mask=ids_mask)
         logits = output.logits
         loss = self.gen_loss_fct(logits.view(-1, logits.size(-1)), label.view(-1))
-        return math.exp(loss.item())
+        ppl = math.exp(loss.item())
+        return ppl
 
     @torch.no_grad()
     def beam_search(self, batch):
@@ -53,7 +63,6 @@ class GPT2OriginalModel(nn.Module):
             )[0]    # [1, S, V]
             next_token_logits = output[-1, -1, :]    # [V]
             next_token_logits[self.unk] = -np.inf
-            ipdb.set_trace()
             next_token = next_token_logits.max(dim=-1)[1].unsqueeze(0)
             if len(generated) > self.test_max_len:
                 break
@@ -61,7 +70,7 @@ class GPT2OriginalModel(nn.Module):
             # reconstruct the ids and ids_mask
             ids = torch.cat((ids, next_token.unsqueeze(0)), dim=1)    # [1, S+1]
             ids = ids[:, -self.test_max_ctx_len:]
-        string = ''.join(self.vocab.convert_ids_to_tokens(generated))
+        string = self.vocab.decode(generated)
         return string
 
     @torch.no_grad()
@@ -96,13 +105,10 @@ class GPT2OriginalModel(nn.Module):
             do_sample=True,
         )
         beam_output = beam_output[:, prefix_length:]
-        string = ''.join(self.vocab.convert_ids_to_tokens(beam_output[0]))
+        string = self.vocab.decode(beam_output[0])
         return string
 
     def forward(self, batch):
-        # ids = batch['ids']
-        # ids_mask = batch['ids_mask']
-        # ods = batch['ods']
         ids, ids_mask = batch['ids'], batch['ids_mask']
         ids, ods = ids[:, :-1], ids[:, 1:]
         ids_mask = ids_mask[:, :-1]
@@ -110,12 +116,12 @@ class GPT2OriginalModel(nn.Module):
         gen_logits = output.logits
         loss = self.gen_loss_fct(
             gen_logits.view(-1, gen_logits.size(-1)), 
-            ods.view(-1)
+            ods.reshape(-1)
         )
         # token acc
         chosen_tokens = torch.max(gen_logits, dim=-1)[1]    # [B, S-1]
-        gen_acc = (chosen_tokens.view(-1) == ods.view(-1)).to(torch.long)
-        valid_mask = (ods != self.pad).view(-1)
+        gen_acc = (chosen_tokens.reshape(-1) == ods.reshape(-1)).to(torch.long)
+        valid_mask = (ods != self.pad).reshape(-1)
         valid_tokens = gen_acc & valid_mask
         gen_acc = valid_tokens.sum().item() / valid_mask.sum().item()
         return loss, gen_acc

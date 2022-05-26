@@ -1,4 +1,4 @@
-valid_during_training: false
+valid_during_training: true
 is_step_for_training: true
 total_step: 10000010
 save_every: 200000
@@ -11,12 +11,15 @@ sampling_prefix_len: 3
 # gpt2 configuration load locally
 tokenizer: 
     zh: /apdcephfs/share_733425/johntianlan/gpt2-l-300g
-    en: /apdcephfs/share_733425/johntianlan/gpt2-large
+    # en: /apdcephfs/share_733425/johntianlan/gpt2-large
+    en: /apdcephfs/share_916081/johntianlan/gpt2-large
 pretrained_model: 
     zh: /apdcephfs/share_733425/johntianlan/gpt2-l-300g
-    en: /apdcephfs/share_733425/johntianlan/gpt2-large
+    # en: /apdcephfs/share_733425/johntianlan/gpt2-large
+    en: /apdcephfs/share_916081/johntianlan/gpt2-large
 
-data_root_path: /apdcephfs/share_733425/johntianlan/english_common_crawl
+# data_root_path: /apdcephfs/share_733425/johntianlan/english_common_crawl
+data_root_path: /apdcephfs/share_916081/johntianlan/english_common_crawl
 buffer_size: 409600
 
 # train configuration

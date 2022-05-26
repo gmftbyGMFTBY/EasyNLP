@@ -85,22 +85,25 @@ class PhrasesInferenceV2Dataset(Dataset):
 
         self.data_root_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_data'
 
-        self.file_list = f'{self.data_root_path}/searched_results_{self.args["global_rank"]}.txt'
-        self.size = iter_count(self.file_list)
-        print(f'[!] file size for worker ({self.args["global_rank"]}): {self.size}')
+        self.file_lists = [f'{self.data_root_path}/searched_results_{i}.txt' for i in range(dist.get_world_size())]
+        self.size = 0
+        for path in self.file_lists:
+            self.size += iter_count(path)
+        self.file = f'{self.data_root_path}/searched_results_{self.args["global_rank"]}.txt'
+        # self.file = f'{self.data_root_path}/inference.txt'
+        size = iter_count(self.file)
+        print(f'[!] file size for worker ({self.args["global_rank"]}): {self.file} ({size})')
 
         self.current_file_index = 0
-        self.current_file_handler = open(self.file_list, 'r')
+        self.current_file_handler = open(self.file, 'r')
         self.cache = []
         self.buffer_size = args['buffer_size']
-        self.if_last_over = True
-        self.last_delta = 0
 
         base_data = {}
         with open(f'{self.data_root_path}/base_data.txt') as f:
             for line in tqdm(f.readlines()):
                 line = line.strip().split('\t')
-                chunk = ' [SEP] '.join(line[:-1])
+                chunk = ' '.join(line[:-1])
                 id_label = line[-1]
                 base_data[id_label] = chunk
         self.base_data = base_data
@@ -122,9 +125,12 @@ class PhrasesInferenceV2Dataset(Dataset):
 
         if len(self.cache) == 0:
             self.load_one_chunk()
+            if len(self.cache) == 0:
+                return None, None, None, None
 
         item = json.loads(self.cache.pop(0))
         data = item['results']
+        source_index = item['index']
         ids, pos, texts = [], [], []
         for text, docs in data:
             ids_ = self.vocab.encode(text, add_special_tokens=False)
@@ -141,21 +147,24 @@ class PhrasesInferenceV2Dataset(Dataset):
                 pos.append((b, e))
                 texts.append(text)
         if len(pos) == 0:
-            return None, None, None
+            return None, None, None, None
         ids = torch.LongTensor([self.cls] + ids + [self.sep]) 
-        return ids, pos, texts
+        return ids, pos, texts, [source_index] * len(pos)
 
     def save(self):
         pass
         
     def collate(self, batch):
-        ids, pos, text = [], [], []
-        for a, b, c in batch:
+        ids, pos, text, source_index = [], [], [], []
+        for a, b, c, d in batch:
             if a is None:
                 continue
             ids.append(a)
             pos.append(b)
             text.append(c)
+            source_index.extend(d)
+        if len(ids) == 0:
+            return None
         ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
         ids_mask = generate_mask(ids, pad_token_idx=self.pad)
         ids, ids_mask = to_cuda(ids, ids_mask)
@@ -163,5 +172,6 @@ class PhrasesInferenceV2Dataset(Dataset):
             'ids': ids, 
             'ids_mask': ids_mask, 
             'pos': pos,
-            'text': text
+            'text': text,
+            'source': source_index 
         }

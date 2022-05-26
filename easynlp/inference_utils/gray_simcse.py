@@ -27,7 +27,7 @@ def gray_simcse_strategy(args):
         f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt',
     )
     # speed up with gpu
-    # searcher.move_to_gpu(device=args['local_rank'])
+    searcher.move_to_gpu(device=args['local_rank'])
 
     # search
     collection = {}

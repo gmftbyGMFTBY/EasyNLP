@@ -1,8 +1,8 @@
 test_interval: 0.05
 valid_during_training: false
 is_step_for_training: true
-total_step: 100010
-save_every: 5000
+total_step: 2000
+save_every: 200
 test_max_ctx_len: 256
 num_beam: 5
 sep_smooth_length: 50
@@ -23,19 +23,21 @@ inference_num: 1
 test_max_len: 128
 tokenizer: 
     # zh: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
+    en: /apdcephfs/share_916081/johntianlan/gpt2_english
     zh: /apdcephfs/share_916081/johntianlan/gpt2-chinese-cluecorpussmall
 pretrained_model: 
-# zh: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
+    # zh: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
+    en: /apdcephfs/share_916081/johntianlan/gpt2_english
     zh: /apdcephfs/share_916081/johntianlan/gpt2-chinese-cluecorpussmall
 
 # train configuration
 train:
     load_param: true
-    lr: 0.00005
-    grad_clip: 1.0
+    lr: 0.0001
+    grad_clip: 0.1
     seed: 0
-    batch_size: 64
-    max_len: 256
+    batch_size: 16
+    max_len: 512
     warmup_ratio: 0.
     iter_to_accumulate: 1
     checkpoint: 
@@ -45,8 +47,8 @@ train:
 # test configuration
 test:
     seed: 0
-    batch_size: 128
-    max_len: 128
+    batch_size: 1
+    max_len: 512
 
 # infernece
 inference:

@@ -27,9 +27,13 @@ class SimCSEDataset(Dataset):
                     data.append(json.loads(line.strip())['q'])
             data = list(set(data))
         else:
-            data = read_text_data_utterances(path, lang=self.args['lang'])
-            data = list(chain(*[u for label, u in data if label == 1]))
-            data = list(set(data))
+            # data = read_text_data_utterances(path, lang=self.args['lang'])
+            # data = list(chain(*[u for label, u in data if label == 1]))
+            # data = list(set(data))
+            data = []
+            with open(path) as f:
+                for line in tqdm(f.readlines()):
+                    data.append(line.strip())
         print(f'[!] collect {len(data)} samples for simcse')
 
         self.data = []

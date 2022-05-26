@@ -52,6 +52,8 @@ class GenerationAgent(GenerationBaseAgent):
             self.train_model = self.train_model_copygeneration
         elif self.args['model'] in ['gpt2-un', 'gpt2-un-seq']:
             self.train_model = self.train_model_un
+        elif self.args['model'] in ['gpt2-original', 'knn-lm'] and self.args['dataset'] in ['wikitext103']:
+            self.test_model = self.test_model_wikitext
 
     def build_offline_index(self, iter_):
         size = self.model.module.build_offline_index(iter_)
@@ -134,7 +136,7 @@ class GenerationAgent(GenerationBaseAgent):
     def train_model_contrastive_search(self, batch, recoder=None, current_step=0, pbar=None):
         self.model.train()
         with autocast():
-            mle_loss, mle_acc, cl_loss = self.model(batch)
+            mle_loss, mle_acc, cl_loss, valid_token_num = self.model(batch)
             cl_loss *= self.args['cl_loss_alpha']
             loss = mle_loss + cl_loss
             loss /= self.args['iter_to_accumulate']
@@ -152,9 +154,9 @@ class GenerationAgent(GenerationBaseAgent):
             recoder.add_scalar(f'train/RunMLELoss', mle_loss.item(), current_step)
             recoder.add_scalar(f'train/RunCLLoss', cl_loss.item(), current_step)
             recoder.add_scalar(f'train/TokenAcc', mle_acc, current_step)
-        pbar.set_description(f'[!] loss(mle|cl): {round(mle_loss.item(), 4)}|{round(cl_loss.item(), 4)}; token_acc: {round(mle_acc*100, 2)}')
+            recoder.add_scalar(f'train/ValidTokenNum', valid_token_num, current_step)
+        pbar.set_description(f'[!] loss(mle|cl): {round(mle_loss.item(), 4)}|{round(cl_loss.item(), 4)}; token_acc: {round(mle_acc*100, 2)}; valid_token_num: {valid_token_num}')
         pbar.update(1)
-        return
     
     def train_model_cl(self, batch, recoder=None, current_step=0, pbar=None):
         self.model.train()
@@ -415,14 +417,13 @@ class GenerationAgent(GenerationBaseAgent):
     def load_model(self, path):
         if self.args['model'] in self.args['no_train_models'] and self.args['model'] != 'copygeneration':
             state_dict = torch.load(path, map_location=torch.device('cpu'))
-            if self.args['decoding_method'] in ['token_rerank_search']:
-                self.checkpointadapeter.init(
-                    state_dict.keys(),
-                    self.model.model.state_dict().keys(),
-                )
-                new_state_dict = self.checkpointadapeter.convert(state_dict)
-                self.model.model.load_state_dict(new_state_dict)
-                print(f'[!] load model from {path}')
+            self.checkpointadapeter.init(
+                state_dict.keys(),
+                self.model.module.model.state_dict().keys(),
+            )
+            new_state_dict = self.checkpointadapeter.convert(state_dict)
+            self.model.module.model.load_state_dict(new_state_dict)
+            print(f'[!] load model from {path}')
             return
         if self.args['model'] in ['gpt2']:
             state_dict = torch.load(path, map_location=torch.device('cpu'))
@@ -744,6 +745,47 @@ class GenerationAgent(GenerationBaseAgent):
             embds.append(rep)
             texts.extend(phrase_text)
             # metas.extend(phrase_meta)
+            if len(texts) > size:
+                embds = torch.cat(embds, dim=0).numpy()
+                torch.save(
+                    (embds, texts), 
+                    f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
+                )
+                counter += 1
+                texts = []
+                embds = []
+        if len(texts) > 0:
+            embds = torch.cat(embds, dim=0).numpy()
+            torch.save(
+                (embds, texts), 
+                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
+            )
+
+    @torch.no_grad()
+    def test_model_wikitext(self, test_iter, print_output=True):
+        self.model.eval()
+        pbar = tqdm(test_iter)
+        for idx, batch in enumerate(pbar):
+            # string = self.model.greedy_search(batch).replace('\n', ' ').strip()
+            string = self.model.topk_topp_search(batch).replace('\n', ' ').strip()
+            res = batch['gt']
+            ctx = self.vocab.decode(batch['ids'][0])
+            self.log_save_file.write(f'[Prefix      ] {ctx}\n')
+            self.log_save_file.write(f'[GroundTruth ] {res}\n')
+            self.log_save_file.write(f'[Generation  ] {string}\n\n')
+            self.log_save_file.flush()
+        return {}
+
+    @torch.no_grad()
+    def inference_knnlm(self, inf_iter, size=500000):
+        self.model.eval()
+        pbar = tqdm(inf_iter)
+        embds, texts = [], []
+        counter = 0
+        for batch in pbar:
+            rep, target = self.model(batch)
+            embds.append(rep)
+            texts.extend(target)
             if len(texts) > size:
                 embds = torch.cat(embds, dim=0).numpy()
                 torch.save(

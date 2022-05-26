@@ -680,49 +680,55 @@ def ranking_unify(context_hidden, next_hidden, next_probs, model_prediction_conf
         context_hidden: beam_width x context_len x embed_dim
         next_hidden: beam_width x slen x embed_dim
         mask: beam_width x slen
+        next_probs: beam_width x slen
     '''
     beam_width, context_len, embed_dim = context_hidden.size()
-    norm_context_hidden = context_hidden / context_hidden.norm(dim=2, keepdim=True)
-    norm_next_hidden = next_hidden / next_hidden.norm(dim=2, keepdim=True)
+    norm_context_hidden = F.normalize(context_hidden, dim=-1)
+    norm_next_hidden = F.normalize(next_hidden, dim=-1)
     cosine_matrix = torch.bmm(norm_next_hidden, norm_context_hidden.permute(0, 2, 1))    # [beam_width, slen, context_len]
     scores, _ = torch.max(cosine_matrix, dim=-1)    # [beam_width, slen]
+
+    scores = model_prediction_confidence * next_probs - (1.0 - model_prediction_confidence) * scores   # [beam_width, slen]
     valid_length = mask.sum(dim=-1)    # [beam_width]
-    scores = [s[:l].mean() for s, l in zip(scores, valid_length)]
-    scores = torch.stack(scores)
-    
-    scores = model_prediction_confidence * next_probs - (1.0 - model_prediction_confidence) * scores 
+    scores = torch.stack([s[:l].max() for s, l in zip(scores, valid_length)])
     _, selected_idx = torch.topk(scores, k=1)
     return selected_idx.item()
 
-def ContrastiveDecodingOneStepUnify(model, input_ids, candidates, candidates_prob, model_prediction_confidence, pad, temp):
+def ContrastiveDecodingOneStepUnify(model, input_ids, candidates, model_prediction_confidence, pad, temp):
     '''
         model: the generation model, e.g., gpt2
         input_ids: 1 x seqlen
     '''
-    output = model(input_ids=input_ids, output_hidden_states=True)
+    output = model.model(input_ids=input_ids, output_hidden_states=True)
     prev_hidden_states = output.hidden_states[-1]
-
     _, seqlen, embed_dim = prev_hidden_states.size()
-    candidates_prob /= temp
-    candidates_prob = F.softmax(candidates_prob, dim=-1)
-
+    
     ids = []
     for c in candidates:
         c = torch.LongTensor(c).cuda()
         ids.append(torch.cat([input_ids[0], c], dim=-1))
     ids = pad_sequence(ids, batch_first=True, padding_value=pad)
-    mask = generate_mask(ids)
+    mask = generate_mask(ids, pad_token_idx=pad)
 
-    output = model(input_ids=ids, attention_mask=mask, output_hidden_states=True)
+    output = model.model(input_ids=ids, attention_mask=mask, output_hidden_states=True)
     new_hidden_states = output.hidden_states[-1]    # [B, S, E]
     next_hidden = new_hidden_states[:, seqlen:, :]    # [B, S_, E]
     context_hidden = new_hidden_states[:, :seqlen, :]
     mask = mask[:, seqlen:]    # [B, S_]
 
+    # generate the caniddates_prob
+    next_logits = torch.matmul(
+        F.normalize(new_hidden_states[:, seqlen-1:-1, :], dim=-1), 
+        F.normalize(model.token_embeddings, dim=-1).t()
+    )    # [B, S_, V]
+    next_label = ids[:, seqlen:].unsqueeze(2)    # [B, S_, 1]
+    assert next_label.size(1) == next_logits.size(1)
+    next_probs = torch.gather(next_logits, 2, next_label).squeeze(2)    # [B, S_]
+
     next_index = ranking_unify(
         context_hidden, 
         next_hidden, 
-        candidates_prob,
+        next_probs,
         model_prediction_confidence,
         mask
     )

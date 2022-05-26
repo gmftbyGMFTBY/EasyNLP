@@ -1,4 +1,5 @@
 from header import *
+from .inference_knnlm_dataloader import *
 from .post_dialog_pretrain_dataloader import *
 from .inference_dialog_pretrain_dataloader import *
 from .generative_dialog_pretrain_dataloader import *

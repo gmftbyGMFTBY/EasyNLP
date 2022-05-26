@@ -145,18 +145,19 @@ class GPT2ForContrastiveCommonCrawlForBigDataset(Dataset):
         self.args = args
         self.vocab = vocab
         self.pad = self.vocab.bos_token_id
-        self.size = 1000000000
+        self.size = 10000000
         self.file_lists = [f'{self.args["data_root_path"]}/train_{i}.txt' for i in range(16)]
-        self.current_file_index = 0
-        self.current_file_handler = open(self.file_lists[self.current_file_index], 'r')
-        self.cache = []
-        self.buffer_size = args['buffer_size']
 
         new_seed = args['seed'] + args['local_rank']
         random.seed(new_seed)
         torch.manual_seed(new_seed)
         torch.cuda.manual_seed_all(new_seed)
         random.shuffle(self.file_lists)
+
+        self.current_file_index = 0
+        self.current_file_handler = open(self.file_lists[self.current_file_index], 'r')
+        self.cache = []
+        self.buffer_size = args['buffer_size']
                 
     def __len__(self):
         return self.size
@@ -180,8 +181,9 @@ class GPT2ForContrastiveCommonCrawlForBigDataset(Dataset):
             if line.strip():
                 t = self.vocab.encode(line, add_special_tokens=False)
                 if len(tokens) + len(t) > self.args['max_len']:
-                    tokens += t[:self.args['max_len'] - len(tokens)]
-                    t = t[self.args['max_len'] - len(tokens):]
+                    delta = self.args['max_len'] - len(tokens)
+                    tokens += t[:delta]
+                    t = t[delta:]
                     raw_text = self.vocab.decode(t)
                     self.cache[0] = raw_text
                     break

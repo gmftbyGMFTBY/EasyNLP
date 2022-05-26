@@ -1,4 +1,5 @@
 from .agent import *
+from .knn_lm import *
 from .copygeneration import *
 from .simrag import *
 from .gpt2_token_rerank import *

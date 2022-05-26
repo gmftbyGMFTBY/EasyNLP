@@ -47,6 +47,7 @@ import nanopq
 try:
     sys.path.append('/home/johntianlan/sources/texsmart-sdk-0.3.0-m-zh/lib')
     from tencent_ai_texsmart import *
+    import spacy
 except:
     pass
 

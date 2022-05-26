@@ -30,7 +30,7 @@ class InferenceDRBERTDataset(Dataset):
                 
     def __len__(self):
         # inference only a partial of the dataset
-        return 10000000
+        return 2000
 
     def __getitem__(self, i):
         if len(self.cache) == 0:
