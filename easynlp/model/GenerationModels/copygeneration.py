@@ -65,7 +65,7 @@ class CopyGenerationEncoder(nn.Module):
         if self.args['lang'] == 'zh':
             candidates = [(''.join(phrase_source[i][-1].split()), round(d, 4)) for i, d in zip(topk, dis)]
         else:
-            candidates = [(' '.join(phrase_source[i][-1].split()), round(d, 4)) for i, d in zip(topk, dis)]
+            candidates = [(phrase_source[i][-1], round(d, 4)) for i, d in zip(topk, dis)]
         return candidates
 
     def search_from_faiss(self, query, search_topk=5):
@@ -93,7 +93,7 @@ class CopyGenerationEncoder(nn.Module):
             return True
 
         # init
-        characters = set(".,!?`[]{}'';:><+=-_&^%$#@")
+        characters = set("\".,!?`[]{}'';:><+=-_&^%$#@()/–\\")
         min_length, max_length = self.args['min_phrase_length'], self.args['max_phrase_length']
 
         # collect candidate phrases
@@ -179,13 +179,20 @@ class CopyGenerationEncoder(nn.Module):
             
             # rep = torch.cat([self.retriever.s_proj(s_rep), self.retriever.e_proj(e_rep)], dim=-1)
             # phrase_reps.append(rep)
-            phrase_sources.extend([(s, e, self.retriever.bert_tokenizer.decode(doc_id[s:e+1])) for s, e in zip(s_pos, e_pos)])
+            phrase_sources.extend([(s, e, ' ' + self.retriever.bert_tokenizer.decode(doc_id[s:e+1])) for s, e in zip(s_pos, e_pos)])
         begin_rep = torch.cat(begin_rep)
         end_rep = torch.cat(end_rep)
         phrase_reps = torch.cat([self.retriever.s_proj(begin_rep), self.retriever.e_proj(end_rep)], dim=-1)
         # phrase_reps = torch.cat(phrase_reps)
         phrase_reps = F.normalize(phrase_reps, dim=-1)
         assert len(phrase_reps) == len(phrase_sources)
+
+        # packup with the token embeddings
+        phrase_reps = torch.cat([
+            phrase_reps,
+            F.normalize(self.retriever.token_embeddings, dim=-1)
+        ], dim=0)
+        phrase_sources.extend([(-1, -1, self.retriever.tokenizer.decode(idx)) for idx in range(len(self.retriever.tokenizer))])
         print(f'[!] collect {len(phrase_reps)} phrases')
         return phrase_reps, phrase_sources
 
@@ -198,10 +205,14 @@ class CopyGenerationEncoder(nn.Module):
             for char in string:
                 if char in characters:
                     return False
+            for w in black_words:
+                if w in string:
+                    return False
             return True
 
         # init
         characters = set(".,，。！？｡＂＃＄％＆＇（）＊＋，－／：；＜＝＞＠［＼］＾＿｀｛｜｝～｟｠｢｣､、〃》「」『』【】〔〕〖〗〘〙〚〛〜〝〞〟〰〾〿–—‘’‛“”„‟…‧﹏.0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!?`[]{}'';:><+=-_&^%$#@《》/\\")
+        black_words = ['编辑', '人物', '生平', '背景', '死因', '之谜']
         min_length, max_length = self.args['min_phrase_length'], self.args['max_phrase_length']
 
         # collect candidate phrases
@@ -282,6 +293,13 @@ class CopyGenerationEncoder(nn.Module):
         phrase_reps = F.normalize(phrase_reps, dim=-1)
         assert len(phrase_reps) == len(phrase_sources)
         print(f'[!] collect {len(phrase_reps)} phrases')
+
+        # packup with the token embeddings
+        phrase_reps = torch.cat([
+            phrase_reps,
+            F.normalize(self.retriever.token_embeddings, dim=-1)
+        ], dim=0)
+        phrase_sources.extend([(-1, -1, self.retriever.tokenizer.decode(idx)) for idx in range(len(self.retriever.tokenizer))])
         return phrase_reps, phrase_sources
 
     def truncation(self, a, b, max_len):
@@ -357,24 +375,21 @@ class CopyGenerationEncoder(nn.Module):
         doc = batch['docs']    # textual documents
         _, prefix_length = ids.size()
         # init the phrases
-        phrase_reps, phrase_sources = self.process_documents(doc)
+        # phrase_reps, phrase_sources = self.process_documents(doc)
         batch_size, seqlen = ids.size()
         query = self.retriever.get_query_rep(ids)
-        phrase_candidates = self.search_from_documents(query, phrase_reps, phrase_sources, search_topk=beam_width)
-        word_candidates = self.search_from_words(query, search_topk=beam_width)
-        phrase_candidates = [list(i) + ['phrase'] for i in phrase_candidates]
-        word_candidates = [list(i) + ['word'] for i in word_candidates]
+        # candidates = self.search_from_documents(query, phrase_reps, phrase_sources, search_topk=beam_width)
+        candidates = self.search_from_words(query, search_topk=beam_width)
         if self.args['lang'] == 'zh':
-            candidates = [c for c in phrase_candidates + word_candidates if '[UNK]' not in c[0]]
+            candidates = [c for c in candidates if '[UNK]' not in c[0]]
         else:
-            phrase_candidates = [[' ' + i[0], i[1], i[2]] for i in phrase_candidates]
-            candidates = [c for c in phrase_candidates + word_candidates if '<|endoftext|>' not in c[0]]
-            candidates = [c for c in candidates if 'unk' not in c[0]]
+            # candidates = [[' ' + i[0], i[1]] for i in candidates]
+            candidates = [c for c in candidates if '<|endoftext|>' not in c[0] and 'unk' not in c[0]]
         alpha, beta = self.args['coarse_score_alpha'], 1 - self.args['coarse_score_alpha']
         candidate_tokens = [c[0] for c in candidates]
-        candidate_prob = self.retriever.fast_rerank(ids, candidate_tokens)
-        candidates = [[t[0], t[2], t[1] * alpha + beta * s] for t, s in zip(candidates, candidate_prob)]
-        candidates = sorted(candidates, key=lambda x:x[2], reverse=True)
+        candidate_prob = self.retriever.fast_rerank(ids, candidate_tokens).tolist()
+        candidates = [[t[0], t[1] * alpha + beta * s] for t, s in zip(candidates, candidate_prob)]
+        candidates = sorted(candidates, key=lambda x:x[1], reverse=True)
         return candidates
     
     @torch.no_grad()
@@ -392,48 +407,47 @@ class CopyGenerationEncoder(nn.Module):
         phrase_reps, phrase_sources = self.process_documents(doc)
         batch_size, seqlen = ids.size()
         generated = []
-        while len(ids[0]) < seqlen + self.test_max_len:
-            query = self.retriever.get_query_rep(ids)
-            phrase_candidates = self.search_from_documents(query, phrase_reps, phrase_sources, search_topk=beam_width)
-            word_candidates = self.search_from_words(query, search_topk=beam_width)
+        try:
+            while len(ids[0]) < seqlen + self.test_max_len:
+                query = self.retriever.get_query_rep(ids)
+                candidates = self.search_from_documents(query, phrase_reps, phrase_sources, search_topk=beam_width)
+                # candidates = self.search_from_words(query, search_topk=beam_width)
 
-            phrase_candidates = [list(i) + ['phrase'] for i in phrase_candidates]
-            word_candidates = [list(i) + ['word'] for i in word_candidates]
+                if self.args['lang'] == 'zh':
+                    candidates = [c for c in candidates if '[UNK]' not in c[0]]
+                else:
+                    new_candidates = [c for c in candidates if '<|endoftext|>' not in c[0] and 'unk' not in c[0]]
+                    if len(new_candidates) > 0:
+                        candidates = new_candidates
+                        
+                # candidates = sorted(candidates, key=lambda x:x[1], reverse=True)
+                # candidate_prob = torch.tensor([item[1] for item in candidates]).cuda()
+                # candidate_tokens = [item[0] for item in candidates]
 
-            if self.args['lang'] == 'zh':
-                candidates = [c for c in phrase_candidates + word_candidates if '[UNK]' not in c[0]]
-            else:
-                phrase_candidates = [[' ' + i[0], i[1], i[2]] for i in phrase_candidates]
-                candidates = [c for c in phrase_candidates + word_candidates if '<|endoftext|>' not in c[0]]
-                # candidates = [c for c in word_candidates if '<|endoftext|>' not in c[0]]
-                candidates = [c for c in candidates if 'unk' not in c[0]]
+                alpha, beta = self.args['coarse_score_alpha'], 1 - self.args['coarse_score_alpha']
+                candidate_tokens = [item[0] for item in candidates]
+                candidate_prob = self.retriever.fast_rerank(ids, candidate_tokens).tolist()
+                candidates = [[item[0], item[1] * alpha + s * beta] for item, s in zip(candidates, candidate_prob)]
+                candidates = sorted(candidates, key=lambda x:x[1], reverse=True)
+                candidate_prob = torch.tensor([item[1] for item in candidates]).cuda()
+                candidate_tokens = [item[0] for item in candidates]
 
-            # candidates = sorted(candidates, key=lambda x:x[1], reverse=True)
-            # candidate_prob = torch.tensor([item[1] for item in candidates]).cuda()
-            # candidate_tokens = [item[0] for item in candidates]
-
-            alpha, beta = self.args['coarse_score_alpha'], 1 - self.args['coarse_score_alpha']
-            candidate_tokens = [item[0] for item in candidates]
-            candidate_prob = self.retriever.fast_rerank(ids, candidate_tokens).tolist()
-            candidates = [[item[0], item[2], item[1] * alpha + s * beta] for item, s in zip(candidates, candidate_prob)]
-            candidates = sorted(candidates, key=lambda x:x[2], reverse=True)
-            candidate_prob = torch.tensor([item[2] for item in candidates]).cuda()
-            candidate_tokens = [item[0] for item in candidates]
-
-            ids, candidate = self.decoding_one_step_inner(ids, candidate_tokens, candidate_prob, generation_method, topk=topk, topp=topp, model_prediction_confidence=model_prediction_confidence)
-            if self.args['lang'] == 'zh':
-                generated.append(f'{candidate} ')
-            else:
-                # generated.append(f'[{candidate}] ')
-                generated.append(candidate)
-            
-            # if (len(ids[0]) - seqlen) % update_step == 0:
-            #     if self.args['lang'] == 'zh':
-            #         string = ''.join(self.retriever.tokenizer.convert_ids_to_tokens(ids[0]))
-            #     else:
-            #         string = ' '.join(self.retriever.tokenizer.convert_ids_to_tokens(ids[0]))
-            #     doc = self.retrieve_doc(string, recall_topk=self.args['recall_topk'], max_query_len=self.args['max_query_len'])
-            #     phrase_reps, phrase_sources = self.process_documents(doc)
+                ids, candidate = self.decoding_one_step_inner(ids, candidate_tokens, candidate_prob, generation_method, topk=topk, topp=topp, model_prediction_confidence=model_prediction_confidence)
+                if self.args['lang'] == 'zh':
+                    generated.append(f'{candidate} ')
+                else:
+                    # generated.append(f'[{candidate}] ')
+                    generated.append(candidate)
+                
+                # if (len(ids[0]) - seqlen) % update_step == 0:
+                #     if self.args['lang'] == 'zh':
+                #         string = ''.join(self.retriever.tokenizer.convert_ids_to_tokens(ids[0]))
+                #     else:
+                #         string = ' '.join(self.retriever.tokenizer.convert_ids_to_tokens(ids[0]))
+                #     doc = self.retrieve_doc(string, recall_topk=self.args['recall_topk'], max_query_len=self.args['max_query_len'])
+                #     phrase_reps, phrase_sources = self.process_documents(doc)
+        except:
+            ipdb.set_trace()
         if self.args['lang'] == 'zh':
             generated = ''.join(generated)
         else:
@@ -585,10 +599,8 @@ class CopyGenerationEncoder(nn.Module):
     def retrieve_doc(self, string, recall_topk=50, max_query_len=512):
         rep = self.search_agent.inference_context_one_sample(string, max_len=max_query_len).cpu().numpy()
         doc_list = self.searcher._search(rep, topk=recall_topk)[0]
-        docs = [self.base_data[k] for k in doc_list]
-        # for doc in docs:
-        #     if string in doc:
-        #         return [doc]
+        # remove the test set
+        docs = [self.base_data[k] for k in doc_list if string not in self.base_data[k]]
         return docs
 
     @torch.no_grad()
@@ -610,31 +622,17 @@ class CopyGenerationEncoder(nn.Module):
         generation_length = 0
         while generation_length < self.test_max_len:
             past_key_values, query = self.retriever.get_query_rep_fast(ids, past_key_values=past_key_values)
-            phrase_candidates = self.search_from_documents(query, phrase_reps, phrase_sources, search_topk=beam_width)
-            word_candidates = self.search_from_words(query, search_topk=beam_width)
-
-            phrase_candidates = [list(i) + ['phrase'] for i in phrase_candidates]
-            word_candidates = [list(i) + ['word'] for i in word_candidates]
+            candidates = self.search_from_documents(query, phrase_reps, phrase_sources, search_topk=beam_width)
+            # candidates = self.search_from_words(query, search_topk=beam_width)
 
             if self.args['lang'] == 'zh':
-                candidates = [c for c in phrase_candidates + word_candidates if '[UNK]' not in c[0]]
+                candidates = [c for c in candidates if '[UNK]' not in c[0]]
             else:
-                phrase_candidates = [[' ' + i[0], i[1], i[2]] for i in phrase_candidates]
-                candidates = [c for c in phrase_candidates + word_candidates if '<|endoftext|>' not in c[0]]
-                # candidates = [c for c in word_candidates if '<|endoftext|>' not in c[0]]
-                candidates = [c for c in candidates if 'unk' not in c[0]]
+                candidates = [c for c in candidates if '<|endoftext|>' not in c[0] and 'unk' not in c[0]]
 
             candidates = sorted(candidates, key=lambda x:x[1], reverse=True)
             candidate_prob = torch.tensor([item[1] for item in candidates]).cuda()
             candidate_tokens = [item[0] for item in candidates]
-
-            # alpha, beta = self.args['coarse_score_alpha'], 1 - self.args['coarse_score_alpha']
-            # candidate_tokens = [item[0] for item in candidates]
-            # candidate_prob = self.retriever.fast_rerank(ids, candidate_tokens).tolist()
-            # candidates = [[item[0], item[2], item[1] * alpha + s * beta] for item, s in zip(candidates, candidate_prob)]
-            # candidates = sorted(candidates, key=lambda x:x[2], reverse=True)
-            # candidate_prob = torch.tensor([item[2] for item in candidates]).cuda()
-            # candidate_tokens = [item[0] for item in candidates]
 
             ids, candidate = self.decoding_one_step_inner_fast(ids, candidate_tokens, candidate_prob, generation_method, topk=topk, topp=topp, model_prediction_confidence=model_prediction_confidence)
             generation_length += ids.size(-1)

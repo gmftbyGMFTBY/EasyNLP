@@ -18,7 +18,7 @@ update_step: 128
 # max query len for encoding SimCSE model
 max_query_len: 512
 contrastive_phrase_score_penalty: 100
-coarse_score_alpha: 0.3
+coarse_score_alpha: 0.5
 
 buffer_size: 40960
 

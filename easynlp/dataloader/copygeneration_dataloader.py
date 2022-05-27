@@ -390,8 +390,8 @@ class CopyGenerationCompactDataset(Dataset):
         self.args = args
         self.vocab = vocab
         self.bert_vocab = AutoTokenizer.from_pretrained(args['phrase_tokenizer'][args['lang']])
-        # self.data_root_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_data'
-        self.data_root_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_wikitext103'
+        self.data_root_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_data'
+        # self.data_root_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_wikitext103'
 
         self.file_lists = [f'{self.data_root_path}/searched_results_{i}.txt' for i in range(8)]
         self.size = 0

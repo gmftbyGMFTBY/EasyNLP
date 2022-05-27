@@ -812,7 +812,8 @@ class DensePhraseV4Encoder(nn.Module):
         shift_logits = torch.matmul(shift_hidden, F.normalize(self.token_embeddings, dim=-1).t())    # [B, S, V]
         confidence = torch.gather(shift_logits, 2, shift_label.unsqueeze(-1)).squeeze(-1)    # [B, S]
         vl = mask.sum(dim=-1) - seqlen
-        confidence = torch.stack([c[:l].mean() for c, l in zip(confidence, vl)])    # [B]
+        # confidence = torch.stack([c[:l].mean() for c, l in zip(confidence, vl)])    # [B]
+        confidence = torch.stack([c[:l].min() for c, l in zip(confidence, vl)])    # [B]
         return F.softmax(confidence, dim=-1)
 
 
