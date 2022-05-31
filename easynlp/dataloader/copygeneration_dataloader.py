@@ -172,15 +172,15 @@ class CopyGenerationOnlyGenDataset(Dataset):
         self.args = args
         self.vocab = vocab
         self.data_root_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_data'
-        # rar_path = f'{args["root_dir"]}/data/{args["dataset"]}/searched_results_{args["global_rank"]}.rar'
-        rar_path = f'{args["root_dir"]}/data/{args["dataset"]}/searched_results_debug.rar'
+        rar_path = f'{args["root_dir"]}/data/{args["dataset"]}/searched_results_{args["global_rank"]}.rar'
+        # rar_path = f'{args["root_dir"]}/data/{args["dataset"]}/searched_results_debug.rar'
         if os.path.exists(rar_path):
             self.reader = torch.load(rar_path)
             print(f'[!] load train data by RandomAccessReader Object over: {self.reader.size}')
         else:
             if self.args['mode'] == 'train':
-                # self.reader = RandomAccessReader(f'{self.data_root_path}/searched_results_{args["global_rank"]}.txt')
-                self.reader = RandomAccessReader(f'{self.data_root_path}/searched_results_debug.txt')
+                self.reader = RandomAccessReader(f'{self.data_root_path}/searched_results_{args["global_rank"]}.txt')
+                # self.reader = RandomAccessReader(f'{self.data_root_path}/searched_results_debug.txt')
             else:
                 self.reader = RandomAccessReader(f'{self.data_root_path}/searched_results_31.txt')
             self.reader.init()
@@ -390,8 +390,10 @@ class CopyGenerationCompactDataset(Dataset):
         self.args = args
         self.vocab = vocab
         self.bert_vocab = AutoTokenizer.from_pretrained(args['phrase_tokenizer'][args['lang']])
-        self.data_root_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_data'
-        # self.data_root_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_wikitext103'
+        if self.args['dataset'] == 'wikitext103':
+            self.data_root_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_wikitext103'
+        else:
+            self.data_root_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_data'
 
         self.file_lists = [f'{self.data_root_path}/searched_results_{i}.txt' for i in range(8)]
         self.size = 0
@@ -879,6 +881,58 @@ class CopyGenerationHoldoutCompactDataset(Dataset):
         return {
             'ids': ids,
             'ids_mask': ids_mask
+        }
+
+
+class GPT2DomainAdaptionDataset(Dataset):
+
+    '''小数据上进行fine-tune，数据格式和copyphrase的数据格式一样，一行一个document'''
+    
+    def __init__(self, vocab, path, **args):
+        self.args = args
+        self.vocab = vocab
+
+        if self.args['lang']:
+            self.pad = self.vocab.eos_token_id
+        else:
+            self.pad = self.vocab.pad_token_id
+
+        rar_path = f'{args["root_dir"]}/data/{args["dataset"]}/{args["mode"]}.rar'
+        if os.path.exists(rar_path):
+            self.reader = torch.load(rar_path)
+            print(f'[!] load data by RandomAccessReader Object over: {self.reader.size}')
+        else:
+            self.reader = RandomAccessReader(path)
+            self.reader.init()
+            torch.save(self.reader, rar_path)
+            print(f'[!] load data by RandomAccessReader Object over: {self.reader.size}')
+        self.size = self.reader.size
+        self.reader.init_file_handler()
+        self.max_len = args['max_len']
+
+    def __len__(self):
+        return self.size
+
+    def __getitem__(self, i):
+        item = self.reader.get_line(i)
+        ids =  self.vocab.encode(item, add_special_tokens=False)
+        if len(ids) > self.max_len:
+            sample_arange = range(0, len(ids) - self.max_len)
+            begin = random.choice(sample_arange)
+            ids = ids[begin:begin+self.max_len]
+        return ids
+
+    def save(self):
+        pass
+        
+    def collate(self, batch):
+        ids = [torch.LongTensor(i) for i in batch]
+        ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+        ids_mask = generate_mask(ids)
+        ids, ids_mask = to_cuda(ids, ids_mask)
+        return {
+            'ids': ids, 
+            'ids_mask': ids_mask, 
         }
 
 

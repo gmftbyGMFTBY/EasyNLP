@@ -14,6 +14,28 @@ def parser_args():
     parser.add_argument('--port', type=int, default=22330)
     return parser.parse_args()
 
+def load_base_data():
+    if args['dataset'] == 'wikitext103':
+        data_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_wikitext103/'
+        num = 8
+        nlp = spacy.load('en_core_web_sm')
+    else:
+        # data_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_data'
+        # num = 32
+        
+        # domain adaption dataset
+        data_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_zh_news'
+        num = 8
+    base_data = {}
+    for i in tqdm(range(num)):
+        file = os.path.join(data_path, f'searched_results_{i}_base.txt')
+        with open(file) as f:
+            for line in tqdm(f.readlines()):
+                line = json.loads(line)
+                base_data[line['index']] = line['results']
+    print(f'[!] collect {len(base_data)} documents')
+    return base_data
+
 def create_app(**args):
     app = Flask(__name__)
 
@@ -37,7 +59,8 @@ def create_app(**args):
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(args['seed'])
 
-    test_data, test_iter, _ = load_dataset(args)
+    # test_data, test_iter, _ = load_dataset(args)
+    base_data = load_base_data()
 
     agent = load_model(args)
     pretrained_model_name = args['pretrained_model'].replace('/', '_')
@@ -63,7 +86,7 @@ def create_app(**args):
     searcher_agent.load_model(save_path)
     print(f'[!] init the searcher and dual-bert model over')
 
-    agent.model.init_searcher(searcher_agent, searcher, test_data.base_data)
+    agent.model.init_searcher(searcher_agent, searcher, base_data)
 
     # faiss searcher
     # faiss_searcher = Searcher(
@@ -96,6 +119,8 @@ def create_app(**args):
             batch['model_prediction_confidence'] = 0.4 if 'model_prediction_confidence' not in data else data['model_prediction_confidence']
             batch['phrase_alpha'] = 1. if 'phrase_alpha' not in data else data['phrase_alpha']
             batch['update_step'] = 64 if 'update_step' not in data else data['update_step']
+            batch['max_gen_len'] = data['max_gen_len'] if 'max_gen_len' in data else 32
+            batch['softmax_temp'] = data['softmax_temp'] if 'softmax_temp' in data else 0.001
             
             if 'recall_topk' in data:
                 agent.model.args['recall_topk'] = data['recall_topk']

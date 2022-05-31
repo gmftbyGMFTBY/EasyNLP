@@ -126,11 +126,11 @@ venv.bak/
 tblogs
 # events.out.tfevents*
 rest/
-# data/
 bak/
 ckpt/
 log/
 rest/
+data/
 data/arxiv_data
 data/chinese_wiki
 benchmarks/*.md

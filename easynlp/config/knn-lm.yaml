@@ -1,4 +1,6 @@
 test_max_len: 128
+lambda: 0.25
+topk: 8
 tokenizer: 
     en: /apdcephfs/share_916081/johntianlan/gpt2_english
     zh: /apdcephfs/share_916081/johntianlan/gpt2-chinese-cluecorpussmall
@@ -16,6 +18,6 @@ test:
 inference:
     seed: 0
     batch_size: 64
-    index_type: IVF1048576,PQ16
-    index_nprobe: 50
+    index_type: IVF10000,PQ16
+    index_nprobe: 64
     dimension: 768

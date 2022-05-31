@@ -1,8 +1,8 @@
 test_interval: 0.05
 valid_during_training: false
 is_step_for_training: true
-total_step: 2000
-save_every: 200
+total_step: 500000
+save_every: 10000
 test_max_ctx_len: 256
 num_beam: 5
 sep_smooth_length: 50
@@ -20,7 +20,7 @@ res_max_len: 32
 inference_num: 1
 
 # gpt2 configuration
-test_max_len: 128
+test_max_len: 32
 tokenizer: 
     # zh: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
     en: /apdcephfs/share_916081/johntianlan/gpt2_english

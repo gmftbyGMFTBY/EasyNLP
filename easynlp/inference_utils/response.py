@@ -11,7 +11,7 @@ def response_strategy(args):
     already_added = []
     current_num = 0
     # for i in tqdm(range(args['nums'])):
-    for i in tqdm(range(8)):
+    for i in tqdm(range(32)):
         for idx in range(100):
             try:
                 embd, text = torch.load(
@@ -26,9 +26,9 @@ def response_strategy(args):
             texts.extend(text)
             already_added.append((i, idx))
             print(f'[!] collect embeddings: {current_num}')
-            if current_num > 40000000:
+            if current_num > 1000000:
                 break
-        if current_num > 40000000:
+        if current_num > 1000000:
             break
     embds = np.concatenate(embds) 
     searcher = Searcher(args['index_type'], dimension=args['dimension'])
@@ -37,7 +37,8 @@ def response_strategy(args):
     print(f'[!] train the searcher over')
 
     # add the external dataset
-    for i in tqdm(range(args['nums'])):
+    # for i in tqdm(range(args['nums'])):
+    for i in tqdm(range(32)):
         for idx in range(100):
             if (i, idx) in already_added:
                 continue

@@ -19,6 +19,7 @@ update_step: 128
 max_query_len: 512
 contrastive_phrase_score_penalty: 100
 coarse_score_alpha: 0.5
+softmax_temp: 0.001
 
 buffer_size: 40960
 

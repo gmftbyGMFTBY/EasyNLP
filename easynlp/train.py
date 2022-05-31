@@ -99,7 +99,7 @@ def main(**args):
                     #         ppl.append(ppl_)
                     #     ppl = np.mean(ppl)
                     #     sum_writer.add_scalar(f'test/ppl', ppl, current_step)
-                    #     print(f'[!] ppl on test set: {round(ppl, 4)}')
+                    # print(f'[!] ppl on test set: {round(ppl, 4)}')
 
                 current_step += 1
                 if current_step > args['total_step']:

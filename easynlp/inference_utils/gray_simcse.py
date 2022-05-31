@@ -6,13 +6,13 @@ from .utils import *
 def gray_simcse_strategy(args):
     # read the embeddings
     embds, texts, indexes = [], [], []
+    base = 24
     for idx in range(100):
         try:
             embd, index = torch.load(
-                # f'{args["root_dir"]}/data/{args["dataset"]}/inference_context_{args["model"]}_{args["local_rank"]}_{idx}.pt'
-                f'{args["root_dir"]}/data/{args["dataset"]}/inference_{args["model"]}_{args["local_rank"]}_{idx}.pt'
+                f'{args["root_dir"]}/data/{args["dataset"]}/inference_{args["model"]}_{args["local_rank"]+base}_{idx}.pt'
             )
-            print(f'[!] load {args["root_dir"]}/data/{args["dataset"]}/inference_{args["model"]}_{args["local_rank"]}_{idx}.pt')
+            print(f'[!] load {args["root_dir"]}/data/{args["dataset"]}/inference_{args["model"]}_{args["local_rank"]+base}_{idx}.pt')
         except Exception as error:
             break
         embds.append(embd)
@@ -27,7 +27,7 @@ def gray_simcse_strategy(args):
         f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt',
     )
     # speed up with gpu
-    searcher.move_to_gpu(device=args['local_rank'])
+    # searcher.move_to_gpu(device=args['local_rank'])
 
     # search
     collection = {}
@@ -46,5 +46,5 @@ def gray_simcse_strategy(args):
                 })
             else:
                 collection[idx] = [{'index': idx, 'cands': rest}]
-    path = f'{args["root_dir"]}/data/{args["dataset"]}/train_gray_simcse_{args["local_rank"]}.pt'
+    path = f'{args["root_dir"]}/data/{args["dataset"]}/train_gray_simcse_{args["local_rank"]+base}.pt'
     torch.save(collection, path)

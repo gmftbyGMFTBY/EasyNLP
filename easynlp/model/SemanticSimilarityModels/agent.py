@@ -297,3 +297,40 @@ class SemanticSimilarityAgent(SimCSEBaseAgent):
         embds, anchor_embds = F.normalize(embds, dim=-1), F.normalize(anchor_embds, dim=-1)
         scores = torch.matmul(anchor_embds, embds.t())
         return scores
+
+    @torch.no_grad()
+    def inference_big(self, inf_iter, size=500000):
+        '''for simcse model to generate the embeddings'''
+        self.model.eval()
+        pbar = tqdm(inf_iter)
+        embds, texts, contexts = [], [], []
+        text_ids = []
+        # add the lsh module, convert the floats into the binary has codes
+        # self.model.module.init_lsh_model()
+        counter = 0
+        for batch in pbar:
+            if batch is None:
+                return
+            ids = batch['ids']
+            ids_mask = batch['mask']
+            text_id = batch['text_id']
+            res = self.model.module.get_embedding(ids, ids_mask).cpu()
+            embds.append(res)
+            text_ids.extend(text_id)
+
+            if len(text_ids) > size:
+                embds = torch.cat(embds, dim=0).numpy()
+                torch.save(
+                    (embds, text_ids), 
+                    f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["global_rank"]}_{counter}.pt'
+                )
+                embds, text_ids = [], []
+                counter += 1
+        if len(text_ids) > 0:
+            embds = torch.cat(embds, dim=0).numpy()
+            torch.save(
+                (embds, text_ids), 
+                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["global_rank"]}_{counter}.pt'
+            )
+
+

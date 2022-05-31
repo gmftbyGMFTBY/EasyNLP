@@ -47,6 +47,7 @@ class RepresentationAgent(RetrievalBaseAgent):
             elif self.args['model'] in ['phrase-copy']:
                 if self.args['is_step_for_training']:
                     self.train_model = self.train_model_phrase_copy_step
+                    # self.train_model = self.train_model_phrase_copy_step_v2
                 else:
                     self.train_model = self.train_model_phrase_copy
 
@@ -1634,4 +1635,28 @@ class RepresentationAgent(RetrievalBaseAgent):
             recoder.add_scalar(f'train/PhraseAcc', phrase_acc, current_step)
             recoder.add_scalar(f'train/TotalAcc', total_acc, current_step)
         pbar.set_description(f'[!] loss: {round(oloss.item(), 2)}; acc(phrase|total): {round(phrase_acc, 4)}|{round(total_acc, 4)}')
+        pbar.update(1)
+
+    def train_model_phrase_copy_step_v2(self, batch, recoder=None, current_step=0, pbar=None):
+        self.model.train()
+
+        with autocast():
+            oloss, inter_loss, phrase_acc, token_acc, inter_acc = self.model(batch)
+            tloss = (oloss + inter_loss) / self.args['iter_to_accumulate']
+        self.scaler.scale(tloss).backward()
+        if (current_step + 1) % self.args['iter_to_accumulate'] == 0:
+            self.scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            self.scheduler.step()
+            self.optimizer.zero_grad()
+
+        if recoder:
+            recoder.add_scalar(f'train/Loss', oloss.item(), current_step)
+            recoder.add_scalar(f'train/InterLoss', inter_loss.item(), current_step)
+            recoder.add_scalar(f'train/PhraseAcc', phrase_acc, current_step)
+            recoder.add_scalar(f'train/TotalAcc', token_acc, current_step)
+            recoder.add_scalar(f'train/InterAcc', inter_acc, current_step)
+        pbar.set_description(f'[!] loss: {round(oloss.item(), 2)}|{round(inter_loss.item(), 2)}; acc(phrase|token|inter): {round(phrase_acc, 4)}|{round(token_acc, 4)}|{round(inter_acc, 4)}')
         pbar.update(1)

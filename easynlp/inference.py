@@ -44,9 +44,11 @@ def inference(**args):
     else:
         agent.load_model(f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}_{args["version"]}.pt')
 
-    if work_mode in ['response', 'simcse-response']:
-        agent.inference(data_iter, size=args['cut_size'])
+    if work_mode in ['response']:
+        # agent.inference(data_iter, size=args['cut_size'])
         pass
+    elif work_mode in ['simcse-response']:
+        agent.inference_big(data_iter, size=args['cut_size'])
     elif work_mode in ['knnlm']:
         # agent.inference_knnlm(data_iter, size=args['cut_size'])
         pass
@@ -143,7 +145,7 @@ if __name__ == "__main__":
         gray_simcse_strategy(args)
         torch.distributed.barrier()
         # combination
-        combine_all_generate_samples_pt(args)
+        # combine_all_generate_samples_pt(args)
     elif args['work_mode'] in ['gray-simcse-unlikelyhood']:
         # only one process to run
         gray_simcse_unlikelyhood_strategy(args)

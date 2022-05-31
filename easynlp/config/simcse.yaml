@@ -34,12 +34,14 @@ test:
 
 inference:
     seed: 0
-    batch_size: 128
+    batch_size: 256
     max_len: 512
     topk: 20
     # index_type: IVF65536_HNSW32,PQ8
+    # index_type: IVF10000,Flat
+    # index_type: Flat
     index_type: IVF10000,Flat
-    index_nprobe: 70
+    index_nprobe: 10
     dimension: 768
     min_test_len: 16
     min_test_context_len: 64

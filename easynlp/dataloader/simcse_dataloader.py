@@ -13,46 +13,52 @@ class SimCSEDataset(Dataset):
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
         self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
 
-        suffix = args['tokenizer'].replace('/', '_')
-        self.pp_path = f'{os.path.splitext(path)[0]}_simcse_{suffix}.pt'
-        if os.path.exists(self.pp_path):
-            self.data = torch.load(self.pp_path)
-            print(f'[!] load preprocessed file from {self.pp_path}')
-            return None
-
-        if self.args['dataset'] in ['chinese_wiki']:
-            data = []
-            with open(path) as f:
-                for line in tqdm(f.readlines()):
-                    data.append(json.loads(line.strip())['q'])
-            data = list(set(data))
+        rar_path = path.replace('train.txt', 'train.rar')
+        if os.path.exists(rar_path):
+            self.reader = torch.load(rar_path)
+            print(f'[!] load RandomAccessReader Object over')
         else:
-            # data = read_text_data_utterances(path, lang=self.args['lang'])
-            # data = list(chain(*[u for label, u in data if label == 1]))
-            # data = list(set(data))
-            data = []
-            with open(path) as f:
-                for line in tqdm(f.readlines()):
-                    data.append(line.strip())
-        print(f'[!] collect {len(data)} samples for simcse')
+            self.reader = RandomAccessReader(path)
+            self.reader.init()
+            torch.save(self.reader, rar_path)
+        self.reader.init_file_handler()
+        self.size = self.reader.size
+        print(f'[!] dataset size: {self.size}')
 
-        self.data = []
-        for idx in tqdm(range(0, len(data), 32)):
-            utterances = data[idx:idx+32]
-            item = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']
-            ids = [[self.cls] + i[:self.args["res_max_len"]-2] + [self.sep] for i in item]
-            self.data.extend(ids)
+        # if self.args['dataset'] in ['chinese_wiki']:
+        #     data = []
+        #     with open(path) as f:
+        #         for line in tqdm(f.readlines()):
+        #             data.append(json.loads(line.strip())['q'])
+        #     data = list(set(data))
+        # else:
+        #     # data = read_text_data_utterances(path, lang=self.args['lang'])
+        #     # data = list(chain(*[u for label, u in data if label == 1]))
+        #     # data = list(set(data))
+        #     data = []
+        #     with open(path) as f:
+        #         for line in tqdm(f.readlines()):
+        #             data.append(line.strip())
+        # print(f'[!] collect {len(data)} samples for simcse')
+        # self.data = []
+        # for idx in tqdm(range(0, len(data), 32)):
+        #     utterances = data[idx:idx+32]
+        #     item = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']
+        #     ids = [[self.cls] + i[:self.args["res_max_len"]-2] + [self.sep] for i in item]
+        #     self.data.extend(ids)
                 
     def __len__(self):
-        return len(self.data)
+        return self.reader.size
 
     def __getitem__(self, i):
-        ids = torch.LongTensor(self.data[i])
+        item = self.reader.get_line(i).strip()
+        tokens = self.vocab.encode(item, add_special_tokens=False)
+        ids = [self.cls] + tokens[:self.args['res_max_len']-2] + [self.sep]
+        ids = torch.LongTensor(ids)
         return ids
 
     def save(self):
-        data = torch.save(self.data, self.pp_path)
-        print(f'[!] save preprocessed dataset into {self.pp_path}')
+        pass
         
     def collate(self, batch):
         ids = pad_sequence(batch, batch_first=True, padding_value=self.pad)
@@ -150,7 +156,6 @@ class BERTSimCSEInferenceContextDataset(Dataset):
         rids = self.vocab.encode(line, add_special_tokens=False)
         rids = [self.cls] + rids[:self.args['max_len']-2] + [self.sep]
         rid = torch.LongTensor(rids)
-        ipdb.set_trace()
         return rid, text_id
 
     def save(self):
@@ -532,3 +537,55 @@ class SupervisedInferenceWZSimCSEDataset(Dataset):
                 's2_ids_mask': s2_ids_mask,
                 'label': l
             }
+
+class BERTSimCSEInferenceBigDataset(Dataset):
+
+    def __init__(self, vocab, path, **args):
+        self.args = args
+        self.vocab = vocab
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
+        self.size = 4848348
+        local_rank = self.args['global_rank']
+        local_rank = '0' + str(local_rank) if local_rank < 10 else str(local_rank)
+        self.file = open(f'{args["root_dir"]}/data/{args["dataset"]}/inference_part_{local_rank}')
+        print(f'[!] load file {self.file}')
+        self.buffer = 10000
+        self.cache = []
+
+    def __len__(self):
+        return self.size
+
+    def __getitem__(self, i):
+        if len(self.cache) == 0:
+            self.cache = load_lines_chunk(self.file, self.buffer)
+            if len(self.cache) == 0:
+                return None, None
+        line = self.cache.pop(0).strip()
+        items = line.split('\t')
+        text_id = items[-1]
+        line = ' '.join(items[:-1])
+        rids = self.vocab.encode(line, add_special_tokens=False)
+        rids = [self.cls] + rids[:self.args['max_len']-2] + [self.sep]
+        rid = torch.LongTensor(rids)
+        return rid, text_id
+
+    def save(self):
+        pass
+        
+    def collate(self, batch):
+        rid = [i[0] for i in batch if i[0] is not None]
+        if len(rid) == 0:
+            return None
+        rid_text_id = [i[1] for i in batch]
+        rid = pad_sequence(rid, batch_first=True, padding_value=self.pad)
+        rid_mask = generate_mask(rid)
+        rid, rid_mask = to_cuda(rid, rid_mask)
+        return {
+            'ids': rid, 
+            'mask': rid_mask, 
+            'text_id': rid_text_id
+        }
+
+
