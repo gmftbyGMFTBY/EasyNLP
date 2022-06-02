@@ -27,13 +27,14 @@ class GPT2OriginalModel(nn.Module):
         self.gen_loss_fct = nn.CrossEntropyLoss(ignore_index=self.pad)
 
     @torch.no_grad()
-    def calculate_ppl(self, ids, ids_mask, label):
+    def calculate_ppl(self, ids, ids_mask):
         self.model.eval()
-        ids, ids_mask, label = ids[:, :-1], ids_mask[:, :-1], label[:, 1:]
+        ids, ids_mask, label = ids[:, :-1], ids_mask[:, :-1], ids[:, 1:]
         output = self.model(input_ids=ids, attention_mask=ids_mask)
         logits = output.logits
         loss = self.gen_loss_fct(logits.view(-1, logits.size(-1)), label.view(-1))
         ppl = math.exp(loss.item())
+        time.sleep(0.2)
         return ppl
 
     @torch.no_grad()
@@ -144,8 +145,9 @@ class GPT2DialogModel(nn.Module):
         self.topp = args['topp']
 
     @torch.no_grad()
-    def calculate_ppl(self, ids, ids_mask, pos_ids, label):
-        output = self.model(input_ids=ids, attention_mask=ids_mask, position_ids=pos_ids)
+    def calculate_ppl(self, ids, ids_mask):
+        ids, ids_mask, ods = ids[:, :-1], ids_msak[:, :-1], ids[:, 1:]
+        output = self.model(input_ids=ids, attention_mask=ids_mask)
         logits = output.logits
         loss = self.gen_loss_fct(logits.view(-1, logits.size(-1)), label.view(-1))
         return math.exp(loss.item())

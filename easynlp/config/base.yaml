@@ -603,14 +603,15 @@ models:
     knn-lm: 
         type: Generation
         model_name: KNNLMModel
-        dataset_name: null
+        dataset_name: TestGPT2PPLDataset
         inference_dataset_name: KNNLMInferenceDataset
     gpt2-original: 
         type: Generation
         model_name: GPT2OriginalModel
         # model_name: GPT2DialogModel
         # dataset_name: CopyGenerationOnlyGenDataset
-        dataset_name: GPT2DomainAdaptionDataset
+        # dataset_name: GPT2DomainAdaptionDataset
+        dataset_name: TestGPT2PPLDataset
         # dataset_name: CopyGenerationOnlyGenWikiText103Dataset
         # dataset_name: CopyGenerationOnlyGenWikiText103TestDataset
         # dataset_name: CopyGenerationHoldoutCompactDataset
@@ -1059,7 +1060,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 65
+version: 54
 
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5

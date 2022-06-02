@@ -50,7 +50,7 @@ def inference(**args):
     elif work_mode in ['simcse-response']:
         agent.inference_big(data_iter, size=args['cut_size'])
     elif work_mode in ['knnlm']:
-        # agent.inference_knnlm(data_iter, size=args['cut_size'])
+        agent.inference_knnlm(data_iter, size=args['cut_size'])
         pass
     elif work_mode in ['phrases']:
         agent.inference_phrases(data_iter, size=args['cut_size'])

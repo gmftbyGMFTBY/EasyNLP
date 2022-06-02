@@ -15,17 +15,20 @@ def parser_args():
     return parser.parse_args()
 
 def load_base_data():
-    if args['dataset'] == 'wikitext103':
+    if args['dataset'] in ['wikitext103', 'copygeneration_lawmt']:
+        nlp = spacy.load('en_core_web_sm')
         data_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_wikitext103/'
         num = 8
-        nlp = spacy.load('en_core_web_sm')
-    else:
-        # data_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_data'
-        # num = 32
+        
+        # data_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_lawmt/'
+        # num = 8
+    elif args['dataset'] in ['copygeneration', 'copygeneration_zh_news']:
+        data_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_data'
+        num = 32
         
         # domain adaption dataset
-        data_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_zh_news'
-        num = 8
+        # data_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_zh_news'
+        # num = 8
     base_data = {}
     for i in tqdm(range(num)):
         file = os.path.join(data_path, f'searched_results_{i}_base.txt')

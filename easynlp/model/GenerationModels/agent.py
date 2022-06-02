@@ -54,6 +54,25 @@ class GenerationAgent(GenerationBaseAgent):
             self.train_model = self.train_model_un
         elif self.args['model'] in ['gpt2-original', 'knn-lm'] and self.args['dataset'] in ['wikitext103']:
             self.test_model = self.test_model_wikitext
+            if self.args['model'] == 'knn-lm':
+                # add the searcher
+                faiss_searcher_args = deepcopy(self.args)
+                faiss_searcher_args['model'] = 'knn-lm'
+                config = load_config(faiss_searcher_args)
+                faiss_searcher_args.update(config)
+                faiss_searcher = Searcher(
+                    faiss_searcher_args['index_type'],
+                    dimension=faiss_searcher_args['dimension'],
+                    nprobe=faiss_searcher_args['index_nprobe']
+                )
+                pretrained_model_name = faiss_searcher_args['pretrained_model'].replace('/', '_')
+                model_name = faiss_searcher_args['model']
+                faiss_searcher.load(
+                    f'{faiss_searcher_args["root_dir"]}/data/{faiss_searcher_args["dataset"]}/{model_name}_{pretrained_model_name}_faiss.ckpt',        
+                    f'{faiss_searcher_args["root_dir"]}/data/{faiss_searcher_args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt',        
+                )
+                self.model.init_searcher(faiss_searcher)
+                print(f'[!] knn-lm generator baseline init over ...')
 
     def build_offline_index(self, iter_):
         size = self.model.module.build_offline_index(iter_)
@@ -417,12 +436,20 @@ class GenerationAgent(GenerationBaseAgent):
     def load_model(self, path):
         if self.args['model'] in self.args['no_train_models'] and self.args['model'] != 'copygeneration':
             state_dict = torch.load(path, map_location=torch.device('cpu'))
-            self.checkpointadapeter.init(
-                state_dict.keys(),
-                self.model.module.model.state_dict().keys(),
-            )
-            new_state_dict = self.checkpointadapeter.convert(state_dict)
-            self.model.module.model.load_state_dict(new_state_dict)
+            try:
+                self.checkpointadapeter.init(
+                    state_dict.keys(),
+                    self.model.module.model.state_dict().keys(),
+                )
+                new_state_dict = self.checkpointadapeter.convert(state_dict)
+                self.model.module.model.load_state_dict(new_state_dict)
+            except:
+                self.checkpointadapeter.init(
+                    state_dict.keys(),
+                    self.model.model.state_dict().keys(),
+                )
+                new_state_dict = self.checkpointadapeter.convert(state_dict)
+                self.model.model.load_state_dict(new_state_dict)
             print(f'[!] load model from {path}')
             return
         if self.args['model'] in ['gpt2']:
@@ -451,6 +478,15 @@ class GenerationAgent(GenerationBaseAgent):
             retrieval_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/gpt2-original/best_{pretrained_model_name}_{self.args["version"]}.pt'
             self.model.generator.load_state_dict(torch.load(retrieval_path, map_location=torch.device('cpu')))
             print(f'\n - {retrieval_path}')
+
+            # load the copygeenration model
+            try:
+                pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
+                retrieval_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/knn-lm/best_{pretrained_model_name}_{self.args["version"]}.pt'
+                self.model.knn_lm_generator.load_state_dict(torch.load(retrieval_path, map_location=torch.device('cpu')))
+                print(f'\n - {retrieval_path}')
+            except:
+                pass
         else:
             if self.args['mode'] == 'train':
                 # the context encoder model has been loaded (GPT-2)
@@ -485,7 +521,6 @@ class GenerationAgent(GenerationBaseAgent):
                 results.append(rest[i:i+self.args['inference_num']])
             context.extend(batch['context'])
             response.extend(batch['response'])
-            ipdb.set_trace()
             if len(context) > size:
                 assert len(context) == len(response) == len(results)
                 torch.save(
@@ -801,3 +836,17 @@ class GenerationAgent(GenerationBaseAgent):
                 (embds, texts), 
                 f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
             )
+
+    @torch.no_grad()
+    def test_model_ppl(self, test_iter, print_output=True):
+        self.model.eval()
+        pbar = tqdm(test_iter)
+        PPL = []
+        for idx, batch in enumerate(pbar):
+            ppl = self.model.calculate_ppl(
+                batch['ids'], 
+                batch['ids_mask'], 
+            )
+            PPL.append(ppl)
+            pbar.set_description(f'[!] ppl: {round(np.mean(PPL), 4)}')
+        return np.mean(PPL)

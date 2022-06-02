@@ -35,6 +35,7 @@ def response_strategy(args):
     searcher._build(embds, texts, speedup=True)
     # searcher._build(embds, texts, speedup=False)
     print(f'[!] train the searcher over')
+    searcher.move_to_cpu()
 
     # add the external dataset
     # for i in tqdm(range(args['nums'])):
@@ -51,6 +52,10 @@ def response_strategy(args):
             except:
                 break
             searcher.add(embd, text)
+        #     if searcher.searcher.ntotal > 5001000:
+        #         break
+        # if searcher.searcher.ntotal > 5001000:
+        #     break
     print(f'[!] total samples: {searcher.searcher.ntotal}')
 
     model_name = args['model']

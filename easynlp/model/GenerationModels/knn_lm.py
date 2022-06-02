@@ -2,6 +2,31 @@ from model.utils import *
 from .utils import *
 
 
+def top_k_top_p_filtering_knnlm(logits, top_k=0, top_p=0.0, threshold=-float('Inf'), filter_value=-np.inf):
+    assert logits.dim() == 1
+    top_k = min(top_k, logits.size(-1))
+    if top_k > 0:
+        indices_to_remove = logits < torch.topk(logits, top_k)[0][..., -1, None]
+        logits[indices_to_remove] = filter_value
+    if top_p > 0.0:
+        # special cases
+        if logits.max().item() > top_p:
+            return logits
+        sorted_logits, sorted_indices = torch.sort(logits, descending=True)
+        # cumulative_probs = torch.cumsum(F.softmax(sorted_logits, dim=-1), dim=-1)
+        cumulative_probs = torch.cumsum(sorted_logits, dim=-1)
+        sorted_indices_to_remove = cumulative_probs > top_p
+        sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
+        sorted_indices_to_remove[..., 0] = 0
+
+        indices_to_remove = sorted_indices[sorted_indices_to_remove]
+        logits[indices_to_remove] = filter_value
+        
+    indices_to_remove = logits < threshold
+    logits[indices_to_remove] = filter_value
+    return logits
+
+
 class KNNLMModel(nn.Module):
 
     '''GPT-2 based KNN-LM model'''
@@ -22,16 +47,42 @@ class KNNLMModel(nn.Module):
             self.unk, self.pad, self.cls, self.sep = self.vocab.convert_tokens_to_ids(['[UNK]', '[PAD]', '[CLS]', '[SEP]'])
             self.special_tokens = set([self.pad, self.unk, self.cls, self.sep])
         self.test_max_len = args['test_max_len']
+        self.gen_loss_fct = nn.NLLLoss(ignore_index=self.vocab.eos_token_id, reduction='none')
 
     def init_searcher(self, searcher):
-        self.seacher = searcher
+        self.searcher = searcher
 
     @torch.no_grad()
     def calculate_ppl(self, ids, ids_mask):
-        ids, ids_mask, label = ids[:, :-1], ids_mask[:, :-1], ids[1:, :]
-        output = self.model(input_ids=ids, attention_mask=ids_mask)
-        logits = output.logits
-        loss = self.gen_loss_fct(logits.view(-1, logits.size(-1)), label.view(-1))
+        self.model.eval()
+        ids, ids_mask, label = ids[:, :-1], ids_mask[:, :-1], ids[:, 1:]
+        output = self.model(input_ids=ids, attention_mask=ids_mask, output_hidden_states=True)
+        logits = output.logits.squeeze(0)    # [S, V]
+        hidden = output['hidden_states'][-1].view(-1, 768) # [S, E]
+        seqlen, _ = hidden.size()
+
+        sub_chunk_size = 16 
+        losses = []
+        for i in range(0, seqlen, sub_chunk_size):
+            sub_hidden = hidden[i:i+sub_chunk_size, :]
+            sub_seqlen = len(sub_hidden)
+            sub_label = label[:, i:i+sub_chunk_size]
+            sub_logits = logits[i:i+sub_chunk_size, :]
+            cands, dists = self.searcher._search_dis(
+                sub_hidden.cpu().numpy(), 
+                topk=self.args['search_topk']
+            )
+            cands = torch.LongTensor([[int(i) for i in j] for j in cands]).unsqueeze(-1).cuda()    # [S, K, 1]
+            dists = torch.tensor(dists).cuda()    # [S, K]
+            dists = F.softmax(-dists/self.args['temp'], dim=-1).unsqueeze(-1)   # [S, K, 1]
+            knn_logits = torch.zeros(sub_seqlen, self.args['search_topk'], len(self.vocab)).cuda()   # [S, K, V]
+            knn_logits.scatter_(2, cands, dists)
+            knn_logits = knn_logits.sum(dim=1)    # [S, V]
+            new_logits = self.args['lambda'] * knn_logits + (1 - self.args['lambda']) * F.softmax(sub_logits, dim=-1)    # [S, V]
+            new_logits = new_logits.log()
+            loss = self.gen_loss_fct(new_logits.view(-1, new_logits.size(-1)), sub_label.view(-1))
+            losses.append(loss)
+        loss = torch.cat(losses).mean()
         return math.exp(loss.item())
 
     @torch.no_grad()
@@ -43,7 +94,6 @@ class KNNLMModel(nn.Module):
         collection_rep, collection_target = [], []
         ids = ids.tolist()
         for rep, ids_, l in zip(output, ids, vl):
-            # rep: [S, E]
             collection_rep.append(rep[:l-1, :])
             collection_target.extend(ids_[1:l])
         collection_rep = torch.cat(collection_rep).cpu()
@@ -52,15 +102,26 @@ class KNNLMModel(nn.Module):
         return collection_rep, collection_target
 
     @torch.no_grad()
-    def generate_new_logits(self, logits, hidden, topk=10):
-        cands, dists = self.searcher.search_dis(hidden.numpy(), topk=topk)
-        tokens = self.vocab.convert_tokens_to_ids(cands)
-        knn_logits = torch.zeros(len(self.vocab)).cuda().unsqueeze(0).expand(topk, -1)    # [K, V]
-        knn_logits[range(topk), tokens] = torch.exp(-torch.from_numpy(dists))
-        knn_logits = F.softmax(knn_logits.sum(dim=0), dim=-1)    # [V]
-        ipdb.set_trace()
-        new_logits = self.args['lambda'] * knn_logits + (1 - self.args['lambda']) * logits
-        return new_logits
+    def generate_new_logits(self, logits, hidden, topk=10, temp=100):
+        # ignored tokens
+        ignored_tokens = set(['198', '2954', '27', '29'])
+        cands, dists = self.searcher._search_dis(
+            hidden.unsqueeze(0).cpu().numpy(), 
+            topk=topk
+        )
+        valid_index = [False if i in ignored_tokens else True for i in cands[0]]
+        topk = sum(valid_index)
+        if topk == 0:
+            return F.softmax(logits, dim=-1)
+        else:
+            cands, dists = torch.LongTensor([int(i) for i in cands[0]]), torch.tensor(dists[0]).cuda()
+            cands = cands[valid_index]
+            dists = dists[valid_index]
+            knn_logits = torch.zeros(topk, len(self.vocab)).cuda()    # [K, V]
+            knn_logits[range(topk), cands] = F.softmax(-dists/self.args['temp'], dim=-1)
+            knn_logits = knn_logits.sum(dim=0)    # [V]
+            new_logits = self.args['lambda'] * knn_logits + (1 - self.args['lambda']) * F.softmax(logits, dim=-1)
+            return new_logits
 
     @torch.no_grad()
     def greedy_search(self, batch):
@@ -70,13 +131,14 @@ class KNNLMModel(nn.Module):
         while True:
             output = self.model(
                 input_ids=ids,
+                attention_mask=torch.ones_like(ids),
                 output_hidden_states=True
             )
             hidden = output['hidden_states'][-1][-1, -1, :]    # [H]
             next_token_logits = output['logits'][-1, -1, :]    # [V]
-            next_token_logits[self.unk] = -np.inf
-
-            next_token_logits = self.generate_new_logits(next_token_logits, hidden, topk=self.args['topk'])
+            next_token_logits = self.generate_new_logits(next_token_logits, hidden, topk=self.args['search_topk'], temp=self.args['temp'])
+            ignored_tokens = [198, 2954, 27, 29, self.unk]
+            next_token_logits[ignored_tokens] = -np.inf
 
             next_token = next_token_logits.max(dim=-1)[1].unsqueeze(0)
             if len(generated) > self.test_max_len:
@@ -84,7 +146,7 @@ class KNNLMModel(nn.Module):
             generated.append(next_token.item())
             # reconstruct the ids and ids_mask
             ids = torch.cat((ids, next_token.unsqueeze(0)), dim=1)    # [1, S+1]
-            ids = ids[:, -self.test_max_ctx_len:]
+            # ids = ids[:, -self.test_max_ctx_len:]
         string = self.vocab.decode(generated)
         return string
 
@@ -95,19 +157,22 @@ class KNNLMModel(nn.Module):
         while True:
             output = self.model(
                 input_ids=ids,
+                attention_mask=torch.ones_like(ids),
                 output_hidden_states=True
             )
             hidden = output['hidden_states'][-1][-1, -1, :]    # [H]
             next_token_logits = output['logits'][-1, -1, :]    # [V]
-            next_token_logits[self.unk] = -np.inf
-            next_token_logits = self.generate_new_logits(next_token_logits, hidden, topk=self.args['topk'])
-            filtered_logits = top_k_top_p_filtering(
+            next_token_logits = self.generate_new_logits(next_token_logits, hidden, topk=self.args['search_topk'])
+            filtered_logits = top_k_top_p_filtering_knnlm(
                 next_token_logits, 
                 top_k=self.topk, 
                 top_p=self.topp
             )
+            # ignore some tokens: \n, unk, <, >, eos_token
+            ignored_tokens = [198, 2954, 27, 29, self.unk]
+            filtered_logits[ignored_tokens] = -np.inf
             next_token = torch.multinomial(
-                F.softmax(filtered_logits, dim=-1),
+                F.softmax(filtered_logits*5, dim=-1),
                 num_samples=1,
             )
             if len(generated) > self.test_max_len:
@@ -115,6 +180,6 @@ class KNNLMModel(nn.Module):
             generated.append(next_token.item())
             # reconstruct the ids and ids_mask
             ids = torch.cat((ids, next_token.unsqueeze(0)), dim=1)    # [1, S+1]
-            ids = ids[:, -self.test_max_ctx_len:]
+            # ids = ids[:, -self.test_max_ctx_len:]
         string = self.vocab.decode(generated)
         return string

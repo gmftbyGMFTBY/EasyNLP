@@ -559,6 +559,28 @@ def main_rerank_time(**args):
     for key, value in outputs.items():
         print(f'{key}: {value}')
 
+def main_ppl(**args):
+    '''test the ppl on the test dataset (GPT2, KNN-LM)'''
+    args['mode'] = 'test'
+    new_args = deepcopy(args)
+    config = load_config(args)
+    args.update(config)
+
+    
+    random.seed(args['seed'])
+    torch.manual_seed(args['seed'])
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args['seed'])
+
+    test_data, test_iter, _ = load_dataset(args)
+    agent = load_model(args)    
+    pretrained_model_name = args['pretrained_model'].replace('/', '_')
+    save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}_{args["version"]}.pt'
+    agent.load_model(save_path)
+
+    outputs = agent.test_model_ppl(test_iter, print_output=True)
+    print(f'[!] PPL: {round(outputs, 4)}')
+
 def main_generation(**args):
     args['mode'] = 'test'
     new_args = deepcopy(args)
@@ -711,6 +733,8 @@ if __name__ == "__main__":
         main_horse_human(**args)
     elif args['mode'] == 'generation':
         main_generation(**args)
+    elif args['mode'] == 'ppl':
+        main_ppl(**args)
     elif args['mode'] == 'fg_rerank':
         main_rerank_fg(**args)
     elif args['mode'] == 'compare':

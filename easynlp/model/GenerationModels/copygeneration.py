@@ -4,7 +4,6 @@ from .knn_lm import KNNLMModel
 from model.RepresentationModels import DensePhraseEncoder, DensePhraseV2Encoder, DensePhraseV3Encoder, DensePhraseV4Encoder, DensePhraseV7Encoder
 from .utils import *
 from config import *
-from .inference_utils import *
 
 class CopyGenerationEncoder(nn.Module):
 
@@ -21,11 +20,13 @@ class CopyGenerationEncoder(nn.Module):
         self.generator = GPT2OriginalModel(**generator_args) 
 
         # knn-lm gpt2 baseline
+        # '''
         generator_args = deepcopy(self.args)
         generator_args['model'] = 'knn-lm'
         config = load_config(generator_args)
         generator_args.update(config)
         self.knn_lm_generator = KNNLMModel(**generator_args) 
+        print(f'[!] load the knn-lm model over ...')
         ## init the knn-lm searcher
         faiss_searcher_args = deepcopy(self.args)
         faiss_searcher_args['model'] = 'knn-lm'
@@ -44,6 +45,7 @@ class CopyGenerationEncoder(nn.Module):
         )
         self.knn_lm_generator.init_searcher(faiss_searcher)
         print(f'[!] knn-lm generator baseline init over ...')
+        # '''
 
         # our proposed phrase-gpt2 model
         retriever_args = deepcopy(self.args)
@@ -536,6 +538,7 @@ class CopyGenerationEncoder(nn.Module):
 
         if decoding_method == 'knn-lm-topk-topp-search':
             self.knn_lm_generator.test_max_len = max_gen_len
+            self.knn_lm_generator.topk, self.knn_lm_generator.topp = topk, topp
             response = self.knn_lm_generator.topk_topp_search(batch)
             pass
         elif decoding_method == 'knn-lm-greedy-search':
@@ -544,6 +547,7 @@ class CopyGenerationEncoder(nn.Module):
             pass
         elif decoding_method == 'topk-topp-search':
             self.generator.test_max_len = max_gen_len
+            self.generator.topk, self.generator.topp = topk, topp
             response = self.generator.topk_topp_search(batch)
             pass
         elif decoding_method == 'greedy-search':

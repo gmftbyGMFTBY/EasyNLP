@@ -6,4 +6,4 @@ CUDA_VISIBLE_DEVICES=$cuda python test_copygeneration_deploy.py \
     --dataset $dataset \
     --model copygeneration \
     --recall_topk 20 \
-    --port 23337
+    --port 23338
