@@ -1,14 +1,19 @@
 test_max_len: 128
-lambda: 0.05
+# lambda: 0.05
+# chinese need 0.25
+lambda: 0.25
 search_topk: 1024
+collapse_rate: 0.9
+center_collapse_rate: 0.5
+center_topk: 10
 temp: 10.
 topk: 50
 topp: 0.92
 index_type: IVF10000,PQ16
-index_nprobe: 100
+index_nprobe: 50
 dimension: 768
 tokenizer: 
-    en: /apdcephfs/share_916081/johntianlan/gpt2_english
+    en: /apdcephfs/share_916081/johntianlan/bert-base-cased
     zh: /apdcephfs/share_916081/johntianlan/gpt2-chinese-cluecorpussmall
 pretrained_model: 
     en: /apdcephfs/share_916081/johntianlan/gpt2_english
@@ -24,6 +29,8 @@ test:
 inference:
     seed: 0
     batch_size: 64
+    # index_type: IVF10000,PQ16
+    # en-wiki index type
     index_type: IVF10000,PQ16
     index_nprobe: 64
     dimension: 768

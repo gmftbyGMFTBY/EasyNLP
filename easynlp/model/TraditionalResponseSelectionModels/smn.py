@@ -48,6 +48,10 @@ class SMN(nn.Module):
         self.final_linear = nn.Linear(50, 1)
         nn.init.xavier_uniform_(self.final_linear.weight)
 
+
+        total = sum([param.nelement() for param in self.parameters()])
+        print('[!] Model Size: %2fM' % (total/1e6))
+
     def forward_step(self, utterance, response):
         '''
             utterance:(self.batch_size, self.max_num_utterance, self.max_sentence_len)

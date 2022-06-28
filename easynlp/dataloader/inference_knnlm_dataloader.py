@@ -13,31 +13,51 @@ class KNNLMInferenceDataset(Dataset):
     def __init__(self, vocab, path, **args):
         self.args = args
         self.vocab = vocab
-        self.pad = self.vocab.eos_token_id
-        path = f'/apdcephfs/share_916081/johntianlan/copygeneration_wikitext103/base_data.txt'
-        self.pp_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_wikitext103/base_data_pp.pt'
-        if os.path.exists(self.pp_path):
-            self.data = torch.load(self.pp_path)
-            self.size = len(self.data)
-            print(f'[!] load preprocessed file from {self.pp_path}: {self.size}')
-            return None
+        if self.args['dataset'] in ['wikitext103']:
+            path = f'/apdcephfs/share_916081/johntianlan/copygeneration_wikitext103/base_data.txt'
+            # self.pad = self.vocab.eos_token_id
+            self.pad = self.vocab.pad_token_id
+        elif self.args['dataset'] in ['en_wiki']:
+            path = f'/apdcephfs/share_916081/johntianlan/copygeneration_en_wiki/backup_v4_data/searched_results_{args["local_rank"]}_base.txt'
+            print(f'[!] prepare to load data from {path}')
+            # self.pad = self.vocab.eos_token_id
+            self.pad = self.vocab.pad_token_id
+        else:
+            path = f'/apdcephfs/share_916081/johntianlan/copygeneration_data/base_data.txt'
+            self.pad = self.vocab.pad_token_id
 
-        self.data = []
-        counter = 0
-        with open(path) as f:
-            for line in tqdm(f.readlines()):
-                context, idx = line.strip().split('\t')
-                tokens = self.vocab.encode(context, add_special_tokens=False)
-                # make the chunk (512)
-                for i in range(0, len(tokens), 512):
-                    subsequence = tokens[i:i+512]
-                    if len(subsequence) < 64:
-                        # shorter context is useless
-                        continue
-                    self.data.append(subsequence)
-                    counter += len(subsequence) - 1
-        print(f'[!] collect {len(self.data)} samples and {counter} key-values')
-        self.size = len(self.data)
+        if self.args['dataset'] in ['wikitext103']:
+            self.data = []
+            counter = 0
+            with open(path) as f:
+                for line in tqdm(f.readlines()):
+                    context, idx = line.strip().split('\t')
+                    tokens = self.vocab.encode(context, add_special_tokens=False)
+                    # make the chunk (512)
+                    for i in range(0, len(tokens), 512):
+                        subsequence = tokens[i:i+512]
+                        if len(subsequence) < 64:
+                            # shorter context is useless
+                            continue
+                        self.data.append(subsequence)
+                        counter += len(subsequence) - 1
+            print(f'[!] collect {len(self.data)} samples and {counter} key-values')
+            self.size = len(self.data)
+        else:
+            self.data = []
+            counter = 0
+            with open(path) as f:
+                for line in tqdm(f.readlines()):
+                    item = json.loads(line)
+                    text = item['results']
+                    context = ' '.join(text)
+                    tokens = self.vocab.encode(context, add_special_tokens=False)
+                    self.data.append(tokens[:512])
+                    counter += len(tokens[:512]) - 1
+                    if len(self.data) >= 1000000:
+                        break
+            print(f'[!] collect {len(self.data)} samples and {counter} key-values')
+            self.size = len(self.data)
 
     def __len__(self):
         return self.size
@@ -47,8 +67,7 @@ class KNNLMInferenceDataset(Dataset):
         return torch.LongTensor(ids)
 
     def save(self):
-        data = torch.save(self.data, self.pp_path)
-        print(f'[!] save preprocessed dataset into {self.pp_path}')
+        pass
         
     def collate(self, batch):
         ids = pad_sequence(batch, batch_first=True, padding_value=self.pad)

@@ -3,8 +3,9 @@ from .header import *
 
 class WeakTrsDecoder(nn.Module):
     
-    def __init__(self, dropout, vocab_size, nhead, nlayer, attention_span):
+    def __init__(self, dropout, vocab_size, nhead, nlayer, attention_span, pad_token_id):
         super(WeakTrsDecoder, self).__init__()
+        self.pad_token_id = pad_token_id
         self.embedding = nn.Embedding(vocab_size, 768)
         decoder_layer = nn.TransformerDecoderLayer(d_model=768, nhead=nhead)
         self.decoder = nn.TransformerDecoder(decoder_layer, num_layers=nlayer)
@@ -13,7 +14,7 @@ class WeakTrsDecoder(nn.Module):
             nn.Linear(768, vocab_size)
         )
         self.attn_span_k = attention_span
-        self.gen_loss_fct = nn.CrossEntropyLoss(ignore_index=0)
+        self.gen_loss_fct = nn.CrossEntropyLoss(ignore_index=pad_token_id)
 
         self.attn_span_mask = torch.ones(512, 512)
         for i in range(512):
@@ -41,7 +42,7 @@ class WeakTrsDecoder(nn.Module):
         # token acc
         chosen_tokens = torch.max(shift_logits, dim=-1)[1]    # [B, S-1]
         gen_acc = (chosen_tokens.view(-1) == shift_labels.view(-1)).to(torch.long)
-        valid_mask = (shift_labels != 0).view(-1)
+        valid_mask = (shift_labels != self.pad_token_id).view(-1)
         valid_tokens = gen_acc & valid_mask
         acc = valid_tokens.sum().item() / valid_mask.sum().item()
         return loss, acc

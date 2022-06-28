@@ -45,12 +45,12 @@ def inference(**args):
         agent.load_model(f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}_{args["version"]}.pt')
 
     if work_mode in ['response']:
-        # agent.inference(data_iter, size=args['cut_size'])
+        agent.inference(data_iter, size=args['cut_size'])
         pass
     elif work_mode in ['simcse-response']:
         agent.inference_big(data_iter, size=args['cut_size'])
     elif work_mode in ['knnlm']:
-        agent.inference_knnlm(data_iter, size=args['cut_size'])
+        # agent.inference_knnlm(data_iter, size=args['cut_size'])
         pass
     elif work_mode in ['phrases']:
         agent.inference_phrases(data_iter, size=args['cut_size'])
@@ -124,6 +124,7 @@ if __name__ == "__main__":
         da_strategy(args)
     elif args['work_mode'] in ['response', 'wz-simcse', 'knnlm']:
         response_strategy(args)
+        pass
     elif args['work_mode'] in ['phrases']:
         # remove the duplication
         remove_duplicate_phrases(args)

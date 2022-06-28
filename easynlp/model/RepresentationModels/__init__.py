@@ -1,4 +1,5 @@
 from .agent import *
+from .fast_phrase_gpt2 import *
 from .dual_bert_mutual import *
 from .phrase_copymodel import *
 from .hash_bert_boost import *

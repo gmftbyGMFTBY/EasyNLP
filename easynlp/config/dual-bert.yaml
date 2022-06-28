@@ -71,10 +71,11 @@ inference:
     topk: 10
     # index_type: IVF6000,PQ8
     # index_type: IVF65536_HNSW32,PQ8
-    index_type: Flat
+    # index_type: Flat
+    index_type: IVF100000,PQ16
     # index_type: PQ8
     # index_type: HNSW32,Flat
-    index_nprobe: 5
+    index_nprobe: 50
     dimension: 768
     buff_size: 100000
     r_data_root_path: /apdcephfs/share_733425/johntianlan/chatbot-data-clean/weibo_clean

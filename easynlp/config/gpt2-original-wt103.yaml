@@ -22,13 +22,9 @@ inference_num: 1
 # gpt2 configuration
 test_max_len: 32
 tokenizer: 
-    # zh: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
-    en: /apdcephfs/share_916081/johntianlan/gpt2_english
-    zh: /apdcephfs/share_916081/johntianlan/gpt2-chinese-cluecorpussmall
+    en: /apdcephfs/share_916081/johntianlan/bert-base-cased
 pretrained_model: 
-    # zh: /apdcephfs/share_916081/johntianlan/gpt2_with_long_time
     en: /apdcephfs/share_916081/johntianlan/gpt2_english
-    zh: /apdcephfs/share_916081/johntianlan/gpt2-chinese-cluecorpussmall
 
 # train configuration
 train:
@@ -36,9 +32,9 @@ train:
     lr: 0.0001
     grad_clip: 0.1
     seed: 0
-    batch_size: 32
+    batch_size: 32 
     max_len: 256
-    warmup_ratio: 0.
+    warmup_ratio: 0.06
     iter_to_accumulate: 1
     checkpoint: 
         # path: bert-post/best_nspmlm.pt

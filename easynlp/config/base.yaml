@@ -69,7 +69,7 @@ no_test_models:
     - bert-mask-da-sep
     - dual-bert-unsup
     - gpt2-contrastive-search
-    - simctg
+    # - simctg
     - gpt2-token-rerank
     - simrag
     - phrase-copy
@@ -142,14 +142,14 @@ models:
     simcse: 
         type: SemanticSimilarity
         model_name: SimCSE
-        dataset_name: SimCSEDataset
+        # dataset_name: SimCSEDataset
+        dataset_name: SimCSEBigDataset
         # dataset_name: SimCSEUnlikelyhoodDataset
-        # inference_dataset_name: BERTSimCSEInferenceDataset
-        
+        inference_dataset_name: BERTSimCSEInferenceDataset
         # inference_dataset_name: BERTSimCSEInferenceContextDataset
         # inference_dataset_name: BERTSimCSEUnlikelyhoodInferenceDataset
         # inference_dataset_name: BERTSimCSEUnlikelyhoodInferenceContextDataset
-        inference_dataset_name: BERTSimCSEInferenceBigDataset
+        # inference_dataset_name: BERTSimCSEInferenceBigDataset
     dual-bert-mixup: 
         type: Representation
         model_name: BERTDualMixUpEncoder
@@ -474,16 +474,44 @@ models:
         type: Representation
         # model_name: DensePhraseEncoder
         # model_name: DensePhraseV2Encoder
-        model_name: DensePhraseV4Encoder
+        # model_name: FastDensePhraseEncoder
+        # model_name: FastDensePhraseV2Encoder
+        # model_name: FastDensePhraseV3Encoder
+        # model_name: FastDensePhraseV4Encoder
+        # model_name: FastDensePhraseV5Encoder
+        # model_name: FastDensePhraseV6Encoder
+        # model_name: FastDensePhraseV7Encoder
+        # model_name: FastDensePhraseV8Encoder
+        # model_name: FastDensePhraseV9Encoder
+        # model_name: FastDensePhraseV10Encoder
+        # model_name: FastDensePhraseV11Encoder
+        # model_name: FastDensePhraseV12Encoder
+        # model_name: FastDensePhraseV13Encoder
+        # model_name: FastDensePhraseV14Encoder
+        # model_name: FastDensePhraseV15Encoder
+        # model_name: FastDensePhraseV16Encoder
+        # model_name: FastDensePhraseV17Encoder
+        # model_name: FastDensePhraseV18Encoder
+        # model_name: FastDensePhraseV19Encoder
+        # model_name: FastDensePhraseV20Encoder
+        model_name: FastDensePhraseV21Encoder
+        # model_name: DensePhraseV4Encoder
         # model_name: DensePhraseV5Encoder
         # model_name: DensePhraseV6Encoder
         # model_name: DensePhraseV7Encoder
         # model_name: DensePhraseV8Encoder
         # model_name: DensePhraseV9Encoder
         # dataset_name: CopyGenerationDataset
-        dataset_name: CopyGenerationCompactDataset
+        # dataset_name: CopyGenerationCompactDataset
+        dataset_name: CopyGenerationCompactV3Dataset
+        # dataset_name: CopyGenerationCompactNoContextDataset
+        # dataset_name: CopyGenerationCompactOnlyPhraseDataset
+        # dataset_name: CopyGenerationCompactOnlyPhraseHNDataset
+        # dataset_name: CopyGenerationCompactOnlyPhraseHNV2Dataset
+        # dataset_name: CopyGenerationCompactHNDataset
         # dataset_name: CopyGenerationCompactV2Dataset
         # dataset_name: CopyGenerationGADataset
+        # dataset_name: TestGPT2PPLDataset
         # inference_dataset_name: PhrasesInferenceDataset
         inference_dataset_name: PhrasesInferenceV2Dataset
     dual-bert-mutual: 
@@ -498,6 +526,7 @@ models:
         # model_name: BERTDualMVEncoder
         # dataset_name: BERTDualFullFakeCtxDataset
         # dataset_name: BERTDualDataset
+        # large chinese pretrain dialog dataloader DRBERTDataset
         # dataset_name: DRBERTDataset
         # dataset_name: BERTDualAccDataset
         # dataset_name: BERTDualFullWithHardNegDataset
@@ -573,7 +602,8 @@ models:
     simctg: 
         type: Generation
         model_name: SimCTGModel
-        dataset_name: GPT2ForContrastiveCommonCrawlForBigDataset
+        # dataset_name: GPT2ForContrastiveCommonCrawlForBigDataset
+        dataset_name: GPT2ForContrastiveForBigDataset
         inference_dataset_name: null
     gpt2-contrastive-search: 
         type: Generation
@@ -605,6 +635,12 @@ models:
         model_name: KNNLMModel
         dataset_name: TestGPT2PPLDataset
         inference_dataset_name: KNNLMInferenceDataset
+    gpt2-original-wt103: 
+        type: Generation
+        model_name: GPT2wt103Model
+        # dataset_name: CopyGenerationOnlyGenWikiText103Dataset
+        dataset_name: TestGPT2PPLDataset
+        inference_dataset_name: GPT2DialogDataset
     gpt2-original: 
         type: Generation
         model_name: GPT2OriginalModel
@@ -1060,7 +1096,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 54
+version: 103
 
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
@@ -1072,6 +1108,7 @@ valid_during_training: true
 is_step_for_training: false
 # start_save_step only useful when is_step_for_training is true
 start_save_step: 0 
+load_last_checkpoint: true
 # ========= Global configuration ========== #
 
 

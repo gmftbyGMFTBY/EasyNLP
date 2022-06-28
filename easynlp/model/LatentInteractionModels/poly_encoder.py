@@ -10,6 +10,9 @@ class PolyEncoder(nn.Module):
         self.can_encoder = BertEmbedding(model=model)
         self.ctx_encoder = TopKBertEmbedding(model=model, m=m)
         self.m = m
+
+        total = sum([param.nelement() for param in self.parameters()])
+        print('[!] Model Size: %2fM' % (total/1e6))
         
     def _encode(self, cid, rid, cid_mask, rid_mask):
         batch_size = len(cid)

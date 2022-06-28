@@ -495,7 +495,6 @@ class BERTCompHNBigDataset(Dataset):
                 f'{dr_bert_args["root_dir"]}/data/{dr_bert_args["dataset"]}/dual-bert_{pretrained_model_name}_corpus.ckpt',        
             )
 
-
             self.bert_ft_agent = load_model(bert_ft_args)
             pretrained_model_name = bert_ft_args['pretrained_model'].replace('/', '_')
             save_path = f'{bert_ft_args["root_dir"]}/ckpt/{bert_ft_args["dataset"]}/{bert_ft_args["model"]}/best_{pretrained_model_name}_{bert_ft_args["version"]}.pt'
@@ -687,4 +686,62 @@ class BERTCompHNBigDataset(Dataset):
         return rest
 
 
+class SimCSEBigDataset(Dataset):
 
+    def __init__(self, vocab, path, **args):
+        self.args = args
+        self.vocab = vocab
+        self.pad = self.vocab.pad_token_id
+        self.sep = self.vocab.sep_token_id
+        self.cls = self.vocab.cls_token_id
+
+        root_path = args['data_root_path']
+        self.file_lists = [f'{root_path}/train_{i}.txt' for i in range(8)]
+        self.current_file_index = 0
+        self.current_file_handler = None
+        self.cache = []
+        self.buffer_size = args['buffer_size']
+
+        # reset the random seed for each worker
+        new_seed = args['seed'] + args['local_rank']
+        random.seed(new_seed)
+        torch.manual_seed(new_seed)
+        torch.cuda.manual_seed_all(new_seed)
+        random.shuffle(self.file_lists)
+                
+    def __len__(self):
+        # small size of the model
+        return 500000
+
+    def __getitem__(self, i):
+        if len(self.cache) <= 10000:
+            if self.current_file_handler is None:
+                self.current_file_handler = open(self.file_lists[self.current_file_index], 'r')
+            self.cache += load_lines_chunk(self.current_file_handler, self.buffer_size)
+            if len(self.cache) == 0:
+                # curretn file runs over, move to next file
+                self.current_file_index = 0 if self.current_file_index + 1 > 7 else self.current_file_index + 1
+                self.current_file_handler = open(self.file_lists[self.current_file_index], 'r')
+                self.cache = load_lines_chunk(self.current_file_handler, self.buffer_size)
+            random.shuffle(self.cache)
+
+        line = self.cache.pop()
+        line = json.loads(line)['data']
+        items = self.vocab.batch_encode_plus(line, add_special_tokens=False)['input_ids']
+        ids = [torch.LongTensor([self.cls] + i[:self.args['res_max_len']] + [self.sep]) for i in items]
+        return ids
+
+    def save(self):
+        pass
+        
+    def collate(self, batch):
+        ids = []
+        for item in batch:
+            ids.extend(item)
+        ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+        mask = generate_mask(ids)
+        ids, mask = to_cuda(ids, mask)
+        return {
+            'ids': ids, 
+            'ids_mask': mask, 
+        }

@@ -1,5 +1,5 @@
 valid_during_training: false
-test_interval: 0.0001
+test_interval: 0.05
 gru_hidden: 300
 
 # network issue, load locally

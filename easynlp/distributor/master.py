@@ -39,7 +39,8 @@ def start(_env, _distributed_config, _my_config, ip, rank, remote=True):
         cmd_str += " " + k + "=" + v + " "
 
     cmd_str += " --node_rank={} ".format(rank)
-    cmd_str += " train.py "
+    # cmd_str += " train.py "
+    cmd_str += " train_long.py "
 
     for k, v in my_config.items():
         assert k.startswith('-')

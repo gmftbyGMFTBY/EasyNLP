@@ -46,6 +46,7 @@ class ESBuilder:
     def insert(self, pairs):
         count = self.es.count(index=self.index)['count']
         actions = []
+        counter = 0
         
         if self.q_q:
             for i, (q, a) in enumerate(tqdm(pairs)):
@@ -55,8 +56,14 @@ class ESBuilder:
                     'context': q,
                     'response': a,
                 })
+                if len(actions) > 100000:
+                    helpers.bulk(self.es, actions)
+                    actions = []
+            if len(actions) > 0:
+                helpers.bulk(self.es, actions)
         else:
             # q-r or single mode
+            counter = 0
             for i, a in enumerate(tqdm(pairs)):
                 actions.append({
                     '_index': self.index,
@@ -64,7 +71,14 @@ class ESBuilder:
                     'response': a,
                     'keyword': a,
                 })
-        helpers.bulk(self.es, actions)
+                if len(actions) > 100000:
+                    ipdb.set_trace()
+                    helpers.bulk(self.es, actions)
+                    actions = []
+                    counter += len(action)
+                    print(f'[!] save {counter} samples')
+            if len(actions) > 0:
+                helpers.bulk(self.es, actions)
         print(f'[!] database size: {self.es.count(index=self.index)["count"]}')
 
 

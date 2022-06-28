@@ -57,3 +57,47 @@ class InferenceDRBERTDataset(Dataset):
         rids_mask = generate_mask(rids)
         rids, rids_mask = to_cuda(rids, rids_mask)
         return {'ids': rids, 'mask': rids_mask, 'text': text}
+
+class InferenceDRBERTSingleSentenceDataset(Dataset):
+
+    def __init__(self, vocab, path, **args):
+        self.args = args
+        self.vocab = vocab
+        self.vocab.add_tokens(['[EOS]'])
+        self.pad = self.vocab.pad_token_id
+        self.sep = self.vocab.sep_token_id
+        self.cls = self.vocab.cls_token_id
+        root_path = args['data_root_path']
+
+        self.file = f'/apdcephfs/share_916081/johntianlan/chatbot-large-scale-dataset-final-version-wp-and-hn/sentence_datastore.txt'
+        self.size = iter_count(self.file)
+        self.cache = []
+        self.buffer_size = args['buffer_size']
+
+    def __len__(self):
+        return self.size
+
+    def __getitem__(self, i):
+        if len(self.cache) == 0:
+            self.cache = load_lines_chunk(self.current_file_handler, self.buffer_size)
+            if len(self.cache) == 0:
+                return None, None
+        line = self.cache.pop()
+        text, text_id = line.strip().split('\t')
+        items = self.vocab.encode(text, add_special_tokens=False)
+        rids = [self.cls] + items[:self.args['res_max_len']] + [self.sep]
+        return torch.LongTensor(rids), text_id
+
+    def save(self):
+        pass
+        
+    def collate(self, batch):
+        items, text = [], []
+        for i, j in batch:
+            if j is not None:
+                items.append(i)
+                text.append(j)
+        rids = pad_sequence(items, batch_first=True, padding_value=self.pad)
+        rids_mask = generate_mask(rids)
+        rids, rids_mask = to_cuda(rids, rids_mask)
+        return {'ids': rids, 'mask': rids_mask, 'text': text}

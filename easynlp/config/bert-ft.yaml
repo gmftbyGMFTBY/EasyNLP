@@ -32,7 +32,7 @@ train:
         # path: bert-post/best_nspmlm.pt
         path: bert-fp/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_19.pt
         # path: bert-fp-mono/best_bert-base-uncased.pt
-        is_load: true
+        is_load: false
 
 # test configuration
 test:

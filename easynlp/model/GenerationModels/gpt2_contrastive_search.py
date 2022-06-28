@@ -326,10 +326,15 @@ class SimCTGModel(nn.Module):
 
         # tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.unk = self.tokenizer.bos_token_id
-        self.pad = self.tokenizer.bos_token_id
-        self.sep = self.tokenizer.bos_token_id
         self.vocab_size = len(self.tokenizer)
+        if self.args['lang'] == 'en':
+            self.unk = self.tokenizer.bos_token_id
+            self.pad = self.tokenizer.bos_token_id
+            self.sep = self.tokenizer.bos_token_id
+        else:
+            self.unk = self.tokenizer.unk_token_id
+            self.pad = self.tokenizer.pad_token_id
+            self.sep = self.tokenizer.sep_token_id
 
         # model
         self.model = GPT2LMHeadModel.from_pretrained(model_name)
@@ -366,10 +371,16 @@ class SimCTGModel(nn.Module):
         valid_mask = (labels != self.pad).view(-1)
         valid_tokens = gen_acc & valid_mask
         gen_acc = valid_tokens.sum().item() / valid_mask.sum().item()
-        valid_tokens_num = valid_tokens.sum().item()
+        valid_tokens_num = valid_mask.sum().item()
 
         norm_rep = last_hidden_states / last_hidden_states.norm(dim=2, keepdim=True)
         cosine_scores = torch.matmul(norm_rep, norm_rep.transpose(1,2)) 
         assert cosine_scores.size() == torch.Size([bsz, seqlen, seqlen])
         cl_loss = self.compute_contrastive_loss(cosine_scores, self.margin)
         return mle_loss, gen_acc, cl_loss, valid_tokens_num
+
+    def calculate_ppl(self, ids, ods, ids_mask):
+        outputs = self.model(input_ids=ids, attention_mask=ids_mask)
+        logits = outputs.logits
+        mle_loss = self.criterion(logits.view(-1, self.vocab_size), ods.view(-1))
+        return math.exp(mle_loss.item())

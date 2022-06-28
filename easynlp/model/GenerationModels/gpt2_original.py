@@ -7,6 +7,7 @@ class GPT2OriginalModel(nn.Module):
     def __init__(self, **args):
         super(GPT2OriginalModel, self).__init__()
         model = args['pretrained_model']
+        self.model_name = model
         self.model = GPT2LMHeadModel.from_pretrained(model)
         self.vocab = AutoTokenizer.from_pretrained(model)
         self.vocab_size = len(self.vocab)
@@ -34,7 +35,7 @@ class GPT2OriginalModel(nn.Module):
         logits = output.logits
         loss = self.gen_loss_fct(logits.view(-1, logits.size(-1)), label.view(-1))
         ppl = math.exp(loss.item())
-        time.sleep(0.2)
+        # time.sleep(0.2)
         return ppl
 
     @torch.no_grad()
@@ -64,6 +65,8 @@ class GPT2OriginalModel(nn.Module):
             )[0]    # [1, S, V]
             next_token_logits = output[-1, -1, :]    # [V]
             next_token_logits[self.unk] = -np.inf
+            if 'gpt2_english' in self.model_name: 
+                next_token_logits[198] = -np.inf     # \n token
             next_token = next_token_logits.max(dim=-1)[1].unsqueeze(0)
             if len(generated) > self.test_max_len:
                 break
@@ -94,19 +97,46 @@ class GPT2OriginalModel(nn.Module):
     @torch.no_grad()
     def topk_topp_search(self, batch):
         '''batch_size is 1'''
+        # ids = batch['ids']
+        # _, prefix_length = ids.size()
+        # beam_output = self.model.generate(
+        #     ids, 
+        #     prefix_length+self.test_max_len, 
+        #     pad_token_id=self.vocab.pad_token_id,
+        #     eos_token_id=self.vocab.eos_token_id,
+        #     top_p=self.topp,
+        #     top_k=self.topk,
+        #     do_sample=True,
+        # )
+        # beam_output = beam_output[:, prefix_length:]
+        # string = self.vocab.decode(beam_output[0])
+        # return string
+        '''batch_size is 1'''
+        self.model.eval()
         ids = batch['ids']
-        _, prefix_length = ids.size()
-        beam_output = self.model.generate(
-            ids, 
-            prefix_length+self.test_max_len, 
-            pad_token_id=self.vocab.pad_token_id,
-            eos_token_id=self.vocab.eos_token_id,
-            top_p=self.topp,
-            top_k=self.topk,
-            do_sample=True,
-        )
-        beam_output = beam_output[:, prefix_length:]
-        string = self.vocab.decode(beam_output[0])
+        generated = []
+        while True:
+            output = self.model(
+                input_ids=ids,
+            )[0]    # [1, S, V]
+            next_token_logits = output[-1, -1, :]    # [V]
+            next_token_logits[self.unk] = -np.inf
+            if 'gpt2_english' in self.model_name: 
+                next_token_logits[198] = -np.inf
+            filtered_logits = top_k_top_p_filtering(
+                next_token_logits, 
+                top_k=self.topk, 
+                top_p=self.topp
+            )
+            next_token = torch.multinomial(
+                F.softmax(filtered_logits, dim=-1),
+                num_samples=1,
+            )
+            if len(generated) > self.test_max_len:
+                break
+            generated.append(next_token.item())
+            ids = torch.cat((ids, next_token.unsqueeze(0)), dim=1)    # [1, S+1]
+        string = self.vocab.decode(generated)
         return string
 
     def forward(self, batch):
@@ -213,3 +243,144 @@ class GPT2DialogModel(nn.Module):
         valid_tokens = gen_acc & valid_mask
         gen_acc = valid_tokens.sum().item() / valid_mask.sum().item()
         return loss, gen_acc
+
+
+class GPT2wt103Model(nn.Module):
+
+    def __init__(self, **args):
+        super(GPT2wt103Model, self).__init__()
+        model = args['pretrained_model']
+        self.vocab = AutoTokenizer.from_pretrained(args['tokenizer'])
+        self.vocab_size = len(self.vocab)
+        
+        config = GPT2Config.from_pretrained(model)
+        config.vocab_size = self.vocab_size
+        self.model = GPT2LMHeadModel(config)
+        
+        self.args = args
+
+        self.pad = self.vocab.pad_token_id
+        self.unk = self.vocab.unk_token_id
+        self.special_tokens = set([self.pad, self.unk])
+        self.topk = args['topk']
+        self.topp = args['topp']
+        
+        self.test_max_len = args['test_max_len']
+        self.test_max_ctx_len = args['test_max_ctx_len']
+        self.gen_loss_fct = nn.CrossEntropyLoss(ignore_index=self.pad)
+
+    @torch.no_grad()
+    def calculate_ppl(self, ids, ids_mask):
+        self.model.eval()
+        ids, ids_mask, label = ids[:, :-1], ids_mask[:, :-1], ids[:, 1:]
+        output = self.model(input_ids=ids, attention_mask=ids_mask)
+        logits = output.logits
+        loss = self.gen_loss_fct(logits.view(-1, logits.size(-1)), label.view(-1))
+        ppl = math.exp(loss.item())
+        time.sleep(0.2)
+        return ppl
+
+    @torch.no_grad()
+    def beam_search(self, batch):
+        self.model.eval()
+        ids = batch['ids']
+        _, prefix_length = ids.size()
+        beam_output = self.model.generate(
+            ids,
+            prefix_length+self.test_max_len,
+            num_beams=self.args['num_beam'],
+            pad_token_id=self.vocab.pad_token_id,
+            eos_token_id=self.vocab.eos_token_id
+        )
+        beam_output = beam_output[:, prefix_length:]
+        string = ''.join(self.vocab.convert_ids_to_tokens(beam_output[0]))
+        return string
+
+    @torch.no_grad()
+    def greedy_search(self, batch):
+        self.model.eval()
+        ids = batch['ids']
+        generated = []
+        while True:
+            output = self.model(
+                input_ids=ids,
+            )[0]    # [1, S, V]
+            next_token_logits = output[-1, -1, :]    # [V]
+            next_token_logits[self.unk] = -np.inf
+            next_token_logits[198] = -np.inf     # \n token
+            next_token = next_token_logits.max(dim=-1)[1].unsqueeze(0)
+            if len(generated) > self.test_max_len:
+                break
+            generated.append(next_token.item())
+            # reconstruct the ids and ids_mask
+            ids = torch.cat((ids, next_token.unsqueeze(0)), dim=1)    # [1, S+1]
+            ids = ids[:, -self.test_max_ctx_len:]
+        string = self.vocab.decode(generated)
+        return string
+
+    @torch.no_grad()
+    def contrastive_search(self, batch):
+        input_ids = batch['ids']
+        _, prefix_length = input_ids.size()
+        for step in range(self.test_max_len):
+            input_ids = ContrastiveDecodingOneStep(
+                self.model,
+                input_ids,
+                self.args['beam_width'],
+                self.args['model_prediction_confidence'],
+                self.unk
+            )
+        # input_ids contains the prefix, cut it
+        input_ids = input_ids[:, prefix_length:]
+        string = ''.join(self.vocab.convert_ids_to_tokens(input_ids[0]))
+        return string
+
+    @torch.no_grad()
+    def topk_topp_search(self, batch):
+        '''batch_size is 1'''
+        self.model.eval()
+        ids = batch['ids']
+        generated = []
+        while True:
+            output = self.model(
+                input_ids=ids,
+            )[0]    # [1, S, V]
+            next_token_logits = output[-1, -1, :]    # [V]
+            next_token_logits[self.unk] = -np.inf
+            next_token_logits[198] = -np.inf
+            filtered_logits = top_k_top_p_filtering(
+                next_token_logits, 
+                top_k=self.topk, 
+                top_p=self.topp
+            )
+            next_token = torch.multinomial(
+                F.softmax(filtered_logits, dim=-1),
+                num_samples=1,
+            )
+            if len(generated) > self.test_max_len:
+                break
+            generated.append(next_token.item())
+            ids = torch.cat((ids, next_token.unsqueeze(0)), dim=1)    # [1, S+1]
+        string = self.vocab.decode(generated)
+        return string
+
+    def forward(self, batch):
+        ids, ids_mask = batch['ids'], batch['ids_mask']
+        ids, ods = ids[:, :-1], ids[:, 1:]
+        ids_mask = ids_mask[:, :-1]
+        output = self.model(input_ids=ids, attention_mask=ids_mask)
+        gen_logits = output.logits
+        loss = self.gen_loss_fct(
+            gen_logits.view(-1, gen_logits.size(-1)), 
+            ods.reshape(-1)
+        )
+        # token acc
+        chosen_tokens = torch.max(gen_logits, dim=-1)[1]    # [B, S-1]
+        gen_acc = (chosen_tokens.reshape(-1) == ods.reshape(-1)).to(torch.long)
+        valid_mask = (ods != self.pad).reshape(-1)
+        valid_tokens = gen_acc & valid_mask
+        gen_acc = valid_tokens.sum().item() / valid_mask.sum().item()
+        return loss, gen_acc
+
+
+

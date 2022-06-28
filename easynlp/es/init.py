@@ -12,6 +12,19 @@ def parser_args():
     parser.add_argument('--maximum_sentence_num', default=1000000, type=int)
     return parser.parse_args()
 
+
+def phrase_copy_q_q_dataset(args):
+    path = '/apdcephfs/share_916081/johntianlan/copygeneration_data/base_data.txt'
+    with open(path) as f:
+        dataset = []
+        for line in tqdm(f.readlines()):
+            items = line.strip().split('\t')
+            context = ' '.join(items[:-1])
+            index = items[-1]
+            dataset.append((context, index))
+    print(f'[!] collect {len(dataset)} sampels for BM25 retrieval')
+    return dataset
+
 def q_q_dataset(args):
     train_path = f'{args["root_dir"]}/data/{args["dataset"]}/train.txt'
     train_data = load_qa_pair(train_path, lang=args['lang'])
@@ -74,6 +87,8 @@ if __name__ == "__main__":
     random.seed(args['seed'])
     if args['recall_mode'] == 'q-q':
         data = q_q_dataset(args)
+    elif args['recall_mode'] == 'phrase-copy':
+        data = phrase_copy_q_q_dataset(args)
     elif args['recall_mode'] in ['q-r', 'doctttttquery']:
         data = q_r_dataset(args)
     elif args['recall_mode'] == 'single':
@@ -83,6 +98,6 @@ if __name__ == "__main__":
     builder = ESBuilder(
         f'{args["dataset"]}_{args["recall_mode"]}',
         create_index=True,
-        q_q=True if args['recall_mode'] in ['q-q'] else False,
+        q_q=True if args['recall_mode'] in ['q-q', 'phrase-copy'] else False,
     )
     builder.insert(data)

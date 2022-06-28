@@ -10,11 +10,8 @@ class GenerationAgent(GenerationBaseAgent):
         self.vocab, self.model = vocab, model
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.load_last_step = None
         
-        if args['mode'] == 'train':
-            self.set_test_interval()
-            self.load_checkpoint()
-
         # open the test save scores file handler
         pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
         if args['model'] in ['gpt2']:
@@ -36,6 +33,13 @@ class GenerationAgent(GenerationBaseAgent):
             self.set_optimizer_scheduler_ddp()
         self.show_parameters(self.args)
 
+        if args['mode'] == 'train':
+            self.set_test_interval()
+            if args['model'] in ['simctg']:
+                self.load_latest_checkpoint()
+            else:
+                self.load_checkpoint()
+
         if self.args['model'] in ['gpt2-cl']:
             self.train_model = self.train_model_cl
         elif self.args['model'] in ['gpt2-rerank']:
@@ -52,8 +56,9 @@ class GenerationAgent(GenerationBaseAgent):
             self.train_model = self.train_model_copygeneration
         elif self.args['model'] in ['gpt2-un', 'gpt2-un-seq']:
             self.train_model = self.train_model_un
-        elif self.args['model'] in ['gpt2-original', 'knn-lm'] and self.args['dataset'] in ['wikitext103']:
+        elif self.args['model'] in ['gpt2-original', 'gpt2-original-wt103', 'knn-lm'] and self.args['dataset'] in ['wikitext103', 'en_wiki']:
             self.test_model = self.test_model_wikitext
+            return
             if self.args['model'] == 'knn-lm':
                 # add the searcher
                 faiss_searcher_args = deepcopy(self.args)
@@ -151,6 +156,12 @@ class GenerationAgent(GenerationBaseAgent):
             pbar.set_description(f'[!] loss: {round(loss.item(), 4)}; token_acc: {round(mle_acc*100, 2)}')
         pbar.update(1)
         return
+
+    @torch.no_grad()
+    def test_model_ppl_contrastive_search(self, batch, recoder=None, current_step=0, pbar=None):
+        self.model.eval()
+        ppl = self.model.module.calculate_ppl(batch['ids'], batch['ods'], batch['ids_mask'])
+        return ppl
     
     def train_model_contrastive_search(self, batch, recoder=None, current_step=0, pbar=None):
         self.model.train()
@@ -443,7 +454,8 @@ class GenerationAgent(GenerationBaseAgent):
                 )
                 new_state_dict = self.checkpointadapeter.convert(state_dict)
                 self.model.module.model.load_state_dict(new_state_dict)
-            except:
+            except Exception as error:
+                print(error)
                 self.checkpointadapeter.init(
                     state_dict.keys(),
                     self.model.model.state_dict().keys(),
@@ -453,6 +465,26 @@ class GenerationAgent(GenerationBaseAgent):
             print(f'[!] load model from {path}')
             return
         if self.args['model'] in ['gpt2']:
+            state_dict = torch.load(path, map_location=torch.device('cpu'))
+            self.checkpointadapeter.init(
+                state_dict.keys(),
+                self.model.model.state_dict().keys(),
+            )
+            new_state_dict = self.checkpointadapeter.convert(state_dict)
+            self.model.model.load_state_dict(new_state_dict)
+        elif self.args['model'] in ['simctg']:
+            state_dict = torch.load(path, map_location=torch.device('cpu'))
+            step = state_dict['step']
+            model_state_dict = state_dict['model_state_dict']
+            optimizer_state_dict = state_dict['optimizer_state_dict']
+            scheduler_state_dict = state_dict['scheduler_state_dict']
+
+            self.load_last_step = step
+            self.scheduler.load_state_dict(scheduler_state_dict)
+            self.optimizer.load_state_dict(optimizer_state_dict)
+            self.model.module.model.load_state_dict(model_state_dict)
+            print(f'[!] load the latest model from {path}')
+        elif self.args['model'] in ['gpt2-original']:
             state_dict = torch.load(path, map_location=torch.device('cpu'))
             self.checkpointadapeter.init(
                 state_dict.keys(),
@@ -476,8 +508,15 @@ class GenerationAgent(GenerationBaseAgent):
 
             pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
             retrieval_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/gpt2-original/best_{pretrained_model_name}_{self.args["version"]}.pt'
+            # retrieval_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/gpt2-original-wt103/best_{pretrained_model_name}_{self.args["version"]}.pt'
             self.model.generator.load_state_dict(torch.load(retrieval_path, map_location=torch.device('cpu')))
             print(f'\n - {retrieval_path}')
+
+
+            # pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
+            # retrieval_path = f'{self.args["root_dir"]}/ckpt/en_wiki/gpt2-original/best_{pretrained_model_name}_{self.args["version"]}.pt'
+            # self.model.en_wiki_generator.load_state_dict(torch.load(retrieval_path, map_location=torch.device('cpu')))
+            # print(f'\n - {retrieval_path}')
 
             # load the copygeenration model
             try:
@@ -850,3 +889,38 @@ class GenerationAgent(GenerationBaseAgent):
             PPL.append(ppl)
             pbar.set_description(f'[!] ppl: {round(np.mean(PPL), 4)}')
         return np.mean(PPL)
+
+    def save_model_long(self, path, current_step):
+        model_state_dict = self.model.module.model.state_dict()
+        scheduler_state_dict = self.scheduler.state_dict()
+        optimizer_state_dict = self.optimizer.state_dict()
+        torch.save(
+            {
+                'model_state_dict' : model_state_dict,
+                'scheduler_state_dict': scheduler_state_dict,
+                'optimizer_state_dict': optimizer_state_dict,
+                'step': current_step
+            }, 
+            path
+        )
+        print(f'[!] save model into {path}')
+ 
+    def load_latest_checkpoint(self):
+        pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
+        path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}'
+        prefix_name = f'best_{pretrained_model_name}_{self.args["version"]}_'
+        checkpoints = []
+        for file in os.listdir(path):
+            if prefix_name in file:
+                version = file[len(prefix_name):].strip('.pt')
+                version = int(version)
+                checkpoints.append((file, version))
+        if len(checkpoints) == 0:
+            print(f'[!] do not find the latest model checkpoints')
+            return
+        checkpoints = sorted(checkpoints, key=lambda x:x[-1])
+        latest_checkpoint, version = checkpoints[-1]
+        latest_checkpoint = os.path.join(path, latest_checkpoint)
+        self.load_model(latest_checkpoint)
+        print(f'[!] train start from step: {version}')
+

@@ -53,6 +53,9 @@ class RepresentationAgent(RetrievalBaseAgent):
 
             self.set_test_interval()
             self.load_checkpoint()
+
+            # if self.args['load_last_checkpoint']:
+            #     self.load_last_checkpoint()
         else:
             # open the test save scores file handler
             pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
@@ -1181,7 +1184,11 @@ class RepresentationAgent(RetrievalBaseAgent):
                 print(f'[!] load pq model from {path}')
             elif self.args['model'] in ['phrase-copy']:
                 state_dict = torch.load(path, map_location=torch.device('cpu'))
-                self.model.module.load_state_dict(state_dict)
+                try:
+                    self.model.module.load_state_dict(state_dict)
+                except:
+                    self.model.load_state_dict(state_dict)
+
             else:
                 state_dict = torch.load(path, map_location=torch.device('cpu'))
                 # test and inference mode
@@ -1613,14 +1620,14 @@ class RepresentationAgent(RetrievalBaseAgent):
 
     def train_model_phrase_copy_step(self, batch, recoder=None, current_step=0, pbar=None):
         self.model.train()
-        # batch_size = batch['ids'].size(0)
-        # pbar.set_description(f'[!] batch size: {batch_size}')
-        # pbar.update(1)
-        # return batch_size
-
         with autocast():
-            oloss, phrase_acc, total_acc = self.model(batch)
-            loss = oloss / self.args['iter_to_accumulate']
+            batch['current_step'] = current_step
+            # oloss, phrase_acc, total_acc = self.model(batch)
+            # phrase_loss, token_loss, vae_loss, phrase_acc, token_acc, vae_acc = self.model(batch)
+            # loss = phrase_loss + token_loss + vae_loss
+
+            loss, token_acc, phrase_acc = self.model(batch)
+            loss = loss / self.args['iter_to_accumulate']
         self.scaler.scale(loss).backward()
         if (current_step + 1) % self.args['iter_to_accumulate'] == 0:
             self.scaler.unscale_(self.optimizer)
@@ -1631,10 +1638,18 @@ class RepresentationAgent(RetrievalBaseAgent):
             self.optimizer.zero_grad()
 
         if recoder:
-            recoder.add_scalar(f'train/Loss', oloss.item(), current_step)
+            recoder.add_scalar(f'train/Loss', loss.item(), current_step)
             recoder.add_scalar(f'train/PhraseAcc', phrase_acc, current_step)
-            recoder.add_scalar(f'train/TotalAcc', total_acc, current_step)
-        pbar.set_description(f'[!] loss: {round(oloss.item(), 2)}; acc(phrase|total): {round(phrase_acc, 4)}|{round(total_acc, 4)}')
+            recoder.add_scalar(f'train/TokenAcc', token_acc, current_step)
+            
+            # recoder.add_scalar(f'train/PhraseLoss', phrase_loss.item(), current_step)
+            # recoder.add_scalar(f'train/TokenLoss', token_loss.item(), current_step)
+            # recoder.add_scalar(f'train/VAELoss', vae_loss.item(), current_step)
+            # recoder.add_scalar(f'train/PhraseAcc', phrase_acc, current_step)
+            # recoder.add_scalar(f'train/TokenAcc', token_acc, current_step)
+            # recoder.add_scalar(f'train/VAEAcc', vae_acc, current_step)
+        # pbar.set_description(f'[!] loss: {round(loss.item(), 2)}; acc(phrase|token|vae): {round(phrase_acc, 4)}|{round(token_acc, 4)}|{round(vae_acc, 4)}')
+        pbar.set_description(f'[!] loss: {round(loss.item(), 2)}; acc(phrase|token): {round(phrase_acc, 4)}|{round(token_acc, 4)}')
         pbar.update(1)
 
     def train_model_phrase_copy_step_v2(self, batch, recoder=None, current_step=0, pbar=None):
@@ -1660,3 +1675,27 @@ class RepresentationAgent(RetrievalBaseAgent):
             recoder.add_scalar(f'train/InterAcc', inter_acc, current_step)
         pbar.set_description(f'[!] loss: {round(oloss.item(), 2)}|{round(inter_loss.item(), 2)}; acc(phrase|token|inter): {round(phrase_acc, 4)}|{round(token_acc, 4)}|{round(inter_acc, 4)}')
         pbar.update(1)
+
+    def load_last_checkpoint(self):
+        assert self.args['mode'] == 'train', 'loda last checkpoint need the mode is train, but get {self.args["mode"]}'
+
+        path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_{pretrained_model_name}_{self.args["version"]}_'
+
+        state_dict = torch.load(last_ckpt_path, map_location=torch.device('cpu'))
+        self.model.load_state_dict(state_dict)
+        print(f'[!] find and load the lastest checkpoint: {last_ckpt_path}')
+
+    @torch.no_grad()
+    def test_model_ppl(self, test_iter, print_output=True):
+        self.model.eval()
+        assert self.args['model'] in ['phrase-copy']
+        pbar = tqdm(test_iter)
+        PPL = []
+        for idx, batch in enumerate(pbar):
+            ppl = self.model.calculate_ppl(
+                batch['ids'] ,
+                batch['ids_mask']
+            )
+            PPL.append(ppl)
+            pbar.set_description(f'[!] ppl: {round(np.mean(PPL), 4)}')
+        return np.mean(PPL)

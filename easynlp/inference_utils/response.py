@@ -26,9 +26,9 @@ def response_strategy(args):
             texts.extend(text)
             already_added.append((i, idx))
             print(f'[!] collect embeddings: {current_num}')
-            if current_num > 1000000:
+            if current_num > 5000000:
                 break
-        if current_num > 1000000:
+        if current_num > 5000000:
             break
     embds = np.concatenate(embds) 
     searcher = Searcher(args['index_type'], dimension=args['dimension'])
@@ -39,13 +39,12 @@ def response_strategy(args):
 
     # add the external dataset
     # for i in tqdm(range(args['nums'])):
-    for i in tqdm(range(32)):
+    for i in tqdm(range(40)):
         for idx in range(100):
             if (i, idx) in already_added:
                 continue
             try:
                 embd, text = torch.load(
-                    # f'{args["root_dir"]}/data/{args["dataset"]}/inference_wz_simcse_{args["model"]}_{i}_{idx}.pt'
                     f'{args["root_dir"]}/data/{args["dataset"]}/inference_{args["model"]}_{i}_{idx}.pt'
                 )
                 print(f'[!] load {args["root_dir"]}/data/{args["dataset"]}/inference_{i}_{idx}.pt')

@@ -83,7 +83,8 @@ class PhrasesInferenceV2Dataset(Dataset):
         self.cls = self.vocab.cls_token_id
         self.sep = self.vocab.sep_token_id
 
-        self.data_root_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_data'
+        # self.data_root_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_data'
+        self.data_root_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_wikitext103'
 
         self.file_lists = [f'{self.data_root_path}/searched_results_{i}.txt' for i in range(dist.get_world_size())]
         self.size = 0
@@ -133,6 +134,7 @@ class PhrasesInferenceV2Dataset(Dataset):
         source_index = item['index']
         ids, pos, texts = [], [], []
         for text, docs in data:
+            text = text.replace('<unk>', '[UNK]')
             ids_ = self.vocab.encode(text, add_special_tokens=False)
             if 2 + len(ids) + len(ids_) > self.args['max_len']:
                 break

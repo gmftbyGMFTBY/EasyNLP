@@ -11,6 +11,9 @@ class BERTDualEncoder(nn.Module):
         self.can_encoder = BertEmbedding(model=model, add_tokens=1)
         self.args = args
 
+        total = sum([param.nelement() for param in self.parameters()])
+        print('[!] Model Size: %2fM' % (total/1e6))
+
     def _encode(self, cid, rid, cid_mask, rid_mask):
         cid_rep = self.ctx_encoder(cid, cid_mask)
         rid_rep = self.can_encoder(rid, rid_mask)

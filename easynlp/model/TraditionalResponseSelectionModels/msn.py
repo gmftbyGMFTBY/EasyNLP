@@ -102,6 +102,9 @@ class MSN(nn.Module):
         self.init_weights()
         #print(self)
 
+        total = sum([param.nelement() for param in self.parameters()])
+        print('[!] Model Size: %.2fM' % (total/1e6))
+
     def forward_step(self, bU, bR):
         bsz = bU.size()[0]
         bU_embedding = self.word_embedding(bU) # + self.position_embedding(bU_pos) # * u_mask

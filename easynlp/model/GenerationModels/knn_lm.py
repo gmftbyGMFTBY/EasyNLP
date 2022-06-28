@@ -34,20 +34,25 @@ class KNNLMModel(nn.Module):
     def __init__(self, **args):
         super(KNNLMModel, self).__init__()
         model = args['pretrained_model']
-        self.model = GPT2LMHeadModel.from_pretrained(model)
-        self.vocab = AutoTokenizer.from_pretrained(model)
+        self.vocab = AutoTokenizer.from_pretrained(args['tokenizer'])
         self.vocab_size = len(self.vocab)
         self.args = args
+        
+        # self.model = GPT2LMHeadModel.from_pretrained(model)
+        config = GPT2Config.from_pretrained(model)
+        config.vocab_size = self.vocab_size
+        self.model = GPT2LMHeadModel(config)
 
         if args['lang'] == 'en':
-            self.pad = self.vocab.eos_token_id
-            self.unk = self.vocab.eos_token_id
+            self.pad = self.vocab.pad_token_id
+            self.unk = self.vocab.unk_token_id
             self.special_tokens = set([self.pad])
         else:
             self.unk, self.pad, self.cls, self.sep = self.vocab.convert_tokens_to_ids(['[UNK]', '[PAD]', '[CLS]', '[SEP]'])
             self.special_tokens = set([self.pad, self.unk, self.cls, self.sep])
         self.test_max_len = args['test_max_len']
-        self.gen_loss_fct = nn.NLLLoss(ignore_index=self.vocab.eos_token_id, reduction='none')
+        # self.gen_loss_fct = nn.NLLLoss(ignore_index=self.vocab.eos_token_id, reduction='none')
+        self.gen_loss_fct = nn.NLLLoss(ignore_index=self.vocab.pad_token_id, reduction='none')
 
     def init_searcher(self, searcher):
         self.searcher = searcher
@@ -61,7 +66,7 @@ class KNNLMModel(nn.Module):
         hidden = output['hidden_states'][-1].view(-1, 768) # [S, E]
         seqlen, _ = hidden.size()
 
-        sub_chunk_size = 16 
+        sub_chunk_size = 32
         losses = []
         for i in range(0, seqlen, sub_chunk_size):
             sub_hidden = hidden[i:i+sub_chunk_size, :]
@@ -104,24 +109,29 @@ class KNNLMModel(nn.Module):
     @torch.no_grad()
     def generate_new_logits(self, logits, hidden, topk=10, temp=100):
         # ignored tokens
-        ignored_tokens = set(['198', '2954', '27', '29'])
+        # ignored_tokens = set(['198', '2954', '27', '1279', '29'])
         cands, dists = self.searcher._search_dis(
             hidden.unsqueeze(0).cpu().numpy(), 
             topk=topk
         )
-        valid_index = [False if i in ignored_tokens else True for i in cands[0]]
-        topk = sum(valid_index)
-        if topk == 0:
-            return F.softmax(logits, dim=-1)
-        else:
-            cands, dists = torch.LongTensor([int(i) for i in cands[0]]), torch.tensor(dists[0]).cuda()
-            cands = cands[valid_index]
-            dists = dists[valid_index]
-            knn_logits = torch.zeros(topk, len(self.vocab)).cuda()    # [K, V]
-            knn_logits[range(topk), cands] = F.softmax(-dists/self.args['temp'], dim=-1)
-            knn_logits = knn_logits.sum(dim=0)    # [V]
-            new_logits = self.args['lambda'] * knn_logits + (1 - self.args['lambda']) * F.softmax(logits, dim=-1)
-            return new_logits
+        # valid_index = [False if i in ignored_tokens else True for i in cands[0]]
+        cands = [int(i) for i in cands[0]]
+        counter_num = sum([j for _, j in Counter(cands).most_common(self.args['center_topk'])])
+        dists = torch.tensor(dists[0]).cuda()
+        # topk = sum(valid_index)
+        # if topk <= int(self.args['collapse_rate'] * self.args['search_topk']) or \
+        #     counter_num >= int(self.args['center_collapse_rate'] * self.args['search_topk']):
+        #     # the searched results collapse, donot rely on it
+        #     return F.softmax(logits, dim=-1)
+        # else:
+        cands = torch.LongTensor(cands).cuda()
+        # cands = cands[valid_index]
+        # dists = dists[valid_index]
+        knn_logits = torch.zeros(topk, len(self.vocab)).cuda()    # [K, V]
+        knn_logits[range(topk), cands] = F.softmax(-dists/self.args['temp'], dim=-1)
+        knn_logits = knn_logits.sum(dim=0)    # [V]
+        new_logits = self.args['lambda'] * knn_logits + (1 - self.args['lambda']) * F.softmax(logits, dim=-1)
+        return new_logits
 
     @torch.no_grad()
     def greedy_search(self, batch):
@@ -137,7 +147,7 @@ class KNNLMModel(nn.Module):
             hidden = output['hidden_states'][-1][-1, -1, :]    # [H]
             next_token_logits = output['logits'][-1, -1, :]    # [V]
             next_token_logits = self.generate_new_logits(next_token_logits, hidden, topk=self.args['search_topk'], temp=self.args['temp'])
-            ignored_tokens = [198, 2954, 27, 29, self.unk]
+            ignored_tokens = [198, 2954, 1279, 27, 29, self.unk]
             next_token_logits[ignored_tokens] = -np.inf
 
             next_token = next_token_logits.max(dim=-1)[1].unsqueeze(0)
@@ -169,10 +179,11 @@ class KNNLMModel(nn.Module):
                 top_p=self.topp
             )
             # ignore some tokens: \n, unk, <, >, eos_token
-            ignored_tokens = [198, 2954, 27, 29, self.unk]
-            filtered_logits[ignored_tokens] = -np.inf
+            # ignored_tokens = [198, 2954, 27, 1279, 29, self.unk]
+            # filtered_logits[ignored_tokens] = -np.inf
+            filtered_logits[self.unk] = -np.inf
             next_token = torch.multinomial(
-                F.softmax(filtered_logits*5, dim=-1),
+                F.softmax(filtered_logits*2, dim=-1),
                 num_samples=1,
             )
             if len(generated) > self.test_max_len:

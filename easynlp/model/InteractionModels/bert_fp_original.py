@@ -11,6 +11,9 @@ class BERTFPRetrieval(nn.Module):
         self.model = BertForSequenceClassification.from_pretrained(model, num_labels=1)
         self.model.resize_token_embeddings(self.model.config.vocab_size+1)
 
+        total = sum([param.nelement() for param in self.parameters()])
+        print('[!] Model Size: %2fM' % (total/1e6))
+
     @torch.no_grad()
     def forward(self, batch):
         '''only for inferencing and testing'''

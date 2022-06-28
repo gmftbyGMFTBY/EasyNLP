@@ -14,30 +14,76 @@ def parser_args():
     parser.add_argument('--port', type=int, default=22330)
     return parser.parse_args()
 
-def load_base_data():
-    if args['dataset'] in ['wikitext103', 'copygeneration_lawmt']:
+def load_base_data(dataset):
+    if dataset in ['wikitext103', 'copygeneration_lawmt']:
         nlp = spacy.load('en_core_web_sm')
         data_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_wikitext103/'
+        # data_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_wikitext103/backup_v2_data'
         num = 8
-        
         # data_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_lawmt/'
         # num = 8
-    elif args['dataset'] in ['copygeneration', 'copygeneration_zh_news']:
-        data_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_data'
+    elif dataset in ['en_wiki']:
+        # wikitext103 test set with en-wiki larger memory
+        nlp = spacy.load('en_core_web_sm')
+        data_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_en_wiki/backup_v4_data'
         num = 32
-        
+    elif dataset in ['copygeneration', 'copygeneration_zh_news']:
+        data_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_data/backup_v2_data/'
+        num = 32
         # domain adaption dataset
         # data_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_zh_news'
         # num = 8
     base_data = {}
     for i in tqdm(range(num)):
         file = os.path.join(data_path, f'searched_results_{i}_base.txt')
-        with open(file) as f:
-            for line in tqdm(f.readlines()):
-                line = json.loads(line)
-                base_data[line['index']] = line['results']
+        try:
+            with open(file) as f:
+                for line in tqdm(f.readlines()):
+                    line = json.loads(line)
+                    base_data[line['index']] = line['results']
+        except:
+            print(f'[!] load file failed: {file}')
+            continue
     print(f'[!] collect {len(base_data)} documents')
     return base_data
+
+def init_document_searcher_en_wiki(searcher_args, args):
+    # init the document searcher
+    base_data = load_base_data('en_wiki')
+    searcher = Searcher(
+        'IVF10000,PQ16',
+        dimension=768,
+        nprobe=100
+    )
+    pretrained_model_name = searcher_args['pretrained_model'].replace('/', '_')
+    model_name = searcher_args['model']
+    searcher.load(
+        f'{args["root_dir"]}/data/en_wiki/{model_name}_{pretrained_model_name}_faiss.ckpt',
+        f'{args["root_dir"]}/data/en_wiki/{model_name}_{pretrained_model_name}_corpus.ckpt'        
+    )
+    print(f'[!] init en-wiki searcher over')
+    return None, searcher, base_data
+
+def init_document_searcher(searcher_args, dataset, args):
+    # init the document searcher
+    base_data = load_base_data(dataset)
+    searcher = Searcher(
+        searcher_args['index_type'],
+        dimension=searcher_args['dimension'],
+        nprobe=searcher_args['index_nprobe']
+    )
+    pretrained_model_name = searcher_args['pretrained_model'].replace('/', '_')
+    model_name = searcher_args['model']
+    searcher.load(
+        f'{args["root_dir"]}/data/{dataset}/{model_name}_{pretrained_model_name}_faiss.ckpt',
+        f'{args["root_dir"]}/data/{dataset}/{model_name}_{pretrained_model_name}_corpus.ckpt'        
+    )
+    searcher_args['local_rank'] = 0
+    searcher_agent = load_model(searcher_args)
+    save_path = f'{args["root_dir"]}/ckpt/{searcher_args["dataset"]}/{searcher_args["model"]}/best_{pretrained_model_name}_{searcher_args["version"]}.pt'
+    searcher_agent.load_model(save_path)
+    print(f'[!] init the searcher and dual-bert model over')
+    return searcher_agent, searcher, base_data
 
 def create_app(**args):
     app = Flask(__name__)
@@ -57,13 +103,10 @@ def create_app(**args):
     config = load_config(searcher_args)
     searcher_args.update(config)
 
-    random.seed(args['seed'])
-    torch.manual_seed(args['seed'])
-    if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(args['seed'])
-
-    # test_data, test_iter, _ = load_dataset(args)
-    base_data = load_base_data()
+    # random.seed(args['seed'])
+    # torch.manual_seed(args['seed'])
+    # if torch.cuda.is_available():
+    #     torch.cuda.manual_seed_all(args['seed'])
 
     agent = load_model(args)
     pretrained_model_name = args['pretrained_model'].replace('/', '_')
@@ -71,27 +114,12 @@ def create_app(**args):
     agent.load_model(save_path)
     print(f'[!] init the copygeneration over')
 
-    # searcher
-    searcher = Searcher(
-        searcher_args['index_type'],
-        dimension=searcher_args['dimension'],
-        nprobe=searcher_args['index_nprobe']
-    )
-    pretrained_model_name = searcher_args['pretrained_model'].replace('/', '_')
-    model_name = searcher_args['model']
-    searcher.load(
-        f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_faiss.ckpt',
-        f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt'        
-    )
-    searcher_args['local_rank'] = 0
-    searcher_agent = load_model(searcher_args)
-    save_path = f'{args["root_dir"]}/ckpt/{searcher_args["dataset"]}/{searcher_args["model"]}/best_{pretrained_model_name}_{searcher_args["version"]}.pt'
-    searcher_agent.load_model(save_path)
-    print(f'[!] init the searcher and dual-bert model over')
-
+    searcher_agent, searcher, base_data = init_document_searcher(searcher_args, args['dataset'], args)
+    # _, en_wiki_searcher, en_wiki_base_data = init_document_searcher_en_wiki(searcher_args, args)
     agent.model.init_searcher(searcher_agent, searcher, base_data)
+    # agent.model.init_searcher_en_wiki(en_wiki_searcher, en_wiki_base_data)
 
-    # faiss searcher
+    # end2end faiss searcher
     # faiss_searcher = Searcher(
     #     faiss_searcher_args['index_type'] ,
     #     dimension=faiss_searcher_args['dimension'],
@@ -111,8 +139,10 @@ def create_app(**args):
         try:
             data = json.loads(request.data)
             batch = {}
+            batch['document'] = data['document']
             batch['prefix'] = data['prefix']
             batch['ground_truth'] = data['ground_truth']
+            batch['temp'] = data['temp']
 
             batch['decoding_method'] = 'contrastive-search' if 'decoding_method' not in data else data['decoding_method']
             batch['generation_method'] = 'contrastive-search' if 'generation_method' not in data else data['generation_method']
@@ -124,6 +154,11 @@ def create_app(**args):
             batch['update_step'] = 64 if 'update_step' not in data else data['update_step']
             batch['max_gen_len'] = data['max_gen_len'] if 'max_gen_len' in data else 32
             batch['softmax_temp'] = data['softmax_temp'] if 'softmax_temp' in data else 0.001
+            batch['use_phrase_cache'] = data['use_phrase_cache']
+            batch['head_weight'] = data['head_weight']
+            batch['tail_weight'] = data['tail_weight']
+            batch['coarse_score_alpha'] = data['coarse_score_alpha']
+            batch['coarse_score_softmax_temp'] = data['coarse_score_softmax_temp']
             
             if 'recall_topk' in data:
                 agent.model.args['recall_topk'] = data['recall_topk']

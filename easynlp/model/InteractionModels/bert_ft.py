@@ -10,6 +10,10 @@ class BERTRetrieval(nn.Module):
         self.model.resize_token_embeddings(self.model.config.vocab_size+1)
         self.vocab = AutoTokenizer.from_pretrained(model)
 
+
+        total = sum([param.nelement() for param in self.parameters()])
+        print('[!] Model Size: %2fM' % (total/1e6))
+
     def forward(self, batch):
         inpt = batch['ids']
         token_type_ids = batch['tids']

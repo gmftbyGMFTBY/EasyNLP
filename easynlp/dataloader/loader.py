@@ -72,6 +72,7 @@ def load_dataset(args):
             vocab = BertTokenizer.from_pretraiend(args['tokenizer'])
         else:
             vocab = AutoTokenizer.from_pretrained(args['tokenizer'])
+            # vocab = AutoTokenizer.from_pretrained(args['tokenizer'], use_fast=True)
     except:
         vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
 
