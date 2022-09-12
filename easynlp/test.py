@@ -716,8 +716,28 @@ def main_self_play_test(**args):
     print(f'  - agent turn  : {round(tc1*1000, 4)}')
     print(f'  - partner agent turn  : {round(tc2*1000, 4)}')
 
+def main_automatic_evaluation(**args):
+    args['mode'] = 'test'
+    new_args = deepcopy(args)
+    config = load_config(args)
+    args.update(config)
+
+    random.seed(args['seed'])
+    torch.manual_seed(args['seed'])
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args['seed'])
+
+    test_data, test_iter, _ = load_dataset(args)
+    agent = load_model(args)
+    
+    pretrained_model_name = args['pretrained_model'].replace('/', '_')
+    save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}_{args["version"]}.pt'
+    agent.load_model(save_path)
+    outputs = agent.evaluate(test_iter)
+
 
 if __name__ == "__main__":
+
     args = vars(parser_args())
     if args['mode'] == 'recall':
         print(f'[!] Make sure that the inference script of model({args["model"]}) on dataset({args["dataset"]}) has been done.')
@@ -726,6 +746,8 @@ if __name__ == "__main__":
         main_es_recall(**args)
     elif args['mode'] == 'rerank':
         main_rerank(**args)
+    elif args['mode'] == 'automatic_evaluation':
+        main_automatic_evaluation(**args)
     elif args['mode'] == 'self_play':
         # main_self_play(**args)
         main_self_play_test(**args)

@@ -10,7 +10,8 @@ class TestGPT2PPLDataset(Dataset):
         self.vocab = vocab
         # for english model
         if self.args['lang'] == 'en':
-            self.pad = self.vocab.eos_token_id
+            # self.pad = self.vocab.eos_token_id
+            self.pad = self.vocab.pad_token_id
         else:
             self.pad = self.vocab.pad_token_id
         self.data = []

@@ -4699,10 +4699,10 @@ class FastDensePhraseV17Encoder(nn.Module):
         self.bert_tokenizer = AutoTokenizer.from_pretrained(self.args['phrase_tokenizer'][self.args['lang']])
         
         # only fine-tune the last transformer layer parameters
-        for name, param in self.phrase_encoder.named_parameters():
-            if 'encoder.layer.11' not in name:
-                param.requires_grad = False
-        print(f'[!] only the last BERT layer is fine-tuned')
+        # for name, param in self.phrase_encoder.named_parameters():
+        #     if 'encoder.layer.11' not in name:
+        #         param.requires_grad = False
+        # print(f'[!] only the last BERT layer is fine-tuned')
         
         # model and tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -5665,10 +5665,7 @@ class FastDensePhraseV20Encoder(nn.Module):
         s_rep_ = self.s_proj(s_rep)
         s_rep_minus = self.s_proj_minus(s_rep)
         e_rep = self.e_proj(e_rep)
-        phrase_rep_base = torch.cat([
-            F.normalize(s_rep_, dim=-1), 
-            F.normalize(s_rep_minus - e_rep, dim=-1)
-        ], dim=-1)
+        phrase_rep_base = torch.cat([s_rep_, s_rep_minus - e_rep], dim=-1)
 
         # query representations
         pos_index = batch['pos_ids']    # [B_p]
@@ -5932,23 +5929,14 @@ class FastDensePhraseV21Encoder(nn.Module):
         return phrases, texts
 
     @torch.no_grad()
-    def get_query_rep_fast(self, ids, past_key_values=None):
+    def get_query_rep(self, input_embeds):
         self.eval()
-        output = self.model(
-            input_ids=ids, 
-            past_key_values=past_key_values, 
-            use_cache=True, 
+        outputs = self.model(
+            inputs_embeds=input_embeds, 
             output_hidden_states=True
-        )
-        past_key_values = output['past_key_values']
-        rep = F.normalize(output['hidden_states'][-1][:, -1, :], dim=-1)
-        return past_key_values, rep
-
-    @torch.no_grad()
-    def get_query_rep(self, ids):
-        self.eval()
-        output = self.model(input_ids=ids, output_hidden_states=True)['hidden_states'][-1][:, -1, :]
-        return F.normalize(output, dim=-1)
+        )['hidden_states'][-1]
+        query = outputs[:, -1, :]    # [1, E]
+        return query
 
     def forward(self, batch):
         ## bert phrase encoder 
@@ -6119,3 +6107,1326 @@ class FastDensePhraseV21Encoder(nn.Module):
         confidence = torch.stack([c[:l].min() for c, l in zip(confidence, vl)])    # [B]
         return F.softmax(confidence, dim=-1)
 
+
+class FastDensePhraseV22Encoder(nn.Module):
+
+    '''fine-tune last layer + token loss + token mask + dot production
+    训练token的时候，用上phrase(mask ground-truth phrase)
+    训练phrase的时候，用上token(mask ground-truth token)
+    '''
+
+    def __init__(self, **args):
+        super(FastDensePhraseV22Encoder, self).__init__()
+        self.args = args
+        model_name = args['pretrained_model']
+
+        # bert-encoder model
+        self.phrase_encoder = BertModel.from_pretrained(self.args['phrase_encoder_model'][self.args['lang']])
+        self.bert_tokenizer = AutoTokenizer.from_pretrained(self.args['phrase_tokenizer'][self.args['lang']])
+        
+        # only fine-tune the last transformer layer parameters
+        for name, param in self.phrase_encoder.named_parameters():
+            if 'encoder.layer.11' not in name:
+                param.requires_grad = False
+        print(f'[!] only the last BERT layer is fine-tuned')
+        
+        # model and tokenizer
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.vocab_size = len(self.tokenizer)
+        if self.args['lang'] == 'zh':
+            self.pad = self.tokenizer.pad_token_id
+            self.unk = self.tokenizer.unk_token_id
+            self.sep = self.tokenizer.sep_token_id
+        else:
+            self.pad = self.tokenizer.bos_token_id
+            self.unk = self.tokenizer.bos_token_id
+            self.sep = self.tokenizer.bos_token_id
+
+        self.model = GPT2LMHeadModel.from_pretrained(model_name)
+        self.token_embeddings = nn.Parameter(list(self.model.lm_head.parameters())[0])
+        self.s_proj = nn.Sequential(
+            nn.Dropout(p=args['dropout']),
+            nn.Tanh(),
+            nn.Linear(self.model.config.hidden_size, self.model.config.hidden_size//2)
+        )
+        self.e_proj = nn.Sequential(
+            nn.Dropout(p=args['dropout']),
+            nn.Tanh(),
+            nn.Linear(self.model.config.hidden_size, self.model.config.hidden_size//2)
+        )
+        self.gen_loss_fct = nn.CrossEntropyLoss(ignore_index=self.pad)
+
+    @torch.no_grad()
+    def get_phrase_rep(self, ids, ids_mask, pos, text):
+        self.eval()
+        rep = self.phrase_encoder(ids, ids_mask, output_hidden_states=True)['hidden_states'][-1]    # [B, S, E]
+        b_phrases, e_phrases, texts = [], [], []
+        for rep_, pos_, text_ in zip(rep, pos, text):
+            b_index = [i for i, j in pos_]
+            e_index = [j for i, j in pos_]
+            b_phrases.append(rep_[b_index, :])
+            e_phrases.append(rep_[e_index, :])
+            texts.extend(text_)
+        b_phrases = self.s_proj(torch.cat(b_phrases))
+        e_phrases = self.e_proj(torch.cat(e_phrases))
+        phrases = torch.cat([b_phrases, e_phrases], dim=-1)
+        return phrases, texts
+
+    @torch.no_grad()
+    def get_query_rep_beam(self, ids):
+        '''batch inference with the left padding'''
+        self.eval()
+        max_length = max([len(i) for i in ids])
+        ids = [torch.cat((torch.LongTensor([self.pad] * (max_length - len(i))), i)) for i in ids]
+        ids = torch.stack(ids)
+        ids_mask = generate_mask(ids, pad_token_idx=self.pad)
+        ids_pos = (ids_mask.long().cumsum(-1) - 1).masked_fill(ids_mask == 0, 0)
+        ids, ids_mask, ids_pos = to_cuda(ids, ids_mask, ids_pos)
+        output = self.model(input_ids=ids, attention_mask=ids_mask, position_ids=ids_pos, output_hidden_states=True)['hidden_states'][-1][:, -1, :]
+        return output
+
+    @torch.no_grad()
+    def get_query_rep_fast(self, ids, past_key_values=None):
+        self.eval()
+        output = self.model(
+            input_ids=ids, 
+            past_key_values=past_key_values, 
+            use_cache=True, 
+            output_hidden_states=True
+        )
+        past_key_values = output['past_key_values']
+        rep = output['hidden_states'][-1][:, -1, :]
+        return past_key_values, rep
+
+    @torch.no_grad()
+    def get_query_rep(self, ids):
+        self.eval()
+        output = self.model(input_ids=ids, output_hidden_states=True)['hidden_states'][-1][:, -1, :]
+        return output
+
+    def forward(self, batch):
+        ## gpt2 query encoder
+        ids, ids_mask = batch['ids'], batch['ids_mask']
+        bsz, seqlen = ids.size()
+        outputs = self.model(input_ids=ids, attention_mask=ids_mask, output_hidden_states=True)
+        last_hidden_states = outputs.hidden_states[-1]
+        
+        pure_token_loss, _ = self.get_token_loss(ids, last_hidden_states, ids_mask)
+
+        ## bert
+        dids, dids_mask = batch['dids'], batch['dids_mask']
+        dindex_s, dindex_e = batch['dindex_s'], batch['dindex_e']
+        output = self.phrase_encoder(dids, dids_mask, output_hidden_states=True)['hidden_states'][-1]   # [B, S, E]
+        doc_bsz, seqlen, _ = output.size()
+        s_rep = output[range(doc_bsz), dindex_s, :]    # [B, E]
+        e_rep = output[range(doc_bsz), dindex_e, :]
+        phrase_rep_base = torch.cat([self.s_proj(s_rep), self.e_proj(e_rep)], dim=-1)    # [B_p, 2*E]
+
+        # query representations
+        pos_index = batch['pos_ids']    # [B_p]
+        pos_end_index = batch['pos_ids_end']
+        vl = batch['vl']
+
+        query_reps, token_labels, phrase_labels, counter = [], [], [], 0
+        for ids_, hn, pos_list, pos_list_end, l in zip(ids, last_hidden_states, pos_index, pos_end_index, vl):
+            query_reps.append(hn[:l-1])
+            token_labels.append(ids_[1:l])
+            pos_list_set = set(pos_list)
+            for i in range(l - 1):
+                if i in pos_list_set:
+                    phrase_labels.append(self.vocab_size + counter)
+                    counter += 1
+                else:
+                    phrase_labels.append(-1)
+        query_reps = torch.cat(query_reps)
+        token_labels = torch.cat(token_labels)
+        phrase_labels = torch.LongTensor(phrase_labels).cuda()
+        candidate_reps = torch.cat([self.token_embeddings, phrase_rep_base], dim=0)
+        logits = torch.matmul(query_reps, candidate_reps.t())    # [Total, V+B]
+        
+        phrase_pos_index = phrase_labels != -1
+        token_pos_index = phrase_labels == -1
+
+        # learning token, mask phrase
+        token_logits = logits.clone()
+        mask = torch.zeros_like(token_logits)
+        mask[range(len(token_logits)), token_labels] = 1.
+        token_logits[phrase_pos_index, phrase_labels[phrase_pos_index]] = -1e3
+        loss_ = F.log_softmax(token_logits, dim=-1) * mask
+        token_loss = (-loss_.sum(dim=1)).mean()
+
+        acc = token_logits[token_pos_index].max(dim=-1)[1] == token_labels[token_pos_index]
+        token_acc = acc.to(torch.float).mean().item()
+
+        # learning phrase, mask token
+        phrase_logits = logits.clone()
+        mask = torch.zeros_like(phrase_logits)
+        mask[phrase_pos_index, phrase_labels[phrase_pos_index]] = 1.
+        phrase_logits[phrase_pos_index, token_labels[phrase_pos_index]] = -1e3
+        valid_num = phrase_pos_index.sum().item()
+        loss_ = F.log_softmax(phrase_logits, dim=-1) * mask
+        phrase_loss = (-loss_.sum(dim=1)).sum() / valid_num
+
+        acc = phrase_logits[phrase_pos_index].max(dim=-1)[1] == phrase_labels[phrase_pos_index]
+        phrase_acc = acc.to(torch.float).mean().item()
+        return phrase_loss, token_loss, pure_token_loss, phrase_acc, token_acc, 0
+
+    @torch.no_grad()
+    def nucleus_search(self, batch):
+        self.eval()
+        ids = batch['ids']
+        generated = []
+        for _ in range(batch['test_max_len']) :
+            output = self.model(
+                input_ids=ids,
+                use_cache=True,
+                output_hidden_states=True
+            )
+            hidden_state = output.hidden_states[-1][:, -1, :]
+            logits = torch.matmul(hidden_state, self.token_embeddings.t())[0]    # [ V]
+            logits[self.unk] = -np.inf
+            filtered_logits = top_k_top_p_filtering(
+                logits, 
+                top_k=batch['topk'], 
+                top_p=batch['topp']
+            )
+            next_token = torch.multinomial(
+                F.softmax(filtered_logits, dim=-1),
+                num_samples=1,
+            )
+            generated.append(next_token.item())
+            ids = torch.cat([ids, next_token.reshape(1, 1)], dim=-1)
+        if self.args['lang'] == 'zh':
+            return ''.join(self.tokenizer.convert_ids_to_tokens(generated))
+        else:
+            return self.tokenizer.decode(generated)
+
+    @torch.no_grad()
+    def greedy_search(self, batch):
+        self.eval()
+        ids = batch['ids']
+        generated = []
+        for _ in range(batch['test_max_len']) :
+            output = self.model(
+                input_ids=ids,
+                output_hidden_states=True
+            )
+            hidden_state = output.hidden_states[-1][:, -1, :]
+            logits = torch.matmul(hidden_state, self.token_embeddings.t())[0]    # [ V]
+            logits[self.unk] = -np.inf
+            next_token = logits.max(dim=-1)[1]
+            generated.append(next_token.item())
+            ids = torch.cat([ids, next_token.reshape(1, 1)], dim=-1)
+        if self.args['lang'] == 'zh':
+            return ''.join(self.tokenizer.convert_ids_to_tokens(generated))
+        else:
+            return self.tokenizer.decode(generated)
+
+    @torch.no_grad()
+    def contrastive_search(self, batch):
+        self.eval()
+        input_ids = batch['ids']
+        _, prefix_length = input_ids.size()
+        generated = []
+        for step in range(batch['test_max_len']):
+            output = self.model(input_ids=input_ids, output_hidden_states=True)
+            hidden_state = output.hidden_states[-1][:, -1, :]
+            logit = torch.matmul(hidden_state, self.token_embeddings.t())[0]     # [V]
+            logit[self.unk] = -np.inf
+            topk_, topk = logit.topk(batch['beam_width'], dim=-1)
+            input_ids, next_index = ContrastiveDecodingOneStepGiveProb(
+                self.model,
+                input_ids,
+                topk,
+                F.softmax(topk_, dim=-1),
+                batch['beam_width'],
+                batch['model_prediction_confidence'],
+                self.unk
+            )
+        input_ids = input_ids[0, prefix_length:]
+        generated = ''.join(self.tokenizer.convert_ids_to_tokens(input_ids))
+        return generated
+
+    @torch.no_grad()
+    def fast_rerank(self, ids, candidates, temp=1.0):
+        self.model.eval()
+        # 1. tokenize candidates
+        tokens = self.tokenizer.batch_encode_plus(candidates, add_special_tokens=False)['input_ids']
+        # 2. prepare the ids and mask
+        cids = [torch.LongTensor(t) for t in tokens]
+        cids = pad_sequence(cids, batch_first=True, padding_value=self.pad)
+        mask = generate_mask(cids, pad_token_idx=self.pad)
+        cids, mask = to_cuda(cids, mask)
+        ids = ids.expand(len(cids), -1)
+        seqlen = ids.size(-1)
+        mask = torch.cat([torch.ones_like(ids), mask], dim=-1)
+        ids = torch.cat([ids, cids], dim=-1)
+        # 3. gpt2 encoding
+        hidden_state = self.model(input_ids=ids, attention_mask=mask, output_hidden_states=True)['hidden_states'][-1]    # [B, S, E]
+        # 4. calculating the confidence 
+        shift_label = ids[:, seqlen:]
+        shift_hidden = hidden_state[:, seqlen-1:-1, :]
+        shift_logits = torch.matmul(shift_hidden, self.token_embeddings.t())    # [B, S, V]
+        confidence = torch.gather(shift_logits, 2, shift_label.unsqueeze(-1)).squeeze(-1)    # [B, S]
+        vl = mask.sum(dim=-1) - seqlen
+        confidence = torch.stack([c[:l].mean() for c, l in zip(confidence, vl)])    # [B]
+        # confidence = torch.stack([c[:l].min() for c, l in zip(confidence, vl)])    # [B]
+        return F.softmax(confidence/temp, dim=-1)
+
+    @torch.no_grad()
+    def fast_rerank_v2(self, query, candidates, temp=1.0):
+        '''query: [1, E]'''
+        self.model.eval()
+        tokens = self.tokenizer.batch_encode_plus(candidates, add_special_tokens=False)['input_ids']
+        ids = [t[0] for t in tokens]    # [B]
+        embds = self.token_embeddings[ids, :]     # [B, 768]
+        scores = torch.matmul(query, embds.t()).squeeze(0)    # [B]
+        scores = F.softmax(scores/temp, dim=-1)
+        return scores
+
+    def get_token_loss(self, ids, hs, ids_mask):
+        # no pad token
+        ipdb.set_trace()
+        label = ids[:, 1:]
+        logits = torch.matmul(
+            hs[:, :-1, :],
+            self.token_embeddings.t()
+        )     # []
+        logits = logits.reshape(-1, logits.size(-1))
+        label = label.reshape(-1)
+        ids_mask = ids_mask[:, :-1].reshape(-1)
+        ids_mask_label = ids_mask == 1
+        mask = torch.zeros_like(logits)
+        mask[range(len(logits)), label] = 1.
+
+        logits = logits[ids_mask_label, :]
+        mask = mask[ids_mask_label, :]
+        label = label[ids_mask_label]
+
+        loss_ = F.log_softmax(logits, dim=-1) * mask
+        token_loss = (-loss_.sum(dim=1)).mean()
+        # acc
+        acc = (logits.max(dim=-1)[1] == label)
+        token_acc = acc.to(torch.float).mean().item()
+        return token_loss, token_acc
+
+class FastDensePhraseV23Encoder(nn.Module):
+
+    '''fine-tune last layer + token loss + token mask + dot production
+    训练token的时候，用上phrase(mask ground-truth phrase)
+    训练phrase的时候，用上token(mask ground-truth token)
+    with the document
+    '''
+
+    def __init__(self, **args):
+        super(FastDensePhraseV23Encoder, self).__init__()
+        self.args = args
+        model_name = args['pretrained_model']
+
+        # bert-encoder model
+        self.phrase_encoder = BertModel.from_pretrained(self.args['phrase_encoder_model'][self.args['lang']])
+        self.bert_tokenizer = AutoTokenizer.from_pretrained(self.args['phrase_tokenizer'][self.args['lang']])
+        
+        # only fine-tune the last transformer layer parameters
+        for name, param in self.phrase_encoder.named_parameters():
+            if 'encoder.layer.11' not in name:
+                param.requires_grad = False
+        print(f'[!] only the last BERT layer is fine-tuned')
+        
+        # model and tokenizer
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.vocab_size = len(self.tokenizer)
+        if self.args['lang'] == 'zh':
+            self.pad = self.tokenizer.pad_token_id
+            self.unk = self.tokenizer.unk_token_id
+            self.sep = self.tokenizer.sep_token_id
+        else:
+            self.pad = self.tokenizer.bos_token_id
+            self.unk = self.tokenizer.bos_token_id
+            self.sep = self.tokenizer.bos_token_id
+
+        self.model = GPT2LMHeadModel.from_pretrained(model_name)
+        self.token_embeddings = nn.Parameter(list(self.model.lm_head.parameters())[0])
+        self.s_proj = nn.Sequential(
+            nn.Dropout(p=args['dropout']),
+            nn.Tanh(),
+            nn.Linear(self.model.config.hidden_size, 320)
+        )
+        self.e_proj = nn.Sequential(
+            nn.Dropout(p=args['dropout']),
+            nn.Tanh(),
+            nn.Linear(self.model.config.hidden_size, 320)
+        )
+        self.d_proj = nn.Sequential(
+            nn.Dropout(p=args['dropout']),
+            nn.Tanh(),
+            nn.Linear(self.model.config.hidden_size, 128)
+        )
+        self.gen_loss_fct = nn.CrossEntropyLoss(ignore_index=self.pad)
+
+    @torch.no_grad()
+    def get_phrase_rep(self, ids, ids_mask, pos, text):
+        self.eval()
+        rep = self.phrase_encoder(ids, ids_mask, output_hidden_states=True)['hidden_states'][-1]    # [B, S, E]
+        b_phrases, e_phrases, texts = [], [], []
+        for rep_, pos_, text_ in zip(rep, pos, text):
+            b_index = [i for i, j in pos_]
+            e_index = [j for i, j in pos_]
+            b_phrases.append(rep_[b_index, :])
+            e_phrases.append(rep_[e_index, :])
+            texts.extend(text_)
+        b_phrases = self.s_proj(torch.cat(b_phrases))
+        e_phrases = self.e_proj(torch.cat(e_phrases))
+        phrases = torch.cat([b_phrases, e_phrases], dim=-1)
+        return phrases, texts
+    
+    @torch.no_grad()
+    def get_query_rep_fast(self, ids, past_key_values=None):
+        self.eval()
+        output = self.model(
+            input_ids=ids, 
+            past_key_values=past_key_values, 
+            use_cache=True, 
+            output_hidden_states=True
+        )
+        past_key_values = output['past_key_values']
+        rep = output['hidden_states'][-1][:, -1, :]
+        return past_key_values, rep
+    
+    @torch.no_grad()
+    def get_query_rep(self, ids):
+        self.eval()
+        output = self.model(input_ids=ids, output_hidden_states=True)['hidden_states'][-1][:, -1, :]
+        return output
+
+    def forward(self, batch):
+        ## gpt2 query encoder
+        ids, ids_mask = batch['ids'], batch['ids_mask']
+        bsz, seqlen = ids.size()
+        outputs = self.model(input_ids=ids, attention_mask=ids_mask, output_hidden_states=True)
+        last_hidden_states = outputs.hidden_states[-1]
+        pure_token_loss, _ = self.get_token_loss(ids, last_hidden_states)
+
+        ## bert
+        dids, dids_mask = batch['dids'], batch['dids_mask']
+        dindex_s, dindex_e = batch['dindex_s'], batch['dindex_e']
+        output = self.phrase_encoder(dids, dids_mask, output_hidden_states=True)['hidden_states'][-1]   # [B, S, E]
+        doc_bsz, seqlen, _ = output.size()
+        s_rep = output[range(doc_bsz), dindex_s, :]    # [B, E]
+        e_rep = output[range(doc_bsz), dindex_e, :]
+        d_rep = output[range(doc_bsz), 0, :]
+        phrase_rep_base = torch.cat([self.d_proj(d_rep), self.s_proj(s_rep), self.e_proj(e_rep)], dim=-1)    # [B_p, 2*E]
+
+        # query representations
+        pos_index = batch['pos_ids']    # [B_p]
+        pos_end_index = batch['pos_ids_end']
+        vl = batch['vl']
+
+        query_reps, token_labels, phrase_labels, counter = [], [], [], 0
+        for ids_, hn, pos_list, pos_list_end, l in zip(ids, last_hidden_states, pos_index, pos_end_index, vl):
+            query_reps.append(hn[:l-1])
+            token_labels.append(ids_[1:l])
+            pos_list_set = set(pos_list)
+            for i in range(l - 1):
+                if i in pos_list_set:
+                    phrase_labels.append(self.vocab_size + counter)
+                    counter += 1
+                else:
+                    phrase_labels.append(-1)
+        query_reps = torch.cat(query_reps)
+        token_labels = torch.cat(token_labels)
+        phrase_labels = torch.LongTensor(phrase_labels).cuda()
+        candidate_reps = torch.cat([self.token_embeddings, phrase_rep_base], dim=0)
+        logits = torch.matmul(query_reps, candidate_reps.t())    # [Total, V+B]
+        
+        phrase_pos_index = phrase_labels != -1
+        token_pos_index = phrase_labels == -1
+
+        # learning token, mask phrase
+        token_logits = logits.clone()
+        mask = torch.zeros_like(token_logits)
+        mask[range(len(token_logits)), token_labels] = 1.
+        token_logits[phrase_pos_index, phrase_labels[phrase_pos_index]] = -1e3
+        loss_ = F.log_softmax(token_logits, dim=-1) * mask
+        token_loss = (-loss_.sum(dim=1)).mean()
+
+        acc = token_logits[token_pos_index].max(dim=-1)[1] == token_labels[token_pos_index]
+        token_acc = acc.to(torch.float).mean().item()
+
+        # learning phrase, mask token
+        phrase_logits = logits.clone()
+        mask = torch.zeros_like(phrase_logits)
+        mask[phrase_pos_index, phrase_labels[phrase_pos_index]] = 1.
+        phrase_logits[phrase_pos_index, token_labels[phrase_pos_index]] = -1e3
+        valid_num = phrase_pos_index.sum().item()
+        loss_ = F.log_softmax(phrase_logits, dim=-1) * mask
+        phrase_loss = (-loss_.sum(dim=1)).sum() / valid_num
+
+        acc = phrase_logits[phrase_pos_index].max(dim=-1)[1] == phrase_labels[phrase_pos_index]
+        phrase_acc = acc.to(torch.float).mean().item()
+        return phrase_loss, token_loss, pure_token_loss, phrase_acc, token_acc, 0
+
+    @torch.no_grad()
+    def nucleus_search(self, batch):
+        self.eval()
+        ids = batch['ids']
+        generated = []
+        for _ in range(batch['test_max_len']) :
+            output = self.model(
+                input_ids=ids,
+                use_cache=True,
+                output_hidden_states=True
+            )
+            hidden_state = output.hidden_states[-1][:, -1, :]
+            logits = torch.matmul(hidden_state, self.token_embeddings.t())[0]    # [ V]
+            logits[self.unk] = -np.inf
+            filtered_logits = top_k_top_p_filtering(
+                logits, 
+                top_k=batch['topk'], 
+                top_p=batch['topp']
+            )
+            next_token = torch.multinomial(
+                F.softmax(filtered_logits, dim=-1),
+                num_samples=1,
+            )
+            generated.append(next_token.item())
+            ids = torch.cat([ids, next_token.reshape(1, 1)], dim=-1)
+        if self.args['lang'] == 'zh':
+            return ''.join(self.tokenizer.convert_ids_to_tokens(generated))
+        else:
+            return self.tokenizer.decode(generated)
+
+    @torch.no_grad()
+    def greedy_search(self, batch):
+        self.eval()
+        ids = batch['ids']
+        generated = []
+        for _ in range(batch['test_max_len']) :
+            output = self.model(
+                input_ids=ids,
+                output_hidden_states=True
+            )
+            hidden_state = output.hidden_states[-1][:, -1, :]
+            logits = torch.matmul(hidden_state, self.token_embeddings.t())[0]    # [ V]
+            logits[self.unk] = -np.inf
+            next_token = logits.max(dim=-1)[1]
+            generated.append(next_token.item())
+            ids = torch.cat([ids, next_token.reshape(1, 1)], dim=-1)
+        if self.args['lang'] == 'zh':
+            return ''.join(self.tokenizer.convert_ids_to_tokens(generated))
+        else:
+            return self.tokenizer.decode(generated)
+
+    @torch.no_grad()
+    def contrastive_search(self, batch):
+        self.eval()
+        input_ids = batch['ids']
+        _, prefix_length = input_ids.size()
+        generated = []
+        for step in range(batch['test_max_len']):
+            output = self.model(input_ids=input_ids, output_hidden_states=True)
+            hidden_state = output.hidden_states[-1][:, -1, :]
+            logit = torch.matmul(hidden_state, self.token_embeddings.t())[0]     # [V]
+            logit[self.unk] = -np.inf
+            topk_, topk = logit.topk(batch['beam_width'], dim=-1)
+            input_ids, next_index = ContrastiveDecodingOneStepGiveProb(
+                self.model,
+                input_ids,
+                topk,
+                F.softmax(topk_, dim=-1),
+                batch['beam_width'],
+                batch['model_prediction_confidence'],
+                self.unk
+            )
+        input_ids = input_ids[0, prefix_length:]
+        generated = ''.join(self.tokenizer.convert_ids_to_tokens(input_ids))
+        return generated
+
+    @torch.no_grad()
+    def fast_rerank(self, ids, candidates, temp=1.0):
+        self.model.eval()
+        # 1. tokenize candidates
+        tokens = self.tokenizer.batch_encode_plus(candidates, add_special_tokens=False)['input_ids']
+        # 2. prepare the ids and mask
+        cids = [torch.LongTensor(t) for t in tokens]
+        cids = pad_sequence(cids, batch_first=True, padding_value=self.pad)
+        mask = generate_mask(cids, pad_token_idx=self.pad)
+        cids, mask = to_cuda(cids, mask)
+        ids = ids.expand(len(cids), -1)
+        seqlen = ids.size(-1)
+        mask = torch.cat([torch.ones_like(ids), mask], dim=-1)
+        ids = torch.cat([ids, cids], dim=-1)
+        # 3. gpt2 encoding
+        hidden_state = self.model(input_ids=ids, attention_mask=mask, output_hidden_states=True)['hidden_states'][-1]    # [B, S, E]
+        # 4. calculating the confidence 
+        shift_label = ids[:, seqlen:]
+        shift_hidden = hidden_state[:, seqlen-1:-1, :]
+        shift_logits = torch.matmul(shift_hidden, self.token_embeddings.t())    # [B, S, V]
+        confidence = torch.gather(shift_logits, 2, shift_label.unsqueeze(-1)).squeeze(-1)    # [B, S]
+        vl = mask.sum(dim=-1) - seqlen
+        confidence = torch.stack([c[:l].mean() for c, l in zip(confidence, vl)])    # [B]
+        # confidence = torch.stack([c[:l].min() for c, l in zip(confidence, vl)])    # [B]
+        return F.softmax(confidence/temp, dim=-1)
+
+    @torch.no_grad()
+    def fast_rerank_v2(self, query, candidates, temp=1.0):
+        '''query: [1, E]'''
+        self.model.eval()
+        tokens = self.tokenizer.batch_encode_plus(candidates, add_special_tokens=False)['input_ids']
+        ids = [t[0] for t in tokens]    # [B]
+        embds = self.token_embeddings[ids, :]     # [B, 768]
+        scores = torch.matmul(query, embds.t()).squeeze(0)    # [B]
+        scores = F.softmax(scores/temp, dim=-1)
+        return scores
+
+    def get_token_loss(self, ids, hs):
+        label = ids[:, 1:]
+        logits = torch.matmul(
+            hs[:, :-1, :],
+            self.token_embeddings.t()
+        )
+        logits = logits.reshape(-1, logits.size(-1))
+        label = label.reshape(-1)
+        mask = torch.zeros_like(logits)
+        mask[range(len(logits)), label] = 1.
+        loss_ = F.log_softmax(logits, dim=-1) * mask
+        token_loss = (-loss_.sum(dim=1)).mean()
+        # acc
+        acc = (logits.max(dim=-1)[1] == label)
+        token_acc = acc.to(torch.float).mean().item()
+        return token_loss, token_acc
+
+
+class FastDensePhraseV24Encoder(nn.Module):
+
+    '''fine-tune last layer + token loss'''
+
+    def __init__(self, **args):
+        super(FastDensePhraseV24Encoder, self).__init__()
+        self.args = args
+        model_name = args['pretrained_model']
+
+        # bert-encoder model
+        self.phrase_encoder = BertModel.from_pretrained(self.args['phrase_encoder_model'][self.args['lang']])
+        self.bert_tokenizer = AutoTokenizer.from_pretrained(self.args['phrase_tokenizer'][self.args['lang']])
+        
+        # only fine-tune the last transformer layer parameters
+        for name, param in self.phrase_encoder.named_parameters():
+            if 'encoder.layer.11' not in name:
+                param.requires_grad = False
+        print(f'[!] only the last BERT layer is fine-tuned')
+        
+        # model and tokenizer
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.vocab_size = len(self.tokenizer)
+        if self.args['lang'] == 'zh':
+            self.pad = self.tokenizer.pad_token_id
+            self.unk = self.tokenizer.unk_token_id
+            self.sep = self.tokenizer.sep_token_id
+        else:
+            self.pad = self.tokenizer.bos_token_id
+            self.unk = self.tokenizer.bos_token_id
+            self.sep = self.tokenizer.bos_token_id
+
+        self.model = GPT2LMHeadModel.from_pretrained(model_name)
+        self.token_embeddings = nn.Parameter(list(self.model.lm_head.parameters())[0])
+        self.s_proj = nn.Sequential(
+            nn.Dropout(p=args['dropout']),
+            nn.Tanh(),
+            nn.Linear(self.model.config.hidden_size, self.model.config.hidden_size//2)
+        )
+        self.e_proj = nn.Sequential(
+            nn.Dropout(p=args['dropout']),
+            nn.Tanh(),
+            nn.Linear(self.model.config.hidden_size, self.model.config.hidden_size//2)
+        )
+        self.gen_loss_fct = nn.CrossEntropyLoss(ignore_index=self.pad)
+
+    @torch.no_grad()
+    def get_phrase_rep(self, ids, ids_mask, pos, text):
+        self.eval()
+        rep = self.phrase_encoder(ids, ids_mask, output_hidden_states=True)['hidden_states'][-1]    # [B, S, E]
+        b_phrases, e_phrases, texts = [], [], []
+        for rep_, pos_, text_ in zip(rep, pos, text):
+            b_index = [i for i, j in pos_]
+            e_index = [j for i, j in pos_]
+            b_phrases.append(rep_[b_index, :])
+            e_phrases.append(rep_[e_index, :])
+            texts.extend(text_)
+        b_phrases = self.s_proj(torch.cat(b_phrases))
+        e_phrases = self.e_proj(torch.cat(e_phrases))
+        phrases = torch.cat([b_phrases, e_phrases], dim=-1)
+        return phrases, texts
+
+    @torch.no_grad()
+    def get_query_rep_fast(self, ids, past_key_values=None):
+        self.eval()
+        output = self.model(
+            input_ids=ids, 
+            past_key_values=past_key_values, 
+            use_cache=True, 
+            output_hidden_states=True
+        )
+        past_key_values = output['past_key_values']
+        rep = output['hidden_states'][-1][:, -1, :]
+        return past_key_values, rep
+
+    @torch.no_grad()
+    def get_query_rep(self, ids):
+        self.eval()
+        output = self.model(input_ids=ids, output_hidden_states=True)['hidden_states'][-1][:, -1, :]
+        return output
+
+    def get_token_loss(self, ids, hs):
+        label = ids[:, 1:]
+        logits = torch.matmul(
+            hs[:, :-1, :],
+            self.token_embeddings.t()
+        )
+        token_loss = self.gen_loss_fct(logits.reshape(-1, logits.size(-1)), label.reshape(-1))
+        # acc
+        acc = (logits.max(dim=-1)[1] == label)
+        token_acc = acc.to(torch.float).mean().item()
+        return token_loss, token_acc
+    
+    def forward(self, batch):
+        ## gpt2 query encoder
+        ids, ids_mask = batch['ids'], batch['ids_mask']
+        bsz, seqlen = ids.size()
+        outputs = self.model(input_ids=ids, attention_mask=ids_mask, output_hidden_states=True)
+        last_hidden_states = outputs.hidden_states[-1]
+        token_loss, token_acc = self.get_token_loss(ids, last_hidden_states)
+
+        ## bert
+        dids, dids_mask = batch['dids'], batch['dids_mask']
+        dindex_s, dindex_e = batch['dindex_s'], batch['dindex_e']
+        output = self.phrase_encoder(dids, dids_mask, output_hidden_states=True)['hidden_states'][-1]   # [B, S, E]
+        doc_bsz, seqlen, _ = output.size()
+        s_rep = output[range(doc_bsz), dindex_s, :]    # [B, E]
+        e_rep = output[range(doc_bsz), dindex_e, :]
+        phrase_rep_base = torch.cat([self.s_proj(s_rep), self.e_proj(e_rep)], dim=-1)    # [B_p, 2*E]
+        phrase_num = len(phrase_rep_base)
+
+        # candidates representations
+        reps = torch.cat([self.token_embeddings, phrase_rep_base], dim=0)    # [V+B, 2*E]
+
+        # query representations
+        pos_index = batch['pos_ids']    # [B_p]
+        pos_end_index = batch['pos_ids_end']
+        label, phrase_query = [], []
+        vl = batch['vl']
+
+        ids = ids.cpu()
+        counter = 0
+        for ids_, hn, pos_list, pos_list_end, l in zip(ids, last_hidden_states, pos_index, pos_end_index, vl):
+            token_index = set(range(l - 1))
+            for s, e in zip(pos_list, pos_list_end):
+                token_index -= set(range(s, e))
+            token_index = torch.LongTensor(sorted(token_index))
+            phrase_query.append(hn[token_index])
+            label.append(ids_[token_index+1])
+
+            phrase_query.append(hn[pos_list])
+            phrase_label = torch.LongTensor([counter+i for i in range(len(pos_list))])
+            phrase_label += self.vocab_size
+            label.append(phrase_label)
+            counter += len(pos_list)
+        phrase_query = torch.cat(phrase_query)
+        label = torch.cat(label).cuda()
+        assert counter == phrase_num
+
+        logits = torch.matmul(phrase_query, reps.t())    # [Total, V+B]
+        loss = self.gen_loss_fct(logits, label)
+        total_acc = (logits.max(dim=-1)[1] == label).to(torch.float).mean().item()
+        
+        acc = (logits.max(dim=-1)[1] == label)
+        acc = acc[label >= self.vocab_size]
+        phrase_acc = acc.to(torch.float).mean().item()
+        return loss, token_loss, torch.tensor(0.), phrase_acc, token_acc, 0.
+
+    @torch.no_grad()
+    def nucleus_search(self, batch):
+        self.eval()
+        ids = batch['ids']
+        generated = []
+        for _ in range(batch['test_max_len']) :
+            output = self.model(
+                input_ids=ids,
+                use_cache=True,
+                output_hidden_states=True
+            )
+            hidden_state = output.hidden_states[-1][:, -1, :]
+            hidden_state = F.normalize(hidden_state)
+            logits = torch.matmul(hidden_state, F.normalize(self.token_embeddings, dim=-1).t())[0]    # [ V]
+            logits[self.unk] = -np.inf
+            filtered_logits = top_k_top_p_filtering(
+                logits, 
+                top_k=batch['topk'], 
+                top_p=batch['topp']
+            )
+            next_token = torch.multinomial(
+                F.softmax(filtered_logits, dim=-1),
+                num_samples=1,
+            )
+            generated.append(next_token.item())
+            ids = torch.cat([ids, next_token.reshape(1, 1)], dim=-1)
+        return ''.join(self.tokenizer.convert_ids_to_tokens(generated))
+
+    @torch.no_grad()
+    def greedy_search(self, batch):
+        self.eval()
+        ids = batch['ids']
+        generated = []
+        for _ in range(batch['test_max_len']) :
+            output = self.model(
+                input_ids=ids,
+                output_hidden_states=True
+            )
+            hidden_state = output.hidden_states[-1][:, -1, :]
+            hidden_state = F.normalize(hidden_state)
+            logits = torch.matmul(hidden_state, F.normalize(self.token_embeddings, dim=-1).t())[0]    # [ V]
+            logits[self.unk] = -np.inf
+            next_token = logits.max(dim=-1)[1]
+            generated.append(next_token.item())
+            ids = torch.cat([ids, next_token.reshape(1, 1)], dim=-1)
+        if self.args['lang'] == 'zh':
+            return ''.join(self.tokenizer.convert_ids_to_tokens(generated))
+        else:
+            return self.tokenizer.decode(generated)
+
+    @torch.no_grad()
+    def contrastive_search(self, batch):
+        self.eval()
+        input_ids = batch['ids']
+        _, prefix_length = input_ids.size()
+        generated = []
+        for step in range(batch['test_max_len']):
+            output = self.model(input_ids=input_ids, output_hidden_states=True)
+            hidden_state = output.hidden_states[-1][:, -1, :]
+            hidden_state = F.normalize(hidden_state)
+            logit = torch.matmul(hidden_state, F.normalize(self.token_embeddings, dim=-1).t())[0]     # [V]
+            logit[self.unk] = -np.inf
+            topk_, topk = logit.topk(batch['beam_width'], dim=-1)
+            input_ids, next_index = ContrastiveDecodingOneStepGiveProb(
+                self.model,
+                input_ids,
+                topk,
+                F.softmax(topk_, dim=-1),
+                batch['beam_width'],
+                batch['model_prediction_confidence'],
+                self.unk
+            )
+        input_ids = input_ids[0, prefix_length:]
+        generated = ''.join(self.tokenizer.convert_ids_to_tokens(input_ids))
+        return generated
+
+    @torch.no_grad()
+    def fast_rerank(self, ids, candidates):
+        self.model.eval()
+        # 1. tokenize candidates
+        tokens = self.tokenizer.batch_encode_plus(candidates, add_special_tokens=False)['input_ids']
+        # 2. prepare the ids and mask
+        cids = [torch.LongTensor(t) for t in tokens]
+        cids = pad_sequence(cids, batch_first=True, padding_value=self.pad)
+        mask = generate_mask(cids, pad_token_idx=self.pad)
+        cids, mask = to_cuda(cids, mask)
+        ids = ids.expand(len(cids), -1)
+        seqlen = ids.size(-1)
+        mask = torch.cat([torch.ones_like(ids), mask], dim=-1)
+        ids = torch.cat([ids, cids], dim=-1)
+        # 3. gpt2 encoding
+        hidden_state = self.model(input_ids=ids, attention_mask=mask, output_hidden_states=True)['hidden_states'][-1]    # [B, S, E]
+        hidden_state = F.normalize(hidden_state, dim=-1)
+        # 4. calculating the confidence 
+        shift_label = ids[:, seqlen:]
+        shift_hidden = hidden_state[:, seqlen-1:-1, :]
+        shift_logits = torch.matmul(shift_hidden, F.normalize(self.token_embeddings, dim=-1).t())    # [B, S, V]
+        confidence = torch.gather(shift_logits, 2, shift_label.unsqueeze(-1)).squeeze(-1)    # [B, S]
+        vl = mask.sum(dim=-1) - seqlen
+        # confidence = torch.stack([c[:l].mean() for c, l in zip(confidence, vl)])    # [B]
+        confidence = torch.stack([c[:l].min() for c, l in zip(confidence, vl)])    # [B]
+        return confidence
+ 
+
+
+class FastDensePhraseV25Encoder(nn.Module):
+
+    '''fine-tune last layer + token loss + token mask + dot production
+    训练token的时候，用上phrase(mask ground-truth phrase)
+    训练phrase的时候，用上token(mask ground-truth token)
+    '''
+
+    def __init__(self, **args):
+        super(FastDensePhraseV25Encoder, self).__init__()
+        self.args = args
+        model_name = args['pretrained_model']
+
+        # bert-encoder model
+        self.phrase_encoder = BertModel.from_pretrained(self.args['phrase_encoder_model'][self.args['lang']])
+        self.bert_tokenizer = AutoTokenizer.from_pretrained(self.args['phrase_tokenizer'][self.args['lang']])
+        
+        # only fine-tune the last transformer layer parameters
+        for name, param in self.phrase_encoder.named_parameters():
+            if 'encoder.layer.11' not in name:
+                param.requires_grad = False
+        print(f'[!] only the last BERT layer is fine-tuned')
+        
+        # model and tokenizer
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.vocab_size = len(self.tokenizer)
+        if self.args['lang'] == 'zh':
+            self.pad = self.tokenizer.pad_token_id
+            self.unk = self.tokenizer.unk_token_id
+            self.sep = self.tokenizer.sep_token_id
+        else:
+            self.pad = self.tokenizer.bos_token_id
+            self.unk = self.tokenizer.bos_token_id
+            self.sep = self.tokenizer.bos_token_id
+
+        # config = GPT2Config.from_pretrained(self.args['pretrained_model'])
+        # config.vocab_size = self.vocab_size
+        # self.model = GPT2LMHeadModel(config)
+
+        self.model = GPT2LMHeadModel.from_pretrained(model_name)
+        self.token_embeddings = nn.Parameter(list(self.model.lm_head.parameters())[0])
+        self.s_proj = nn.Sequential(
+            nn.Dropout(p=args['dropout']),
+            nn.Tanh(),
+            nn.Linear(self.model.config.hidden_size, self.model.config.hidden_size//3)
+        )
+        self.e_proj = nn.Sequential(
+            nn.Dropout(p=args['dropout']),
+            nn.Tanh(),
+            nn.Linear(self.model.config.hidden_size, self.model.config.hidden_size//3)
+        )
+        self.d_proj = nn.Sequential(
+            nn.Dropout(p=args['dropout']),
+            nn.Tanh(),
+            nn.Linear(self.model.config.hidden_size, self.model.config.hidden_size//3)
+        )
+        self.gen_loss_fct = nn.CrossEntropyLoss(ignore_index=self.pad)
+
+    @torch.no_grad()
+    def get_phrase_rep(self, ids, ids_mask, pos, text):
+        self.eval()
+        rep = self.phrase_encoder(ids, ids_mask, output_hidden_states=True)['hidden_states'][-1]    # [B, S, E]
+        b_phrases, e_phrases, texts = [], [], []
+        for rep_, pos_, text_ in zip(rep, pos, text):
+            b_index = [i for i, j in pos_]
+            e_index = [j for i, j in pos_]
+            b_phrases.append(rep_[b_index, :])
+            e_phrases.append(rep_[e_index, :])
+            texts.extend(text_)
+        b_phrases = self.s_proj(torch.cat(b_phrases))
+        e_phrases = self.e_proj(torch.cat(e_phrases))
+        phrases = torch.cat([b_phrases, e_phrases], dim=-1)
+        return phrases, texts
+
+    @torch.no_grad()
+    def get_query_rep_fast(self, ids, past_key_values=None):
+        self.eval()
+        output = self.model(
+            input_ids=ids, 
+            past_key_values=past_key_values, 
+            use_cache=True, 
+            output_hidden_states=True
+        )
+        past_key_values = output['past_key_values']
+        rep = output['hidden_states'][-1][:, -1, :]
+        return past_key_values, rep
+
+    @torch.no_grad()
+    def get_query_rep(self, ids):
+        self.eval()
+        output = self.model(input_ids=ids, output_hidden_states=True)['hidden_states'][-1][:, -1, :]
+        return output
+
+    def forward(self, batch):
+        ## gpt2 query encoder
+        ids, ids_mask = batch['ids'], batch['ids_mask']
+        bsz, seqlen = ids.size()
+        outputs = self.model(input_ids=ids, attention_mask=ids_mask, output_hidden_states=True)
+        last_hidden_states = outputs.hidden_states[-1]
+        
+        pure_token_loss, _ = self.get_token_loss(ids, last_hidden_states, ids_mask)
+
+        ## bert
+        dids, dids_mask = batch['dids'], batch['dids_mask']
+        dindex_s, dindex_e = batch['dindex_s'], batch['dindex_e']
+        output = self.phrase_encoder(dids, dids_mask, output_hidden_states=True)['hidden_states'][-1]   # [B, S, E]
+        doc_bsz, seqlen, _ = output.size()
+        s_rep = output[range(doc_bsz), dindex_s, :]    # [B, E]
+        e_rep = output[range(doc_bsz), dindex_e, :]
+        d_rep = output[range(doc_bsz), 0, :]    # [B, E]
+        phrase_rep_base = torch.cat([self.s_proj(s_rep), self.e_proj(e_rep), self.d_proj(d_rep)], dim=-1)    # [B_p, 2*E]
+
+        # query representations
+        pos_index = batch['pos_ids']    # [B_p]
+        pos_end_index = batch['pos_ids_end']
+        vl = batch['vl']
+
+        query_reps, token_labels, phrase_labels, counter = [], [], [], 0
+        for ids_, hn, pos_list, pos_list_end, l in zip(ids, last_hidden_states, pos_index, pos_end_index, vl):
+            query_reps.append(hn[:l-1])
+            token_labels.append(ids_[1:l])
+            pos_list_set = set(pos_list)
+            for i in range(l - 1):
+                if i in pos_list_set:
+                    phrase_labels.append(self.vocab_size + counter)
+                    counter += 1
+                else:
+                    phrase_labels.append(-1)
+        query_reps = torch.cat(query_reps)
+        token_labels = torch.cat(token_labels)
+        phrase_labels = torch.LongTensor(phrase_labels).cuda()
+        candidate_reps = torch.cat([self.token_embeddings, phrase_rep_base], dim=0)
+        logits = torch.matmul(query_reps, candidate_reps.t())    # [Total, V+B]
+        
+        phrase_pos_index = phrase_labels != -1
+        token_pos_index = phrase_labels == -1
+
+        # learning token, mask phrase
+        token_logits = logits.clone()
+        mask = torch.zeros_like(token_logits)
+        mask[range(len(token_logits)), token_labels] = 1.
+        token_logits[phrase_pos_index, phrase_labels[phrase_pos_index]] = -1e3
+        loss_ = F.log_softmax(token_logits, dim=-1) * mask
+        token_loss = (-loss_.sum(dim=1)).mean()
+
+        acc = token_logits[token_pos_index].max(dim=-1)[1] == token_labels[token_pos_index]
+        token_acc = acc.to(torch.float).mean().item()
+
+        # learning phrase, mask token
+        phrase_logits = logits.clone()
+        mask = torch.zeros_like(phrase_logits)
+        mask[phrase_pos_index, phrase_labels[phrase_pos_index]] = 1.
+        phrase_logits[phrase_pos_index, token_labels[phrase_pos_index]] = -1e3
+        valid_num = phrase_pos_index.sum().item()
+        loss_ = F.log_softmax(phrase_logits, dim=-1) * mask
+        phrase_loss = (-loss_.sum(dim=1)).sum() / valid_num
+
+        acc = phrase_logits[phrase_pos_index].max(dim=-1)[1] == phrase_labels[phrase_pos_index]
+        phrase_acc = acc.to(torch.float).mean().item()
+        return phrase_loss, token_loss, pure_token_loss, phrase_acc, token_acc, 0
+
+    @torch.no_grad()
+    def nucleus_search(self, batch):
+        self.eval()
+        ids = batch['ids']
+        generated = []
+        for _ in range(batch['test_max_len']) :
+            output = self.model(
+                input_ids=ids,
+                use_cache=True,
+                output_hidden_states=True
+            )
+            hidden_state = output.hidden_states[-1][:, -1, :]
+            logits = torch.matmul(hidden_state, self.token_embeddings.t())[0]    # [ V]
+            logits[self.unk] = -np.inf
+            filtered_logits = top_k_top_p_filtering(
+                logits, 
+                top_k=batch['topk'], 
+                top_p=batch['topp']
+            )
+            next_token = torch.multinomial(
+                F.softmax(filtered_logits, dim=-1),
+                num_samples=1,
+            )
+            generated.append(next_token.item())
+            ids = torch.cat([ids, next_token.reshape(1, 1)], dim=-1)
+        if self.args['lang'] == 'zh':
+            return ''.join(self.tokenizer.convert_ids_to_tokens(generated))
+        else:
+            return self.tokenizer.decode(generated)
+
+    @torch.no_grad()
+    def greedy_search(self, batch):
+        self.eval()
+        ids = batch['ids']
+        generated = []
+        for _ in range(batch['test_max_len']) :
+            output = self.model(
+                input_ids=ids,
+                output_hidden_states=True
+            )
+            hidden_state = output.hidden_states[-1][:, -1, :]
+            logits = torch.matmul(hidden_state, self.token_embeddings.t())[0]    # [ V]
+            logits[self.unk] = -np.inf
+            next_token = logits.max(dim=-1)[1]
+            generated.append(next_token.item())
+            ids = torch.cat([ids, next_token.reshape(1, 1)], dim=-1)
+        if self.args['lang'] == 'zh':
+            return ''.join(self.tokenizer.convert_ids_to_tokens(generated))
+        else:
+            return self.tokenizer.decode(generated)
+
+    @torch.no_grad()
+    def contrastive_search(self, batch):
+        self.eval()
+        input_ids = batch['ids']
+        _, prefix_length = input_ids.size()
+        generated = []
+        for step in range(batch['test_max_len']):
+            output = self.model(input_ids=input_ids, output_hidden_states=True)
+            hidden_state = output.hidden_states[-1][:, -1, :]
+            logit = torch.matmul(hidden_state, self.token_embeddings.t())[0]     # [V]
+            logit[self.unk] = -np.inf
+            topk_, topk = logit.topk(batch['beam_width'], dim=-1)
+            input_ids, next_index = ContrastiveDecodingOneStepGiveProb(
+                self.model,
+                input_ids,
+                topk,
+                F.softmax(topk_, dim=-1),
+                batch['beam_width'],
+                batch['model_prediction_confidence'],
+                self.unk
+            )
+        input_ids = input_ids[0, prefix_length:]
+        generated = ''.join(self.tokenizer.convert_ids_to_tokens(input_ids))
+        return generated
+
+    @torch.no_grad()
+    def fast_rerank(self, ids, candidates, temp=1.0):
+        self.model.eval()
+        # 1. tokenize candidates
+        tokens = self.tokenizer.batch_encode_plus(candidates, add_special_tokens=False)['input_ids']
+        # 2. prepare the ids and mask
+        cids = [torch.LongTensor(t) for t in tokens]
+        cids = pad_sequence(cids, batch_first=True, padding_value=self.pad)
+        mask = generate_mask(cids, pad_token_idx=self.pad)
+        cids, mask = to_cuda(cids, mask)
+        ids = ids.expand(len(cids), -1)
+        seqlen = ids.size(-1)
+        mask = torch.cat([torch.ones_like(ids), mask], dim=-1)
+        ids = torch.cat([ids, cids], dim=-1)
+        # 3. gpt2 encoding
+        hidden_state = self.model(input_ids=ids, attention_mask=mask, output_hidden_states=True)['hidden_states'][-1]    # [B, S, E]
+        # 4. calculating the confidence 
+        shift_label = ids[:, seqlen:]
+        shift_hidden = hidden_state[:, seqlen-1:-1, :]
+        shift_logits = torch.matmul(shift_hidden, self.token_embeddings.t())    # [B, S, V]
+        confidence = torch.gather(shift_logits, 2, shift_label.unsqueeze(-1)).squeeze(-1)    # [B, S]
+        vl = mask.sum(dim=-1) - seqlen
+        confidence = torch.stack([c[:l].mean() for c, l in zip(confidence, vl)])    # [B]
+        # confidence = torch.stack([c[:l].min() for c, l in zip(confidence, vl)])    # [B]
+        return F.softmax(confidence/temp, dim=-1)
+
+    @torch.no_grad()
+    def fast_rerank_v2(self, query, candidates, temp=1.0):
+        '''query: [1, E]'''
+        self.model.eval()
+        tokens = self.tokenizer.batch_encode_plus(candidates, add_special_tokens=False)['input_ids']
+        ids = [t[0] for t in tokens]    # [B]
+        embds = self.token_embeddings[ids, :]     # [B, 768]
+        scores = torch.matmul(query, embds.t()).squeeze(0)    # [B]
+        scores = F.softmax(scores/temp, dim=-1)
+        return scores
+
+    def get_token_loss(self, ids, hs, ids_mask):
+        # no pad token
+        label = ids[:, 1:]
+        logits = torch.matmul(
+            hs[:, :-1, :],
+            self.token_embeddings.t()
+        )     # []
+        logits = logits.reshape(-1, logits.size(-1))
+        label = label.reshape(-1)
+        ids_mask = ids_mask[:, :-1].reshape(-1)
+        ids_mask_label = ids_mask == 1
+        mask = torch.zeros_like(logits)
+        mask[range(len(logits)), label] = 1.
+
+        logits = logits[ids_mask_label, :]
+        mask = mask[ids_mask_label, :]
+        label = label[ids_mask_label]
+
+        loss_ = F.log_softmax(logits, dim=-1) * mask
+        token_loss = (-loss_.sum(dim=1)).mean()
+        # acc
+        acc = (logits.max(dim=-1)[1] == label)
+        token_acc = acc.to(torch.float).mean().item()
+        return token_loss, token_acc
+
+
+
+class FastDensePhraseV26Encoder(nn.Module):
+
+    '''fine-tune last layer + token loss + token mask + dot production
+    训练token的时候，用上phrase(mask ground-truth phrase)
+    训练phrase的时候，用上token(mask ground-truth token)
+    '''
+
+    def __init__(self, **args):
+        super(FastDensePhraseV26Encoder, self).__init__()
+        self.args = args
+        model_name = args['pretrained_model']
+
+        # bert-encoder model
+        self.phrase_encoder = BertModel.from_pretrained(self.args['phrase_encoder_model'][self.args['lang']])
+        self.bert_tokenizer = AutoTokenizer.from_pretrained(self.args['phrase_tokenizer'][self.args['lang']])
+        
+        # only fine-tune the last transformer layer parameters
+        for name, param in self.phrase_encoder.named_parameters():
+            if 'encoder.layer.11' not in name:
+                param.requires_grad = False
+        print(f'[!] only the last BERT layer is fine-tuned')
+        
+        # model and tokenizer
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.vocab_size = len(self.tokenizer)
+        if self.args['lang'] == 'zh':
+            self.pad = self.tokenizer.pad_token_id
+            self.unk = self.tokenizer.unk_token_id
+            self.sep = self.tokenizer.sep_token_id
+        else:
+            self.pad = self.tokenizer.bos_token_id
+            self.unk = self.tokenizer.bos_token_id
+            self.sep = self.tokenizer.bos_token_id
+
+        self.model = GPT2LMHeadModel.from_pretrained(model_name)
+        self.token_embeddings = nn.Parameter(torch.randn((len(self.tokenizer), 768*2)))
+        self.h_proj = nn.Sequential(
+            nn.Dropout(p=args['dropout']),
+            nn.Tanh(),
+            nn.Linear(self.model.config.hidden_size, self.model.config.hidden_size*2)
+        )
+        self.gen_loss_fct = nn.CrossEntropyLoss(ignore_index=self.pad)
+
+    @torch.no_grad()
+    def get_phrase_rep(self, ids, ids_mask, pos, text):
+        self.eval()
+        rep = self.phrase_encoder(ids, ids_mask, output_hidden_states=True)['hidden_states'][-1]    # [B, S, E]
+        b_phrases, e_phrases, texts = [], [], []
+        for rep_, pos_, text_ in zip(rep, pos, text):
+            b_index = [i for i, j in pos_]
+            e_index = [j for i, j in pos_]
+            b_phrases.append(rep_[b_index, :])
+            e_phrases.append(rep_[e_index, :])
+            texts.extend(text_)
+        b_phrases = self.s_proj(torch.cat(b_phrases))
+        e_phrases = self.e_proj(torch.cat(e_phrases))
+        phrases = torch.cat([b_phrases, e_phrases], dim=-1)
+        return phrases, texts
+
+    @torch.no_grad()
+    def get_query_rep_beam(self, ids):
+        '''batch inference with the left padding'''
+        self.eval()
+        max_length = max([len(i) for i in ids])
+        ids = [torch.cat((torch.LongTensor([self.pad] * (max_length - len(i))), i)) for i in ids]
+        ids = torch.stack(ids)
+        ids_mask = generate_mask(ids, pad_token_idx=self.pad)
+        ids_pos = (ids_mask.long().cumsum(-1) - 1).masked_fill(ids_mask == 0, 0)
+        ids, ids_mask, ids_pos = to_cuda(ids, ids_mask, ids_pos)
+        output = self.model(input_ids=ids, attention_mask=ids_mask, position_ids=ids_pos, output_hidden_states=True)['hidden_states'][-1][:, -1, :]
+        return output
+
+    @torch.no_grad()
+    def get_query_rep_fast(self, ids, past_key_values=None):
+        self.eval()
+        output = self.model(
+            input_ids=ids, 
+            past_key_values=past_key_values, 
+            use_cache=True, 
+            output_hidden_states=True
+        )
+        past_key_values = output['past_key_values']
+        rep = output['hidden_states'][-1][:, -1, :]
+        return past_key_values, rep
+
+    @torch.no_grad()
+    def get_query_rep(self, ids):
+        self.eval()
+        output = self.model(input_ids=ids, output_hidden_states=True)['hidden_states'][-1][:, -1, :]
+        return output
+
+    def forward(self, batch):
+        ## gpt2 query encoder
+        ids, ids_mask = batch['ids'], batch['ids_mask']
+        bsz, seqlen = ids.size()
+        outputs = self.model(input_ids=ids, attention_mask=ids_mask, output_hidden_states=True)
+        last_hidden_states = self.h_proj(outputs.hidden_states[-1])
+        pure_token_loss, _ = self.get_token_loss(ids, last_hidden_states, ids_mask)
+
+        ## bert
+        dids, dids_mask = batch['dids'], batch['dids_mask']
+        dindex_s, dindex_e = batch['dindex_s'], batch['dindex_e']
+        output = self.phrase_encoder(dids, dids_mask, output_hidden_states=True)['hidden_states'][-1]   # [B, S, E]
+        doc_bsz, seqlen, _ = output.size()
+        s_rep = output[range(doc_bsz), dindex_s, :]    # [B, E]
+        e_rep = output[range(doc_bsz), dindex_e, :]
+        phrase_rep_base = torch.cat([s_rep, e_rep], dim=-1)    # [B_p, 2*E]
+
+        # query representations
+        pos_index = batch['pos_ids']    # [B_p]
+        pos_end_index = batch['pos_ids_end']
+        vl = batch['vl']
+
+        query_reps, token_labels, phrase_labels, counter = [], [], [], 0
+        for ids_, hn, pos_list, pos_list_end, l in zip(ids, last_hidden_states, pos_index, pos_end_index, vl):
+            query_reps.append(hn[:l-1])
+            token_labels.append(ids_[1:l])
+            pos_list_set = set(pos_list)
+            for i in range(l - 1):
+                if i in pos_list_set:
+                    phrase_labels.append(self.vocab_size + counter)
+                    counter += 1
+                else:
+                    phrase_labels.append(-1)
+        query_reps = torch.cat(query_reps)
+        token_labels = torch.cat(token_labels)
+        phrase_labels = torch.LongTensor(phrase_labels).cuda()
+        candidate_reps = torch.cat([self.token_embeddings, phrase_rep_base], dim=0)
+        logits = torch.matmul(query_reps, candidate_reps.t())    # [Total, V+B]
+        
+        phrase_pos_index = phrase_labels != -1
+        token_pos_index = phrase_labels == -1
+
+        # learning token, mask phrase
+        token_logits = logits.clone()
+        mask = torch.zeros_like(token_logits)
+        mask[range(len(token_logits)), token_labels] = 1.
+        token_logits[phrase_pos_index, phrase_labels[phrase_pos_index]] = -1e3
+        loss_ = F.log_softmax(token_logits, dim=-1) * mask
+        token_loss = (-loss_.sum(dim=1)).mean()
+
+        acc = token_logits[token_pos_index].max(dim=-1)[1] == token_labels[token_pos_index]
+        token_acc = acc.to(torch.float).mean().item()
+
+        # learning phrase, mask token
+        phrase_logits = logits.clone()
+        mask = torch.zeros_like(phrase_logits)
+        mask[phrase_pos_index, phrase_labels[phrase_pos_index]] = 1.
+        phrase_logits[phrase_pos_index, token_labels[phrase_pos_index]] = -1e3
+        valid_num = phrase_pos_index.sum().item()
+        loss_ = F.log_softmax(phrase_logits, dim=-1) * mask
+        phrase_loss = (-loss_.sum(dim=1)).sum() / valid_num
+
+        acc = phrase_logits[phrase_pos_index].max(dim=-1)[1] == phrase_labels[phrase_pos_index]
+        phrase_acc = acc.to(torch.float).mean().item()
+        return phrase_loss, token_loss, pure_token_loss, phrase_acc, token_acc, 0
+
+    def get_token_loss(self, ids, hs, ids_mask):
+        # no pad token
+        label = ids[:, 1:]
+        logits = torch.matmul(
+            hs[:, :-1, :],
+            self.token_embeddings.t()
+        )
+        logits = logits.reshape(-1, logits.size(-1))
+        label = label.reshape(-1)
+        ids_mask = ids_mask[:, :-1].reshape(-1)
+        ids_mask_label = ids_mask == 1
+        mask = torch.zeros_like(logits)
+        mask[range(len(logits)), label] = 1.
+
+        logits = logits[ids_mask_label, :]
+        mask = mask[ids_mask_label, :]
+        label = label[ids_mask_label]
+
+        loss_ = F.log_softmax(logits, dim=-1) * mask
+        token_loss = (-loss_.sum(dim=1)).mean()
+        # acc
+        acc = (logits.max(dim=-1)[1] == label)
+        token_acc = acc.to(torch.float).mean().item()
+        return token_loss, token_acc

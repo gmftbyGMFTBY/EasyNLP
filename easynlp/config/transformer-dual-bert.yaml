@@ -1,0 +1,54 @@
+test_interval: 0.2
+valid_during_training: false
+is_step_for_training: false
+
+# the dual encoder only contains 2 layers, which is very weak
+n_layer: 2
+
+# network issue, load locally
+tokenizer:
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
+pretrained_model:
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
+
+# train configuration
+train:
+    load_param: true
+    lr: 0.00005
+    grad_clip: 5.0
+    seed: 0
+    batch_size: 128
+    max_len: 64
+    res_max_len: 32
+    # very few trianing steps
+    epoch: 3
+    warmup_ratio: 0.
+    checkpoint: 
+        path: bert-fp-mono/best_bert-base-uncased.pt
+        is_load: false
+
+# test configuration
+test:
+    seed: 0
+    batch_size: 1
+    max_len: 64
+    res_max_len: 32
+
+# inference configuration
+inference:
+    seed: 0
+    batch_size: 512
+    max_len: 64
+    res_max_len: 32
+    ctx_max_len: 64
+    topk: 10
+    index_type: Flat 
+    index_nprobe: 100
+    dimension: 768
+    buff_size: 100000
+    r_data_root_path: /apdcephfs/share_733425/johntianlan/chatbot-data-clean/weibo_clean
+    w_data_root_path: /apdcephfs/share_733425/johntianlan/chatbot-data-clean/weibo_clean_v2
+    # r_data_root_path: /home/johntianlan/chatbot-pretrain-data-split-test/weibo_clean
+    # w_data_root_path: /home/johntianlan/chatbot-pretrain-data-split-test/weibo_clean_v2

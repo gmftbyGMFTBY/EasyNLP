@@ -61,8 +61,17 @@ class BERTDualEncoder(nn.Module):
         rid = batch['rids']
         rid_mask = batch['rids_mask']
 
-        batch_size = rid.shape[0]
+        nvmlInit()
+        h = nvmlDeviceGetHandleByIndex(2)
+        info_before = nvmlDeviceGetMemoryInfo(h)
+        
         cid_rep, rid_rep = self._encode(cid, rid, cid_mask, rid_mask)
+
+        nvmlInit()
+        h = nvmlDeviceGetHandleByIndex(2)
+        info_after = nvmlDeviceGetMemoryInfo(h)
+        print('used', info_after.used - info_before.used, file=open('memory_usage_dual_bert.txt', 'a'))
+        torch.cuda.empty_cache()
 
         dot_product = torch.matmul(cid_rep, rid_rep.t()).squeeze(0)
         dot_product = (dot_product + 1)/2

@@ -1,6 +1,6 @@
 # basic configuration for building the model
 dropout: 0.1
-# ext_read: false
+ext_read: false
 # is_step_for_training: false
 # total_step: 240000
 # save_every: 20000
@@ -14,13 +14,13 @@ dropout: 0.1
 
 # network issue, load locally
 tokenizer:
-    # zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
-    zh: /apdcephfs/share_916081/johntianlan/chinese-roberta-wwm-ext-large
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    # zh: /apdcephfs/share_916081/johntianlan/chinese-roberta-wwm-ext-large
     # zh: /apdcephfs/share_916081/johntianlan/chinese-roberta-wwm-ext
     en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
 pretrained_model:
-    # zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
-    zh: /apdcephfs/share_916081/johntianlan/chinese-roberta-wwm-ext-large
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    # zh: /apdcephfs/share_916081/johntianlan/chinese-roberta-wwm-ext-large
     # zh: /apdcephfs/share_916081/johntianlan/chinese-roberta-wwm-ext
     en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
 
@@ -36,7 +36,7 @@ train:
     min_mask_num: 2
     max_mask_num: 10
     masked_lm_prob: 0.2
-    epoch: 35
+    epoch: 50
     warmup_ratio: 0.01
     checkpoint: 
         path: bert-fp/best_bert-base-chinese.pt

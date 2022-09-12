@@ -7,9 +7,9 @@ class BERTRetrieval(nn.Module):
         model = args['pretrained_model']
         # bert-fp pre-trained model need to resize the token embedding
         self.model = BertForSequenceClassification.from_pretrained(model, num_labels=2)
-        self.model.resize_token_embeddings(self.model.config.vocab_size+1)
+        # self.model = ElectraForSequenceClassification.from_pretrained(model, num_labels=2)
+        self.model.resize_token_embeddings(self.model.config.vocab_size+3)
         self.vocab = AutoTokenizer.from_pretrained(model)
-
 
         total = sum([param.nelement() for param in self.parameters()])
         print('[!] Model Size: %2fM' % (total/1e6))
@@ -17,7 +17,7 @@ class BERTRetrieval(nn.Module):
     def forward(self, batch):
         inpt = batch['ids']
         token_type_ids = batch['tids']
-        attn_mask = batch['ids_mask']
+        attn_mask = batch['mask']
 
         logits = self.model(
             input_ids=inpt,

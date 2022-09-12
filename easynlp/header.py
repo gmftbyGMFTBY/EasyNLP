@@ -1,4 +1,7 @@
 import torch
+from gpu_memory_track import MemTracker
+import inspect
+from pynvml import *
 from typing import List, Optional, Tuple, Union
 from io import StringIO
 import numpy as np
@@ -31,7 +34,8 @@ import hashlib
 import logging
 from copy import deepcopy
 import ipdb
-from transformers import BertTokenizer, BertTokenizerFast, XLMRobertaTokenizerFast, AutoModel, AutoTokenizer, T5ForConditionalGeneration, BartForSequenceClassification, BartModel, BartForConditionalGeneration
+from transformers import BertTokenizer, BertTokenizerFast, XLMRobertaTokenizerFast, AutoModel, AutoTokenizer, T5ForConditionalGeneration, BartForSequenceClassification, BartModel, BartForConditionalGeneration, ElectraPreTrainedModel, ElectraForSequenceClassification, AutoModelForPreTraining
+from transformers.activations import ACT2FN, get_activation
 import pickle
 import argparse
 from torch.nn.utils.rnn import pad_sequence
@@ -42,6 +46,7 @@ import h5py
 import torch.multiprocessing
 import linecache
 import nanopq
+from scipy.stats import pearsonr, spearmanr
 
 # texsmart
 try:

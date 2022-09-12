@@ -5,7 +5,8 @@ class BERTMutualDatasetRetrieval(nn.Module):
     def __init__(self, **args):
         super(BERTMutualDatasetRetrieval, self).__init__()
         model = args['pretrained_model']
-        self.model = BertForSequenceClassification.from_pretrained(model, num_labels=2)
+        # self.model = BertForSequenceClassification.from_pretrained(model, num_labels=2)
+        self.model = ElectraForSequenceClassification.from_pretrained(model, num_labels=2)
         self.model.resize_token_embeddings(self.model.config.vocab_size+3)
         self.vocab = AutoTokenizer.from_pretrained(model)
 

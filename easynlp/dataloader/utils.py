@@ -954,3 +954,25 @@ def read_text_data_utterances_test_mutual_ft(path):
     return data
 
 
+def read_text_data_utterances_full_dailydialog(path, lang='zh', turn_length=5):
+    dataset = read_text_data_utterances_dailydialog(path, lang=lang)
+    data = []
+    for utterances in dataset:
+        start_num = max(1, len(utterances) - turn_length)
+        for i in range(start_num, len(utterances)):
+            # i is the index of the response
+            data.append((1, utterances[:i+1]))
+    print(f'[!] collect {len(data)} samples for training')
+    return data
+
+
+def read_text_data_utterances_dailydialog(path, lang='zh'):
+    with open(path) as f:
+        dataset = []
+        for line in f.readlines():
+            line = [utterance for utterance in line.strip().split('__eou__') if utterance.strip()]
+            dataset.append(line)
+    print(f'[!] load {len(dataset)} utterances from {path}')
+    return dataset
+
+

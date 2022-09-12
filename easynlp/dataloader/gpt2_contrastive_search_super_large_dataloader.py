@@ -11,7 +11,8 @@ class GPT2ForContrastiveForBigDataset(Dataset):
         self.vocab = vocab
         self.pad = self.vocab.pad_token_id
         if self.args['mode'] == 'train':
-            self.path = f'/apdcephfs/share_733425/johntianlan/chinese_high_quality_300g_split/train_{args["global_rank"]}.txt'
+            # self.path = f'/apdcephfs/share_733425/johntianlan/chinese_high_quality_300g_split/train_{args["global_rank"]}.txt'
+            self.path = f'/apdcephfs/share_733425/johntianlan/chinese_high_quality_300g/train.txt0{args["local_rank"]}'
             # self.path = f'/apdcephfs/share_916081/johntianlan/chinese_high_quality_300g_test/train_{args["global_rank"]}.txt'
             self.current_file_handler = open(self.path, 'r')
 
@@ -19,8 +20,8 @@ class GPT2ForContrastiveForBigDataset(Dataset):
             self.cache = []
             self.buffer_size = 4096000
         else:
-            path = f'/apdcephfs/share_733425/johntianlan/chinese_high_quality_300g_split/test.txt'
-            # path = f'/apdcephfs/share_916081/johntianlan/chinese_high_quality_300g_test/test.txt'
+            # path = f'/apdcephfs/share_733425/johntianlan/chinese_high_quality_300g_split/test.txt'
+            path = f'/apdcephfs/share_916081/johntianlan/chinese_high_quality_300g_test/test.txt'
             with open(path) as f:
                 dataset = []
                 for line in f.readlines():
@@ -66,12 +67,21 @@ class GPT2ForContrastiveForBigDataset(Dataset):
         pass
         
     def collate(self, batch):
-        ids = [torch.LongTensor(i) for i in batch]
-        ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
-        ids_mask = generate_mask(ids, pad_token_idx=self.pad)
-        ids, ods, ids_mask = ids[:, :-1], ids[:, 1:], ids_mask[:, :-1]
-        ids, ods, ids_mask = to_cuda(ids, ods, ids_mask)
-        return {'ids': ids, 'ods': ods, 'ids_mask': ids_mask}
+        if self.args['mode'] == 'train':
+            ids = [torch.LongTensor(i) for i in batch]
+            ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+            ids_mask = generate_mask(ids, pad_token_idx=self.pad)
+            ids, ods, ids_mask = ids[:, :-1], ids[:, 1:], ids_mask[:, :-1]
+            ids, ods, ids_mask = to_cuda(ids, ods, ids_mask)
+            return {'ids': ids, 'ods': ods, 'ids_mask': ids_mask}
+        else:
+            max_length = max([len(i) for i in batch])
+            ids = torch.LongTensor([[self.pad] * (max_length - len(i)) + i for i in batch])
+            ids_mask = generate_mask(ids, pad_token_idx=self.pad)
+            ids, ods, ids_mask = ids[:, :-1], ids[:, 1:], ids_mask[:, :-1]
+            pos_ids = (ids_mask.long().cumsum(-1) - 1).masked_fill(ids_mask == 0, 0)
+            ids, ods, ids_mask, pos_ids = to_cuda(ids, ods, ids_mask, pos_ids)
+            return {'ids': ids, 'ids_label': ods, 'ids_mask': ids_mask, 'pos_ids': pos_ids}
 
 
 class GPT2ForContrastiveForBigArxivDataset(Dataset):
@@ -185,7 +195,7 @@ class GPT2ForContrastiveCommonCrawlForBigDataset(Dataset):
         self.cache = load_lines_chunk(self.current_file_handler, self.buffer_size)
         if len(self.cache) == 0:
             # current file runs over, cyclely loading
-            self.current_file_index = 0 if self.current_file_index == 7 else self.current_file_index + 1
+            self.current_file_index = 0 if self.current_file_index == 15 else self.current_file_index + 1
             self.current_file_handler = open(self.file_lists[self.current_file_index], 'r')
             self.cache = load_lines_chunk(self.current_file_handler, self.buffer_size)
 

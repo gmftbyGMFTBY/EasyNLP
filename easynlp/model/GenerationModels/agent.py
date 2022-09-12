@@ -22,7 +22,6 @@ class GenerationAgent(GenerationBaseAgent):
 
             self.bert_tokenizer = BertTokenizer.from_pretrained(args['bert_pretrained_model'])
             self.gpt2_tokenizer = vocab
-
         else:
             path = f'{self.args["root_dir"]}/rest/{self.args["dataset"]}/{self.args["model"]}/scores_log_{pretrained_model_name}_{args["version"]}.txt'
         self.log_save_file = open(path, 'w')
@@ -56,9 +55,9 @@ class GenerationAgent(GenerationBaseAgent):
             self.train_model = self.train_model_copygeneration
         elif self.args['model'] in ['gpt2-un', 'gpt2-un-seq']:
             self.train_model = self.train_model_un
-        elif self.args['model'] in ['gpt2-original', 'gpt2-original-wt103', 'knn-lm'] and self.args['dataset'] in ['wikitext103', 'en_wiki']:
+        elif self.args['model'] in ['gpt2-original', 'gpt2-original-wt103', 'knn-lm'] and self.args['dataset'] in ['wikitext103', 'en_wiki', 'copygeneration_lawmt']:
             self.test_model = self.test_model_wikitext
-            return
+            # return
             if self.args['model'] == 'knn-lm':
                 # add the searcher
                 faiss_searcher_args = deepcopy(self.args)
@@ -473,16 +472,21 @@ class GenerationAgent(GenerationBaseAgent):
             new_state_dict = self.checkpointadapeter.convert(state_dict)
             self.model.model.load_state_dict(new_state_dict)
         elif self.args['model'] in ['simctg']:
-            state_dict = torch.load(path, map_location=torch.device('cpu'))
-            step = state_dict['step']
-            model_state_dict = state_dict['model_state_dict']
-            optimizer_state_dict = state_dict['optimizer_state_dict']
-            scheduler_state_dict = state_dict['scheduler_state_dict']
+            if self.args['mode'] == 'train':
+                state_dict = torch.load(path, map_location=torch.device('cpu'))
+                step = state_dict['step']
+                model_state_dict = state_dict['model_state_dict']
+                optimizer_state_dict = state_dict['optimizer_state_dict']
+                scheduler_state_dict = state_dict['scheduler_state_dict']
 
-            self.load_last_step = step
-            self.scheduler.load_state_dict(scheduler_state_dict)
-            self.optimizer.load_state_dict(optimizer_state_dict)
-            self.model.module.model.load_state_dict(model_state_dict)
+                self.load_last_step = step
+                self.scheduler.load_state_dict(scheduler_state_dict)
+                self.optimizer.load_state_dict(optimizer_state_dict)
+                self.model.module.model.load_state_dict(model_state_dict)
+            else:
+                state_dict = torch.load(path, map_location=torch.device('cpu'))
+                model_state_dict = state_dict['model_state_dict']
+                self.model.model.load_state_dict(model_state_dict)
             print(f'[!] load the latest model from {path}')
         elif self.args['model'] in ['gpt2-original']:
             state_dict = torch.load(path, map_location=torch.device('cpu'))
@@ -512,7 +516,6 @@ class GenerationAgent(GenerationBaseAgent):
             self.model.generator.load_state_dict(torch.load(retrieval_path, map_location=torch.device('cpu')))
             print(f'\n - {retrieval_path}')
 
-
             # pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
             # retrieval_path = f'{self.args["root_dir"]}/ckpt/en_wiki/gpt2-original/best_{pretrained_model_name}_{self.args["version"]}.pt'
             # self.model.en_wiki_generator.load_state_dict(torch.load(retrieval_path, map_location=torch.device('cpu')))
@@ -523,6 +526,12 @@ class GenerationAgent(GenerationBaseAgent):
                 pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
                 retrieval_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/knn-lm/best_{pretrained_model_name}_{self.args["version"]}.pt'
                 self.model.knn_lm_generator.load_state_dict(torch.load(retrieval_path, map_location=torch.device('cpu')))
+                print(f'\n - {retrieval_path}')
+
+                # load the wikitext103 knn-lm baseline
+                pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
+                retrieval_path = f'{self.args["root_dir"]}/ckpt/wikitext103/knn-lm/best_{pretrained_model_name}_{self.args["version"]}.pt'
+                self.model.wikitext103_knn_lm_generator.load_state_dict(torch.load(retrieval_path, map_location=torch.device('cpu')))
                 print(f'\n - {retrieval_path}')
             except:
                 pass

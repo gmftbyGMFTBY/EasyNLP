@@ -17,8 +17,10 @@ inference:
     # w_data_root_path: /apdcephfs/share_733425/johntianlan/chatbot-data-clean/weibo_clean_v2
     # r_data_root_path: /apdcephfs/share_916081/johntianlan/chatbot-data-clean/comments_clean
     # w_data_root_path: /apdcephfs/share_916081/johntianlan/chatbot-data-clean/comments_clean_v2
-    r_data_root_path: /apdcephfs/share_916081/johntianlan/chatbot-data-clean/chat_270M_data_clean
-    w_data_root_path: /apdcephfs/share_916081/johntianlan/chatbot-data-clean/chat_270M_data_clean_v2
+    # r_data_root_path: /apdcephfs/share_916081/johntianlan/chatbot-data-clean/chat_270M_data_clean
+    # w_data_root_path: /apdcephfs/share_916081/johntianlan/chatbot-data-clean/chat_270M_data_clean_v2
+    r_data_root_path: ./chat_270M_data_clean
+    w_data_root_path: ./chat_270M_data_clean_v2
     # r_data_root_path: /apdcephfs/share_733425/johntianlan/chatbot-data-clean/chat_1B_data_clean_part1
     # w_data_root_path: /apdcephfs/share_733425/johntianlan/chatbot-data-clean/chat_1B_data_clean_part1_v2
     # r_data_root_path: /apdcephfs/share_733425/johntianlan/chatbot-data-clean/comments_clean_part4

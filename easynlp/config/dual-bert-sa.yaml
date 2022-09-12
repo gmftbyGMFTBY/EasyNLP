@@ -1,7 +1,8 @@
-temp: 1. 
+temp: 1
 # five for restoration-200k is enough
-full_turn_length: 100
-test_interval: 0.01
+full_turn_length: 5
+test_interval: 0.05
+valid_during_training: false
 
 # train configuration
 train:
@@ -14,11 +15,10 @@ train:
     epoch: 5
     warmup_ratio: 0.
     stop_train: false
-    stop_train_trigger:
-        R10@1: 35.
     checkpoint: 
         # path: bert-post/best_nspmlm.pt
-        path: bert-fp/best_bert-base-chinese.pt
+        # path: bert-fp-mono/best_bert-base-chinese.pt
+        path: bert-fp-mono/best_bert-base-uncased.pt
         # path: dual-bert-pt/best_bert-base-chinese.pt
         # path: bert-fp-no-cls/best_bert-base-chinese.pt
         # path: bert-fp-mono/best_bert-base-chinese.pt

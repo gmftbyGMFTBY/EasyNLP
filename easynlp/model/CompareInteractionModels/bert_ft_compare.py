@@ -1,6 +1,7 @@
 from model.utils import *
 from dataloader.util_func import *
 
+
 class BERTCompareRetrieval(nn.Module):
 
     def __init__(self, **args):
@@ -8,11 +9,9 @@ class BERTCompareRetrieval(nn.Module):
         model = args['pretrained_model']
         self.inner_bsz = args['inner_bsz']
         self.num_labels = args['num_labels']
-        self.model = SABertForSequenceClassification.from_pretrained(model, num_labels=1)
-        # self.model = SABertForSequenceClassification.from_pretrained(model, num_labels=3)
+        self.model = SABertForSequenceClassification.from_pretrained(model, num_labels=2)
         self.model.resize_token_embeddings(self.model.config.vocab_size+1)
-        # self.criterion = nn.CrossEntropyLoss()
-        self.criterion = nn.MSELoss()
+        self.criterion = nn.CrossEntropyLoss()
 
         # vocabulary
         self.vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
@@ -203,3 +202,174 @@ class BERTCompareTokenEncoder(nn.Module):
         rest = torch.stack([torch.stack(i) for i in rest])    # [B, 2]
         # return i->j and j->i
         return rest[:, 0], rest[:, 1]
+
+
+
+class BERTCompareV2Retrieval(nn.Module):
+
+    def __init__(self, **args):
+        super(BERTCompareV2Retrieval, self).__init__()
+        model = args['pretrained_model']
+        self.model = SABertForSequenceClassification.from_pretrained(model, num_labels=2)
+        # self.model = BertForSequenceClassification.from_pretrained(model, num_labels=2)
+        # [EOS], [M], [F] for mutual dataset
+        self.model.resize_token_embeddings(self.model.config.vocab_size+3)
+        self.criterion = nn.CrossEntropyLoss()
+
+        # vocabulary
+        self.vocab = AutoTokenizer.from_pretrained(model)
+        self.vocab.add_tokens(['[EOS]', '[M]', '[F]'])
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.eos = self.vocab.convert_tokens_to_ids('[EOS]')
+
+    def forward(self, batch):
+        ids = batch['ids']
+        mask = batch['mask']
+        tids = batch['tids']
+        pids = batch['pids']
+        label = batch['label']    # list
+
+        output = self.model(
+            input_ids=ids,
+            attention_mask=mask,
+            token_type_ids=tids,
+            compare_ids=pids
+        )
+        logits = output.logits
+        loss = self.criterion(logits, label)
+        acc = (logits.max(dim=-1)[1] == label).to(torch.float).mean().item() 
+        return loss, acc
+
+    def predict(self, batch):
+        ids = batch['ids']
+        tids = batch['tids']
+        pids = batch['pids']
+        mask = batch['mask']   
+        output = self.model(
+            input_ids=ids,
+            attention_mask=mask,
+            token_type_ids=tids,
+            compare_ids=pids,
+        )
+        logits = F.softmax(output.logits, dim=-1)[:, 0]
+        return logits
+
+
+
+class BERTCompareV3Retrieval(nn.Module):
+
+    def __init__(self, **args):
+        super(BERTCompareV3Retrieval, self).__init__()
+        model = args['pretrained_model']
+        # self.model = SABertForSequenceClassification.from_pretrained(model, num_labels=3)
+        self.model = BertForSequenceClassification.from_pretrained(model, num_labels=3)
+        # self.model = ElectraForSequenceClassification.from_pretrained(model, num_labels=3)
+        # self.model = RobertaForSequenceClassification.from_pretrained(model, num_labels=2)
+
+        # [EOS], [M], [F] for mutual dataset
+        self.model.resize_token_embeddings(self.model.config.vocab_size+3)
+        self.criterion = nn.CrossEntropyLoss()
+
+        self.vocab = AutoTokenizer.from_pretrained(model)
+        self.vocab.add_tokens(['[EOS]', '[M]', '[F]'])
+
+    def forward(self, batch):
+        ids = batch['ids']
+        mask = batch['mask']
+        tids = batch['tids']
+        pids = batch['pids']
+        label = batch['label']    # list
+
+        output = self.model(
+            input_ids=ids,
+            attention_mask=mask,
+            token_type_ids=tids,
+            # compare_ids=pids
+        )
+        logits = output.logits
+        loss = self.criterion(logits, label)
+        acc = (logits.max(dim=-1)[1] == label).to(torch.float).mean().item() 
+        return loss, acc
+
+    def predict(self, batch):
+        ids = batch['ids']
+        tids = batch['tids']
+        pids = batch['pids']
+        mask = batch['mask']   
+        output = self.model(
+            input_ids=ids,
+            attention_mask=mask,
+            token_type_ids=tids,
+            # compare_ids=pids,
+        )
+        logits = F.softmax(output.logits, dim=-1)
+        # logits = logits[:, 0] - logits[:, 2]
+        logits = logits[:, 0]
+        return logits
+
+
+
+class BERTCompareV4Retrieval(nn.Module):
+
+    def __init__(self, **args):
+        super(BERTCompareV4Retrieval, self).__init__()
+        model = args['pretrained_model']
+        self.model = AutoModel.from_pretrained(model)
+        self.classifier = nn.Sequential(
+            nn.Linear(self.model.config.hidden_size*2, self.model.config.hidden_size),
+            nn.Tanh(),
+            nn.Dropout(args['dropout']),
+            nn.Linear(self.model.config.hidden_size, 3)
+        )
+        # [EOS], [M], [F] for mutual dataset
+        self.model.resize_token_embeddings(self.model.config.vocab_size+3)
+        self.criterion = nn.CrossEntropyLoss()
+
+        self.vocab = AutoTokenizer.from_pretrained(model)
+        self.vocab.add_tokens(['[EOS]', '[M]', '[F]'])
+
+    def forward(self, batch):
+        ids = batch['ids']
+        mask = batch['mask']
+        tids = batch['tids']
+        pids = batch['pids']
+        first_index, second_index = batch['first_index'], batch['second_index']
+        label = batch['label']    # list
+        batch_size = len(ids)
+
+        output = self.model(
+            input_ids=ids,
+            attention_mask=mask,
+            # token_type_ids=tids,
+            # compare_ids=pids
+        ).last_hidden_state
+        hidden = torch.cat((
+            output[range(batch_size), first_index, :],
+            output[range(batch_size), second_index, :]
+        ), dim=-1)    # [B, 2*E]
+        logits = self.classifier(hidden)
+        loss = self.criterion(logits, label)
+        acc = (logits.max(dim=-1)[1] == label).to(torch.float).mean().item() 
+        return loss, acc
+
+    def predict(self, batch):
+        ids = batch['ids']
+        tids = batch['tids']
+        pids = batch['pids']
+        mask = batch['mask']   
+        batch_size = len(ids)
+        first_index, second_index = batch['first_index'], batch['second_index']
+        output = self.model(
+            input_ids=ids,
+            attention_mask=mask,
+            # token_type_ids=tids,
+            # compare_ids=pids,
+        ).last_hidden_state
+        hidden = torch.cat((
+            output[range(batch_size), first_index, :],
+            output[range(batch_size), second_index, :]
+        ), dim=-1)    # [B, 2*E]
+        logits = self.classifier(hidden)
+        logits = F.softmax(logits, dim=-1)[:, 0]
+        return logits

@@ -4,21 +4,24 @@ total_step: 10000010
 save_every: 10000
 
 # contrastive search parameters
-beam_width: 5
+beam_width: 3
 model_prediction_confidence: 0.4
 margin: 0.5
 cl_loss_alpha: 1.
-sampling_prefix_len: 3
+sampling_prefix_len: 1
+contrastive_topk: 5
+contrastive_topp: 0.6
+sep_smooth_length: 1
 
 # gpt2 configuration load locally
 tokenizer: 
-    zh: /apdcephfs/share_733425/johntianlan/gpt2-l-300g
-    # zh: /apdcephfs/share_916081/johntianlan/gpt2-l-300g
+    # zh: /apdcephfs/share_733425/johntianlan/gpt2-l-300g
+    zh: /apdcephfs/share_916081/johntianlan/gpt2-l-300g
     # en: /apdcephfs/share_733425/johntianlan/gpt2-large
     en: /apdcephfs/share_916081/johntianlan/gpt2-large
 pretrained_model: 
-    zh: /apdcephfs/share_733425/johntianlan/gpt2-l-300g
-    # zh: /apdcephfs/share_916081/johntianlan/gpt2-l-300g
+    # zh: /apdcephfs/share_733425/johntianlan/gpt2-l-300g
+    zh: /apdcephfs/share_916081/johntianlan/gpt2-l-300g
     # en: /apdcephfs/share_733425/johntianlan/gpt2-large
     en: /apdcephfs/share_916081/johntianlan/gpt2-large
 
@@ -42,5 +45,6 @@ train:
 
 test:
     seed: 0
-    batch_size: 32
-    max_len: 256
+    batch_size: 1
+    max_len: 64
+    test_max_len: 64

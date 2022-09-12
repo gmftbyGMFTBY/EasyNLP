@@ -3,23 +3,25 @@ valid_during_training: true
 
 tokenizer:
     zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
-    en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
+    # en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
+    en: /apdcephfs/share_916081/johntianlan/electra-large-discriminator
 pretrained_model:
     zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
-    en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
+    # en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
+    en: /apdcephfs/share_916081/johntianlan/electra-large-discriminator
 
 # train configuration
 train:
     lr: 0.00005
-    grad_clip: 5.0
+    grad_clip: 1.0
     seed: 0
-    batch_size: 64
-    max_len: 256
+    batch_size: 8
+    max_len: 384
     epoch: 5
     warmup_ratio: 0.0
     checkpoint: 
         path: bert-fp/best__apdcephfs_share_916081_johntianlan_bert-base-uncased_12.pt
-        is_load: true
+        is_load: false
 
 # test configuration
 test:

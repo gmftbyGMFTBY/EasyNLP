@@ -175,7 +175,7 @@ class InteractionAgent(RetrievalBaseAgent):
           calculate_candidates_ranking(
                 np.array(scores), 
                 np.array(label.cpu().tolist()),
-                4)
+                10)
             num_correct = logits_recall_at_k(pos_index, k_list)
             if self.args['dataset'] in ["douban", "restoration-200k"]:
                 total_prec_at_one += precision_at_one(rank_by_pred)
@@ -345,6 +345,14 @@ class InteractionAgent(RetrievalBaseAgent):
                 )
                 new_state_dict = self.checkpointadapeter.convert(state_dict)
                 self.model.model.load_state_dict(new_state_dict)
+            elif self.args['model'] in ['bert-ft-mutual']:
+                ipdb.set_trace()
+                self.checkpointadapeter.init(
+                    state_dict.keys(),
+                    self.model.model.bert.state_dict().keys(),
+                )
+                new_state_dict = self.checkpointadapeter.convert(state_dict)
+                self.model.model.bert.load_state_dict(new_state_dict)
             else:
                 self.checkpointadapeter.init(
                     state_dict.keys(),
@@ -491,3 +499,27 @@ class InteractionAgent(RetrievalBaseAgent):
             for rest, fw in zip(results, writers):
                 string = json.dumps(rest, ensure_ascii=False) + '\n'
                 fw.write(string)
+
+    @torch.no_grad()
+    def evaluate(self, test_iter):
+        def _correlation(output, score):
+            r_spearmanr, p_spearmanr = spearmanr(output, score)
+            r_pearsonr, p_pearsonr = pearsonr(output, score)
+
+            spearmanr_res = str(np.round(r_spearmanr, 3)) + ' (' + str(np.round(p_spearmanr, 3)) + ')'
+            pearsonr_res = str(np.round(r_pearsonr, 3)) + ' (' + str(np.round(p_pearsonr, 3)) + ')'
+            return [spearmanr_res, pearsonr_res]
+
+        
+        self.model.eval()
+        pbar = tqdm(test_iter)
+        human_annotations, automatic_scores = [], []
+
+        for idx, batch in enumerate(pbar):                
+            human_annotations.extend(batch['score'])
+            score = self.model(batch)[:, 1].cpu().tolist()
+            automatic_scores.extend(score)
+        # pearson and spearman scores
+        sp, pr = _correlation(automatic_scores, human_annotations)
+        print(f'[!] pearsonr:', pr)
+        print(f'[!] spearmanr:', sp)

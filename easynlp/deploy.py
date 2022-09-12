@@ -311,7 +311,8 @@ def create_app():
         }
         if succ:
             contexts = [i['str'] for i in data['segment_list']]
-            rest = [{'context': c, 'candidates': rs} for c, rs in zip(contexts, candidates)]
+            ground_truths = [i['ground_truth'] for i in data['segment_list']]
+            rest = [{'context': c, 'candidates': rs, 'ground_truth': g} for g, c, rs in zip(ground_truths, contexts, candidates)]
             result['item_list'] = rest
         else:
             result['item_list'] = None

@@ -1,8 +1,8 @@
 test_interval: 0.05
 valid_during_training: false
 is_step_for_training: true
-total_step: 500000
-save_every: 20000
+total_step: 100000
+save_every: 10000
 test_max_ctx_len: 512
 num_beam: 5
 sep_smooth_length: 50

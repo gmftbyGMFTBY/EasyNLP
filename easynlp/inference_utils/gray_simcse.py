@@ -6,7 +6,7 @@ from .utils import *
 def gray_simcse_strategy(args):
     # read the embeddings
     embds, texts, indexes = [], [], []
-    base = 24
+    base = 0
     for idx in range(100):
         try:
             embd, index = torch.load(

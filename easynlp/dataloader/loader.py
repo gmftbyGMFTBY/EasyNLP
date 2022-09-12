@@ -1,4 +1,5 @@
 from header import *
+from .human_scores_dataloader import *
 from .test_gpt2_ppl_dataloader import *
 from .inference_knnlm_dataloader import *
 from .post_dialog_pretrain_dataloader import *
@@ -71,8 +72,8 @@ def load_dataset(args):
         if args['model'] in ['bart-ft', 'dialog-eva']:
             vocab = BertTokenizer.from_pretraiend(args['tokenizer'])
         else:
-            vocab = AutoTokenizer.from_pretrained(args['tokenizer'])
-            # vocab = AutoTokenizer.from_pretrained(args['tokenizer'], use_fast=True)
+            # vocab = AutoTokenizerFast.from_pretrained(args['tokenizer'])
+            vocab = AutoTokenizer.from_pretrained(args['tokenizer'], use_fast=True)
     except:
         vocab = BertTokenizerFast.from_pretrained(args['tokenizer'])
 

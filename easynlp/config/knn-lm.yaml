@@ -31,6 +31,6 @@ inference:
     batch_size: 64
     # index_type: IVF10000,PQ16
     # en-wiki index type
-    index_type: IVF10000,PQ16
+    index_type: IVF100000,PQ16
     index_nprobe: 64
     dimension: 768

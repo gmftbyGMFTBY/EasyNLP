@@ -1,13 +1,14 @@
 temperature: 1.0
 # dynamic searching parameters (left windows position and right windows position)
-left_window_size: 2
-right_window_size: 16
+# english 0, chinese 2
+left_window_size: 0
+right_window_size: 8
 test_max_len: 128
 prefix_len: 32
 doc_max_length: 256
 max_doc_num: 50
 min_phrase_length: 2
-max_phrase_length: 32
+max_phrase_length: 8
 max_doc_length: 256
 # the topk phrases that be considered
 search_topk: 5
@@ -22,7 +23,7 @@ update_step: 128
 max_query_len: 512
 contrastive_phrase_score_penalty: 100
 coarse_score_alpha: 0.0
-softmax_temp: 0.01
+softmax_temp: 0.1
 
 buffer_size: 40960
 

@@ -26,7 +26,7 @@ class BERTDualInferenceContextDataset(Dataset):
             item = self.vocab.batch_encode_plus(utterances, add_special_tokens=False)['input_ids']
             ids = []
             for u in item[:-1]:
-                ids.extend(u + [self.eos])
+                ids.extend(u + [self.sep])
             ids.pop()
             ids = ids[-self.args['max_len']+2:]
             ids = [self.cls] + ids + [self.sep]

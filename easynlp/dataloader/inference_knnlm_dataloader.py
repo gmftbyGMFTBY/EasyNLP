@@ -17,8 +17,12 @@ class KNNLMInferenceDataset(Dataset):
             path = f'/apdcephfs/share_916081/johntianlan/copygeneration_wikitext103/base_data.txt'
             # self.pad = self.vocab.eos_token_id
             self.pad = self.vocab.pad_token_id
+        elif self.args['dataset'] in ['copygeneration_lawmt']:
+            path = f'/apdcephfs/share_916081/johntianlan/copygeneration_lawmt/base_data.txt'
+            # self.pad = self.vocab.eos_token_id
+            self.pad = self.vocab.pad_token_id
         elif self.args['dataset'] in ['en_wiki']:
-            path = f'/apdcephfs/share_916081/johntianlan/copygeneration_en_wiki/backup_v4_data/searched_results_{args["local_rank"]}_base.txt'
+            path = f'/apdcephfs/share_916081/johntianlan/copygeneration_en_wiki/base_data.txt'
             print(f'[!] prepare to load data from {path}')
             # self.pad = self.vocab.eos_token_id
             self.pad = self.vocab.pad_token_id
@@ -26,12 +30,14 @@ class KNNLMInferenceDataset(Dataset):
             path = f'/apdcephfs/share_916081/johntianlan/copygeneration_data/base_data.txt'
             self.pad = self.vocab.pad_token_id
 
-        if self.args['dataset'] in ['wikitext103']:
+        if self.args['dataset'] in ['wikitext103', 'copygeneration_lawmt', 'en_wiki']:
             self.data = []
             counter = 0
             with open(path) as f:
                 for line in tqdm(f.readlines()):
-                    context, idx = line.strip().split('\t')
+                    items = line.strip().split('\t')
+                    context = '\t'.join(items[:-1])
+                    idx = items[-1]
                     tokens = self.vocab.encode(context, add_special_tokens=False)
                     # make the chunk (512)
                     for i in range(0, len(tokens), 512):
@@ -41,6 +47,8 @@ class KNNLMInferenceDataset(Dataset):
                             continue
                         self.data.append(subsequence)
                         counter += len(subsequence) - 1
+                    if len(self.data) >= 1300000:
+                        break
             print(f'[!] collect {len(self.data)} samples and {counter} key-values')
             self.size = len(self.data)
         else:

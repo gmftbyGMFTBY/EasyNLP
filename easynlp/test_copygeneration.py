@@ -102,7 +102,7 @@ def main_generation(**args):
 
         if decoding_method in ['word-greedy-search', 'word-nucleus-search', 'word-contrastive-search']:
             batch['generation_method'] = 'greedy-search'
-            res = agent.model.work(batch) 
+            res, phrase_ratio = agent.model.work(batch) 
             batch[f'{decoding_method}_response'] = res
         else:
             for generation_method in [
@@ -113,6 +113,7 @@ def main_generation(**args):
                 batch['generation_method'] = generation_method
                 res = agent.model.work(batch) 
                 batch[f'{decoding_method}_{generation_method}_response'] = res
+                batch[f'{decoding_method}_{generation_method}_phrase-rate'] = phrase_ratio
         pprint.pprint(batch)
         ipdb.set_trace()
         string = json.dumps(batch, ensure_ascii=False)

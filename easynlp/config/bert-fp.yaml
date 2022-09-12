@@ -23,7 +23,8 @@ train:
     grad_clip: 1.0
     seed: 0
     batch_size: 64
-    max_len: 128
+    # 256 for convai2
+    max_len: 256
     min_len: 8
     min_mask_num: 1
     max_mask_num: 40

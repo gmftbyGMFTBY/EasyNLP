@@ -21,6 +21,7 @@ def parser_args():
     parser.add_argument('--train_size', type=int, default=200)
     parser.add_argument('--overall_size', type=int, default=200)
     parser.add_argument('--data_filter_size', type=int, default=500000)
+    parser.add_argument('--partial', type=float, default=1.)
     return parser.parse_args()
 
 
@@ -44,13 +45,13 @@ def inference(**args):
     else:
         agent.load_model(f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}_{args["version"]}.pt')
 
-    if work_mode in ['response']:
+    if work_mode in ['response', 'partial-response']:
         agent.inference(data_iter, size=args['cut_size'])
         pass
     elif work_mode in ['simcse-response']:
         agent.inference_big(data_iter, size=args['cut_size'])
     elif work_mode in ['knnlm']:
-        # agent.inference_knnlm(data_iter, size=args['cut_size'])
+        agent.inference_knnlm(data_iter, size=args['cut_size'])
         pass
     elif work_mode in ['phrases']:
         agent.inference_phrases(data_iter, size=args['cut_size'])
@@ -124,6 +125,9 @@ if __name__ == "__main__":
         da_strategy(args)
     elif args['work_mode'] in ['response', 'wz-simcse', 'knnlm']:
         response_strategy(args)
+        pass
+    elif args['work_mode'] in ['partial-response']:
+        partial_response_strategy(args)
         pass
     elif args['work_mode'] in ['phrases']:
         # remove the duplication

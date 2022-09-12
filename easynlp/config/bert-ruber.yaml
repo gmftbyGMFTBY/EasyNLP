@@ -1,0 +1,33 @@
+valid_during_training: false
+is_step_for_training: false
+test_interval: 0.05
+
+# network issue, load locally
+tokenizer:
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
+pretrained_model:
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
+
+# train configuration
+train:
+    load_param: true
+    lr: 0.00005
+    grad_clip: 5.0
+    seed: 0
+    batch_size: 64
+    max_len: 256
+    res_max_len: 64
+    epoch: 5
+    warmup_ratio: 0.
+    checkpoint: 
+        path: bert-fp-mono/best_bert-base-uncased.pt
+        is_load: false
+
+# test configuration
+test:
+    seed: 0
+    batch_size: 128
+    max_len: 256
+    res_max_len: 64

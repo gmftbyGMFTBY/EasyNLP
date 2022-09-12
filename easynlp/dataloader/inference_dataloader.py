@@ -23,12 +23,13 @@ class BERTDualInferenceDataset(Dataset):
             responses = read_response_data_potter(path, lang=self.args['lang'])
         else:
             responses = read_response_data(path, lang=self.args['lang'])
+            ipdb.set_trace()
         responses = list(set(responses))
         print(f'[!] load {len(responses)} responses for inference finally')
 
         self.data = []
         for res in tqdm(responses):
-            rids = [self.cls] + self.vocab.encode(res, add_special_tokens=False)[:self.args['max_len']-2] + [self.sep]
+            rids = [self.cls] + self.vocab.encode(res, add_special_tokens=False)[:self.args['res_max_len']-2] + [self.sep]
             self.data.append({
                 'ids': rids, 
                 'text': res

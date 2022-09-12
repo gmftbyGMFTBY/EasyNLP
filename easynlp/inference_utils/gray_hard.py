@@ -46,6 +46,7 @@ def gray_hard_strategy(args):
             if r in rest:
                 rest.remove(r)
             collection.append({'q': c, 'r': r, 'hp': rest})
+            ipdb.set_trace()
         sample_num += len(batch)
         pbar.set_description(f'[!] total response: {sample_num}')
     print(f'[!] total samples: {len(embds)}; bad response num: {bad_response_num}')

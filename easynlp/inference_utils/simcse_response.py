@@ -11,6 +11,20 @@ def simcse_response_strategy(args):
     text_ids = []
     already_added = []
     current_num = 0
+
+    total_num = 0
+    for i in tqdm(range(8)):
+        for idx in range(100):
+            try:
+                embd, text, text_id = torch.load(
+                    f'{args["root_dir"]}/data/{args["dataset"]}/inference_{args["model"]}_{i}_{idx}.pt'
+                )
+                print(f'[!] load {args["root_dir"]}/data/{args["dataset"]}/inference_{args["model"]}_{i}_{idx}.pt')
+                current_num += len(embd)
+            except:
+                break
+            total_num += len(text)
+
     # for i in tqdm(range(args['nums'])):
     for i in tqdm(range(8)):
         for idx in range(100):
@@ -27,9 +41,9 @@ def simcse_response_strategy(args):
             text_ids.extend(text_id)
             already_added.append((i, idx))
             print(f'[!] collect embeddings: {current_num}')
-            if current_num > 3000000:
+            if current_num > 500000:
                 break
-        if current_num > 3000000:
+        if current_num > 500000:
             break
     embds = np.concatenate(embds) 
     searcher = Searcher(args['index_type'], dimension=args['dimension'])
@@ -55,7 +69,7 @@ def simcse_response_strategy(args):
     model_name = args['model']
     pretrained_model_name = args['pretrained_model'].replace('/', '_')
     searcher.save(
-        f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_faiss.ckpt',
-        f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt',
+        f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_faiss_10_percent.ckpt',
+        f'{args["root_dir"]}/data/{args["dataset"]}/{model_name}_{pretrained_model_name}_corpus_10_percent.ckpt',
     )
     print(f'[!] save faiss index over')

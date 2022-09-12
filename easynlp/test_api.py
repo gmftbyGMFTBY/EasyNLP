@@ -322,23 +322,46 @@ def test_recall(args):
     #     size=args['size'],
     # )
 
-    data = [
-        {
-            'segment_list': [
-                {'str': '今天要不要一起去看个电影呢'}
-            ],'lang': 'zh'
-        },
-        {
-            'segment_list': [
-                {'str': '我女朋友终于要毕业啦'},
-            ],'lang': 'zh'
-        },
-        {
-            'segment_list': [
-                {'str': '辛苦啦'},
-            ],'lang': 'zh'
-        },
-    ]
+    # data = [
+    #     {
+    #         'segment_list': [
+    #             {'str': '今天要不要一起去看个电影呢'}
+    #         ],'lang': 'zh'
+    #     },
+    #     {
+    #         'segment_list': [
+    #             {'str': '我女朋友终于要毕业啦'},
+    #         ],'lang': 'zh'
+    #     },
+    #     {
+    #         'segment_list': [
+    #             {'str': '辛苦啦'},
+    #         ],'lang': 'zh'
+    #     },
+    # ]
+    def load_test_samples(path):
+        with open(path) as f:
+            lines = [line.strip() for line in f.readlines() if line[0] == '1']
+            samples = []
+            exist_set = set()
+            for line in lines:
+                items = line.split('\t')
+                session = items[1:-2]
+                session_string = ''.join(session)
+                if session_string in exist_set:
+                    continue
+                else:
+                    exist_set.add(session_string)
+                ground_truth = items[-2]
+                samples.append({
+                    'segment_list': [
+                        {'str': ' [SEP] '.join(session), 'ground_truth': ground_truth}    
+                    ], 'lang': 'zh',
+                })
+        print(f'[!] load {len(samples)} sessions')
+        return samples
+
+    data = load_test_samples('/apdcephfs/share_916081/johntianlan/dialog-pretrain-ckpt/test.txt')
 
     # recall test begin
     avg_times = []
@@ -355,7 +378,6 @@ def test_recall(args):
             avg_times.append(rest['header']['core_time_cost_ms'])
         pbar.set_description(f'[!] time: {round(np.mean(avg_times), 2)} ms; error: {error_counter}')
         pprint.pprint(rest)
-        ipdb.set_trace()
     avg_t = round(np.mean(avg_times), 4)
     print(f'[!] avg recall time cost: {avg_t} ms; error ratio: {round(error_counter/len(data), 4)}')
     return collections

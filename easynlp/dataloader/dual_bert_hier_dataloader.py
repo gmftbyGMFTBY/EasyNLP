@@ -40,8 +40,9 @@ class BERTDualFullHierDataset(Dataset):
                 })
         else:
             data = read_text_data_utterances(path, lang=self.args['lang'])
-            if args['mode'] == 'valid' and args['dataset'] in ['ubuntu']:
-                data = data[:10000]
+            # if args['mode'] == 'valid' and args['dataset'] in ['ubuntu']:
+            # if args['mode'] == 'test' and args['dataset'] in ['ubuntu']:
+            #     data = data[:10000]
             for i in tqdm(range(0, len(data), 10)):
                 batch = data[i:i+10]
                 rids = []
@@ -59,7 +60,7 @@ class BERTDualFullHierDataset(Dataset):
 
                 self.data.append({
                     'label': [b[0] for b in batch],
-                    'ids': ids[:-1],
+                    'ids': ids[-2:-1],
                     'rids': rids,
                     'text': gt_text,
                     'turn_length': len(ids) - 1,

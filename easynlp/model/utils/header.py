@@ -27,7 +27,11 @@ from collections import Counter, OrderedDict
 from torch.nn.utils import clip_grad_norm_
 import random
 from transformers import BertTokenizer
-from transformers import BertForSequenceClassification, BertModel, BertForPreTraining, EncoderDecoderModel, XLMRobertaModel, GPT2LMHeadModel, BertForMaskedLM, GPT2Model, AutoModelForSeq2SeqLM, GPT2Config
+from transformers import BertForSequenceClassification, BertModel, BertForPreTraining, EncoderDecoderModel, XLMRobertaModel, GPT2LMHeadModel, BertForMaskedLM, GPT2Model, AutoModelForSeq2SeqLM, GPT2Config, RobertaForSequenceClassification
+try:
+    from transformers.pytorch_utils import apply_chunking_to_forward, find_pruneable_heads_and_indices, prune_linear_layer
+except:
+    pass
 import transformers
 from sklearn.metrics import label_ranking_average_precision_score
 import argparse
@@ -42,7 +46,7 @@ from bert_score import BERTScorer
 # herits from huggingface models 
 from transformers import BertPreTrainedModel
 from transformers.models.bert.modeling_bert import BertEncoder, BertPooler, BertPreTrainingHeads, BertForPreTrainingOutput, BertEmbeddings
-from transformers.modeling_outputs import BaseModelOutputWithPoolingAndCrossAttentions, CausalLMOutputWithCrossAttentions, BaseModelOutputWithPastAndCrossAttentions, SequenceClassifierOutput
+from transformers.modeling_outputs import BaseModelOutputWithPoolingAndCrossAttentions, CausalLMOutputWithCrossAttentions, BaseModelOutputWithPastAndCrossAttentions, SequenceClassifierOutput, BaseModelOutputWithCrossAttentions
 from transformers.file_utils import (
     ModelOutput,
     add_code_sample_docstrings,

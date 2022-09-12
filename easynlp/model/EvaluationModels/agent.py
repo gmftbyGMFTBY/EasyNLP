@@ -27,11 +27,11 @@ class EvaluationAgent(RetrievalBaseAgent):
 
         # LM agent
         # from model.LanguageModels.kenlm import KeNLM
-        from model.LanguageModels import GPT2LM
-        self.lm_model = GPT2LM(**self.args) 
-        self.lm_model.cuda()
+        # from model.LanguageModels import GPT2LM
+        # self.lm_model = GPT2LM(**self.args) 
+        # self.lm_model.cuda()
 
-    def train_model(self, train_iter, test_iter, recoder=None, idx_=0):
+    def train_model(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
         self.model.train()
         total_loss, batch_num, correct, s = 0, 0, 0, 0
         pbar = tqdm(train_iter)
@@ -39,9 +39,7 @@ class EvaluationAgent(RetrievalBaseAgent):
         for idx, batch in enumerate(pbar):
             self.optimizer.zero_grad()
             with autocast():
-                output = self.model(batch)    # [B]
-                label = batch['label']
-                loss = self.criterion(output, label.to(torch.float))
+                loss, acc = self.model(batch)    # [B]
 
             self.scaler.scale(loss).backward()
             self.scaler.unscale_(self.optimizer)
@@ -52,26 +50,15 @@ class EvaluationAgent(RetrievalBaseAgent):
 
             total_loss += loss.item()
             batch_num += 1
-            output = torch.sigmoid(output) > 0.5
-            now_correct = torch.sum(output == label).item()
-            correct += now_correct
-            s += len(label)
 
-            if batch_num in self.args['test_step']:
-                if self.args['local_rank'] == 0:
-                    pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
-                    save_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_{pretrained_model_name}.pt'
-                    self.save_model(save_path)
-            
-            recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
+            if whole_batch_num + batch_num in self.args['test_step']:
+                self.test_now(test_iter, recoder)
+
             recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/Acc', correct/s, idx)
-            recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', now_correct/len(label), idx)
+            recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
 
-            pbar.set_description(f'[!] train loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(now_correct/len(label), 4)}|{round(correct/s, 4)}')
-        recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
-        recoder.add_scalar(f'train-whole/Acc', correct/s, idx_)
-        return round(total_loss / batch_num, 4)
+            pbar.set_description(f'[!] train loss: {round(loss.item(), 4)}; acc: {round(acc, 4)}')
+        return 
     
     @torch.no_grad()
     def test_model(self, test_iter, print_output=False, rerank_agent=None):
@@ -88,3 +75,29 @@ class EvaluationAgent(RetrievalBaseAgent):
                     self.log_save_file.write(f'[Score {score}; PPL {ppl}] {text}\n')
                 self.log_save_file.write('\n')
         return {}
+    
+    @torch.no_grad()
+    def evaluate(self, test_iter):
+        def _correlation(output, score):
+            r_spearmanr, p_spearmanr = spearmanr(output, score)
+            r_pearsonr, p_pearsonr = pearsonr(output, score)
+
+            spearmanr_res = str(np.round(r_spearmanr, 3)) + ' (' + str(np.round(p_spearmanr, 3)) + ')'
+            pearsonr_res = str(np.round(r_pearsonr, 3)) + ' (' + str(np.round(p_pearsonr, 3)) + ')'
+            return [spearmanr_res, pearsonr_res]
+
+        
+        self.model.eval()
+        pbar = tqdm(test_iter)
+        human_annotations, automatic_scores = [], []
+
+        for idx, batch in enumerate(pbar):                
+            human_annotations.extend(batch['score'])
+            score = self.model.predict(batch).cpu().tolist()
+            # score = self.model.predict(batch)
+            automatic_scores.extend(score)
+        # pearson and spearman scores
+        ipdb.set_trace()
+        sp, pr = _correlation(automatic_scores, human_annotations)
+        print(f'[!] pearsonr:', pr)
+        print(f'[!] spearmanr:', sp)

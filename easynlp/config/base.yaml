@@ -1,4 +1,11 @@
 datasets: 
+    dailydialog: en
+    convai2: en
+    empatheticdialogues: en
+    automatic_evaluation_dailydialog: en
+    automatic_evaluation_rrs: zh
+    automatic_evaluation_convai2: en
+    automatic_evaluation_empatheticdialogues: en
     copygeneration_zh_news: zh
     en_wiki: en
     copygeneration_lawmt: en
@@ -55,7 +62,9 @@ pretrained_model:
     en: bert-base-uncased
 
 no_test_models:
+    - bert-ruber
     - bert-fp
+    - bert-ft
     - dual-bert-wr
     - bert-fp-comp
     - bert-fp-multi
@@ -77,12 +86,16 @@ no_test_models:
     - dialog-simctg
     - dialog-plato-v1
     - dialog-eva
-    - bert-ft-compare
-    - bert-ft
+    - dual-bert
+    - transformer-dual-bert
+    # - bert-ft-compare
+    # - bert-ft
 #     - writer-dual-bert-phrase
 # - gpt2-original
 
 no_train_models:
+    - bertsocre
+    - bleu
     - bert-fp-original
     - bert-mask-da
     - bert-mask-da-dmr
@@ -264,8 +277,8 @@ models:
     dual-bert-sa: 
         type: Representation
         model_name: BERTDualSAEncoder
-        # dataset_name: BERTDualSAFullDataset
-        dataset_name: HORSESATestDataset
+        dataset_name: BERTDualSAFullDataset
+        # dataset_name: HORSESATestDataset
         inference_dataset_name: null
     dual-bert-vae:
         type: Representation
@@ -494,7 +507,12 @@ models:
         # model_name: FastDensePhraseV18Encoder
         # model_name: FastDensePhraseV19Encoder
         # model_name: FastDensePhraseV20Encoder
-        model_name: FastDensePhraseV21Encoder
+        # model_name: FastDensePhraseV21Encoder
+        ## model_name: FastDensePhraseV22Encoder
+        # model_name: FastDensePhraseV25Encoder
+        # model_name: FastDensePhraseV23Encoder
+        # model_name: FastDensePhraseV24Encoder
+        model_name: FastDensePhraseV26Encoder
         # model_name: DensePhraseV4Encoder
         # model_name: DensePhraseV5Encoder
         # model_name: DensePhraseV6Encoder
@@ -502,9 +520,10 @@ models:
         # model_name: DensePhraseV8Encoder
         # model_name: DensePhraseV9Encoder
         # dataset_name: CopyGenerationDataset
-        # dataset_name: CopyGenerationCompactDataset
-        dataset_name: CopyGenerationCompactV3Dataset
+        dataset_name: CopyGenerationCompactDataset
+        # dataset_name: CopyGenerationCompactV3Dataset
         # dataset_name: CopyGenerationCompactNoContextDataset
+        # dataset_name: CopyGenerationCompactWithPrefixDataset
         # dataset_name: CopyGenerationCompactOnlyPhraseDataset
         # dataset_name: CopyGenerationCompactOnlyPhraseHNDataset
         # dataset_name: CopyGenerationCompactOnlyPhraseHNV2Dataset
@@ -519,11 +538,18 @@ models:
         model_name: BERTDualMutualDatasetEncoder
         dataset_name: BERTDualMutualFullDataset
         inference_dataset_name: null 
+    transformer-dual-bert: 
+        type: Representation
+        model_name: TransformerDualEncoder
+        dataset_name: BERTDualDataset
+        # inference_dataset_name: BERTDualInferenceFullDataset
+        inference_dataset_name: BERTDualInferenceContextDataset
     dual-bert: 
         type: Representation
         model_name: BERTDualEncoder
         # model_name: BERTDualHiddenEncoder
         # model_name: BERTDualMVEncoder
+        dataset_name: HumanScoresDataset
         # dataset_name: BERTDualFullFakeCtxDataset
         # dataset_name: BERTDualDataset
         # large chinese pretrain dialog dataloader DRBERTDataset
@@ -532,7 +558,8 @@ models:
         # dataset_name: BERTDualFullWithHardNegDataset
         # dataset_name: FilterDRDataset
         # dataset_name: BERTDualFullDataset
-        dataset_name: PersonaBERTDualFullDataset 
+        # dataset_name: BERTDualFullDailyDialogDataset
+        # dataset_name: PersonaBERTDualFullDataset 
         # dataset_name: HORSETestDataset
         # dataset_name: BERTDualDAFullDataset
         # dataset_name: BERTDualRandomFullDataset
@@ -638,8 +665,8 @@ models:
     gpt2-original-wt103: 
         type: Generation
         model_name: GPT2wt103Model
-        # dataset_name: CopyGenerationOnlyGenWikiText103Dataset
-        dataset_name: TestGPT2PPLDataset
+        dataset_name: CopyGenerationOnlyGenWikiText103Dataset
+        # dataset_name: TestGPT2PPLDataset
         inference_dataset_name: GPT2DialogDataset
     gpt2-original: 
         type: Generation
@@ -819,8 +846,10 @@ models:
         inference_dataset_name: BERTDualInferenceFullDataset
     dual-bert-hier-trs: 
         type: Representation
+        # model_name: BERTDualHierarchicalGRUMVEncoder
         # model_name: BERTDualHierarchicalTrsMVEncoder
-        model_name: BERTDualHierarchicalTrsEncoder
+        model_name: BERTDualHierarchicalTrsMVSAEncoder
+        # model_name: BERTDualHierarchicalTrsEncoder
         # model_name: BERTDualHierarchicalTrsGPT2Encoder
         # model_name: BERTDualHierarchicalTrsMVGPT2Encoder
         # model_name: BERTDualHierarchicalTrsGPT2BothEncoder
@@ -876,14 +905,36 @@ models:
         type: Interaction
         model_name: BERTMutualDatasetRetrieval
         dataset_name: BERTFTMutualDataset
+    rouge:
+        type: Evaluation
+        model_name: ROUGEModel
+        dataset_name: HumanScoresTextualDataset
+    bleurt:
+        type: Evaluation
+        model_name: BLEURTModel
+        dataset_name: HumanScoresTextualDataset
+    bleu:
+        type: Evaluation
+        model_name: BLEUModel
+        dataset_name: HumanScoresTextualDataset
+    bert-ruber:
+        type: Evaluation
+        model_name: BERTRUBERModel
+        dataset_name: HumanScoresDataset
+        # dataset_name: BERTRUBERDualDataset
+    bertscore:
+        type: Evaluation
+        model_name: BERTScoreModel
+        dataset_name: HumanScoresDataset
     bert-ft: 
         type: Interaction
         model_name: BERTRetrieval
         # dataset_name: FineGrainedTestInteractionDataset
         # dataset_name: BERTFTDataset
+        dataset_name: HumanScoresInteractionDataset
         # dataset_name: FilterDataset
         # dataset_name: BERTFTAccDataset
-        dataset_name: BERTFTBigDataset
+        # dataset_name: BERTFTBigDataset
         # dataset_name: FilterSensitiveTestDataset
         # dataset_name: BERTFTFullDataset
         # dataset_name: HORSETestInteractionDataset
@@ -925,11 +976,17 @@ models:
         inference_dataset_name: null
     bert-ft-compare: 
         type: CompareInteraction
-        model_name: BERTCompareRetrieval
+        # model_name: BERTCompareRetrieval
+        # model_name: BERTCompareV2Retrieval
+        model_name: BERTCompareV3Retrieval
+        # model_name: BERTCompareV4Retrieval
         # dataset_name: BERTFTCompEasyDataset
-        # dataset_name: BERTFTCompDataset
+        dataset_name: BERTFTCompDataset
         # dataset_name: BERTCompBigDataset
-        dataset_name: BERTCompHNBigDataset
+        # dataset_name: BERTCompHNBigDataset
+        # dataset_name: BERTCompareMutualDataset
+        # dataset_name: BERTCompareMutualV3Dataset
+        # dataset_name: BERTCompareMutualV4Dataset
         # dataset_name: HORSECompTestDataset
         inference_dataset_name: null
     dual-bert-comp-hn: 
@@ -1006,13 +1063,14 @@ models:
         type: PostTrain
         model_name: BERTFPCompPostTrain
         # dataset_nams: PostTrainComparisonDataset
-        dataset_name: PostTrainComparisonBigDataset
+        # dataset_name: PostTrainComparisonBigDataset
+        dataset_name: BERTCompareMutualV3PostTrainDataset
         inference_dataset_name: null
     bert-fp: 
         type: PostTrain
         model_name: BERTFPPostTrain
-        # dataset_name: PostTrainDataset
-        dataset_name: PostTrainMutualDataset
+        dataset_name: PostTrainDataset
+        # dataset_name: PostTrainMutualDataset
         # dataset_name: FilterPostTrainDataset
         # dataset_name: PostTrainBigDataset
         inference_dataset_name: null 
@@ -1029,10 +1087,10 @@ models:
     bert-fp-mono: 
         type: PostTrain
         model_name: BERTMonolingualPostTrain
-        # dataset_name: PostTrainMonoDataset
+        dataset_name: PostTrainMonoDataset
         # dataset_name: PostTrainMonoBigDataset
         # dataset_name: PostTrainMonoBigDatasetV2
-        dataset_name: PostTrainMonoMutualDataset 
+        # dataset_name: PostTrainMonoMutualDataset 
         # dataset_name: PostTrainMonoPersonaChatDataset
         # dataset_name: PostTrainMonoWriterDataset
         # dataset_name: WZPostTrainMonoDataset
@@ -1090,13 +1148,14 @@ models:
 # huge file are saved in the root dir
 # root_dir: /apdcephfs/share_733425/johntianlan/MyReDial
 root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
+# root_dir: /home/johntianlan/sources/EasyNLP
 # root_dir: /apdcephfs/share_916081/dongyangma/johntianlan/MyReDial
 # root_dir: /apdcephfs/share_733425/johntianlan/MyReDial
 # root_dir: /home/johntianlan/sources/EasyNLP
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 103
+version: 200
 
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
@@ -1128,12 +1187,12 @@ deploy:
         # model: hash-dual-bert-hier-trs
         # model: bpr
         model: dual-bert
-        topk: 10
+        topk: 1
         with_source: false
         # index_type: BFlat
         # index_type: IVF65536_HNSW32,PQ8
-        index_type: Flat
-        index_nprobe: 5
+        index_type: IVF10000,PQ16
+        index_nprobe: 1000
         dimension: 768
     rerank:
         activate: false

@@ -34,8 +34,10 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         elif args['model'] in ['bert-ft-scm']:
             self.test_model = self.test_model_bert_ft
         elif args['model'] in ['bert-ft-compare']:
-            if self.args['is_step_for_training']:
-                self.train_model = self.train_model_step_compare
+            # if self.args['is_step_for_training']:
+            #     self.train_model = self.train_model_step_compare
+            self.test_model = self.test_model_compare
+            pass
 
         self.show_parameters(self.args)
 
@@ -70,8 +72,43 @@ class CompareInteractionAgent(RetrievalBaseAgent):
             recoder.add_scalar(f'train/RunAcc', acc, current_step)
         pbar.set_description(f'[!] train loss: {round(loss.item(), 4)}; acc: {round(acc, 4)}')
         pbar.update(1)
-        
+
     def train_model(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
+        self.model.train()
+        total_loss, batch_num, correct, s = 0, 0, 0, 0
+        total_acc, total_token_acc = 0, 0
+        pbar = tqdm(train_iter)
+        correct, s = 0, 0
+        for idx, batch in enumerate(pbar):
+            self.optimizer.zero_grad()
+            with autocast():
+                loss, acc = self.model(batch)
+            self.scaler.scale(loss).backward()
+            self.scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            self.scheduler.step()
+
+            batch_num += 1
+            total_loss += loss.item()
+            total_acc += acc
+
+            if whole_batch_num + batch_num in self.args['test_step']:
+                self.test_now(test_iter, recoder)
+
+            if recoder:
+                recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
+            pbar.set_description(f'[!] train loss: {round(loss.item(), 4)}|{round(total_loss/batch_num, 4)}; acc: {round(acc, 4)}|{round(total_acc/batch_num, 4)}')
+        if recoder:
+            recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
+        return batch_num
+        
+    def train_model_(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
         self.model.train()
         total_loss, batch_num, correct, s = 0, 0, 0, 0
         total_acc, total_token_acc = 0, 0
@@ -662,7 +699,8 @@ class CompareInteractionAgent(RetrievalBaseAgent):
             elif self.args['model'] in ['bert-ft-compare']:
                 new_state_dict = OrderedDict()
                 for k, v in state_dict.items():
-                    k = f'bert.{k.replace("model.bert.", "")}'
+                    # k = f'bert.{k.replace("model.bert.", "")}'
+                    k = f'roberta.{k.replace("model.roberta.", "")}'
                     new_state_dict[k] = v
                 missing, unexcept = self.model.model.load_state_dict(new_state_dict, strict=False)
                 print(f'[!] missing parameters: {missing}')
@@ -1081,3 +1119,78 @@ class CompareInteractionAgent(RetrievalBaseAgent):
         cpids = [0] * (2 + len(cids)) + [1] * (len(rids1) + 1) + [2] * (len(rids2) + 1)
         tids = [0] * (len(cids) + 2) + [1] * (len(rids1) + 1) + [1] * (len(rids2) + 1)
         return torch.LongTensor(ids), torch.LongTensor(tids), torch.LongTensor(cpids)
+
+    @torch.no_grad()
+    def test_model_compare(self, test_iter, print_output=False):
+        self.model.eval()
+        pbar = tqdm(test_iter)
+        total_mrr, total_prec_at_one, total_map = 0, 0, 0
+        total_examples, total_correct = 0, 0
+        k_list = [1, 2, 5, 10]
+        for idx, batch in enumerate(pbar):                
+            label = batch['label']
+
+            if self.args['mode'] in ['train']:
+                scores_ = self.model.module.predict(batch).cpu().tolist()    # [12]
+            else:
+                scores_ = self.model.predict(batch).cpu().tolist()    # [12]
+            scores = []
+            for i in range(0, len(scores_), 3):
+                scores.append(np.mean(scores_[i:i+3]))
+                # scores.append(scores_[i:i+3])
+            # choice A
+            # scores[0].extend([1 - scores_[3], 1 - scores_[6], 1 - scores_[9]])
+            # choice B
+            # scores[1].extend([1 - scores_[0], 1 - scores_[7], 1 - scores_[10]])
+            # choice C
+            # scores[2].extend([1 - scores_[1], 1 - scores_[4], 1 - scores_[11]])
+            # choice D
+            # scores[3].extend([1 - scores_[2], 1 - scores_[5], 1 - scores_[8]])
+            # scores = [np.mean(i) for i in scores]
+
+            # print output
+            # if print_output:
+            if 0:
+                if 'responses' in batch:
+                    self.log_save_file.write(f'[CTX] {batch["context"]}\n')
+                    for rtext, score in zip(responses, scores):
+                        score = round(score, 4)
+                        self.log_save_file.write(f'[Score {score}] {rtext}\n')
+                else:
+                    ctext = self.convert_to_text(batch['ids'].squeeze(0))
+                    self.log_save_file.write(f'[CTX] {ctext}\n')
+                    for rid, score in zip(batch['rids'], scores):
+                        rtext = self.convert_to_text(rid)
+                        score = round(score, 4)
+                        self.log_save_file.write(f'[Score {score}] {rtext}\n')
+                self.log_save_file.write('\n')
+
+            rank_by_pred, pos_index, stack_scores = \
+            calculate_candidates_ranking(
+                np.array(scores), 
+                np.array(label.cpu().tolist()),
+                4
+            )
+            num_correct = logits_recall_at_k(pos_index, k_list)
+            if self.args['dataset'] in ["douban", "restoration-200k"]:
+                total_prec_at_one += precision_at_one(rank_by_pred)
+                total_map += mean_average_precision(pos_index)
+                for pred in rank_by_pred:
+                    if sum(pred) == 0:
+                        total_examples -= 1
+            total_mrr += logits_mrr(pos_index)
+            total_correct = np.add(total_correct, num_correct)
+            total_examples += 1
+        avg_mrr = float(total_mrr / total_examples)
+        avg_prec_at_one = float(total_prec_at_one / total_examples)
+        avg_map = float(total_map / total_examples)
+        return {
+            f'R10@{k_list[0]}': round(((total_correct[0]/total_examples)*100), 2),        
+            f'R10@{k_list[1]}': round(((total_correct[1]/total_examples)*100), 2),        
+            f'R10@{k_list[2]}': round(((total_correct[2]/total_examples)*100), 2),        
+            'MRR': round(100*avg_mrr, 2),
+            'P@1': round(100*avg_prec_at_one, 2),
+            'MAP': round(100*avg_map, 2),
+        }
+
+

@@ -11,3 +11,4 @@ from .bert_encoder_with_enc_hidden import *
 from .distinct_metric import *
 from .contrastive_decoding import *
 from .simcse_model import *
+from .electra_speaker_models import *

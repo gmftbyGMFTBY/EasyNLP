@@ -8,6 +8,7 @@ class RepresentationAgent(RetrievalBaseAgent):
         self.args = args
         self.vocab, self.model = vocab, model
         self.vocab.add_tokens(['[EOS]'])
+        self.load_last_step = None
 
         self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
         self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
@@ -51,8 +52,6 @@ class RepresentationAgent(RetrievalBaseAgent):
                 else:
                     self.train_model = self.train_model_phrase_copy
 
-            self.set_test_interval()
-            self.load_checkpoint()
 
             # if self.args['load_last_checkpoint']:
             #     self.load_last_checkpoint()
@@ -70,9 +69,19 @@ class RepresentationAgent(RetrievalBaseAgent):
         if torch.cuda.is_available():
             self.model.cuda()
             pass
+
+
         if args['mode'] in ['train', 'inference']:
             self.set_optimizer_scheduler_ddp()
+            if args['mode'] in ['train']:
+                self.set_test_interval()
+        if self.args['model'] in ['phrase-copy']:
+            self.load_latest_checkpoint()
+        else:
+            self.load_checkpoint()
+
         self.show_parameters(self.args)
+    
 
     @torch.no_grad()
     def train_model_lsh(self, train_iter, test_iter, recoder=None, idx_=0, whole_batch_num=0):
@@ -579,6 +588,13 @@ class RepresentationAgent(RetrievalBaseAgent):
         total_examples, total_correct = 0, 0
         k_list = [1, 2, 5, 10]
         core_time_rest = 0
+
+
+        #### 
+        frame = inspect.currentframe()
+        gpu_tracker = MemTracker(frame)
+
+
         for idx, batch in enumerate(pbar):                
             label = batch['label']
             if 'context' in batch:
@@ -595,6 +611,8 @@ class RepresentationAgent(RetrievalBaseAgent):
                     batch['ids'] = cid
                     batch['ids_mask'] = cid_mask
 
+
+
             if self.args['mode'] in ['train']:
                 scores = self.model.module.predict(batch).cpu().tolist()    # [B]
             else:
@@ -604,6 +622,7 @@ class RepresentationAgent(RetrievalBaseAgent):
                 if core_time:
                     et = time.time()
                     core_time_rest += et - bt
+
 
             # rerank by the compare model (bert-ft-compare)
             if rerank_agent:
@@ -642,7 +661,7 @@ class RepresentationAgent(RetrievalBaseAgent):
             calculate_candidates_ranking(
                 np.array(scores), 
                 np.array(label.cpu().tolist()),
-                4)
+                10)
             num_correct = logits_recall_at_k(pos_index, k_list)
             if self.args['dataset'] in ["douban", "restoration-200k"]:
                 total_prec_at_one += precision_at_one(rank_by_pred)
@@ -653,6 +672,12 @@ class RepresentationAgent(RetrievalBaseAgent):
             total_mrr += logits_mrr(pos_index)
             total_correct = np.add(total_correct, num_correct)
             total_examples += 1
+
+
+        ####
+        gpu_tracker.track()
+        gpu_tracker.clear_cache()
+
         avg_mrr = float(total_mrr / total_examples)
         avg_prec_at_one = float(total_prec_at_one / total_examples)
         avg_map = float(total_map / total_examples)
@@ -1091,16 +1116,11 @@ class RepresentationAgent(RetrievalBaseAgent):
             elif self.args['model'] in ['dual-bert-hier-trs']:
                 self.checkpointadapeter.init(
                     state_dict.keys(),
-                    self.model.ctx_encoder.model.state_dict().keys(),
+                    self.model.module.ctx_encoder.model.state_dict().keys(),
                 )
                 new_state_dict = self.checkpointadapeter.convert(state_dict)
-                self.model.ctx_encoder.model.load_state_dict(new_state_dict)
-                self.model.can_encoder.model.load_state_dict(new_state_dict)
-                try:
-                    self.model.can_encoder_momentum.model.load_state_dict(new_state_dict)
-                    print(f'[!] ========== momentum candidate encoder found and load ==========')
-                except:
-                    print(f'[!] ========== momentum candidate encoder not found ==========')
+                self.model.module.ctx_encoder.model.load_state_dict(new_state_dict)
+                self.model.module.can_encoder.model.load_state_dict(new_state_dict)
             elif self.args['model'] in ['xmoco']:
                 # fast or slow context encoder load
                 self.checkpointadapeter.init(
@@ -1118,17 +1138,25 @@ class RepresentationAgent(RetrievalBaseAgent):
                 new_state_dict = self.checkpointadapeter.convert(state_dict)
                 self.model.can_fast_encoder.model.load_state_dict(new_state_dict, strict=False)
                 self.model.can_slow_encoder.model.load_state_dict(new_state_dict, strict=False)
+            elif self.args['model'] in ['phrase-copy']:
+                state_dict = torch.load(path, map_location=torch.device('cpu'))
+                model_state_dict = state_dict['model_state_dict']
+                self.model.module.model.load_state_dict(model_state_dict)
+                self.load_last_step = state_dict['step']
+                self.scheduler.load_state_dict(state_dict['scheduler_state_dict'])
+                self.optimizer.load_state_dict(state_dict['optimizer_state_dict'])
+                print(f'[!] load the latest model from {path}')
             else:
                 # context encoder checkpoint
-                self.checkpointadapeter.init(
-                    state_dict.keys(),
-                    self.model.ctx_encoder.model.state_dict().keys(),
-                )
-                new_state_dict = self.checkpointadapeter.convert(state_dict)
-                self.model.ctx_encoder.model.load_state_dict(new_state_dict, strict=False)
+                # self.checkpointadapeter.init(
+                #     state_dict.keys(),
+                #     self.model.module.ctx_encoder.model.state_dict().keys(),
+                # )
+                # new_state_dict = self.checkpointadapeter.convert(state_dict)
+                self.model.module.ctx_encoder.model.load_state_dict(self.model.module.ctx_encoder.model.state_dict(), strict=False)
 
                 if self.args['model'] in ['dual-bert-speaker']:
-                    self.model.ctx_encoder_1.model.load_state_dict(new_state_dict, strict=False)
+                    self.model.module.ctx_encoder_1.model.load_state_dict(new_state_dict, strict=False)
 
                
                 # response encoders checkpoint
@@ -1165,10 +1193,10 @@ class RepresentationAgent(RetrievalBaseAgent):
                 else:
                     self.checkpointadapeter.init(
                         state_dict.keys(),
-                        self.model.can_encoder.state_dict().keys(),
+                        self.model.module.can_encoder.state_dict().keys(),
                     )
                     new_state_dict = self.checkpointadapeter.convert(state_dict)
-                    self.model.can_encoder.load_state_dict(new_state_dict)
+                    self.model.module.can_encoder.load_state_dict(new_state_dict)
         else:
             if self.args['model'] in ['sh']:
                 path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}/best_sh_model_{self.args["version"]}.pt'
@@ -1623,10 +1651,10 @@ class RepresentationAgent(RetrievalBaseAgent):
         with autocast():
             batch['current_step'] = current_step
             # oloss, phrase_acc, total_acc = self.model(batch)
-            # phrase_loss, token_loss, vae_loss, phrase_acc, token_acc, vae_acc = self.model(batch)
-            # loss = phrase_loss + token_loss + vae_loss
+            phrase_loss, token_loss, vae_loss, phrase_acc, token_acc, vae_acc = self.model(batch)
+            loss = phrase_loss + token_loss + vae_loss
 
-            loss, token_acc, phrase_acc = self.model(batch)
+            # loss, token_acc, phrase_acc = self.model(batch)
             loss = loss / self.args['iter_to_accumulate']
         self.scaler.scale(loss).backward()
         if (current_step + 1) % self.args['iter_to_accumulate'] == 0:
@@ -1639,17 +1667,17 @@ class RepresentationAgent(RetrievalBaseAgent):
 
         if recoder:
             recoder.add_scalar(f'train/Loss', loss.item(), current_step)
-            recoder.add_scalar(f'train/PhraseAcc', phrase_acc, current_step)
-            recoder.add_scalar(f'train/TokenAcc', token_acc, current_step)
-            
-            # recoder.add_scalar(f'train/PhraseLoss', phrase_loss.item(), current_step)
-            # recoder.add_scalar(f'train/TokenLoss', token_loss.item(), current_step)
-            # recoder.add_scalar(f'train/VAELoss', vae_loss.item(), current_step)
             # recoder.add_scalar(f'train/PhraseAcc', phrase_acc, current_step)
             # recoder.add_scalar(f'train/TokenAcc', token_acc, current_step)
-            # recoder.add_scalar(f'train/VAEAcc', vae_acc, current_step)
-        # pbar.set_description(f'[!] loss: {round(loss.item(), 2)}; acc(phrase|token|vae): {round(phrase_acc, 4)}|{round(token_acc, 4)}|{round(vae_acc, 4)}')
-        pbar.set_description(f'[!] loss: {round(loss.item(), 2)}; acc(phrase|token): {round(phrase_acc, 4)}|{round(token_acc, 4)}')
+            
+            recoder.add_scalar(f'train/PhraseLoss', phrase_loss.item(), current_step)
+            recoder.add_scalar(f'train/TokenLoss', token_loss.item(), current_step)
+            recoder.add_scalar(f'train/VAELoss', vae_loss.item(), current_step)
+            recoder.add_scalar(f'train/PhraseAcc', phrase_acc, current_step)
+            recoder.add_scalar(f'train/TokenAcc', token_acc, current_step)
+            recoder.add_scalar(f'train/VAEAcc', vae_acc, current_step)
+        pbar.set_description(f'[!] loss: {round(loss.item(), 2)}; acc(phrase|token|vae): {round(phrase_acc, 4)}|{round(token_acc, 4)}|{round(vae_acc, 4)}')
+        # pbar.set_description(f'[!] loss: {round(loss.item(), 2)}; acc(phrase|token): {round(phrase_acc, 4)}|{round(token_acc, 4)}')
         pbar.update(1)
 
     def train_model_phrase_copy_step_v2(self, batch, recoder=None, current_step=0, pbar=None):
@@ -1699,3 +1727,62 @@ class RepresentationAgent(RetrievalBaseAgent):
             PPL.append(ppl)
             pbar.set_description(f'[!] ppl: {round(np.mean(PPL), 4)}')
         return np.mean(PPL)
+
+    def load_latest_checkpoint(self):
+        pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
+        path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/{self.args["model"]}'
+        prefix_name = f'best_{pretrained_model_name}_{self.args["version"]}_'
+        checkpoints = []
+        for file in os.listdir(path):
+            if prefix_name in file:
+                version = file[len(prefix_name):].strip('.pt')
+                version = int(version)
+                checkpoints.append((file, version))
+        if len(checkpoints) == 0:
+            print(f'[!] do not find the latest model checkpoints')
+            return
+        checkpoints = sorted(checkpoints, key=lambda x:x[-1])
+        latest_checkpoint, version = checkpoints[-1]
+        latest_checkpoint = os.path.join(path, latest_checkpoint)
+        self.load_model(latest_checkpoint)
+        print(f'[!] train start from step: {version}')
+
+    def save_model_long(self, path, current_step):
+        model_state_dict = self.model.module.model.state_dict()
+        scheduler_state_dict = self.scheduler.state_dict()
+        optimizer_state_dict = self.optimizer.state_dict()
+        torch.save(
+            {
+                'model_state_dict' : model_state_dict,
+                'scheduler_state_dict': scheduler_state_dict,
+                'optimizer_state_dict': optimizer_state_dict,
+                'step': current_step
+            }, 
+            path
+        )
+        print(f'[!] save model into {path}')
+ 
+ 
+    @torch.no_grad()
+    def evaluate(self, test_iter):
+        def _correlation(output, score):
+            r_spearmanr, p_spearmanr = spearmanr(output, score)
+            r_pearsonr, p_pearsonr = pearsonr(output, score)
+
+            spearmanr_res = str(np.round(r_spearmanr, 3)) + ' (' + str(np.round(p_spearmanr, 3)) + ')'
+            pearsonr_res = str(np.round(r_pearsonr, 3)) + ' (' + str(np.round(p_pearsonr, 3)) + ')'
+            return [spearmanr_res, pearsonr_res]
+
+        
+        self.model.eval()
+        pbar = tqdm(test_iter)
+        human_annotations, automatic_scores = [], []
+
+        for idx, batch in enumerate(pbar):                
+            human_annotations.extend(batch['score'])
+            score = self.model.predict(batch).cpu().tolist()
+            automatic_scores.extend(score)
+        # pearson and spearman scores
+        sp, pr = _correlation(automatic_scores, human_annotations)
+        print(f'[!] pearsonr:', pr)
+        print(f'[!] spearmanr:', sp)

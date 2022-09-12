@@ -1,7 +1,7 @@
 temp: 0.05
-full_turn_length: 1
+full_turn_length: 100
 test_interval: 0.05
-valid_during_training: true
+valid_during_training: false
 max_turn_length: 5
 mv_num: 5
 queue_size: 10240
@@ -41,9 +41,9 @@ train:
         # path: dual-bert-pt/best_bert-base-chinese.pt
         # path: bert-fp-no-cls/best_bert-base-chinese.pt
         # path: bert-fp/best_bert-base-chinese.pt
-        path: bert-fp-mono/best_bert-base-chinese.pt
+        # path: bert-fp-mono/best_bert-base-chinese.pt
         # path: bert-fp-mono/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_709.pt
-        # path: bert-fp-mono/best_bert-base-uncased.pt
+        path: bert-fp-mono/best_bert-base-uncased.pt
         # path: simcse/best_bert-base-chinese.pt
         is_load: true
 
@@ -51,7 +51,7 @@ train:
 test:
     seed: 0
     batch_size: 1
-    max_len: 16
+    max_len: 32
 
 # inference configuration
 inference:
