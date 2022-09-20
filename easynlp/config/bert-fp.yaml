@@ -9,12 +9,12 @@ dropout: 0.1
 # save_every: 20000
 
 tokenizer:
-    # zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
-    zh: /apdcephfs/share_916081/johntianlan/chinese-roberta-wwm-ext-large
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    # zh: /apdcephfs/share_916081/johntianlan/chinese-roberta-wwm-ext-large
     en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
 pretrained_model:
-    # zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
-    zh: /apdcephfs/share_916081/johntianlan/chinese-roberta-wwm-ext-large
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    # zh: /apdcephfs/share_916081/johntianlan/chinese-roberta-wwm-ext-large
     en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
 
 # train configuration
@@ -31,7 +31,7 @@ train:
     masked_lm_prob: 0.15
     min_context_length: 1
     min_token_length: 20
-    epoch: 35
+    epoch: 50
     warmup_ratio: 0.01
     checkpoint: 
         path: bert-post/best_nspmlm.pt

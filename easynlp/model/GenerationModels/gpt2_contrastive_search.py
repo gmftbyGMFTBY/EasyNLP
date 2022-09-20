@@ -32,9 +32,13 @@ class ContrastiveGPT2Encoder(nn.Module):
         self.vocab_size = len(self.tokenizer)
 
         # model
-        self.model = GPT2LMHeadModel.from_pretrained(model_name)
+        # self.model = GPT2LMHeadModel.from_pretrained(model_name)
+        config = GPT2Config.from_pretrained(model_name)
+        config.num_hidden_layer = 24
+        self.model = GPT2LMHeadModel.from_pretrained(config=config)
         self.model.resize_token_embeddings(len(self.tokenizer))
         self.embed_dim = self.model.config.hidden_size
+
         # decoding length
         self.test_max_len = args['test_gen_max_len']
         # ignore the pad_token (-100)
@@ -339,7 +343,9 @@ class SimCTGModel(nn.Module):
         self.special_tokens = set([self.pad, self.unk, self.sep])
 
         # model
-        self.model = GPT2LMHeadModel.from_pretrained(model_name)
+        config = GPT2Config.from_pretrained(model_name)
+        config.num_hidden_layer = 24
+        self.model = GPT2LMHeadModel(config)
         self.criterion = nn.CrossEntropyLoss(ignore_index=self.pad)
         self.margin = args['margin']
 

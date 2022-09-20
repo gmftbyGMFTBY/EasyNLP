@@ -63,6 +63,7 @@ def main(**args):
     sampler.set_epoch(0)    # shuffle for DDP
     if agent.load_last_step:
         current_step = agent.load_last_step + 1
+        print(f'[!] load latest step: {current_step}')
     for _ in range(100000000):
         for batch in train_iter:
             agent.train_model(
@@ -83,7 +84,10 @@ def main(**args):
                 # save the model
                 pretrained_model_name = args['pretrained_model'].replace('/', '_')
                 save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}_{args["version"]}_{current_step}.pt'
-                agent.save_model_long(save_path, current_step)
+                if args['model'] in ['phrase-copy']:
+                    agent.save_model_long_phrase_copy(save_path, current_step)
+                else:
+                    agent.save_model_long(save_path, current_step)
             current_step += 1
             if current_step > args['total_step']:
                 over_train_flag = True

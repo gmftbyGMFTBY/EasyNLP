@@ -149,6 +149,18 @@ class HashBERTDualEncoder(nn.Module):
         hash_loss = torch.norm(matrix - label_matrix, p=2).mean() * self.hash_loss_scale
         # hash_loss = torch.tensor(0.).cuda()
 
+        # ===== triplet loss with hardest loss ===== #
+        pos_reps, neg_reps = [], []
+        for idx, line in enumerate(matrix):
+            pos_reps.append(matrix[idx, idx])
+            random_index = list(range(len(matrix)))
+            random_index.remove(idx)
+            random_index = random.choice(random_index)
+            neg_reps.append(matrix[idx, random_index])
+        pos_reps = torch.stack(pos_reps)
+        neg_reps = torch.stack(neg_reps)
+        hash_loss = self.criterion(pos_reps, neg_reps, torch.ones_like(pos_reps))
+
         # ===== calculate hamming distance for accuracy ===== #
         matrix = torch.matmul(ctx_hash_code_h, can_hash_code_h.t())    # [B, B]
         hamming_distance = 0.5 * (self.hash_code_size - matrix)    # hamming distance: ||b_i, b_j||_{H} = 0.5 * (K - b_i^Tb_j); [B, B]

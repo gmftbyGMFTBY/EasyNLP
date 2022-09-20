@@ -18,10 +18,10 @@ recoder_file=$root_dir/rest/$dataset/$model/recoder_$version.txt
 echo "find root_dir: $root_dir"
 echo "find version: $version"
 echo "write running log into recoder file: $recoder_file"
-mv $root_dir/ckpt/$dataset/$model/*_$version.pt $root_dir/bak/$dataset/$model
+# mv $root_dir/ckpt/$dataset/$model/*_$version.pt $root_dir/bak/$dataset/$model
 # delete the previous tensorboard file
-rm $root_dir/rest/$dataset/$model/$version/* 
-rm -rf $root_dir/rest/$dataset/$model/$version 
+# rm $root_dir/rest/$dataset/$model/$version/* 
+# rm -rf $root_dir/rest/$dataset/$model/$version 
 
 
 gpu_ids=(${cuda//,/ })

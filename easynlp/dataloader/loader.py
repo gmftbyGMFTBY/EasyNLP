@@ -1,4 +1,5 @@
 from header import *
+from .inference_bert_ft_dataloader import *
 from .human_scores_dataloader import *
 from .test_gpt2_ppl_dataloader import *
 from .inference_knnlm_dataloader import *

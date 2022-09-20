@@ -590,11 +590,6 @@ class RepresentationAgent(RetrievalBaseAgent):
         core_time_rest = 0
 
 
-        #### 
-        frame = inspect.currentframe()
-        gpu_tracker = MemTracker(frame)
-
-
         for idx, batch in enumerate(pbar):                
             label = batch['label']
             if 'context' in batch:
@@ -673,10 +668,6 @@ class RepresentationAgent(RetrievalBaseAgent):
             total_correct = np.add(total_correct, num_correct)
             total_examples += 1
 
-
-        ####
-        gpu_tracker.track()
-        gpu_tracker.clear_cache()
 
         avg_mrr = float(total_mrr / total_examples)
         avg_prec_at_one = float(total_prec_at_one / total_examples)
@@ -1141,24 +1132,22 @@ class RepresentationAgent(RetrievalBaseAgent):
             elif self.args['model'] in ['phrase-copy']:
                 state_dict = torch.load(path, map_location=torch.device('cpu'))
                 model_state_dict = state_dict['model_state_dict']
-                self.model.module.model.load_state_dict(model_state_dict)
+                self.model.module.load_state_dict(model_state_dict)
                 self.load_last_step = state_dict['step']
                 self.scheduler.load_state_dict(state_dict['scheduler_state_dict'])
                 self.optimizer.load_state_dict(state_dict['optimizer_state_dict'])
                 print(f'[!] load the latest model from {path}')
             else:
                 # context encoder checkpoint
-                # self.checkpointadapeter.init(
-                #     state_dict.keys(),
-                #     self.model.module.ctx_encoder.model.state_dict().keys(),
-                # )
-                # new_state_dict = self.checkpointadapeter.convert(state_dict)
-                self.model.module.ctx_encoder.model.load_state_dict(self.model.module.ctx_encoder.model.state_dict(), strict=False)
+                self.checkpointadapeter.init(
+                    state_dict.keys(),
+                    self.model.module.ctx_encoder.state_dict().keys(),
+                )
+                new_state_dict = self.checkpointadapeter.convert(state_dict)
+                self.model.module.ctx_encoder.load_state_dict(new_state_dict)
 
                 if self.args['model'] in ['dual-bert-speaker']:
                     self.model.module.ctx_encoder_1.model.load_state_dict(new_state_dict, strict=False)
-
-               
                 # response encoders checkpoint
                 if self.args['model'] in ['dual-bert-multi', 'dual-bert-one2many-original']:
                     for i in range(self.args['gray_cand_num']):
@@ -1650,11 +1639,10 @@ class RepresentationAgent(RetrievalBaseAgent):
         self.model.train()
         with autocast():
             batch['current_step'] = current_step
-            # oloss, phrase_acc, total_acc = self.model(batch)
-            phrase_loss, token_loss, vae_loss, phrase_acc, token_acc, vae_acc = self.model(batch)
-            loss = phrase_loss + token_loss + vae_loss
-
-            # loss, token_acc, phrase_acc = self.model(batch)
+            # phrase_loss, bow_loss, token_loss, pure_token_loss, phrase_acc, token_acc = self.model(batch)
+            # loss = phrase_loss + bow_loss + token_loss + pure_token_loss
+            phrase_loss, token_loss, pure_token_loss, phrase_acc, token_acc = self.model(batch)
+            loss = phrase_loss + token_loss + pure_token_loss
             loss = loss / self.args['iter_to_accumulate']
         self.scaler.scale(loss).backward()
         if (current_step + 1) % self.args['iter_to_accumulate'] == 0:
@@ -1667,17 +1655,15 @@ class RepresentationAgent(RetrievalBaseAgent):
 
         if recoder:
             recoder.add_scalar(f'train/Loss', loss.item(), current_step)
-            # recoder.add_scalar(f'train/PhraseAcc', phrase_acc, current_step)
-            # recoder.add_scalar(f'train/TokenAcc', token_acc, current_step)
-            
             recoder.add_scalar(f'train/PhraseLoss', phrase_loss.item(), current_step)
+            # recoder.add_scalar(f'train/BOWLoss', bow_loss.item(), current_step)
+            recoder.add_scalar(f'train/TokenLoss', pure_token_loss.item(), current_step)
+
             recoder.add_scalar(f'train/TokenLoss', token_loss.item(), current_step)
-            recoder.add_scalar(f'train/VAELoss', vae_loss.item(), current_step)
             recoder.add_scalar(f'train/PhraseAcc', phrase_acc, current_step)
             recoder.add_scalar(f'train/TokenAcc', token_acc, current_step)
-            recoder.add_scalar(f'train/VAEAcc', vae_acc, current_step)
-        pbar.set_description(f'[!] loss: {round(loss.item(), 2)}; acc(phrase|token|vae): {round(phrase_acc, 4)}|{round(token_acc, 4)}|{round(vae_acc, 4)}')
-        # pbar.set_description(f'[!] loss: {round(loss.item(), 2)}; acc(phrase|token): {round(phrase_acc, 4)}|{round(token_acc, 4)}')
+        # pbar.set_description(f'[!] loss(phrase|bow): {round(phrase_loss.item(), 2)}|{round(bow_loss.item(), 2)}; acc(phrase|token): {round(phrase_acc, 4)}|{round(token_acc, 4)}')
+        pbar.set_description(f'[!] loss(phrase): {round(phrase_loss.item(), 2)}; acc(phrase|token): {round(phrase_acc, 4)}|{round(token_acc, 4)}')
         pbar.update(1)
 
     def train_model_phrase_copy_step_v2(self, batch, recoder=None, current_step=0, pbar=None):
@@ -1746,6 +1732,22 @@ class RepresentationAgent(RetrievalBaseAgent):
         latest_checkpoint = os.path.join(path, latest_checkpoint)
         self.load_model(latest_checkpoint)
         print(f'[!] train start from step: {version}')
+
+    def save_model_long_phrase_copy(self, path, current_step):
+        model_state_dict = self.model.module.state_dict()
+        scheduler_state_dict = self.scheduler.state_dict()
+        optimizer_state_dict = self.optimizer.state_dict()
+        torch.save(
+            {
+                'model_state_dict' : model_state_dict,
+                'scheduler_state_dict': scheduler_state_dict,
+                'optimizer_state_dict': optimizer_state_dict,
+                'step': current_step
+            }, 
+            path
+        )
+        print(f'[!] save model into {path}')
+
 
     def save_model_long(self, path, current_step):
         model_state_dict = self.model.module.model.state_dict()

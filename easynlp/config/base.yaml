@@ -64,7 +64,7 @@ pretrained_model:
 no_test_models:
     - bert-ruber
     - bert-fp
-    - bert-ft
+    # - bert-ft
     - dual-bert-wr
     - bert-fp-comp
     - bert-fp-multi
@@ -86,7 +86,7 @@ no_test_models:
     - dialog-simctg
     - dialog-plato-v1
     - dialog-eva
-    - dual-bert
+    # - dual-bert
     - transformer-dual-bert
     # - bert-ft-compare
     # - bert-ft
@@ -513,6 +513,7 @@ models:
         # model_name: FastDensePhraseV23Encoder
         # model_name: FastDensePhraseV24Encoder
         model_name: FastDensePhraseV26Encoder
+        # model_name: FastDensePhraseV27Encoder
         # model_name: DensePhraseV4Encoder
         # model_name: DensePhraseV5Encoder
         # model_name: DensePhraseV6Encoder
@@ -549,7 +550,7 @@ models:
         model_name: BERTDualEncoder
         # model_name: BERTDualHiddenEncoder
         # model_name: BERTDualMVEncoder
-        dataset_name: HumanScoresDataset
+        # dataset_name: HumanScoresDataset
         # dataset_name: BERTDualFullFakeCtxDataset
         # dataset_name: BERTDualDataset
         # large chinese pretrain dialog dataloader DRBERTDataset
@@ -557,7 +558,7 @@ models:
         # dataset_name: BERTDualAccDataset
         # dataset_name: BERTDualFullWithHardNegDataset
         # dataset_name: FilterDRDataset
-        # dataset_name: BERTDualFullDataset
+        dataset_name: BERTDualFullDataset
         # dataset_name: BERTDualFullDailyDialogDataset
         # dataset_name: PersonaBERTDualFullDataset 
         # dataset_name: HORSETestDataset
@@ -930,8 +931,8 @@ models:
         type: Interaction
         model_name: BERTRetrieval
         # dataset_name: FineGrainedTestInteractionDataset
-        # dataset_name: BERTFTDataset
-        dataset_name: HumanScoresInteractionDataset
+        dataset_name: BERTFTDataset
+        # dataset_name: HumanScoresInteractionDataset
         # dataset_name: FilterDataset
         # dataset_name: BERTFTAccDataset
         # dataset_name: BERTFTBigDataset
@@ -939,7 +940,8 @@ models:
         # dataset_name: BERTFTFullDataset
         # dataset_name: HORSETestInteractionDataset
         # dataset_name: BERTFTTimeDataset
-        inference_dataset_name: FilterInferenceDataset
+        # inference_dataset_name: FilterInferenceDataset
+        inference_dataset_name: BERTFTInferenceDataset
     bert-ft-essay: 
         type: Evaluation
         model_name: BERTEssayRetrieval
@@ -1155,7 +1157,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 200
+version: 65
 
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5

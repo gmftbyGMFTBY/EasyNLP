@@ -68,6 +68,14 @@ def init_document_searcher_en_wiki(searcher_args, args):
     print(f'[!] init en-wiki searcher over; index partial: {args["partial"]}')
     return searcher, base_data
 
+def init_document_searcher_bm25(searcher_args, dataset, args):
+    # init the document searcher
+    base_data = load_base_data(dataset)
+    searcher = ESSearcher(f'{dataset}_phrase-copy', q_q=True)
+    print(f'[!] load the BM25 searcher for {dataset}')
+    return searcher, base_data
+
+
 def init_document_searcher(searcher_args, dataset, args):
     # init the document searcher
     base_data = load_base_data(dataset)
@@ -123,7 +131,8 @@ def create_app(**args):
         en_wiki_searcher, en_wiki_base_data = init_document_searcher_en_wiki(searcher_args, args)
         agent.model.init_searcher_en_wiki(en_wiki_searcher, en_wiki_base_data)
     else:
-        searcher, base_data = init_document_searcher(searcher_args, args['dataset'], args)
+        # searcher, base_data = init_document_searcher(searcher_args, args['dataset'], args)
+        searcher, base_data = init_document_searcher_bm25(searcher_args, args['dataset'], args)
         agent.model.init_searcher(searcher, base_data)
 
     searcher_args['local_rank'] = 0
@@ -179,7 +188,7 @@ def create_app(**args):
             
             if 'recall_topk' in data:
                 agent.model.args['recall_topk'] = data['recall_topk']
-            res, phrase_rate = agent.model.work(batch) 
+            res, phrase_rate, time_cost = agent.model.work(batch) 
             succ = True
         except Exception as error:
             print(error)
@@ -190,7 +199,8 @@ def create_app(**args):
             'prefix': data['prefix'],
             'ground-truth': data['ground_truth'],
             'phrase-rate': phrase_rate,
-            'succ': succ
+            'succ': succ,
+            'time-cost': time_cost,
         }
         return jsonify(result)
 

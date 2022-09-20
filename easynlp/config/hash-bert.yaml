@@ -1,8 +1,8 @@
 temp: 0.05
 hash_code_size: 512
 segment_num: 4
-test_interval: 0.05
-valid_during_training: true
+test_interval: 0.2
+valid_during_training: false
 full_turn_length: 5
 hidden_size: 2048
 dropout: 0.1
@@ -12,7 +12,7 @@ dropout: 0.1
 q_alpha: 0.001
 q_alpha_max: 0.1
 hash_loss_scale: 1
-hash_code_alpha: 1024
+hash_code_alpha: 16
 hash_loss_matrix_scale: 1
 kl_loss_scale: 1
 dis_loss_scale: 100
@@ -44,7 +44,8 @@ train:
     warmup_ratio: 0.0
     checkpoint: 
         # path: dual-bert/best__apdcephfs_share_916081_johntianlan_bert-base-uncased_1100.pt
-        path: dual-bert/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_1000.pt
+        # path: dual-bert/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_1000.pt
+        path: dual-bert/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_300.pt
         # path: dual-bert/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_800.pt
         # path: dual-bert/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_900.pt
         is_load: true

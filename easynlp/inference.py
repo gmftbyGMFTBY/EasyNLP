@@ -45,7 +45,7 @@ def inference(**args):
     else:
         agent.load_model(f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}_{args["version"]}.pt')
 
-    if work_mode in ['response', 'partial-response']:
+    if work_mode in ['response', 'partial-response', 'bert-ft']:
         agent.inference(data_iter, size=args['cut_size'])
         pass
     elif work_mode in ['simcse-response']:
@@ -101,7 +101,7 @@ if __name__ == "__main__":
     torch.cuda.set_device(args['local_rank'])
     torch.distributed.init_process_group(backend='nccl', init_method='env://')
 
-    agent = inference(**args)
+    # agent = inference(**args)
 
     # barries
     torch.distributed.barrier()
@@ -126,6 +126,8 @@ if __name__ == "__main__":
     elif args['work_mode'] in ['response', 'wz-simcse', 'knnlm']:
         response_strategy(args)
         pass
+    elif args['work_mode'] in ['bert-ft']:
+        gray_rag_bert_ft_strategy(args)
     elif args['work_mode'] in ['partial-response']:
         partial_response_strategy(args)
         pass

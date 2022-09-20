@@ -1,7 +1,7 @@
 from model.utils import *
 from .gpt2_original import GPT2OriginalModel, GPT2wt103Model
 from .knn_lm import KNNLMModel
-from model.RepresentationModels import DensePhraseEncoder, DensePhraseV2Encoder, DensePhraseV3Encoder, DensePhraseV4Encoder, DensePhraseV7Encoder, FastDensePhraseV8Encoder, FastDensePhraseV10Encoder, FastDensePhraseV13Encoder, FastDensePhraseV15Encoder, FastDensePhraseV16Encoder, FastDensePhraseV17Encoder, FastDensePhraseV22Encoder, FastDensePhraseV11Encoder, FastDensePhraseV25Encoder
+from model.RepresentationModels import DensePhraseEncoder, DensePhraseV2Encoder, DensePhraseV3Encoder, DensePhraseV4Encoder, DensePhraseV7Encoder, FastDensePhraseV8Encoder, FastDensePhraseV10Encoder, FastDensePhraseV13Encoder, FastDensePhraseV15Encoder, FastDensePhraseV16Encoder, FastDensePhraseV17Encoder, FastDensePhraseV22Encoder, FastDensePhraseV11Encoder, FastDensePhraseV25Encoder, FastDensePhraseV26Encoder
 from .utils import *
 from config import *
 
@@ -37,7 +37,8 @@ class CopyGenerationEncoder(nn.Module):
         generator_args['dataset'] = 'wikitext103'
         config = load_config(generator_args)
         generator_args.update(config)
-        self.wikitext103_knn_lm_generator = KNNLMModel(**generator_args) 
+        # self.wikitext103_knn_lm_generator = KNNLMModel(**generator_args) 
+        self.knn_lm_generator = KNNLMModel(**generator_args) 
         print(f'[!] load the knn-lm model over ...')
         ## init the knn-lm searcher
         faiss_searcher_args = deepcopy(self.args)
@@ -56,10 +57,12 @@ class CopyGenerationEncoder(nn.Module):
             f'{faiss_searcher_args["root_dir"]}/data/{faiss_searcher_args["dataset"]}/{model_name}_{pretrained_model_name}_faiss.ckpt',        
             f'{faiss_searcher_args["root_dir"]}/data/{faiss_searcher_args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt',        
         )
-        self.wikitext103_knn_lm_generator.init_searcher(faiss_searcher)
+        # self.wikitext103_knn_lm_generator.init_searcher(faiss_searcher)
+        self.knn_lm_generator.init_searcher(faiss_searcher)
         print(f'[!] wikitext103 knn-lm generator baseline init over ...')
-
-
+        '''
+        
+        '''
         generator_args = deepcopy(self.args)
         generator_args['model'] = 'knn-lm'
         config = load_config(generator_args)
@@ -98,23 +101,30 @@ class CopyGenerationEncoder(nn.Module):
         # self.retriever = FastDensePhraseV15Encoder(**retriever_args) 
         # self.retriever = FastDensePhraseV16Encoder(**retriever_args) 
         # self.retriever = FastDensePhraseV17Encoder(**retriever_args) 
-        self.retriever = FastDensePhraseV22Encoder(**retriever_args) 
+        # self.retriever = FastDensePhraseV22Encoder(**retriever_args) 
         # self.retriever = FastDensePhraseV25Encoder(**retriever_args) 
+        
+        self.retriever = FastDensePhraseV26Encoder(**retriever_args) 
         self.test_max_len = self.args['test_max_len']
 
         if self.args['lang'] == 'en':
             # self.process_documents = self.process_documents_en_v2
-            self.process_documents = self.process_documents_en_v3
+            # self.process_documents = self.process_documents_en_v3
             # self.process_documents = self.process_documents_en_v5
             # self.process_documents = self.process_documents_en_v7
             # self.process_documents = self.process_documents_en_v5_gpt2
             # self.process_documents = self.process_documents_en_v6
             # self.process_documents = self.process_documents_en_v4
+            
+            # self.process_documents = self.process_documents_en_v8
+            self.process_documents = self.process_documents_en_v9
             self.nlp = spacy.load('en_core_web_sm')
             # self.punc_set = set([',', '.', '"', "'", '?', '!', '@', '-', '<', '>', ':', ';', '/', '-', '_', '+', '=', '~', '`', '#', '$', '%', '^', '&', '*', 'of', 'in', 'to', 'during', 'at', 'and', 'or', 'but', 'that', 'if', 'while', 'which', 'whose', 'for', 'as', 'from', 'to', 'a', 'an', 'the', 'The', 'That', 'on', 'by', 'is', 'has', 'will', 'are', 'have', 'was', 'had', 'should', 'must', 'about', 'with', 'after', 'when', 'before', 'into', 'within', 'than'])
             # self.punc_set = set([',', '.', '"', "'", '?', '!', '@', '-', '<', '>', ':', ';', '/', '-', '_', '+', '=', '~', '`', '#', '$', '%', '^', '&', '*', '(', ')', '[', ']', '{', '}'])
-            self.punc_set = set([',', '.', '"', "'", '?', '!', '@', '-', '<', '>', ':', ';', '/', '-', '_', '+', '=', '~', '`', '#', '$', '%', '^', '&', '*', '(', ')', '[', ']', '{', '}', ' that', ' which', ' when', ' after', ' before', ' while', ' during', ' with', ' than', ' within'])
-            self.punc_set |= set([' ,', ' .', ' "', " '", ' ?', ' !', ' @', ' -', ' <', ' >', ' :', ' ;', ' /', ' -', ' _', ' +', ' =', ' ~', ' `', ' #', ' $', ' %', ' ^', ' &', ' *', ' (', ' )', ' [', ' ]', ' {', ' }', '/'])
+            self.punc_set = set([',', '.', '"', "'", '?', '!', '@', '-', '<', '>', ':', ';', '/', '_', '+', '=', '~', '`', '#', '$', '%', '^', '&', '*', '(', ')', '[', ']', '{', '}', ' that', ' which', ' when', ' after', ' before', ' while', ' during', ' with', ' than', ' within'])
+            self.punc_set |= set([' ,', ' .', ' "', " '", ' ?', ' !', ' @', ' -', ' <', ' >', ' :', ' ;', ' /', ' _', ' +', ' =', ' ~', ' `', ' #', ' $', ' %', ' ^', ' &', ' *', ' (', ' )', ' [', ' ]', ' {', ' }', '/'])
+            # in gpt2_english
+            self.blank_token_gpt2 = self.retriever.tokenizer.convert_ids_to_tokens(220)
         else:
             # self.process_documents = self.process_documents_v2
             self.process_documents = self.process_documents_v3
@@ -125,6 +135,7 @@ class CopyGenerationEncoder(nn.Module):
 
         # self.retrieval_generation_search = self.retrieval_generation_search_fast_dynamic_search
         # self.process_documents = self.process_documents_en_v5_fast
+        self.retrieve_doc = self.retrieve_doc_bm25
 
     def init_searcher_agent(self, agent):
         self.search_agent = agent
@@ -607,7 +618,9 @@ class CopyGenerationEncoder(nn.Module):
         # init the phrases
         if batch['use_phrase_cache'] is False:
             if self.args['lang'] == 'en':
-                phrase_reps, phrase_sources = self.process_documents_en_v5(doc)
+                phrase_reps, phrase_sources = self.process_documents_en_v9(doc)
+                # phrase_reps, phrase_sources = self.process_documents_en_v10(doc
+                # phrase_reps, phrase_sources = self.process_documents_en_v5(doc)
             else:
                 phrase_reps, phrase_sources = self.process_documents_v6([doc[0]])
                 phrase_reps_, phrase_sources_ = self.process_documents(doc[1:])
@@ -621,11 +634,11 @@ class CopyGenerationEncoder(nn.Module):
         batch_size, seqlen = ids.size()
         generated = []
         is_phrase_label = []
+        bt = time.time()
         while len(ids[0]) < seqlen + self.test_max_len:
             query = self.retriever.get_query_rep(ids)
-
-            if self.retriever.tokenizer.decode(ids[0, -1]) in self.punc_set:
-            # if 0:
+            # if self.retriever.tokenizer.decode(ids[0, -1]) in self.punc_set:
+            if 0:
                 candidates = self.search_from_words(query, search_topk=beam_width)
             else:
                 candidates = self.search_from_documents(query, phrase_reps, phrase_sources, search_topk=beam_width, head_weight=head_weight, tail_weight=tail_weight)
@@ -665,8 +678,8 @@ class CopyGenerationEncoder(nn.Module):
             if self.args['lang'] == 'zh':
                 generated.append(f'{candidate} ')
             else:
-                # generated.append(f'[{candidate}] ')
-                generated.append(candidate)
+                generated.append(f'[{candidate}] ')
+                # generated.append(candidate)
             is_phrase_label.append(candidate_is_phrase_label[index])
             
             # if (len(ids[0]) - seqlen) % update_step == 0:
@@ -679,8 +692,9 @@ class CopyGenerationEncoder(nn.Module):
 
             # re-size the length of the ids
             # ids = ids[:, -500:]
+        time_cost = time.time() - bt
         generated = ''.join(generated)
-        return generated, np.mean(is_phrase_label)
+        return generated, np.mean(is_phrase_label), time_cost
 
     def decoding_one_step_inner(self, ids, candidates, candidates_prob, generation_method, topk=1., topp=1., model_prediction_confidence=0.4):
         if generation_method == 'contrastive-search':
@@ -824,7 +838,9 @@ class CopyGenerationEncoder(nn.Module):
             self.knn_lm_generator.topk, self.knn_lm_generator.topp = topk, topp
             self.knn_lm_generator.args['temp'] = data['temp']
             print(f'[!] set the knn-lm temperature: {self.knn_lm_generator.args["temp"]}')
+            bt = time.time()
             response = self.knn_lm_generator.topk_topp_search(batch)
+            time_cost = time.time() - bt
             phrase_ratio = 0.
             pass
         elif decoding_method == 'wikitext103-knn-lm-topk-topp-search':
@@ -855,7 +871,9 @@ class CopyGenerationEncoder(nn.Module):
             self.knn_lm_generator.test_max_len = max_gen_len
             self.knn_lm_generator.args['temp'] = data['temp']
             print(f'[!] set the knn-lm temperature: {self.knn_lm_generator.args["temp"]}')
+            bt = time.time()
             response = self.knn_lm_generator.greedy_search(batch)
+            time_cost = time.time() - bt
             phrase_ratio = 0.
             pass
         elif decoding_method == 'en-wiki-topk-topp-search':
@@ -898,7 +916,9 @@ class CopyGenerationEncoder(nn.Module):
 
             self.generator.test_max_len = max_gen_len
             self.generator.topk, self.generator.topp = topk, topp
+            bt = time.time()
             response = self.generator.topk_topp_search(batch)
+            time_cost = time.time() - bt
             phrase_ratio = 0.
             pass
         elif decoding_method == 'greedy-search':
@@ -912,7 +932,9 @@ class CopyGenerationEncoder(nn.Module):
             }
 
             self.generator.test_max_len = max_gen_len
+            bt = time.time()
             response = self.generator.greedy_search(batch)
+            time_cost = time.time() - bt
             phrase_ratio = 0.
             pass
         elif decoding_method == 'contrastive-search':
@@ -1006,7 +1028,7 @@ class CopyGenerationEncoder(nn.Module):
                 'coarse_score_alpha': data['coarse_score_alpha'],
                 'coarse_score_softmax_temp': data['coarse_score_softmax_temp']
             }
-            response, phrase_ratio = self.retrieval_generation_search(batch)
+            response, phrase_ratio, time_cost = self.retrieval_generation_search(batch)
             # response = self.retrieval_generation_search_fast(batch)
         elif decoding_method == 'retrieval-generation-beam-search':
             ids = self.retriever.tokenizer.encode(prefix, add_special_tokens=False)
@@ -1089,7 +1111,7 @@ class CopyGenerationEncoder(nn.Module):
                 'coarse_score_alpha': data['coarse_score_alpha'],
                 'coarse_score_softmax_temp': data['coarse_score_softmax_temp']
             }
-            response, phrase_ratio = self.retrieval_generation_search(batch)
+            response, phrase_ratio, time_cost = self.retrieval_generation_search(batch)
             # response = self.retrieval_generation_search_fast(batch)
         elif decoding_method == 'retrieval-generation-search-onestep-e2e':
             ids = self.retriever.tokenizer.encode(prefix, add_special_tokens=False)
@@ -1125,7 +1147,11 @@ class CopyGenerationEncoder(nn.Module):
             response = self.retrieval_generation_search_e2e(batch)
         else:
             raise Exception(f'[!] Unknow search method: {decoding_method}')
-        return response, phrase_ratio
+
+        try:
+            return response, phrase_ratio, time_cost
+        except:
+            return response, phrase_ratio, -1
 
     def retrieve_doc(self, string, recall_topk=50, max_query_len=512):
         rep = self.search_agent.inference_context_one_sample(string, max_len=max_query_len).cpu().numpy()
@@ -1133,6 +1159,25 @@ class CopyGenerationEncoder(nn.Module):
             doc_list = []
         else:
             doc_list = self.current_searcher._search(rep, topk=recall_topk)[0]
+
+        docs = []
+        for doc in doc_list:
+            if doc not in self.current_base_data:
+                continue
+            if self.args['lang'] == 'zh':
+                string_ = ''.join([item for item in self.current_base_data[doc]])
+            else:
+                string_ = ' '.join([item for item in self.current_base_data[doc]])
+            if string not in string_:
+                docs.append(self.current_base_data[doc])
+        print(f'[!] collect {len(docs)} documents')
+        return docs
+
+    def retrieve_doc_bm25(self, string, recall_topk=50, max_query_len=512):
+        if self.args['dataset'] == 'en_wiki' and self.args['partial'] == 0:
+            doc_list = []
+        else:
+            doc_list = self.current_searcher.search(string, topk=recall_topk)
 
         docs = []
         for doc in doc_list:
@@ -1844,7 +1889,7 @@ class CopyGenerationEncoder(nn.Module):
                     cache_delta_length += delta_length
                     cache.append(ids[:delta_length])
                     if dd_index == 0:
-                        cache.append([self.retriever.bert_tokenizer.sep_token_id])
+                        cache.append([self.retriever.bert_tokenizer.cls_token_id])
                     else:
                         cache.append([self.retriever.bert_tokenizer.sep_token_id])
                     segment_ids.append(cache)
@@ -1887,11 +1932,11 @@ class CopyGenerationEncoder(nn.Module):
                     min(i+self.args['left_window_size'], l-1), 
                     min(i+self.args['right_window_size'], l-1)
                 ):
-                    sss = self.retriever.bert_tokenizer.decode(doc_id[j]).replace('##', '')
+                    # sss = self.retriever.bert_tokenizer.decode(doc_id[j]).replace('##', '')
                     s_pos.append(i)
                     e_pos.append(j)
-                    if sss in self.punc_set:
-                        break
+                    # if sss in self.punc_set:
+                    #     break
                 if idx == 0:
                     first_num += 1
             new_s_pos, new_e_pos = [], []
@@ -2672,5 +2717,343 @@ class CopyGenerationEncoder(nn.Module):
                 candidate = [(phrase_source[i][-2], round(d, 4), phrase_source[i][-1]) for i, d in zip(topk_, dis_)]
             candidates.append(candidate)
         return candidates
+
+    @torch.no_grad()
+    def process_documents_en_v8(self, documents):
+        self.retriever.eval()
+        min_length, max_length = self.args['min_phrase_length'], self.args['max_phrase_length']
+        # collect candidate phrases
+        docs, doc_labels = [], []
+
+        for doc in documents:
+            # segments = doc
+            segments = []
+            for item in doc:
+                item = item.replace('<unk>', '[UNK]').replace('@,@', ',').replace('@.@', '.').replace('@-@', '-')
+                segments.append(item)
+            segments_label = [1 if min_length <= len(item) <= max_length else 0 for item in segments]
+
+            seg_ids = self.retriever.bert_tokenizer.batch_encode_plus(segments, add_special_tokens=False)['input_ids']
+
+            # split the subchunk by the length
+            segment_ids, seg_labels, cache, cache_label = [], [], [[self.retriever.bert_tokenizer.cls_token_id]], [0]
+            for label, ids in zip(segments_label, seg_ids):
+                if sum([len(i) for i in cache]) + len(ids) + 2 > self.args['doc_max_length']:   # [CLS] and [SEP] tokens
+                    cache.append([self.retriever.bert_tokenizer.sep_token_id])
+                    cache_label.append(0)
+                    segment_ids.append(cache)
+                    seg_labels.append(cache_label)
+                    cache, cache_label = [[self.retriever.bert_tokenizer.cls_token_id], ids], [0, label]
+                else:
+                    cache.append(ids)
+                    cache_label.append(label)
+            if cache:
+                cache.append([self.retriever.bert_tokenizer.sep_token_id])
+                cache_label.append(0)
+                segment_ids.append(cache)
+                seg_labels.append(cache_label)
+
+            docs.extend(segment_ids)
+            doc_labels.extend(seg_labels)
+
+        # collect the phrases
+        docids, phrase_positions = [], []
+        for doc, label in zip(docs, doc_labels):
+            phrases = []
+            dids = list(chain(*doc))
+            cache_dids = []
+            index = 0
+            for item_s, item_l in zip(doc, label):
+                if item_l == 1:
+                    phrases.append((len(cache_dids), len(cache_dids) + len(doc[index]) - 1))
+                cache_dids.extend(item_s)
+                index += 1
+
+            docids.append(torch.LongTensor(dids))
+            phrase_positions.append(phrases)
+
+        docids = pad_sequence(docids, batch_first=True, padding_value=self.retriever.bert_tokenizer.pad_token_id)
+        docids_mask = generate_mask(docids)
+        docids, docids_mask = to_cuda(docids, docids_mask)
+
+        output = self.retriever.phrase_encoder(docids, docids_mask, output_hidden_states=True)
+        hidden_states = output['hidden_states'][-1]    # [B, S, E]
+
+        phrase_reps, phrase_sources = [], []
+        begin_rep, end_rep = [], []
+        for doc_rep, doc_pos, doc_id in zip(hidden_states, phrase_positions, docids):
+            s_pos, e_pos = [i for i, j in doc_pos], [j for i, j in doc_pos]
+            
+            s_rep = doc_rep[s_pos, :]
+            e_rep = doc_rep[e_pos, :]
+            begin_rep.append(s_rep)
+            end_rep.append(e_rep)
+
+            for s, e in zip(s_pos, e_pos):
+                context_left = max(0, s-16)
+                context_string = ' ' + self.retriever.bert_tokenizer.decode(doc_id[context_left:s]).replace('[UNK]', '<|endoftext|>')
+                phrase_sources.append((
+                        s, 
+                        e, 
+                        ' ' + self.retriever.bert_tokenizer.decode(doc_id[s:e+1]).replace('[UNK]', '<|endoftext|>'),
+                        context_string
+                ))
+            
+        begin_rep = torch.cat(begin_rep)
+        end_rep = torch.cat(end_rep)
+        phrase_reps = torch.cat([begin_rep, end_rep], dim=-1)
+        assert len(phrase_reps) == len(phrase_sources)
+        print(f'[!] collect {len(phrase_reps)} phrases')
+
+        # packup with the token embeddings
+        phrase_reps = torch.cat([
+            phrase_reps,
+            self.retriever.token_embeddings
+        ], dim=0)
+        phrase_sources.extend([
+            (
+                -1, 
+                -1, 
+                ' ' + self.retriever.tokenizer.decode(idx) if self.retriever.tokenizer.decode(idx) in ['.', ',', '!', ';', ':', '"', "'", '?', '#', '$', '%', '/', '&', '*', '(', ')', '[', ']', '{', '}', '|'] else self.retriever.tokenizer.decode(idx),
+                ''
+            ) for idx in range(len(self.retriever.tokenizer))
+        ])
+        print(f'[!] add vocabulary and collect {len(phrase_reps)} phrases')
+        return phrase_reps, phrase_sources
+    
+    @torch.no_grad()
+    def process_documents_en_v9(self, documents):
+
+        '''dynamic phrase searcher'''
+
+        self.retriever.eval()
+        min_length, max_length = self.args['min_phrase_length'], self.args['max_phrase_length']
+        # collect candidate phrases
+        docs = []
+        for dd_index, doc in enumerate(documents):
+            segments = []
+            for item in doc:
+                item = item.replace('<unk>', '[UNK]').replace('@,@', ',').replace('@.@', '.').replace('@-@', '-').replace('< unk >', '[UNK]')
+                segments.append(item)
+            seg_ids = self.retriever.bert_tokenizer.batch_encode_plus(segments, add_special_tokens=False)['input_ids']
+
+            # split the subchunk by the length
+            segment_ids, cache = [], [[self.retriever.bert_tokenizer.cls_token_id]]
+            moving_pointer, cache_delta_length = 0, 0
+            while moving_pointer < len(seg_ids):
+                ids = seg_ids[moving_pointer][cache_delta_length:]
+                if sum([len(i) for i in cache]) + len(ids) + 2 > self.args['doc_max_length']:   # [CLS] and [SEP] tokens
+                    delta_length = self.args['doc_max_length'] - sum([len(i) for i in cache]) - 2
+                    cache_delta_length += delta_length
+                    cache.append(ids[:delta_length])
+                    if dd_index == 0:
+                        cache.append([self.retriever.bert_tokenizer.cls_token_id])
+                    else:
+                        cache.append([self.retriever.bert_tokenizer.sep_token_id])
+                    segment_ids.append(cache)
+                    cache = [[self.retriever.bert_tokenizer.cls_token_id]]
+                else:
+                    cache.append(ids)
+                    moving_pointer += 1
+                    cache_delta_length = 0
+            if cache:
+                if dd_index == 0:
+                    cache.append([self.retriever.bert_tokenizer.cls_token_id])
+                else:
+                    cache.append([self.retriever.bert_tokenizer.sep_token_id])
+                segment_ids.append(cache)
+            docs.extend(segment_ids)
+
+        # collect the phrases
+        docids = []
+        for doc in docs:
+            dids = list(chain(*doc))
+            docids.append(torch.LongTensor(dids))
+        docids = pad_sequence(docids, batch_first=True, padding_value=self.retriever.bert_tokenizer.pad_token_id)
+        docids_mask = generate_mask(docids)
+        docids, docids_mask = to_cuda(docids, docids_mask)
+        vl = docids_mask.sum(dim=-1)
+
+        output = self.retriever.phrase_encoder(docids, docids_mask, output_hidden_states=True)
+        hidden_states = output['hidden_states'][-1]    # [B, S, E]
+
+        begin_rep, end_rep = [], []
+        phrase_sources = []
+        for idx, (doc_rep, l, doc_id) in enumerate(zip(hidden_states, vl, docids)):
+            s_pos, e_pos = [], []
+            if idx == 0:
+                first_num = 0
+            for i in range(1, l-1-self.args['left_window_size']):
+                if self.retriever.bert_tokenizer.decode(doc_id[i]) in self.punc_set:
+                    continue
+                for j in range(
+                    min(i+self.args['left_window_size'], l-1), 
+                    min(i+self.args['right_window_size'], l-1)
+                ):
+                    sss = self.retriever.bert_tokenizer.decode(doc_id[j])
+                    if sss.startswith('##'):
+                        # remove the last and append the new
+                        if s_pos and e_pos:
+                            s_pos.pop()
+                            e_pos.pop()
+                    s_pos.append(i)
+                    e_pos.append(j)
+                    sss = sss.replace('##', '')
+                    if sss in self.punc_set:
+                        break
+                if idx == 0:
+                    first_num += 1
+            new_s_pos, new_e_pos = [], []
+            for s, e in zip(s_pos, e_pos):
+                string = ' ' + self.retriever.bert_tokenizer.decode(doc_id[s:e+1]).replace('[UNK]', '<|endoftext|>')
+                if '<|endoftext|>' in string:
+                    continue
+                if idx == 0:
+                    context_string = ''
+                else:
+                    context_left = max(0, s-16)
+                    context_string = ' ' + self.retriever.bert_tokenizer.decode(doc_id[context_left:s]).replace('[UNK]', '<|endoftext|>')
+                if '##' not in string:
+                    phrase_sources.append((s, e, string, context_string))
+                    # phrase_sources.append((s, e, string))
+                    new_s_pos.append(s)
+                    new_e_pos.append(e)
+            s_rep = doc_rep[new_s_pos, :]
+            e_rep = doc_rep[new_e_pos, :]
+            begin_rep.append(s_rep)
+            end_rep.append(e_rep)
+            
+        begin_rep = torch.cat(begin_rep)
+        end_rep = torch.cat(end_rep)
+        phrase_reps = torch.cat([self.retriever.s_proj(begin_rep), self.retriever.e_proj(end_rep)], dim=-1)
+        # multiple the weight
+        # phrase_reps[:first_num, :] *= 1.1
+        # phrase_reps = F.normalize(phrase_reps, dim=-1)
+        assert len(phrase_reps) == len(phrase_sources)
+        print(f'[!] collect {len(phrase_reps)} phrases')
+
+        # packup with the token embeddings
+        # without the <unk> token
+        # non_unk_token_mask = torch.arange(len(self.retriever.tokenizer))
+        # non_unk_token_mask = non_unk_token_mask != self.retriever.tokenizer.eos_token_id
+        phrase_reps = torch.cat([
+            phrase_reps,
+            # self.retriever.token_embeddings[:self.retriever.tokenizer.eos_token_id]
+            self.retriever.token_embeddings
+        ], dim=0)
+        phrase_sources.extend([
+            (
+                -1, 
+                -1, 
+                ' ' + self.retriever.tokenizer.decode(idx) if self.retriever.tokenizer.decode(idx) in ['.', ',', '!', ';', ':', '"', "'", '?', '#', '$', '%', '/', '&', '*', '(', ')', '[', ']', '{', '}', '|'] else self.retriever.tokenizer.decode(idx),
+                ''
+            # ) for idx in range(len(self.retriever.tokenizer)) if idx != self.retriever.tokenizer.eos_token_id
+            ) for idx in range(len(self.retriever.tokenizer))
+        ])
+        print(f'[!] add vocabulary and collect {len(phrase_reps)} phrases')
+        return phrase_reps, phrase_sources
+
+    @torch.no_grad()
+    def process_documents_en_v10(self, documents):
+        self.retriever.eval()
+        min_length, max_length = self.args['min_phrase_length'], self.args['max_phrase_length']
+        # collect candidate phrases
+        docs, doc_labels = [], []
+
+        for doc in documents:
+            # segments = doc
+            segments = []
+            for item in doc:
+                item = item.replace('<unk>', '[UNK]').replace('@,@', ',').replace('@.@', '.').replace('@-@', '-')
+                segments.append(item)
+            segments_label = [1 if min_length <= len(item) <= max_length else 0 for item in segments]
+
+            seg_ids = self.retriever.bert_tokenizer.batch_encode_plus(segments, add_special_tokens=False)['input_ids']
+
+            # split the subchunk by the length
+            segment_ids, seg_labels, cache, cache_label = [], [], [[self.retriever.bert_tokenizer.cls_token_id]], [0]
+            for label, ids in zip(segments_label, seg_ids):
+                if sum([len(i) for i in cache]) + len(ids) + 2 > self.args['doc_max_length']:   # [CLS] and [SEP] tokens
+                    cache.append([self.retriever.bert_tokenizer.sep_token_id])
+                    cache_label.append(0)
+                    segment_ids.append(cache)
+                    seg_labels.append(cache_label)
+                    cache, cache_label = [[self.retriever.bert_tokenizer.cls_token_id], ids], [0, label]
+                else:
+                    cache.append(ids)
+                    cache_label.append(label)
+            if cache:
+                cache.append([self.retriever.bert_tokenizer.sep_token_id])
+                cache_label.append(0)
+                segment_ids.append(cache)
+                seg_labels.append(cache_label)
+
+            docs.extend(segment_ids)
+            doc_labels.extend(seg_labels)
+
+        # collect the phrases
+        docids, phrase_positions = [], []
+        for doc, label in zip(docs, doc_labels):
+            phrases = []
+            dids = list(chain(*doc))
+            cache_dids = []
+            index = 0
+            for item_s, item_l in zip(doc, label):
+                if item_l == 1:
+                    phrases.append((len(cache_dids), len(cache_dids) + len(doc[index]) - 1))
+                cache_dids.extend(item_s)
+                index += 1
+
+            docids.append(torch.LongTensor(dids))
+            phrase_positions.append(phrases)
+
+        docids = pad_sequence(docids, batch_first=True, padding_value=self.retriever.bert_tokenizer.pad_token_id)
+        docids_mask = generate_mask(docids)
+        docids, docids_mask = to_cuda(docids, docids_mask)
+
+        output = self.retriever.phrase_encoder(docids, docids_mask, output_hidden_states=True)
+        hidden_states = output['hidden_states'][-1]    # [B, S, E]
+
+        phrase_reps, phrase_sources = [], []
+        begin_rep, end_rep = [], []
+        for doc_rep, doc_pos, doc_id in zip(hidden_states, phrase_positions, docids):
+            s_pos, e_pos = [i for i, j in doc_pos], [j for i, j in doc_pos]
+            
+            s_rep = doc_rep[s_pos, :]
+            e_rep = doc_rep[e_pos, :]
+            begin_rep.append(s_rep)
+            end_rep.append(e_rep)
+
+            for s, e in zip(s_pos, e_pos):
+                context_left = max(0, s-16)
+                context_string = ' ' + self.retriever.bert_tokenizer.decode(doc_id[context_left:s]).replace('[UNK]', '<|endoftext|>')
+                phrase_sources.append((
+                        s, 
+                        e, 
+                        ' ' + self.retriever.bert_tokenizer.decode(doc_id[s:e+1]).replace('[UNK]', '<|endoftext|>'),
+                        context_string
+                ))
+            
+        begin_rep = torch.cat(begin_rep)
+        end_rep = torch.cat(end_rep)
+        phrase_reps = torch.cat([begin_rep, end_rep], dim=-1)
+        assert len(phrase_reps) == len(phrase_sources)
+        print(f'[!] collect {len(phrase_reps)} phrases')
+
+        # packup with the token embeddings
+        phrase_reps = torch.cat([
+            phrase_reps,
+            self.retriever.token_embeddings
+        ], dim=0)
+        phrase_sources.extend([
+            (
+                -1, 
+                -1, 
+                ' ' + self.retriever.tokenizer.decode(idx) if self.retriever.tokenizer.decode(idx) in ['.', ',', '!', ';', ':', '"', "'", '?', '#', '$', '%', '/', '&', '*', '(', ')', '[', ']', '{', '}', '|'] else self.retriever.tokenizer.decode(idx),
+                ''
+            ) for idx in range(len(self.retriever.tokenizer))
+        ])
+        print(f'[!] add vocabulary and collect {len(phrase_reps)} phrases')
+        return phrase_reps, phrase_sources
 
 

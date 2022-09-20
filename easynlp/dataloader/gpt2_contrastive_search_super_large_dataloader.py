@@ -12,16 +12,16 @@ class GPT2ForContrastiveForBigDataset(Dataset):
         self.pad = self.vocab.pad_token_id
         if self.args['mode'] == 'train':
             # self.path = f'/apdcephfs/share_733425/johntianlan/chinese_high_quality_300g_split/train_{args["global_rank"]}.txt'
-            self.path = f'/apdcephfs/share_733425/johntianlan/chinese_high_quality_300g/train.txt0{args["local_rank"]}'
-            # self.path = f'/apdcephfs/share_916081/johntianlan/chinese_high_quality_300g_test/train_{args["global_rank"]}.txt'
+            # self.path = f'/apdcephfs/share_733425/johntianlan/chinese_high_quality_300g/train.txt0{args["local_rank"]}'
+            self.path = f'/apdcephfs/share_916081/johntianlan/chinese_high_quality_300g/train.txt0{args["local_rank"]}'
             self.current_file_handler = open(self.path, 'r')
 
-            self.size = 10000000
+            self.size = 100
             self.cache = []
-            self.buffer_size = 4096000
+            self.buffer_size = 4096
         else:
             # path = f'/apdcephfs/share_733425/johntianlan/chinese_high_quality_300g_split/test.txt'
-            path = f'/apdcephfs/share_916081/johntianlan/chinese_high_quality_300g_test/test.txt'
+            path = f'/apdcephfs/share_916081/johntianlan/chinese_high_quality_300g/test.txt'
             with open(path) as f:
                 dataset = []
                 for line in f.readlines():
@@ -67,21 +67,12 @@ class GPT2ForContrastiveForBigDataset(Dataset):
         pass
         
     def collate(self, batch):
-        if self.args['mode'] == 'train':
-            ids = [torch.LongTensor(i) for i in batch]
-            ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
-            ids_mask = generate_mask(ids, pad_token_idx=self.pad)
-            ids, ods, ids_mask = ids[:, :-1], ids[:, 1:], ids_mask[:, :-1]
-            ids, ods, ids_mask = to_cuda(ids, ods, ids_mask)
-            return {'ids': ids, 'ods': ods, 'ids_mask': ids_mask}
-        else:
-            max_length = max([len(i) for i in batch])
-            ids = torch.LongTensor([[self.pad] * (max_length - len(i)) + i for i in batch])
-            ids_mask = generate_mask(ids, pad_token_idx=self.pad)
-            ids, ods, ids_mask = ids[:, :-1], ids[:, 1:], ids_mask[:, :-1]
-            pos_ids = (ids_mask.long().cumsum(-1) - 1).masked_fill(ids_mask == 0, 0)
-            ids, ods, ids_mask, pos_ids = to_cuda(ids, ods, ids_mask, pos_ids)
-            return {'ids': ids, 'ids_label': ods, 'ids_mask': ids_mask, 'pos_ids': pos_ids}
+        ids = [torch.LongTensor(i) for i in batch]
+        ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+        ids_mask = generate_mask(ids, pad_token_idx=self.pad)
+        ids, ods, ids_mask = ids[:, :-1], ids[:, 1:], ids_mask[:, :-1]
+        ids, ods, ids_mask = to_cuda(ids, ods, ids_mask)
+        return {'ids': ids, 'ods': ods, 'ids_mask': ids_mask}
 
 
 class GPT2ForContrastiveForBigArxivDataset(Dataset):

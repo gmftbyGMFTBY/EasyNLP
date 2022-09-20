@@ -7,7 +7,7 @@ from .AugmentationModels import *
 from .CompareInteractionModels import *
 from .RepresentationModels import *
 from .LatentInteractionModels import *
-from .EvaluationModels import *
+# from .EvaluationModels import *
 from .GenerationModels import *
 from .PostTrainModels import *
 from .LanguageModels import *
@@ -25,7 +25,7 @@ def load_model(args):
         'Generation': GenerationAgent,
         'CompareInteraction': CompareInteractionAgent,
         'PostTrain': PostTrainAgent,
-        'Evaluation': EvaluationAgent,
+        # 'Evaluation': EvaluationAgent,
         'LanguageModel': LanguageModelsAgent,
         'MutualTrainingModel': MutualTrainingAgent,
         'WriterRerank': WriterRerankAgent,

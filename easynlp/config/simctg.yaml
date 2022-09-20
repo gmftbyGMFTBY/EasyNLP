@@ -1,7 +1,8 @@
 valid_during_training: true
 is_step_for_training: true
-total_step: 10000010
+total_step: 1000010
 save_every: 10000
+test_max_len: 64
 
 # contrastive search parameters
 beam_width: 3
@@ -26,7 +27,9 @@ pretrained_model:
     en: /apdcephfs/share_916081/johntianlan/gpt2-large
 
 # data_root_path: /apdcephfs/share_733425/johntianlan/english_common_crawl
-data_root_path: /apdcephfs/share_916081/johntianlan/english_common_crawl
+# data_root_path: /apdcephfs/share_916081/johntianlan/english_common_crawl
+data_root_path: /apdcephfs/share_916081/johntianlan/chinese_high_quality_300g
+# data_root_path: /apdcephfs/share_733425/johntianlan/chinese_high_quality_300g
 buffer_size: 409600
 
 # train configuration
@@ -37,8 +40,8 @@ train:
     seed: 0
     batch_size: 8
     max_len: 256
-    warmup_ratio: 0.
-    iter_to_accumulate: 1
+    warmup_ratio: 0.05
+    iter_to_accumulate: 8
     checkpoint: 
         path: bert-post/best_nspmlm.pt
         is_load: false
@@ -46,5 +49,5 @@ train:
 test:
     seed: 0
     batch_size: 1
-    max_len: 64
-    test_max_len: 64
+    max_len: 256
+    test_max_len: 256

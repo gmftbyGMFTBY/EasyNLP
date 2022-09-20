@@ -26,18 +26,31 @@ class ESBuilder:
                     }
                 }
             else:
+                # english
                 mapping = {
                     'properties': {
                         'context': {
                             'type': 'text',
-                            'analyzer': 'ik_max_word',
-                            'search_analyzer': 'ik_max_word',
+                            'analyzer': 'standard',
                         },
                         'response': {
                             'type': 'keyword',
                         }
                     }
                 }
+                # chinese
+                # mapping = {
+                #     'properties': {
+                #         'context': {
+                #             'type': 'text',
+                #             'analyzer': 'ik_max_word',
+                #             'search_analyzer': 'ik_max_word',
+                #         },
+                #         'response': {
+                #             'type': 'keyword',
+                #         }
+                #     }
+                # }
             if self.es.indices.exists(index=self.index):
                 self.es.indices.delete(index=self.index)
             rest = self.es.indices.create(index=self.index)

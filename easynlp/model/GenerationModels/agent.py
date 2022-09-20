@@ -505,9 +505,11 @@ class GenerationAgent(GenerationBaseAgent):
             new_state_dict = self.checkpointadapeter.convert(state_dict)
             self.model.model.load_state_dict(new_state_dict)
         elif self.args['model'] in ['copygeneration']:
+            # ipdb.set_trace()
             pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
             retrieval_path = f'{self.args["root_dir"]}/ckpt/{self.args["dataset"]}/phrase-copy/best_{pretrained_model_name}_{self.args["version"]}.pt'
-            self.model.retriever.load_state_dict(torch.load(retrieval_path, map_location=torch.device('cpu')))
+            self.model.retriever.load_state_dict(torch.load(retrieval_path, map_location=torch.device('cpu'))['model_state_dict'])
+            # self.model.retriever.load_state_dict(torch.load(retrieval_path, map_location=torch.device('cpu')))
             print(f'[!] load model from:\n - {retrieval_path}')
 
             pretrained_model_name = self.args['pretrained_model'].replace('/', '_')

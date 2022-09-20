@@ -523,3 +523,31 @@ class InteractionAgent(RetrievalBaseAgent):
         sp, pr = _correlation(automatic_scores, human_annotations)
         print(f'[!] pearsonr:', pr)
         print(f'[!] spearmanr:', sp)
+        
+    @torch.no_grad()
+    def inference(self, inf_iter, size=100000):
+        self.model.eval()
+        pbar = tqdm(inf_iter)
+        embds, texts = [], []
+        idx = 0
+        for batch in pbar:
+            rep = self.model.module.predict(batch).cpu()
+            embds.append(rep)
+            texts.append(batch['text'])
+            if len(texts) >= size:
+                embds = torch.cat(embds, dim=0).numpy()
+                torch.save(
+                    (embds, texts), 
+                    f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_bert_ft_{self.args["local_rank"]}_{idx}.pt'
+                )
+                embds, texts = []
+                idx += 1
+                
+        if len(texts) >= 0:
+            embds = torch.cat(embds, dim=0).numpy()
+            torch.save(
+                (embds, texts), 
+                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_bert_ft_{self.args["local_rank"]}_{idx}.pt'
+            )
+
+
