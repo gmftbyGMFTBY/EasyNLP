@@ -24,6 +24,11 @@ def load_base_data(dataset):
         
         # data_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_lawmt/'
         num = 8
+        
+        
+        
+        # data_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_en_wiki/backup_v4_data'
+        # num = 32
     elif dataset in ['en_wiki']:
         # en-wiki test set with en-wiki larger memory
         nlp = spacy.load('en_core_web_sm')

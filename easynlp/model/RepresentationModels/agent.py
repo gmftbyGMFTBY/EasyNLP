@@ -39,6 +39,8 @@ class RepresentationAgent(RetrievalBaseAgent):
                 self.model.ssl_interval_step = int(self.args['total_step'] * self.args['ssl_interval'])
             elif self.args['model'] in ['dual-bert-pt']:
                 self.train_model = self.train_model_pt
+            elif self.args['model'] in ['dual-bert-bow']:
+                self.train_model = self.train_model_bow
             elif self.args['model'] in ['dual-bert-adv']:
                 self.train_model = self.train_model_adv
             elif self.args['model'] in ['dual-bert-seed']:
@@ -1639,10 +1641,10 @@ class RepresentationAgent(RetrievalBaseAgent):
         self.model.train()
         with autocast():
             batch['current_step'] = current_step
-            # phrase_loss, bow_loss, token_loss, pure_token_loss, phrase_acc, token_acc = self.model(batch)
-            # loss = phrase_loss + bow_loss + token_loss + pure_token_loss
             phrase_loss, token_loss, pure_token_loss, phrase_acc, token_acc = self.model(batch)
             loss = phrase_loss + token_loss + pure_token_loss
+            # phrase_loss, bow_loss, token_loss, pure_token_loss, phrase_triplet_loss, token_triplet_loss, phrase_acc, token_acc = self.model(batch)
+            # loss = phrase_loss + bow_loss + token_loss + pure_token_loss + phrase_triplet_loss + token_triplet_loss
             loss = loss / self.args['iter_to_accumulate']
         self.scaler.scale(loss).backward()
         if (current_step + 1) % self.args['iter_to_accumulate'] == 0:
@@ -1662,7 +1664,7 @@ class RepresentationAgent(RetrievalBaseAgent):
             recoder.add_scalar(f'train/TokenLoss', token_loss.item(), current_step)
             recoder.add_scalar(f'train/PhraseAcc', phrase_acc, current_step)
             recoder.add_scalar(f'train/TokenAcc', token_acc, current_step)
-        # pbar.set_description(f'[!] loss(phrase|bow): {round(phrase_loss.item(), 2)}|{round(bow_loss.item(), 2)}; acc(phrase|token): {round(phrase_acc, 4)}|{round(token_acc, 4)}')
+        # pbar.set_description(f'[!] loss(phrase|triplet): {round(phrase_loss.item(), 2)}|{round(phrase_triplet_loss.item()+token_triplet_loss.item(), 2)}; acc(phrase|token): {round(phrase_acc, 4)}|{round(token_acc, 4)}')
         pbar.set_description(f'[!] loss(phrase): {round(phrase_loss.item(), 2)}; acc(phrase|token): {round(phrase_acc, 4)}|{round(token_acc, 4)}')
         pbar.update(1)
 
@@ -1788,3 +1790,75 @@ class RepresentationAgent(RetrievalBaseAgent):
         sp, pr = _correlation(automatic_scores, human_annotations)
         print(f'[!] pearsonr:', pr)
         print(f'[!] spearmanr:', sp)
+
+    @torch.no_grad()
+    def inference_dialog_context(self, inf_iter, size=500000):
+        self.model.eval()
+        pbar = tqdm(inf_iter)
+        embds, indexes = [], []
+        counter = 0
+        for batch in pbar:
+            ids = batch['ids']
+            ids_mask = batch['mask']
+            index = batch['index']
+            res = self.model.module.get_ctx(ids, ids_mask)
+            embds.append(res)
+            indexes.extend(index)
+
+            if len(indexes) > size:
+                embds = torch.cat(embds, dim=0).cpu().numpy()
+                torch.save(
+                    (embds, indexes), 
+                    f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_dialog_context_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
+                )
+                embds, indexes = [], []
+                counter += 1
+        if len(indexes) > 0:
+            embds = torch.cat(embds, dim=0).cpu().numpy()
+            torch.save(
+                (embds, indexes), 
+                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_dialog_context_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
+            )
+
+
+    def train_model_bow(self, train_iter, test_iter, recoder=None, idx_=0, hard=False, whole_batch_num=0):
+        self.model.train()
+        total_loss, total_acc = 0, 0
+        total_tloss, total_bloss = 0, 0
+        pbar = tqdm(train_iter)
+        correct, s, oom_t = 0, 0, 0
+        batch_num = 0
+        for idx, batch in enumerate(pbar):
+
+            self.optimizer.zero_grad()
+            with autocast():
+                dloss, bow_loss, acc = self.model(batch)
+                loss = dloss + bow_loss
+            self.scaler.scale(loss).backward()
+            self.scaler.unscale_(self.optimizer)
+            clip_grad_norm_(self.model.parameters(), self.args['grad_clip'])
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            self.scheduler.step()
+
+            total_loss += loss.item()
+            total_acc += acc
+            batch_num += 1
+
+            if whole_batch_num + batch_num in self.args['test_step']:
+                self.test_now(test_iter, recoder)
+
+            if recoder:
+                recoder.add_scalar(f'train-epoch-{idx_}/Loss', total_loss/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunLoss', loss.item(), idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/Acc', total_acc/batch_num, idx)
+                recoder.add_scalar(f'train-epoch-{idx_}/RunAcc', acc, idx)
+             
+            pbar.set_description(f'[!] loss(t|bow): {round(loss.item(), 4)}|{round(bow_loss.item(), 4)}; acc: {round(acc, 4)}')
+
+        if recoder:
+            recoder.add_scalar(f'train-whole/Loss', total_loss/batch_num, idx_)
+            recoder.add_scalar(f'train-whole/Acc', total_acc/batch_num, idx_)
+        return batch_num
+
+

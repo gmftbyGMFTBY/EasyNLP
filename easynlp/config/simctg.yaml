@@ -1,7 +1,7 @@
 valid_during_training: true
 is_step_for_training: true
-total_step: 1000010
-save_every: 10000
+total_step: 5000010
+save_every: 50000
 test_max_len: 64
 
 # contrastive search parameters
@@ -35,10 +35,10 @@ buffer_size: 409600
 # train configuration
 train:
     load_param: true
-    lr: 0.00003
+    lr: 0.00005
     grad_clip: 1.0
     seed: 0
-    batch_size: 8
+    batch_size: 20
     max_len: 256
     warmup_ratio: 0.05
     iter_to_accumulate: 8

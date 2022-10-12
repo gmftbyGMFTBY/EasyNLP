@@ -589,3 +589,101 @@ class BERTSimCSEInferenceBigDataset(Dataset):
         }
 
 
+
+class SimCSEDialogDataset(Dataset):
+    
+    def __init__(self, vocab, path, **args):
+        self.args = args
+        self.vocab = vocab
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
+
+        self.data = []
+        path = path.replace('train.txt', 'train_cross_domain.txt') 
+        print(f'[!] load data from {path}')
+        with open(path) as f:
+            for line in tqdm(f.readlines()):
+                items = line.strip().split('\t')
+                context = items[1:-2]
+                item = self.vocab.batch_encode_plus(context, add_special_tokens=False)['input_ids']
+                # ids = []
+                # for i in item:
+                #     ids.extend(i + [self.sep])
+                # ids.pop()
+                # ids = [self.cls] + ids[-self.args['max_len']+2:] + [self.sep]
+                ids = [self.cls] + item[-1][:self.args['res_max_len']-2] + [self.sep]
+                self.data.append(ids)
+                
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, i):
+        return torch.LongTensor(self.data[i])
+
+    def save(self):
+        pass
+        
+    def collate(self, batch):
+        ids = pad_sequence(batch, batch_first=True, padding_value=self.pad)
+        ids_mask = generate_mask(ids, pad_token_idx=self.pad)
+        ids, ids_mask = to_cuda(ids, ids_mask)
+        return {
+            'ids': ids, 
+            'ids_mask': ids_mask, 
+        }
+
+
+
+class BERTSimCSEInferenceDialogContextDataset(Dataset):
+
+    def __init__(self, vocab, path, **args):
+        self.args = args
+        self.vocab = vocab
+        self.pad = self.vocab.convert_tokens_to_ids('[PAD]')
+        self.sep = self.vocab.convert_tokens_to_ids('[SEP]')
+        self.cls = self.vocab.convert_tokens_to_ids('[CLS]')
+
+        self.data = []
+        path = path.replace('train.txt', 'train_cross_domain.txt') 
+        print(f'[!] load data from {path}')
+        with open(path) as f:
+            for line in tqdm(f.readlines()):
+                items = line.strip().split('\t')
+                context = items[1:-2]
+                item = self.vocab.batch_encode_plus(context, add_special_tokens=False)['input_ids']
+                ids = []
+                for i in item:
+                    ids.extend(i + [self.sep])
+                ids.pop()
+                ids = [self.cls] + ids[-self.args['max_len']+2:] + [self.sep]
+                ids = [self.cls] + item[-1][:self.args['res_max_len']-2] + [self.sep]
+
+                self.data.append({
+                    'ids': ids,
+                    'index': items[0],
+                })
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, i):
+        return torch.LongTensor(self.data[i]['ids']), self.data[i]['index']
+
+    def save(self):
+        pass
+        
+    def collate(self, batch):
+        ids = [i[0] for i in batch]
+        text = [i[1] for i in batch]
+        ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+        ids_mask = generate_mask(ids, pad_token_idx=self.pad)
+        ids, ids_mask = to_cuda(ids, ids_mask)
+        return {
+            'ids': ids, 
+            'mask': ids_mask, 
+            'index': text
+        }
+
+
+

@@ -324,7 +324,7 @@ class InteractionAgent(RetrievalBaseAgent):
                 candidates = batch['candidates'][idx:idx+inner_bsz]
                 ids, tids, mask = self.totensor_interaction(batch['context'], candidates)
                 batch['ids'], batch['tids'], batch['mask'] = ids, tids, mask
-                subscores.extend(self.model(batch).tolist())
+                subscores.extend(F.softmax(self.model(batch), dim=-1)[:, 1].tolist())
             scores.append(subscores)
         return scores
     
@@ -533,14 +533,14 @@ class InteractionAgent(RetrievalBaseAgent):
         for batch in pbar:
             rep = self.model.module.predict(batch).cpu()
             embds.append(rep)
-            texts.append(batch['text'])
+            texts.extend(batch['text'])
             if len(texts) >= size:
                 embds = torch.cat(embds, dim=0).numpy()
                 torch.save(
                     (embds, texts), 
                     f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_bert_ft_{self.args["local_rank"]}_{idx}.pt'
                 )
-                embds, texts = []
+                embds, texts = [], []
                 idx += 1
                 
         if len(texts) >= 0:

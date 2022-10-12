@@ -1,7 +1,7 @@
 temperature: 1.0
 # dynamic searching parameters (left windows position and right windows position)
 # english 0, chinese 2
-left_window_size: 0
+left_window_size: 1
 right_window_size: 8
 test_max_len: 128
 prefix_len: 32
@@ -22,7 +22,7 @@ update_step: 128
 # max query len for encoding SimCSE model
 max_query_len: 512
 contrastive_phrase_score_penalty: 100
-coarse_score_alpha: 0.0
+coarse_score_alpha: 0.5
 softmax_temp: 0.1
 
 buffer_size: 40960

@@ -1,24 +1,60 @@
-smoothing: 0.1
-dropout: 0.1
-# rank: bert-ft-compare
-rank: null
-bow_loss_lambda: 0.1
+temp: 0.05
+# five for restoration-200k is enough
+# test 100 full_turn_length for ubuntu corpus
+full_turn_length: 100 
+test_interval: 0.2
+multi_ctx: 1
+min_conv_length: 3
+data_filter_size: 650000
+valid_during_training: false
+mv_num: 1
+is_step_for_training: false
+bow_alpha: 0.1
+
+#
+data_root_path: /apdcephfs/share_916081/johntianlan/chatbot-large-scale-dataset-final-version
+buffer_size: 409600
+
+# network issue, load locally
+tokenizer:
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    # zh: /apdcephfs/share_916081/johntianlan/chinese-roberta-wwm-ext
+    # zh: /apdcephfs/share_733425/johntianlan/chinese-roberta-wwm-ext-large
+    en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
+pretrained_model:
+    zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
+    # zh: /apdcephfs/share_916081/johntianlan/chinese-roberta-wwm-ext
+    # zh: /apdcephfs/share_733425/johntianlan/chinese-roberta-wwm-ext-large
+    en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
 
 # train configuration
 train:
+    load_param: true
     lr: 0.00005
     grad_clip: 5.0
     seed: 0
     batch_size: 64
     max_len: 256
     res_max_len: 64
-    epoch: 10
-    # no wamrup, set 0.0 (BERT-FP and UMS_BERT)
+    epoch: 5
     warmup_ratio: 0.
     checkpoint: 
         # path: bert-post/best_nspmlm.pt
-        path: bert-fp/best_bert-base-chinese.pt
-        is_load: true
+        # path: bert-fp/best_bert-base-chinese.pt
+        # path: bert-fp-comp/best_bert-base-chinese.pt
+        # path: bert-fp-multi/best_bert-base-chinese.pt
+        # path: dual-bert-pt/best_bert-base-chinese.pt
+        # path: bert-fp-no-cls/best_bert-base-chinese.pt
+        # path: bert-fp/best_bert-base-chinese.pt
+        path: bert-fp-mono/best_bert-base-chinese.pt
+        # path: bert-fp-mono/best_bert-base-uncased.pt
+        # path: bert-fp/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_11.pt
+        # path: bert-fp-mono/best__apdcephfs_share_916081_johntianlan_chinese-roberta-wwm-ext_16.pt
+        # path: bert-fp-mono/best__apdcephfs_share_733425_johntianlan_chinese-roberta-wwm-ext-large_19.pt
+        # path: bert-fp-mono/best__apdcephfs_share_916081_johntianlan_bert-base-chinese_801.pt
+        # path: bert-fp-mono/best_bert-base-uncased.pt
+        # path: simcse/best_bert-base-chinese.pt
+        is_load: true 
 
 # test configuration
 test:
@@ -30,8 +66,17 @@ test:
 # inference configuration
 inference:
     seed: 0
-    batch_size: 128
-    max_len: 64
-    topk: 20
-    index_type: LSH
+    batch_size: 512
+    max_len: 256
+    res_max_len: 64
+    ctx_max_len: 256
+    topk: 10
+    # index_type: IVF10000,PQ16
+    index_type: Flat
+    index_nprobe: 100
     dimension: 768
+    buff_size: 100000
+    r_data_root_path: /apdcephfs/share_733425/johntianlan/chatbot-data-clean/weibo_clean
+    w_data_root_path: /apdcephfs/share_733425/johntianlan/chatbot-data-clean/weibo_clean_v2
+    # r_data_root_path: /home/johntianlan/chatbot-pretrain-data-split-test/weibo_clean
+    # w_data_root_path: /home/johntianlan/chatbot-pretrain-data-split-test/weibo_clean_v2

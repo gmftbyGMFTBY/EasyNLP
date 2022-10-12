@@ -18,7 +18,7 @@ def read_text_data_train(path):
             if line[0] == '0':
                 # ignore the negative samples
                 continue
-            line = [''.join(i.split()) for i in line[1:]]
+            line = [' '.join(i.split()) for i in line[1:]]
             context, response = ' '.join(line[:-1]), line[-1]
             dataset.append((context, response))
         print(f'[!] load {len(dataset)} samples from {path}')
@@ -30,7 +30,7 @@ def read_text_data_test(path):
         dataset = []
         for line in f.readlines():
             line = line.strip().split('\t')
-            line = [''.join(i.split()) for i in line[1:]]
+            line = [' '.join(i.split()) for i in line[1:]]
             context, response = ' '.join(line[:-1]), line[-1]
             dataset.append((context, response))
         print(f'[!] load {len(dataset)} samples from {path}')

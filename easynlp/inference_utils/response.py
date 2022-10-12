@@ -15,11 +15,13 @@ def response_strategy(args):
         for idx in range(100):
             try:
                 embd, text = torch.load(
-                    # f'{args["root_dir"]}/data/{args["dataset"]}/inference_{args["model"]}_{i}_{idx}.pt'
-                    f'{args["root_dir"]}/data/{args["dataset"]}/inference_{args["model"].replace("-", "_")}_{i}_{idx}.pt'
+                    f'{args["root_dir"]}/data/{args["dataset"]}/inference_{args["model"]}_{i}_{idx}.pt'
+                    # f'{args["root_dir"]}/data/{args["dataset"]}/inference_{args["model"].replace("-", "_")}_{i}_{idx}.pt'
+                    # f'{args["root_dir"]}/data/{args["dataset"]}/inference_dialog_context_dual-bert_{i}_{idx}.pt'
                     # f'{args["root_dir"]}/data/{args["dataset"]}/inference_wz_simcse_{args["model"]}_{i}_{idx}.pt'
                 )
                 print(f'[!] load {args["root_dir"]}/data/{args["dataset"]}/inference_{args["model"]}_{i}_{idx}.pt')
+                # print(f'[!] load {args["root_dir"]}/data/{args["dataset"]}/inference_dialog_context_dual-bert_{i}_{idx}.pt')
                 current_num += len(embd)
             except:
                 break
@@ -33,8 +35,8 @@ def response_strategy(args):
             break
     embds = np.concatenate(embds) 
     searcher = Searcher(args['index_type'], dimension=args['dimension'])
-    searcher._build(embds, texts, speedup=True)
-    # searcher._build(embds, texts, speedup=False)
+    # searcher._build(embds, texts, speedup=True)
+    searcher._build(embds, texts, speedup=False)
     print(f'[!] train the searcher over')
     searcher.move_to_cpu()
 

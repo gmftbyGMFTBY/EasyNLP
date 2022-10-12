@@ -18,15 +18,9 @@ recoder_file=$root_dir/rest/$dataset/$model/recoder_$version.txt
 echo "find root_dir: $root_dir"
 echo "find version: $version"
 echo "write running log into recoder file: $recoder_file"
-# mv $root_dir/ckpt/$dataset/$model/*_$version.pt $root_dir/bak/$dataset/$model
-# delete the previous tensorboard file
-# rm $root_dir/rest/$dataset/$model/$version/* 
-# rm -rf $root_dir/rest/$dataset/$model/$version 
 
-
-gpu_ids=(${cuda//,/ })
-CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nproc_per_node=${#gpu_ids[@]} --master_addr 127.0.0.1 --master_port 28458 train_long.py \
+CUDA_VISIBLE_DEVICES=$cuda python -m torch.distributed.launch --nnodes=$HOST_NUM --node_rank=$INDEX --nproc_per_node $HOST_GPU_NUM --master_addr $CHIEF_IP --master_port 28457 train_long.py \
     --dataset $dataset \
     --model $model \
-    --multi_gpu $cuda \
-    --total_workers ${#gpu_ids[@]}
+    --multi_gpu 0,1,2,3,4,5,6,7 \
+    --total_workers 8 

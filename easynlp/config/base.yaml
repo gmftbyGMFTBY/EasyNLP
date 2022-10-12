@@ -1,6 +1,7 @@
 datasets: 
     dailydialog: en
     convai2: en
+    convai2_tgcp: en
     empatheticdialogues: en
     automatic_evaluation_dailydialog: en
     automatic_evaluation_rrs: zh
@@ -64,7 +65,9 @@ pretrained_model:
 no_test_models:
     - bert-ruber
     - bert-fp
+    - bert-ft
     # - bert-ft
+    - target-dialog
     - dual-bert-wr
     - bert-fp-comp
     - bert-fp-multi
@@ -156,10 +159,12 @@ models:
         type: SemanticSimilarity
         model_name: SimCSE
         # dataset_name: SimCSEDataset
-        dataset_name: SimCSEBigDataset
+        # dataset_name: SimCSEBigDataset
+        dataset_name: SimCSEDialogDataset
         # dataset_name: SimCSEUnlikelyhoodDataset
-        inference_dataset_name: BERTSimCSEInferenceDataset
+        # inference_dataset_name: BERTSimCSEInferenceDataset
         # inference_dataset_name: BERTSimCSEInferenceContextDataset
+        inference_dataset_name: BERTSimCSEInferenceDialogContextDataset
         # inference_dataset_name: BERTSimCSEUnlikelyhoodInferenceDataset
         # inference_dataset_name: BERTSimCSEUnlikelyhoodInferenceContextDataset
         # inference_dataset_name: BERTSimCSEInferenceBigDataset
@@ -512,8 +517,9 @@ models:
         # model_name: FastDensePhraseV25Encoder
         # model_name: FastDensePhraseV23Encoder
         # model_name: FastDensePhraseV24Encoder
-        model_name: FastDensePhraseV26Encoder
-        # model_name: FastDensePhraseV27Encoder
+        # model_name: FastDensePhraseV26Encoder
+        model_name: FastDensePhraseV27Encoder
+        # model_name: FastDensePhraseV28Encoder
         # model_name: DensePhraseV4Encoder
         # model_name: DensePhraseV5Encoder
         # model_name: DensePhraseV6Encoder
@@ -552,13 +558,13 @@ models:
         # model_name: BERTDualMVEncoder
         # dataset_name: HumanScoresDataset
         # dataset_name: BERTDualFullFakeCtxDataset
-        # dataset_name: BERTDualDataset
+        dataset_name: BERTDualDataset
         # large chinese pretrain dialog dataloader DRBERTDataset
         # dataset_name: DRBERTDataset
         # dataset_name: BERTDualAccDataset
         # dataset_name: BERTDualFullWithHardNegDataset
         # dataset_name: FilterDRDataset
-        dataset_name: BERTDualFullDataset
+        # dataset_name: BERTDualFullDataset
         # dataset_name: BERTDualFullDailyDialogDataset
         # dataset_name: PersonaBERTDualFullDataset 
         # dataset_name: HORSETestDataset
@@ -579,7 +585,7 @@ models:
         # inference_dataset_name: BERTDualInferenceFullWithTestDataset
         # inference_dataset_name: BERTDualInferenceFullEXTWithTestDataset
         # inference_dataset_name: BERTDualInferenceWithSourceDataset
-        # inference_dataset_name: BERTDualInferenceFullDataset
+        inference_dataset_name: BERTDualInferenceFullDataset
         # inference_dataset_name: BERTDualInferenceFullEXTDataset
         # inference_dataset_name: BERTDualInferenceContextDataset
         # inference_dataset_name: BERTDualInferenceTestContextDataset
@@ -587,7 +593,8 @@ models:
         # inference_dataset_name: BERTDualInferenceFullContextSingleExtendDataset
         # inference_dataset_name: BERTDualInferenceFullForOne2ManyDataset
         # inference_dataset_name: FilterDRInferenceDataset
-        inference_dataset_name: InferenceDRBERTDataset
+        # inference_dataset_name: InferenceDRBERTDataset
+        # inference_dataset_name: BERTDualInferenceDialogContextDataset
     dual-bert-triplet:
         type: Representation
         model_name: BERTDualEncoderTripletMargin
@@ -840,10 +847,11 @@ models:
         inference_dataset_name: BERTDualInferenceFullWithTestDataset
     target-dialog: 
         type: Target
-        model_name: BERTDualTargetHierarchicalTrsMVEncoder
+        # model_name: BERTDualTargetHierarchicalTrsMVEncoder
         model_name: BERTDualTargetEncoder
-        dataset_name: BERTDualFullHierDataset
-        dataset_name: BERTDualFullDataset
+        # dataset_name: BERTDualFullHierDataset
+        # dataset_name: BERTDualFullDataset
+        dataset_name: BERTDualDataset
         inference_dataset_name: BERTDualInferenceFullDataset
     dual-bert-hier-trs: 
         type: Representation
@@ -1157,7 +1165,7 @@ root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 65
+version: 300
 
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5
@@ -1179,8 +1187,8 @@ deploy:
     port: 23331
     # dataset: writer-rank
     # dataset: wz_game
-    # dataset: restoration-200k
-    dataset: chinese_dialog_pretrain
+    dataset: restoration-200k
+    # dataset: chinese_dialog_pretrain
     # dataset: potter
     max_len: 512
     res_max_len: 64
@@ -1189,11 +1197,11 @@ deploy:
         # model: hash-dual-bert-hier-trs
         # model: bpr
         model: dual-bert
-        topk: 1
+        topk: 10
         with_source: false
         # index_type: BFlat
         # index_type: IVF65536_HNSW32,PQ8
-        index_type: IVF10000,PQ16
+        index_type: Flat
         index_nprobe: 1000
         dimension: 768
     rerank:

@@ -70,7 +70,8 @@ inference:
     res_max_len: 64
     ctx_max_len: 256
     topk: 10
-    index_type: IVF10000,PQ16
+    # index_type: IVF10000,PQ16
+    index_type: Flat
     index_nprobe: 100
     dimension: 768
     buff_size: 100000

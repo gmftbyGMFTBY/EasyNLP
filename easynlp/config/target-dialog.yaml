@@ -4,10 +4,11 @@ test_interval: 0.05
 valid_during_training: true
 max_turn_length: 16
 mv_num: 5
-work_topk: 100
-human_work_topk: 20
-max_turn_num: 50
-max_memory_size: 100
+work_topk: 2000
+human_work_topk: 5
+max_turn_num: 8
+# max_memory_size: 100
+max_memory_size: 10000
 
 # transformer layer
 trs_hidden_size: 768
@@ -29,14 +30,14 @@ train:
     lr: 0.00005
     grad_clip: 5.0
     seed: 0
-    batch_size: 128
-    max_len: 32
-    res_max_len: 32
+    batch_size: 64
+    max_len: 256
+    res_max_len: 64
     epoch: 5
     warmup_ratio: 0.
     checkpoint: 
         path: bert-fp-mono/best_bert-base-chinese.pt
-        is_load: true
+        is_load: false
 
 # test configuration
 test:
@@ -51,9 +52,9 @@ test:
 inference:
     seed: 0
     batch_size: 512
-    max_len: 32
-    ctx_max_len: 32
+    max_len: 64
+    ctx_max_len: 256
     topk: 10
-    index_type: IVF10000,Flat
+    index_type: Flat
     index_nprobe: 5
     dimension: 768

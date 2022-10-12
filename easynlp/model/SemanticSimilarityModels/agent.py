@@ -262,7 +262,7 @@ class SemanticSimilarityAgent(SimCSEBaseAgent):
         '''for simcse model to generate the embeddings'''
         self.model.eval()
         pbar = tqdm(inf_iter)
-        embds, texts, indexes = [], [], []
+        embds, indexes = [], []
         # add the lsh module, convert the floats into the binary has codes
         # self.model.module.init_lsh_model()
         counter = 0
@@ -274,19 +274,19 @@ class SemanticSimilarityAgent(SimCSEBaseAgent):
             embds.append(res)
             indexes.extend(index)
 
-            if len(texts) > size:
+            if len(indexes) > size:
                 embds = torch.cat(embds, dim=0).cpu().numpy()
                 torch.save(
                     (embds, indexes), 
-                    f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_context_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
+                    f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_dialog_context_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
                 )
-                embds, texts, indexes = [], [], []
+                embds, indexes = [], []
                 counter += 1
-        if len(texts) > 0:
+        if len(indexes) > 0:
             embds = torch.cat(embds, dim=0).cpu().numpy()
             torch.save(
                 (embds, indexes), 
-                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_context_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
+                f'{self.args["root_dir"]}/data/{self.args["dataset"]}/inference_dialog_context_{self.args["model"]}_{self.args["local_rank"]}_{counter}.pt'
             )
 
     @torch.no_grad()

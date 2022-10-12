@@ -396,9 +396,10 @@ class CopyGenerationCompactDataset(Dataset):
             # self.data_root_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_wikitext103'
             file_num = 8
         else:
-            self.data_root_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_data'
+            self.data_root_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_data/backup_v2_data'
             file_num = 8
         self.file_lists = [f'{self.data_root_path}/searched_results_{i}.txt' for i in range(file_num)]
+        # self.file_lists = [f'{self.data_root_path}/searched_results_test.txt' for i in range(file_num)]
         self.size = 0
         for path in self.file_lists:
             self.size += iter_count(path)
@@ -406,12 +407,11 @@ class CopyGenerationCompactDataset(Dataset):
         # self.size = iter_count(self.file_lists[0])
 
         if self.args['mode'] == 'train':
-            new_seed = args['seed'] + args['local_rank']
+            # new_seed = args['seed'] + args['local_rank']
+            new_seed = args['seed'] + args['global_rank']
             random.seed(new_seed)
-            torch.manual_seed(new_seed)
-            torch.cuda.manual_seed_all(new_seed)
             random.shuffle(self.file_lists)
-            print(f'[!] file list for worker (self.args["local_rank"]):')
+            print(f'[!] file list for worker {self.args["local_rank"]}:')
             print(self.file_lists)
 
         self.current_file_index = 0
@@ -614,6 +614,7 @@ class CopyGenerationCompactV2Dataset(Dataset):
                 id_label = line[-1]
                 base_data[id_label] = chunk
         self.base_data = base_data
+        ipdb.set_trace()
         print(f'[!] load base data over')
 
     def __len__(self):

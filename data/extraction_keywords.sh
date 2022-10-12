@@ -1,7 +1,7 @@
 #!/bin/bash
 
 dataset=$1
-english_datasets=(ubuntu)
+english_datasets=(ubuntu convai2_tgcp)
 chinese_datasets=(douban ecommerce)
 if [[ ${chinese_datasets[@]} =~ $dataset ]]; then
     lang=zh

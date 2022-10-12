@@ -94,6 +94,7 @@ class RecallAgent:
                     cache.append({
                         'text': i,
                         'source': {'title': None, 'url': None},
+                        'vectors': vectors.tolist()
                         # 'similarity': str(j),
                     })
                 elif type(i) == tuple:

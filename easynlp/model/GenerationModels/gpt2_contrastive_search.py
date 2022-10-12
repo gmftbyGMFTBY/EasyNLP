@@ -344,7 +344,12 @@ class SimCTGModel(nn.Module):
 
         # model
         config = GPT2Config.from_pretrained(model_name)
-        config.num_hidden_layer = 24
+        config.n_layer = 24
+
+        print('-' * 30)
+        print(config)
+        print('-' * 30)
+
         self.model = GPT2LMHeadModel(config)
         self.criterion = nn.CrossEntropyLoss(ignore_index=self.pad)
         self.margin = args['margin']

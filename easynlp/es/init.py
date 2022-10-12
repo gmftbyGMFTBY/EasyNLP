@@ -15,7 +15,8 @@ def parser_args():
 
 def phrase_copy_q_q_dataset(args):
     # path = '/apdcephfs/share_916081/johntianlan/copygeneration_wikitext103/base_data.txt'
-    path = '/apdcephfs/share_916081/johntianlan/copygeneration_lawmt/base_data.txt'
+    # path = '/apdcephfs/share_916081/johntianlan/copygeneration_lawmt/base_data.txt'
+    path = '/apdcephfs/share_916081/johntianlan/copygeneration_en_wiki/base_data.txt'
     with open(path) as f:
         dataset = []
         for line in tqdm(f.readlines()):

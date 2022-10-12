@@ -1,3 +1,4 @@
+hard_margin: 5.
 valid_during_training: false
 is_step_for_training: true
 total_step: 200010

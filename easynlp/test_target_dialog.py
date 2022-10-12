@@ -31,42 +31,66 @@ def main_target_dialog(**args):
         torch.cuda.manual_seed_all(args['seed'])
 
     # load dataset
+    # with open(f'{args["root_dir"]}/data/{args["dataset"]}/test.txt') as f:
+    #     lines = f.readlines()
+    #     test_iter = []
+    #     for i in range(0, len(lines), 10):
+    #         line = lines[i].strip().split('\t')[1:-1]
+    #         test_iter.append(line)
+    #     print(f'[!] load {len(test_iter)} sessions')
+
     with open(f'{args["root_dir"]}/data/{args["dataset"]}/test.txt') as f:
         lines = f.readlines()
         test_iter = []
-        for i in range(0, len(lines), 10):
-            line = lines[i].strip().split('\t')[1:-1]
-            test_iter.append(line)
+        for i in range(len(lines)):
+            ctx, keyword = lines[i].strip().split('\t')
+            test_iter.append((ctx, keyword))
         print(f'[!] load {len(test_iter)} sessions')
+
+    # load the cross-encoder model
+    pretrained_model_name = args['pretrained_model'].replace('/', '_')
+    ce_args = deepcopy(args)
+    ce_args['model'] = 'bert-ft'
+    ce_agent = load_model(ce_args)
+    save_path = f'{args["root_dir"]}/ckpt/{ce_args["dataset"]}/{ce_args["model"]}/best_{pretrained_model_name}_{ce_args["version"]}.pt'
+    ce_agent.load_model(save_path)
+    print(f'[!] init the cross-encoder agent over')
 
     # load the model 
     agent = load_model(args)
-    pretrained_model_name = args['pretrained_model'].replace('/', '_')
     save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}_{args["version"]}.pt'
     agent.load_model(save_path)
     print(f'[!] init the agent over')
+    agent.add_cross_encoder(ce_agent)
 
     f = open(f'{args["root_dir"]}/rest/{args["dataset"]}/{args["model"]}/test_target_dialog.txt', 'w')
     k2m = torch.load(f'{args["root_dir"]}/data/{args["dataset"]}/k2m.pt')
     success_num = 0
-    for context_list in tqdm(test_iter):
+    valid_num = 0
+    turn_counters = []
+    pbar = tqdm(test_iter)
+    for ctx, topic in pbar:
         # random select the topic and memory
-        topic, memory = select_topic_and_memory(k2m)
+        # topic, memory = select_topic_and_memory(k2m)
+        try:
+            memory = k2m[topic]
+            context_list = [ctx]
+            valid_num += 1
+        except:
+            continue
         if len(memory) > agent.args['max_memory_size']:
             memory = random.sample(memory, agent.args['max_memory_size'])
 
-        agent.init(memory, topic, context_list[:-1])
-        # utterance = context_list[-1]
+        agent.init(memory, topic, context_list)
         dialog, dialog_history = [], deepcopy(context_list)
+        turn_counter = 0
         for turn_id in tqdm(range(agent.args["max_turn_num"])):
-            # candidate, dis_1 = agent.work([utterance])
             candidate, dis_1 = agent.work(dialog_history)
             dialog_history.append(candidate)
             if topic in candidate:
                 dialog.append(('chatbot', candidate, dis_1))
                 success_num += 1
                 break
-            # utterance, dis_2 = agent.work_no_topic([candidate])
             utterance, dis_2 = agent.work_no_topic(dialog_history)
             dialog_history.append(utterance)
             if topic in utterance:
@@ -76,6 +100,8 @@ def main_target_dialog(**args):
 
             dialog.append(('chatbot', candidate, dis_1))
             dialog.append(('human', utterance, dis_2))
+            turn_counter += 1
+        turn_counters.append(turn_counter)
 
         # write the log
         context = ' [SEP] '.join(context_list)
@@ -87,8 +113,9 @@ def main_target_dialog(**args):
             counter += 1
         f.write('\n')
         f.flush()
+
+        pbar.set_description(f'[!] success rate: {round(success_num/valid_num, 2)}; average turns: {round(np.mean(turn_counters), 2)}')
     f.close()
-    print(f'[!] success rate: {round(success_num/len(test_iter), 2)}')
 
 if __name__ == "__main__":
     args = vars(parser_args())

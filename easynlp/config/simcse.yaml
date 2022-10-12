@@ -1,6 +1,6 @@
 temp: 0.05
-save_every: 1000
-max_len: 512
+save_every: 100
+max_len: 128
 
 data_root_path: /apdcephfs/share_916081/johntianlan/chatbot-large-scale-dataset-final-version
 buffer_size: 409600
@@ -17,7 +17,7 @@ train:
     lr: 0.00001
     grad_clip: 1.0
     seed: 0
-    batch_size: 16
+    batch_size: 128
     res_max_len: 64
     epoch: 1
     warmup_ratio: 0.01
@@ -45,8 +45,8 @@ inference:
     # wikitext103 and en-wiki index type
     # index_type: IVF10000,Flat
     # lawmt index type
-    # index_type: Flat
-    index_type: IVF10000,PQ16
+    index_type: Flat
+    # index_type: IVF10000,PQ16
     # index_type: IVF1000,PQ16
     index_nprobe: 10
     dimension: 768

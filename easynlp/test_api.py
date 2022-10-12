@@ -311,6 +311,42 @@ def SendPOST(url, port, method, params):
     data = json.loads(data.text)
     return data
 
+def test_recall_self_play(args):
+    data = [
+        {
+            'segment_list': [
+                {'str': '最近工作太累了', 'ground_truth': ''}
+            ],'lang': 'zh'
+        },
+    ]
+    # recall test begin
+    avg_times = []
+    collections = []
+    error_counter = 0
+    pbar = tqdm(range(50))
+    data = data[0]
+    vector = []
+    for _ in pbar:
+        data = json.dumps(data)
+        rest = SendPOST(args['url'], args['port'], '/recall', data)
+        if rest['header']['ret_code'] == 'fail':
+            error_counter += 1
+        else:
+            collections.append(rest)
+            avg_times.append(rest['header']['core_time_cost_ms'])
+        candidate = rest['item_list'][0]['candidates'][0]['text']
+        vectors = rest['item_list'][0]['candidates'][0]['vectors']
+        vector.append(np.array(vectors[0]))
+        data = json.loads(data)
+        data['segment_list'][0]['str'] = f'{data["segment_list"][0]["str"]} [SEP] {candidate}'
+        pbar.set_description(f'[!] time: {round(np.mean(avg_times), 2)} ms; error: {error_counter}')
+        pprint.pprint(rest)
+        print(candidate)
+        ipdb.set_trace()
+
+    # draw
+    return collections
+
 def test_recall(args):
     # data = load_fake_recall_data(
     #     f'{args["root_dir"]}/data/{args["dataset"]}/test.txt',
@@ -672,6 +708,7 @@ if __name__ == '__main__':
     args['root_dir'] = '/apdcephfs/share_916081/johntianlan/MyReDial'
     MAP = {
         'recall': test_recall,
+        'recall_self_play': test_recall_self_play,
         'rerank': test_rerank,
         'partial_rerank': test_partial_rerank,
         'pipeline': test_pipeline,

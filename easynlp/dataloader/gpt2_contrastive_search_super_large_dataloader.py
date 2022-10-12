@@ -16,9 +16,9 @@ class GPT2ForContrastiveForBigDataset(Dataset):
             self.path = f'/apdcephfs/share_916081/johntianlan/chinese_high_quality_300g/train.txt0{args["local_rank"]}'
             self.current_file_handler = open(self.path, 'r')
 
-            self.size = 100
+            self.size = 1000000
             self.cache = []
-            self.buffer_size = 4096
+            self.buffer_size = 40960
         else:
             # path = f'/apdcephfs/share_733425/johntianlan/chinese_high_quality_300g_split/test.txt'
             path = f'/apdcephfs/share_916081/johntianlan/chinese_high_quality_300g/test.txt'
@@ -50,6 +50,11 @@ class GPT2ForContrastiveForBigDataset(Dataset):
             line = eval(self.cache.pop())['content']
             line = line.replace('\n', ' ')
             if self.args['mode'] in ['train']:
+                # make sure the very long documents is not encoded
+                # sample_range = list(range(0, len(line) - 40960))
+                # if sample_range:
+                #     index = random.choice(sample_range)
+                #     line = line[index:index+40960]
                 tokens = self.vocab.encode(line, add_special_tokens=False)
                 if len(tokens) > self.args['max_len']:
                     sample_range = range(0, len(tokens) - self.args['max_len'])

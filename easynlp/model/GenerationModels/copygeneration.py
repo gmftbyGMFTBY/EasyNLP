@@ -1,7 +1,7 @@
 from model.utils import *
 from .gpt2_original import GPT2OriginalModel, GPT2wt103Model
 from .knn_lm import KNNLMModel
-from model.RepresentationModels import DensePhraseEncoder, DensePhraseV2Encoder, DensePhraseV3Encoder, DensePhraseV4Encoder, DensePhraseV7Encoder, FastDensePhraseV8Encoder, FastDensePhraseV10Encoder, FastDensePhraseV13Encoder, FastDensePhraseV15Encoder, FastDensePhraseV16Encoder, FastDensePhraseV17Encoder, FastDensePhraseV22Encoder, FastDensePhraseV11Encoder, FastDensePhraseV25Encoder, FastDensePhraseV26Encoder
+from model.RepresentationModels import DensePhraseEncoder, DensePhraseV2Encoder, DensePhraseV3Encoder, DensePhraseV4Encoder, DensePhraseV7Encoder, FastDensePhraseV8Encoder, FastDensePhraseV10Encoder, FastDensePhraseV13Encoder, FastDensePhraseV15Encoder, FastDensePhraseV16Encoder, FastDensePhraseV17Encoder, FastDensePhraseV22Encoder, FastDensePhraseV11Encoder, FastDensePhraseV25Encoder, FastDensePhraseV26Encoder, FastDensePhraseV27Encoder
 from .utils import *
 from config import *
 
@@ -105,6 +105,7 @@ class CopyGenerationEncoder(nn.Module):
         # self.retriever = FastDensePhraseV25Encoder(**retriever_args) 
         
         self.retriever = FastDensePhraseV26Encoder(**retriever_args) 
+        # self.retriever = FastDensePhraseV27Encoder(**retriever_args) 
         self.test_max_len = self.args['test_max_len']
 
         if self.args['lang'] == 'en':
@@ -120,8 +121,9 @@ class CopyGenerationEncoder(nn.Module):
             self.process_documents = self.process_documents_en_v9
             self.nlp = spacy.load('en_core_web_sm')
             # self.punc_set = set([',', '.', '"', "'", '?', '!', '@', '-', '<', '>', ':', ';', '/', '-', '_', '+', '=', '~', '`', '#', '$', '%', '^', '&', '*', 'of', 'in', 'to', 'during', 'at', 'and', 'or', 'but', 'that', 'if', 'while', 'which', 'whose', 'for', 'as', 'from', 'to', 'a', 'an', 'the', 'The', 'That', 'on', 'by', 'is', 'has', 'will', 'are', 'have', 'was', 'had', 'should', 'must', 'about', 'with', 'after', 'when', 'before', 'into', 'within', 'than'])
-            # self.punc_set = set([',', '.', '"', "'", '?', '!', '@', '-', '<', '>', ':', ';', '/', '-', '_', '+', '=', '~', '`', '#', '$', '%', '^', '&', '*', '(', ')', '[', ']', '{', '}'])
-            self.punc_set = set([',', '.', '"', "'", '?', '!', '@', '-', '<', '>', ':', ';', '/', '_', '+', '=', '~', '`', '#', '$', '%', '^', '&', '*', '(', ')', '[', ']', '{', '}', ' that', ' which', ' when', ' after', ' before', ' while', ' during', ' with', ' than', ' within'])
+            # self.punc_set |= set([',', '.', '"', "'", '?', '!', '@', '-', '<', '>', ':', ';', '/', '-', '_', '+', '=', '~', '`', '#', '$', '%', '^', '&', '*', '(', ')', '[', ']', '{', '}'])
+            # self.punc_set = set([',', '.', '"', "'", '?', '!', '@', '-', '<', '>', ':', ';', '/', '_', '+', '=', '~', '`', '#', '$', '%', '^', '&', '*', '(', ')', '[', ']', '{', '}', ' that', ' which', ' when', ' after', ' before', ' while', ' during', ' with', ' than', ' within'])
+            self.punc_set = set([',', '.', '"', "'", '?', '!', '@', '-', '<', '>', ':', ';', '/', '_', '+', '=', '~', '`', '#', '$', '%', '^', '&', '*', '(', ')', '[', ']', '{', '}', 'as', ' as'])
             self.punc_set |= set([' ,', ' .', ' "', " '", ' ?', ' !', ' @', ' -', ' <', ' >', ' :', ' ;', ' /', ' _', ' +', ' =', ' ~', ' `', ' #', ' $', ' %', ' ^', ' &', ' *', ' (', ' )', ' [', ' ]', ' {', ' }', '/'])
             # in gpt2_english
             self.blank_token_gpt2 = self.retriever.tokenizer.convert_ids_to_tokens(220)
@@ -174,61 +176,13 @@ class CopyGenerationEncoder(nn.Module):
         return candidates
 
     @torch.no_grad()
-    def search_from_documents_fast_dynamic(self, query, begin_rep, end_rep, phrase_source, collected_docids, search_topk=5):
-        self.retriever.eval()
-        query_begin, query_end = query[:, :768//2], query[:, 768//2:]
-        # step 1
-        dp = torch.matmul(query_begin, begin_rep.t()).squeeze(0)   
-        search_num = min(search_topk, len(begin_rep))
-        _, topk = dp.topk(search_num, dim=-1)    # [K]
-        # step 2: find the candidates phrase set
-        begin_phrase_set, end_phrase_set = [], []
-        new_phrase_source = []
-        for cidx in topk.tolist():
-            doc_idx, idx, doc_in_pos, doc_in_boundary, token_string = phrase_source[cidx]
-            if doc_idx == -1:
-                # token embeddings, not the phrase embeddings
-                begin_phrase_set.append(begin_rep[doc_in_pos])
-                end_phrase_set.append(end_rep[doc_in_pos])
-                new_phrase_source.append((-1, -1, token_string))
-            else:
-                candidate_r_boundary = min(doc_in_pos + self.args['max_phrase_length'], doc_in_boundary)
-                candidate_l_boundary = min(doc_in_pos + self.args['min_phrase_length'], doc_in_boundary)
-                if candidate_l_boundary == doc_in_pos or candidate_l_boundary == candidate_r_boundary:
-                    continue
-                candidate_end_rep = end_rep[range(candidate_l_boundary, candidate_r_boundary), :]
-                end_phrase_set.append(candidate_end_rep)
-                begin_phrase_set.append(begin_rep[[doc_in_pos] * len(candidate_end_rep), :])
-                for jidx in range(candidate_l_boundary, candidate_r_boundary):
-                    _, jdx, _, _, _ = phrase_source[jidx]
-                    new_phrase_source.append((doc_idx, idx, jdx))
-        begin_phrase_set = torch.cat(begin_phrase_set)
-        end_phrase_set = torch.cat(end_phrase_set)
-        phrase_set = torch.cat([begin_phrase_set, end_phrase_set], dim=-1)
-        # step 3:  
-        dp = torch.matmul(query, phrase_set.t()).squeeze(0)
-        search_num = min(search_topk, len(phrase_set))
-        dis, topk = dp.topk(search_num, dim=-1)
-        if self.args['lang'] == 'zh':
-            pass
-        else:
-            candidates = []
-            topk, dis = topk.tolist(), dis.tolist()
-            for i, d in zip(topk, dis):
-                docid, lid, rid = new_phrase_source[i]
-                ipdb.set_trace()
-                if docid == -1:
-                    # token embeddings directly load the token strings
-                    candidates.append(rid)
-                else:
-                    string = ' ' + self.retriever.bert_tokenizer.decode(collected_docids[docid][lid:rid]).replace('[UNK]', '<|endoftext|>')
-                    candidates.append((string, round(d, 4)))
-        return candidates
-
-    @torch.no_grad()
     def search_from_documents(self, query, phrase_reps, phrase_source, search_topk=5, head_weight=1.0, tail_weight=1.0):
         self.retriever.eval()
         dp = torch.matmul(query, phrase_reps.t()).squeeze(0)   
+
+        # for case study
+        # dp = F.softmax(dp, dim=-1)
+
         search_num = min(search_topk, len(phrase_reps))
         dis, topk = dp.topk(search_num, dim=-1)    # [K]
         dis = dis.tolist()
@@ -619,7 +573,7 @@ class CopyGenerationEncoder(nn.Module):
         if batch['use_phrase_cache'] is False:
             if self.args['lang'] == 'en':
                 phrase_reps, phrase_sources = self.process_documents_en_v9(doc)
-                # phrase_reps, phrase_sources = self.process_documents_en_v10(doc
+                # phrase_reps, phrase_sources = self.process_documents_en_v10(doc)
                 # phrase_reps, phrase_sources = self.process_documents_en_v5(doc)
             else:
                 phrase_reps, phrase_sources = self.process_documents_v6([doc[0]])
@@ -634,6 +588,7 @@ class CopyGenerationEncoder(nn.Module):
         batch_size, seqlen = ids.size()
         generated = []
         is_phrase_label = []
+        phrase_length_avg = []
         bt = time.time()
         while len(ids[0]) < seqlen + self.test_max_len:
             query = self.retriever.get_query_rep(ids)
@@ -667,19 +622,23 @@ class CopyGenerationEncoder(nn.Module):
                 candidate_tokens = [item[0] for item in candidates]
                 candidate_prob = self.retriever.fast_rerank(ids, candidate_tokens, temp=coarse_score_softmax_temp).tolist()
                 # candidate_prob = self.retriever.fast_rerank_v2(query, candidate_tokens, temp=coarse_score_softmax_temp).tolist()
-                candidates = [[item[0], item[1] * alpha + s * beta] for item, s in zip(candidates, candidate_prob)]
+                candidates = [[item[0], item[1] * alpha + s * beta, item[2]] for item, s in zip(candidates, candidate_prob)]
                 candidates = sorted(candidates, key=lambda x:x[1], reverse=True)
                 candidate_prob = torch.tensor([item[1] for item in candidates]).cuda()
                 # candidate_prob = F.softmax(candidate_prob / self.args['softmax_temp'], dim=-1)
                 candidate_prob = F.softmax(candidate_prob, dim=-1)
                 candidate_tokens = [item[0] for item in candidates]
 
+            before_length = len(ids[0])
             ids, candidate, index = self.decoding_one_step_inner(ids, candidate_tokens, candidate_prob, generation_method, topk=topk, topp=topp, model_prediction_confidence=model_prediction_confidence)
+            phrase_length = len(ids[0]) - before_length
+            phrase_length_avg.append(phrase_length)
+            print(candidates[index])
             if self.args['lang'] == 'zh':
                 generated.append(f'{candidate} ')
             else:
-                generated.append(f'[{candidate}] ')
-                # generated.append(candidate)
+                # generated.append(f'[{candidate}] ')
+                generated.append(candidate)
             is_phrase_label.append(candidate_is_phrase_label[index])
             
             # if (len(ids[0]) - seqlen) % update_step == 0:
@@ -687,6 +646,7 @@ class CopyGenerationEncoder(nn.Module):
             #         string = ''.join(self.retriever.tokenizer.convert_ids_to_tokens(ids[0]))
             #     else:
             #         string = ' '.join(self.retriever.tokenizer.convert_ids_to_tokens(ids[0]))
+            #     ipdb.set_trace()
             #     doc = self.retrieve_doc(string, recall_topk=self.args['recall_topk'], max_query_len=self.args['max_query_len'])
             #     phrase_reps, phrase_sources = self.process_documents(doc)
 
@@ -694,7 +654,8 @@ class CopyGenerationEncoder(nn.Module):
             # ids = ids[:, -500:]
         time_cost = time.time() - bt
         generated = ''.join(generated)
-        return generated, np.mean(is_phrase_label), time_cost
+        # return generated, np.mean(is_phrase_label), time_cost
+        return generated, np.mean(phrase_length_avg), time_cost
 
     def decoding_one_step_inner(self, ids, candidates, candidates_prob, generation_method, topk=1., topp=1., model_prediction_confidence=0.4):
         if generation_method == 'contrastive-search':
@@ -1448,7 +1409,7 @@ class CopyGenerationEncoder(nn.Module):
             return True
 
         # init
-        characters = set(".,，。！？｡＂＃＄％＆＇（）＊＋，－／：；＜＝＞＠［＼］＾＿｀｛｜｝～｟｠｢｣､、〃》「」『』【】〔〕〖〗〘〙〚〛〜〝〞〟〰〾〿–—‘’‛“”„‟…‧﹏.0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!?`[]{}'';:><+=-_&^%$#@《》/\\")
+        characters = set(".,，。！？｡＂＃＄％＆＇（）＊＋，－／：；＜＝＞＠［＼］＾＿｀｛｜｝～｟｠｢｣､、〃》「」『』【】〔〕〖〗〘〙〚〛〜〝〞〟〰〾〿–—‘’‛“”„‟…‧﹏.!?`[]{}'';:><+=-_&^%$#@《》/\\")
         black_words = ['编辑', '人物', '生平', '背景', '死因', '之谜', '简介', '图片', '来源', '记录', '经历', '演艺经历', '参考资料', '版本', '演员表', '简体名', '作品时间', '剧名类型', '个人成就', '角色介绍', '个人资料', '英文名', '参考', '履历', '图示' ,'业务范围', '时刻表', '基本概述']
 
         # collect candidate phrases
@@ -1506,15 +1467,17 @@ class CopyGenerationEncoder(nn.Module):
         output = self.retriever.phrase_encoder(docids, docids_mask, output_hidden_states=True)
         hidden_states = output['hidden_states'][-1]    # [B, S, E]
 
-        phrase_reps, phrase_sources = [], []
+        s_phrase_reps, e_phrase_reps, phrase_sources = [], [], []
         for doc_rep, doc_pos, doc_id in zip(hidden_states, phrase_positions, docids):
             s_pos, e_pos = [i for i, j in doc_pos], [j for i, j in doc_pos]
             s_rep = doc_rep[s_pos, :]
             e_rep = doc_rep[e_pos, :]
-            rep = torch.cat([self.retriever.s_proj(s_rep), self.retriever.e_proj(e_rep)], dim=-1)
-            phrase_reps.append(rep)
+            s_phrase_reps.append(s_rep)
+            e_phrase_reps.append(e_rep)
             phrase_sources.extend([(s, e, self.retriever.bert_tokenizer.decode(doc_id[s:e+1])) for s, e in zip(s_pos, e_pos)])
-        phrase_reps = torch.cat(phrase_reps)
+        s_phrase_reps = torch.cat(s_phrase_reps)
+        e_phrase_reps = torch.cat(e_phrase_reps)
+        phrase_reps = torch.cat([s_phrase_reps, e_phrase_reps], dim=-1)
         assert len(phrase_reps) == len(phrase_sources)
         print(f'[!] collect {len(phrase_reps)} phrases')
 
@@ -2701,24 +2664,6 @@ class CopyGenerationEncoder(nn.Module):
         return generated, 0.
 
     @torch.no_grad()
-    def search_from_documents_beam(self, query, phrase_reps, phrase_source, search_topk=5, head_weight=1.0, tail_weight=1.0):
-        self.retriever.eval()
-        dp = torch.matmul(query, phrase_reps.t()).squeeze(0)   
-        scores = F.log_softmax(dp, dim=-1)
-        search_num = min(search_topk, len(phrase_reps))
-        dis, topk = scores.topk(search_num, dim=-1)    # [K]
-        dis = dis.tolist()
-        topk = topk.tolist()
-        candidates = []
-        for dis_, topk_ in zip(dis, topk):
-            if self.args['lang'] == 'zh':
-                candidate = [(''.join(phrase_source[i][-1].split()), round(d, 4)) for i, d in zip(topk_, dis_)]
-            else:
-                candidate = [(phrase_source[i][-2], round(d, 4), phrase_source[i][-1]) for i, d in zip(topk_, dis_)]
-            candidates.append(candidate)
-        return candidates
-
-    @torch.no_grad()
     def process_documents_en_v8(self, documents):
         self.retriever.eval()
         min_length, max_length = self.args['min_phrase_length'], self.args['max_phrase_length']
@@ -2891,6 +2836,7 @@ class CopyGenerationEncoder(nn.Module):
                     min(i+self.args['right_window_size'], l-1)
                 ):
                     sss = self.retriever.bert_tokenizer.decode(doc_id[j])
+                    
                     if sss.startswith('##'):
                         # remove the last and append the new
                         if s_pos and e_pos:
@@ -2899,8 +2845,15 @@ class CopyGenerationEncoder(nn.Module):
                     s_pos.append(i)
                     e_pos.append(j)
                     sss = sss.replace('##', '')
-                    if sss in self.punc_set:
-                        break
+                    # if sss in self.punc_set:
+                    #     break
+                last_index = min(i+self.args['right_window_size'], l-1)
+                sss = self.retriever.bert_tokenizer.decode(doc_id[last_index])
+                if sss.startswith('##'):
+                    if s_pos and e_pos:
+                       s_pos.pop()
+                       e_pos.pop()
+                
                 if idx == 0:
                     first_num += 1
             new_s_pos, new_e_pos = [], []
@@ -2911,7 +2864,7 @@ class CopyGenerationEncoder(nn.Module):
                 if idx == 0:
                     context_string = ''
                 else:
-                    context_left = max(0, s-16)
+                    context_left = 0
                     context_string = ' ' + self.retriever.bert_tokenizer.decode(doc_id[context_left:s]).replace('[UNK]', '<|endoftext|>')
                 if '##' not in string:
                     phrase_sources.append((s, e, string, context_string))
@@ -2946,7 +2899,7 @@ class CopyGenerationEncoder(nn.Module):
                 -1, 
                 -1, 
                 ' ' + self.retriever.tokenizer.decode(idx) if self.retriever.tokenizer.decode(idx) in ['.', ',', '!', ';', ':', '"', "'", '?', '#', '$', '%', '/', '&', '*', '(', ')', '[', ']', '{', '}', '|'] else self.retriever.tokenizer.decode(idx),
-                ''
+                'TOKEN'
             # ) for idx in range(len(self.retriever.tokenizer)) if idx != self.retriever.tokenizer.eos_token_id
             ) for idx in range(len(self.retriever.tokenizer))
         ])
@@ -3036,7 +2989,7 @@ class CopyGenerationEncoder(nn.Module):
             
         begin_rep = torch.cat(begin_rep)
         end_rep = torch.cat(end_rep)
-        phrase_reps = torch.cat([begin_rep, end_rep], dim=-1)
+        phrase_reps = torch.cat([self.retriever.s_proj(begin_rep), self.retriever.e_proj(end_rep)], dim=-1)
         assert len(phrase_reps) == len(phrase_sources)
         print(f'[!] collect {len(phrase_reps)} phrases')
 
