@@ -319,8 +319,9 @@ class InteractionAgent(RetrievalBaseAgent):
             else:
                 raise Exception()
             subscores = []
-            pbar = tqdm(range(0, len(batch['candidates']), inner_bsz))
-            for idx in pbar:
+            # pbar = tqdm(range(0, len(batch['candidates']), inner_bsz))
+            # for idx in pbar:
+            for idx in range(0, len(batch['candidates']), inner_bsz):
                 candidates = batch['candidates'][idx:idx+inner_bsz]
                 ids, tids, mask = self.totensor_interaction(batch['context'], candidates)
                 batch['ids'], batch['tids'], batch['mask'] = ids, tids, mask
@@ -346,7 +347,6 @@ class InteractionAgent(RetrievalBaseAgent):
                 new_state_dict = self.checkpointadapeter.convert(state_dict)
                 self.model.model.load_state_dict(new_state_dict)
             elif self.args['model'] in ['bert-ft-mutual']:
-                ipdb.set_trace()
                 self.checkpointadapeter.init(
                     state_dict.keys(),
                     self.model.model.bert.state_dict().keys(),

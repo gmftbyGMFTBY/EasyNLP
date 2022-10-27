@@ -39,18 +39,31 @@ def main_target_dialog(**args):
     #         test_iter.append(line)
     #     print(f'[!] load {len(test_iter)} sessions')
 
-    with open(f'{args["root_dir"]}/data/{args["dataset"]}/test.txt') as f:
-        lines = f.readlines()
-        test_iter = []
-        for i in range(len(lines)):
-            ctx, keyword = lines[i].strip().split('\t')
-            test_iter.append((ctx, keyword))
-        print(f'[!] load {len(test_iter)} sessions')
+    if args['dataset'] in ['convai2_tgcp']:
+        with open(f'{args["root_dir"]}/data/{args["dataset"]}/test.txt') as f:
+            lines = f.readlines()
+            test_iter = []
+            for i in range(len(lines)):
+                ctx, keyword = lines[i].strip().split('\t')
+                test_iter.append((ctx, keyword))
+            print(f'[!] load {len(test_iter)} sessions')
+    else:
+        # load the tgconv dataset
+        # with open(f'{args["root_dir"]}/data/{args["dataset"]}/easy_target.txt') as f:
+        with open(f'{args["root_dir"]}/data/{args["dataset"]}/hard_target.txt') as f:
+            lines = f.readlines()
+            test_iter = []
+            for i in range(len(lines)):
+                items = lines[i].strip().split('\t')
+                ctx = items[:-1]
+                keyword = items[-1]
+                test_iter.append((ctx, keyword))
 
     # load the cross-encoder model
     pretrained_model_name = args['pretrained_model'].replace('/', '_')
     ce_args = deepcopy(args)
     ce_args['model'] = 'bert-ft'
+    ce_args['max_len'] = 256
     ce_agent = load_model(ce_args)
     save_path = f'{args["root_dir"]}/ckpt/{ce_args["dataset"]}/{ce_args["model"]}/best_{pretrained_model_name}_{ce_args["version"]}.pt'
     ce_agent.load_model(save_path)
@@ -74,9 +87,13 @@ def main_target_dialog(**args):
         # topic, memory = select_topic_and_memory(k2m)
         try:
             memory = k2m[topic]
-            context_list = [ctx]
+            if type(ctx) == str:
+                context_list = [ctx]
+            else:
+                context_list = ctx
             valid_num += 1
         except:
+            print(f'[!] target is invalid: {topic}')
             continue
         if len(memory) > agent.args['max_memory_size']:
             memory = random.sample(memory, agent.args['max_memory_size'])

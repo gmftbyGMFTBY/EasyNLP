@@ -2,6 +2,7 @@ datasets:
     dailydialog: en
     convai2: en
     convai2_tgcp: en
+    tgconv: en
     empatheticdialogues: en
     automatic_evaluation_dailydialog: en
     automatic_evaluation_rrs: zh
@@ -638,7 +639,8 @@ models:
         type: Generation
         model_name: SimCTGModel
         # dataset_name: GPT2ForContrastiveCommonCrawlForBigDataset
-        dataset_name: GPT2ForContrastiveForBigDataset
+        # dataset_name: GPT2ForContrastiveForBigDataset
+        dataset_name: GPT2WikiTextDataset
         inference_dataset_name: null
     gpt2-contrastive-search: 
         type: Generation

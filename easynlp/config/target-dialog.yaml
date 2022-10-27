@@ -4,7 +4,7 @@ test_interval: 0.05
 valid_during_training: true
 max_turn_length: 16
 mv_num: 5
-work_topk: 2000
+work_topk: 1000
 human_work_topk: 5
 max_turn_num: 8
 # max_memory_size: 100

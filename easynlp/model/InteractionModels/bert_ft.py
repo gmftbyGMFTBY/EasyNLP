@@ -18,7 +18,6 @@ class BERTRetrieval(nn.Module):
         inpt = batch['ids']
         token_type_ids = batch['tids']
         attn_mask = batch['mask']
-
         logits = self.model(
             input_ids=inpt,
             attention_mask=attn_mask,

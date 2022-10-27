@@ -344,7 +344,7 @@ class SimCTGModel(nn.Module):
 
         # model
         config = GPT2Config.from_pretrained(model_name)
-        config.n_layer = 24
+        config.n_layer = 3
 
         print('-' * 30)
         print(config)
