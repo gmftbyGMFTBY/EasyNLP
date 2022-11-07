@@ -19,10 +19,12 @@ dropout: 0.1
 # network issue, load locally
 tokenizer:
     zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
-    en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
+    # en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
+    en: bert-base-uncased
 pretrained_model:
     zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
-    en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
+    # en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
+    en: bert-base-uncased
 
 # train configuration
 train:

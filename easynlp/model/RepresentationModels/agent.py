@@ -1641,8 +1641,10 @@ class RepresentationAgent(RetrievalBaseAgent):
         self.model.train()
         with autocast():
             batch['current_step'] = current_step
-            phrase_loss, token_loss, pure_token_loss, phrase_acc, token_acc = self.model(batch)
-            loss = phrase_loss + token_loss + pure_token_loss
+            # phrase_loss, token_loss, pure_token_loss, phrase_acc, token_acc = self.model(batch)
+            t_loss, s_loss, e_loss, t_acc, s_acc, e_acc = self.model(batch)
+            loss = t_loss + s_loss + e_loss
+            # loss = phrase_loss + token_loss + pure_token_loss
             # phrase_loss, bow_loss, token_loss, pure_token_loss, phrase_triplet_loss, token_triplet_loss, phrase_acc, token_acc = self.model(batch)
             # loss = phrase_loss + bow_loss + token_loss + pure_token_loss + phrase_triplet_loss + token_triplet_loss
             loss = loss / self.args['iter_to_accumulate']
@@ -1657,15 +1659,19 @@ class RepresentationAgent(RetrievalBaseAgent):
 
         if recoder:
             recoder.add_scalar(f'train/Loss', loss.item(), current_step)
-            recoder.add_scalar(f'train/PhraseLoss', phrase_loss.item(), current_step)
+            recoder.add_scalar(f'train/t_loss', t_loss.item(), current_step)
+            recoder.add_scalar(f'train/s_loss', s_loss.item(), current_step)
+            recoder.add_scalar(f'train/e_loss', e_loss.item(), current_step)
+            # recoder.add_scalar(f'train/PhraseLoss', phrase_loss.item(), current_step)
             # recoder.add_scalar(f'train/BOWLoss', bow_loss.item(), current_step)
-            recoder.add_scalar(f'train/TokenLoss', pure_token_loss.item(), current_step)
+            # recoder.add_scalar(f'train/TokenLoss', pure_token_loss.item(), current_step)
 
-            recoder.add_scalar(f'train/TokenLoss', token_loss.item(), current_step)
-            recoder.add_scalar(f'train/PhraseAcc', phrase_acc, current_step)
-            recoder.add_scalar(f'train/TokenAcc', token_acc, current_step)
+            # recoder.add_scalar(f'train/TokenLoss', token_loss.item(), current_step)
+            recoder.add_scalar(f'train/t_acc', t_acc, current_step)
+            recoder.add_scalar(f'train/s_acc', s_acc, current_step)
+            recoder.add_scalar(f'train/e_acc', e_acc, current_step)
         # pbar.set_description(f'[!] loss(phrase|triplet): {round(phrase_loss.item(), 2)}|{round(phrase_triplet_loss.item()+token_triplet_loss.item(), 2)}; acc(phrase|token): {round(phrase_acc, 4)}|{round(token_acc, 4)}')
-        pbar.set_description(f'[!] loss(phrase): {round(phrase_loss.item(), 2)}; acc(phrase|token): {round(phrase_acc, 4)}|{round(token_acc, 4)}')
+        pbar.set_description(f'[!] loss(t|s|e): {round(t_loss.item(), 2)}|{round(s_loss.item(), 2)}|{round(e_loss.item(), 2)}; acc(t|s|e): {round(t_acc, 4)}|{round(s_acc, 4)}|{round(e_acc, 4)}')
         pbar.update(1)
 
     def train_model_phrase_copy_step_v2(self, batch, recoder=None, current_step=0, pbar=None):

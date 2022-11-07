@@ -83,29 +83,36 @@ pretrained_model_name = test_args['pretrained_model'].replace('/', '_')
 save_path = f'{test_args["root_dir"]}/ckpt/{test_args["dataset"]}/{test_args["model"]}/best_{pretrained_model_name}_{test_args["version"]}.pt'
 agent.load_model(save_path)
 
-our_rest = main('playground/target-dialog/TGDR/ours.txt')
-print(f'[!] ours: {round(our_rest, 4)}')
-results = {'TGConv': {}, 'TGCP': {}, 'ours': our_rest}
-for task in ['TGConv', 'TGCP']:
+# our_rest = main('playground/target-dialog/TGDR/ours.txt')
+# print(f'[!] ours: {round(our_rest, 4)}')
+results = {'TGConv': {}, 'TGCP': {}}
+# for task in ['TGConv', 'TGCP']:
+for task in ['TGCP']:
     if task == 'TGConv':
-        for baseline in ['dkrn', 'kernel', 'matrix', 'neural', 'retrieval', 'retrieval_stgy', 'topkg']:
+        for baseline in ['ours', 'dkrn', 'kernel', 'matrix', 'neural', 'retrieval', 'retrieval_stgy', 'topkg']:
             for mode in ['hard', 'easy']:
                 path = f'playground/target-dialog/TGDR/{task}/{baseline}/{mode}.txt'
-                result = main(path)
+                try:
+                    result = main(path)
+                except:
+                    print(f'[!] cannot find file: {path}')
+                    continue
                 print(f'[!] {path}: {round(result, 4)}')
-                if baseline not in results:
-                    results[baseline] = {'hard': None, 'easy': None}
-                else:
-                    results[baseline][mode] = result
+                if baseline not in results[task]:
+                    results[task][baseline] = {'hard': None, 'easy': None}
+                results[task][baseline][mode] = result
     else:
-        for baseline in ['dkrn', 'kernel', 'matrix', 'neural', 'retrieval', 'retrieval_stgy', 'topkg']:
+        for baseline in ['ours', 'dkrn', 'kernel', 'matrix', 'neural', 'retrieval', 'retrieval_stgy', 'topkg']:
             path = f'playground/target-dialog/TGDR/{task}/{baseline}/result.txt'
-            result = main(path)
+            try:
+                result = main(path)
+            except:
+                print(f'[!] cannot find file: {path}')
+                continue
             print(f'[!] {path}: {round(result, 4)}')
-            if baseline not in results:
-                results[baseline] = {'result': None}
-            else:
-                results[baseline]['result'] = result
+            if baseline not in results[task]:
+                results[task][baseline] = {'result': None}
+            results[task][baseline]['result'] = result
 
 pprint.pprint(results)
     

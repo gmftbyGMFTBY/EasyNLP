@@ -519,7 +519,8 @@ models:
         # model_name: FastDensePhraseV23Encoder
         # model_name: FastDensePhraseV24Encoder
         # model_name: FastDensePhraseV26Encoder
-        model_name: FastDensePhraseV27Encoder
+        # model_name: FastDensePhraseV27Encoder
+        model_name: Copyisallyouneed
         # model_name: FastDensePhraseV28Encoder
         # model_name: DensePhraseV4Encoder
         # model_name: DensePhraseV5Encoder
@@ -855,6 +856,7 @@ models:
         # dataset_name: BERTDualFullDataset
         dataset_name: BERTDualDataset
         inference_dataset_name: BERTDualInferenceFullDataset
+        # inference_dataset_name: BERTDualInferenceFullRUCAIBoxDataset
     dual-bert-hier-trs: 
         type: Representation
         # model_name: BERTDualHierarchicalGRUMVEncoder
@@ -1159,8 +1161,8 @@ models:
 # ========= Global configuration ========== #
 # huge file are saved in the root dir
 # root_dir: /apdcephfs/share_733425/johntianlan/MyReDial
-root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
-# root_dir: /home/johntianlan/sources/EasyNLP
+# root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
+root_dir: /home/johntianlan/sources/EasyNLP
 # root_dir: /apdcephfs/share_916081/dongyangma/johntianlan/MyReDial
 # root_dir: /apdcephfs/share_733425/johntianlan/MyReDial
 # root_dir: /home/johntianlan/sources/EasyNLP

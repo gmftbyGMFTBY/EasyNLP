@@ -137,8 +137,10 @@ benchmarks/*.md
 *pretrained
 indexdir/
 post_train/runs
-easynlp/playground
 easynlp/playground/test-phrase-copy/english/bleurt
+easynlp/playground/test_api_phrase_copy
+easynlp/playground/test-phrase-copy
+!easynlp/playground/target-dialog
 
 !data/vocab/*
 !data/config/*

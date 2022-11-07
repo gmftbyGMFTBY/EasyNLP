@@ -43,3 +43,4 @@ from .hash_bert import *
 from .dual_bert_gray import *
 from .dual_bert_gray_writer import *
 from .dual_bert_hier import *
+from .re_phrase_gpt2 import *

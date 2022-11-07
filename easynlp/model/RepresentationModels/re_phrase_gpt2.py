@@ -95,11 +95,11 @@ class Copyisallyouneed(nn.Module):
             doc_vl = dids_mask.sum(dim=-1)
 
         # extract the contextual embeddings
-        s_rep = self.s_proj(s_rep)    # [B, S, E]
-        e_rep = self.e_proj(e_rep)    # [B, S, E]
+        s_rep = self.s_proj(output)    # [B, S, E]
+        e_rep = self.e_proj(output)    # [B, S, E]
         start_embeddings, end_embeddings = [], []
         start_pos, end_pos = [], []
-        counter = 0
+        counter = self.vocab_size
         for idx in range(doc_bsz):
             vl = doc_vl[idx]
             s = dindex_s[idx]
@@ -112,6 +112,8 @@ class Copyisallyouneed(nn.Module):
         # [B*, E]
         start_embeddings = torch.cat(start_embeddings)
         end_embeddings = torch.cat(end_embeddings)
+        start_pos = torch.stack(start_pos)
+        end_pos = torch.stack(end_pos)
 
         # extract query represetnation
         pos_index = batch['pos_ids']    # [B_p]
@@ -143,7 +145,7 @@ class Copyisallyouneed(nn.Module):
         logits = torch.matmul(query_reps, candidate_reps.t())
         mask = torch.zeros_like(logits)
         mask[range(len(logits)), token_labels] = 1.
-        logits[phrase_pos_index, phrase_labels[phrase_pos_index]] = -1e3
+        logits[phrase_pos_index, start_pos] = -1e3
         loss_ = F.log_softmax(logits, dim=-1) * mask
         t_loss = (-loss_.sum(dim=1)).mean()
         t_acc = logits[token_pos_index].max(dim=-1)[1] == token_labels[token_pos_index]
@@ -153,24 +155,24 @@ class Copyisallyouneed(nn.Module):
         candidate_reps = torch.cat([self.token_embeddings[:, :self.model.config.hidden_size], start_embeddings], dim=0)
         logits = torch.matmul(start_query_reps, candidate_reps.t())    # [Q, B*]   
         mask = torch.zeros_like(logits)
-        mask[phrase_pos_index, phrase_labels[phrase_pos_index]] = 1.
-        logits[phrase_pos_index, token_lables[phrase_pos_index]] = -1e3
+        mask[phrase_pos_index, start_pos] = 1.
+        logits[phrase_pos_index, token_labels[phrase_pos_index]] = -1e3
         valid_num = phrase_pos_index.sum().item()
         loss_ = F.log_softmax(logits, dim=-1) * mask
         s_loss = (-loss_.sum(dim=-1)).sum() / valid_num
-        s_acc = logits[phrase_pos_index].max(dim=-1)[1] == phrase_labels[phrase_pos_index]
+        s_acc = logits[phrase_pos_index].max(dim=-1)[1] == start_pos
         s_acc = s_acc.to(torch.float).mean().item()
 
         # for end training
         candidate_reps = torch.cat([self.token_embeddings[:, self.model.config.hidden_size:], end_embeddings], dim=0)
         logits = torch.matmul(end_query_reps, candidate_reps.t())    # [Q, B*]   
         mask = torch.zeros_like(logits)
-        mask[phrase_pos_index, phrase_labels[phrase_pos_index]] = 1.
-        logits[phrase_pos_index, token_lables[phrase_pos_index]] = -1e3
+        mask[phrase_pos_index, end_pos] = 1.
+        logits[phrase_pos_index, token_labels[phrase_pos_index]] = -1e3
         valid_num = phrase_pos_index.sum().item()
         loss_ = F.log_softmax(logits, dim=-1) * mask
         e_loss = (-loss_.sum(dim=-1)).sum() / valid_num
-        e_acc = logits[phrase_pos_index].max(dim=-1)[1] == phrase_labels[phrase_pos_index]
+        e_acc = logits[phrase_pos_index].max(dim=-1)[1] == end_pos
         e_acc = e_acc.to(torch.float).mean().item()
 
         return t_loss, s_loss, e_loss, t_acc, s_acc, e_acc

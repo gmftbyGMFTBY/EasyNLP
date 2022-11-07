@@ -76,7 +76,7 @@ def main_target_dialog(**args):
     print(f'[!] init the agent over')
     agent.add_cross_encoder(ce_agent)
 
-    f = open(f'{args["root_dir"]}/rest/{args["dataset"]}/{args["model"]}/test_target_dialog.txt', 'w')
+    f = open(f'{args["root_dir"]}/rest/{args["dataset"]}/{args["model"]}/test_target_dialog_hard.txt', 'w')
     k2m = torch.load(f'{args["root_dir"]}/data/{args["dataset"]}/k2m.pt')
     success_num = 0
     valid_num = 0
@@ -87,6 +87,10 @@ def main_target_dialog(**args):
         # topic, memory = select_topic_and_memory(k2m)
         try:
             memory = k2m[topic]
+            # memory = json.load(open('/dockerdata/johntianlan/rucaibox/analysis.json'))
+            # memory = memory['tgcp'][topic]
+            # memory = memory['hard'][topic]
+            # memory = memory['easy'][topic]
             if type(ctx) == str:
                 context_list = [ctx]
             else:
@@ -101,24 +105,28 @@ def main_target_dialog(**args):
         agent.init(memory, topic, context_list)
         dialog, dialog_history = [], deepcopy(context_list)
         turn_counter = 0
+        is_succ = False
         for turn_id in tqdm(range(agent.args["max_turn_num"])):
             candidate, dis_1 = agent.work(dialog_history)
             dialog_history.append(candidate)
             if topic in candidate:
                 dialog.append(('chatbot', candidate, dis_1))
                 success_num += 1
+                is_succ = True
                 break
             utterance, dis_2 = agent.work_no_topic(dialog_history)
             dialog_history.append(utterance)
             if topic in utterance:
                 dialog.append(('human', utterance, dis_2))
                 success_num += 1
+                is_succ = True
                 break
 
             dialog.append(('chatbot', candidate, dis_1))
             dialog.append(('human', utterance, dis_2))
             turn_counter += 1
-        turn_counters.append(turn_counter)
+        if is_succ:
+            turn_counters.append(turn_counter)
 
         # write the log
         context = ' [SEP] '.join(context_list)

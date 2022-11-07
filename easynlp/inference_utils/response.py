@@ -29,14 +29,14 @@ def response_strategy(args):
             texts.extend(text)
             already_added.append((i, idx))
             print(f'[!] collect embeddings: {current_num}')
-            if current_num > 1000000:
+            if current_num > 2000000:
                 break
-        if current_num > 1000000:
+        if current_num > 2000000:
             break
     embds = np.concatenate(embds) 
     searcher = Searcher(args['index_type'], dimension=args['dimension'])
-    # searcher._build(embds, texts, speedup=True)
-    searcher._build(embds, texts, speedup=False)
+    searcher._build(embds, texts, speedup=True)
+    # searcher._build(embds, texts, speedup=False)
     print(f'[!] train the searcher over')
     searcher.move_to_cpu()
 
