@@ -76,7 +76,8 @@ def main_target_dialog(**args):
     print(f'[!] init the agent over')
     agent.add_cross_encoder(ce_agent)
 
-    f = open(f'{args["root_dir"]}/rest/{args["dataset"]}/{args["model"]}/test_target_dialog_hard.txt', 'w')
+    # f = open(f'{args["root_dir"]}/rest/{args["dataset"]}/{args["model"]}/test_target_dialog_hard_{args["context_candidate_alpha"]}_{args["context_candidate_memory_alpha"]}_{args["candidate_memory_alpha"]}_{args["past_alpha"]}.txt', 'w')
+    f = open(f'{args["root_dir"]}/rest/{args["dataset"]}/{args["model"]}/test_target_dialog_easy_ratio_1.0.txt', 'w')
     k2m = torch.load(f'{args["root_dir"]}/data/{args["dataset"]}/k2m.pt')
     success_num = 0
     valid_num = 0
@@ -107,7 +108,13 @@ def main_target_dialog(**args):
         turn_counter = 0
         is_succ = False
         for turn_id in tqdm(range(agent.args["max_turn_num"])):
-            candidate, dis_1 = agent.work(dialog_history)
+            candidate, dis_1 = agent.work(
+                dialog_history,
+                context_candidate_alpha=agent.args['context_candidate_alpha'],
+                context_candidate_memory_alpha=agent.args['context_candidate_memory_alpha'],
+                candidate_memory_alpha=agent.args['candidate_memory_alpha'],
+                past_alpha=agent.args['past_alpha']
+            )
             dialog_history.append(candidate)
             if topic in candidate:
                 dialog.append(('chatbot', candidate, dis_1))

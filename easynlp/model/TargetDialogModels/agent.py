@@ -230,7 +230,7 @@ class TargetDialogAgent(RetrievalBaseAgent):
         return random.choice(candidates), -1
 
     @torch.no_grad()
-    def work(self, context_list):
+    def work(self, context_list, context_candidate_alpha=0, context_candidate_memory_alpha=0, candidate_memory_alpha=0, past_alpha=0):
         # 0. get the candidate embeddings of utterances in context_list to avoid the repetition 
         if len(context_list) > 1:
             ids = self.vocab.batch_encode_plus(context_list[:-1], add_special_tokens=False)['input_ids']
@@ -285,10 +285,14 @@ class TargetDialogAgent(RetrievalBaseAgent):
 
         # given the scores
         # too high candidate_memory_score leads to the unnatural transition
-        md = 0.5 * context_candidate_score + 0.25 * context_candidate_memory_score + 0.25 * candidate_memory_score
+        # md = 0.5 * context_candidate_score + 0.25 * context_candidate_memory_score + 0.25 * candidate_memory_score
+        md = context_candidate_alpha * context_candidate_score +\
+                context_candidate_memory_alpha * context_candidate_memory_score +\
+                candidate_memory_alpha * candidate_memory_score
         if len(context_list) > 1:
             past_candidate_score = torch.matmul(cand_rep, past_rep.t()).max(dim=-1)[0]    # [B]
-            md -= 0.25 * past_candidate_score
+            # md -= 0.25 * past_candidate_score
+            md -= past_alpha * past_candidate_score
 
         dis, best = md.max(dim=-1)
         dis, best = dis.item(), best.item()    # distance range from -1 to 1

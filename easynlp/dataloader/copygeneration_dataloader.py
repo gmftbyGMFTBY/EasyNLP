@@ -396,10 +396,10 @@ class CopyGenerationCompactDataset(Dataset):
             # self.data_root_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_wikitext103'
             file_num = 8
         else:
-            self.data_root_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_data/backup_v2_data'
+            self.data_root_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_data'
             file_num = 8
-        # self.file_lists = [f'{self.data_root_path}/searched_results_{i}.txt' for i in range(file_num)]
-        self.file_lists = [f'{self.data_root_path}/searched_results_debug.txt' for i in range(file_num)]
+        self.file_lists = [f'{self.data_root_path}/backup_v4_data/searched_results_{i}.txt' for i in range(file_num)]
+        # self.file_lists = [f'{self.data_root_path}/backup_v2_data/searched_results_debug.txt' for i in range(file_num)]
         self.size = 0
         for path in self.file_lists:
             self.size += iter_count(path)

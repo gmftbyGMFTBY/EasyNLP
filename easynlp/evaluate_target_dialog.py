@@ -25,7 +25,7 @@ def make_batch(tokenizer, examples, eos_token_id, cls_token_id, sep_token_id, pa
 
 
 def make_one_instance(tokenizer, text_lists, eos_token_id, cls_token_id, sep_token_id, max_len):
-    text_ids = [tokenizer.encode(text) for text in text_lists]
+    text_ids = [tokenizer.encode(text, add_special_tokens=False) for text in text_lists]
     context = []
     for ids in text_ids[:-1]:
         context.extend(ids + [eos_token_id])
@@ -71,7 +71,7 @@ def main(path):
 # prepare the model
 test_args = {
     'mode': 'test',
-    'dataset': 'convai2_tgcp',
+    'dataset': 'tgconv',
     'model': 'bert-ft',
     'version': 300
 }
@@ -81,16 +81,16 @@ test_args.update(config)
 agent = load_model(test_args)
 pretrained_model_name = test_args['pretrained_model'].replace('/', '_')
 save_path = f'{test_args["root_dir"]}/ckpt/{test_args["dataset"]}/{test_args["model"]}/best_{pretrained_model_name}_{test_args["version"]}.pt'
+print('load model from', save_path)
 agent.load_model(save_path)
 
-# our_rest = main('playground/target-dialog/TGDR/ours.txt')
-# print(f'[!] ours: {round(our_rest, 4)}')
 results = {'TGConv': {}, 'TGCP': {}}
 # for task in ['TGConv', 'TGCP']:
-for task in ['TGCP']:
+for task in ['TGConv']:
     if task == 'TGConv':
-        for baseline in ['ours', 'dkrn', 'kernel', 'matrix', 'neural', 'retrieval', 'retrieval_stgy', 'topkg']:
-            for mode in ['hard', 'easy']:
+        for baseline in ['dkrn', 'kernel', 'matrix', 'neural', 'retrieval', 'retrieval_stgy', 'topkg']:
+            # for mode in ['hard', 'easy']:
+            for mode in ['hard']:
                 path = f'playground/target-dialog/TGDR/{task}/{baseline}/{mode}.txt'
                 try:
                     result = main(path)
@@ -102,7 +102,8 @@ for task in ['TGCP']:
                     results[task][baseline] = {'hard': None, 'easy': None}
                 results[task][baseline][mode] = result
     else:
-        for baseline in ['ours', 'dkrn', 'kernel', 'matrix', 'neural', 'retrieval', 'retrieval_stgy', 'topkg']:
+        # for baseline in ['ours', 'dkrn', 'kernel', 'matrix', 'neural', 'retrieval', 'retrieval_stgy', 'topkg']:
+        for baseline in ['topkg']:
             path = f'playground/target-dialog/TGDR/{task}/{baseline}/result.txt'
             try:
                 result = main(path)

@@ -1,7 +1,7 @@
 from model.utils import *
 from .gpt2_original import GPT2OriginalModel, GPT2wt103Model
 from .knn_lm import KNNLMModel
-from model.RepresentationModels import DensePhraseEncoder, DensePhraseV2Encoder, DensePhraseV3Encoder, DensePhraseV4Encoder, DensePhraseV7Encoder, FastDensePhraseV8Encoder, FastDensePhraseV10Encoder, FastDensePhraseV13Encoder, FastDensePhraseV15Encoder, FastDensePhraseV16Encoder, FastDensePhraseV17Encoder, FastDensePhraseV22Encoder, FastDensePhraseV11Encoder, FastDensePhraseV25Encoder, FastDensePhraseV26Encoder, FastDensePhraseV27Encoder
+from model.RepresentationModels import DensePhraseEncoder, DensePhraseV2Encoder, DensePhraseV3Encoder, DensePhraseV4Encoder, DensePhraseV7Encoder, FastDensePhraseV8Encoder, FastDensePhraseV10Encoder, FastDensePhraseV13Encoder, FastDensePhraseV15Encoder, FastDensePhraseV16Encoder, FastDensePhraseV17Encoder, FastDensePhraseV22Encoder, FastDensePhraseV11Encoder, FastDensePhraseV25Encoder, FastDensePhraseV26Encoder, FastDensePhraseV27Encoder, Copyisallyouneed, FastDensePhraseV28Encoder, FastDensePhraseV29Encoder
 from .utils import *
 from config import *
 
@@ -104,8 +104,9 @@ class CopyGenerationEncoder(nn.Module):
         # self.retriever = FastDensePhraseV22Encoder(**retriever_args) 
         # self.retriever = FastDensePhraseV25Encoder(**retriever_args) 
         
-        self.retriever = FastDensePhraseV26Encoder(**retriever_args) 
+        self.retriever = FastDensePhraseV29Encoder(**retriever_args) 
         # self.retriever = FastDensePhraseV27Encoder(**retriever_args) 
+        # self.retriever = Copyisallyouneed(**retriever_args)
         self.test_max_len = self.args['test_max_len']
 
         if self.args['lang'] == 'en':
@@ -179,9 +180,6 @@ class CopyGenerationEncoder(nn.Module):
     def search_from_documents(self, query, phrase_reps, phrase_source, search_topk=5, head_weight=1.0, tail_weight=1.0):
         self.retriever.eval()
         dp = torch.matmul(query, phrase_reps.t()).squeeze(0)   
-
-        # for case study
-        # dp = F.softmax(dp, dim=-1)
 
         search_num = min(search_topk, len(phrase_reps))
         dis, topk = dp.topk(search_num, dim=-1)    # [K]
@@ -599,7 +597,7 @@ class CopyGenerationEncoder(nn.Module):
                 candidates = self.search_from_documents(query, phrase_reps, phrase_sources, search_topk=beam_width, head_weight=head_weight, tail_weight=tail_weight)
             # word_candidates = self.search_from_words(query, search_topk=beam_width)
             # combination of the two set of the candidates
-            # candidates += [(string, score * head_weight) for string, score in word_candidates]
+            # candidates += [(string, score * head_weight, context) for string, score, context in word_candidates]
 
             if self.args['lang'] == 'zh':
                 candidates = [c for c in candidates if '[UNK]' not in c[0]]
@@ -615,7 +613,7 @@ class CopyGenerationEncoder(nn.Module):
             candidate_tokens = [item[0] for item in candidates]
             candidate_is_phrase_label = [0 if item[-1] == '' else 1 for item in candidates]
             
-            debug_info = 0
+            debug_info = 1
             if debug_info == 1:
                 # rerank pipeline
                 # alpha, beta = self.args['coarse_score_alpha'], 1 - self.args['coarse_score_alpha']
@@ -655,7 +653,8 @@ class CopyGenerationEncoder(nn.Module):
         time_cost = time.time() - bt
         generated = ''.join(generated)
         # return generated, np.mean(is_phrase_label), time_cost
-        return generated, np.mean(phrase_length_avg), time_cost
+        # return generated, np.mean(phrase_length_avg), time_cost
+        return generated, len(phrase_reps), time_cost
 
     def decoding_one_step_inner(self, ids, candidates, candidates_prob, generation_method, topk=1., topp=1., model_prediction_confidence=0.4):
         if generation_method == 'contrastive-search':
@@ -2845,8 +2844,8 @@ class CopyGenerationEncoder(nn.Module):
                     s_pos.append(i)
                     e_pos.append(j)
                     sss = sss.replace('##', '')
-                    # if sss in self.punc_set:
-                    #     break
+                    if sss in self.punc_set:
+                        break
                 last_index = min(i+self.args['right_window_size'], l-1)
                 sss = self.retriever.bert_tokenizer.decode(doc_id[last_index])
                 if sss.startswith('##'):

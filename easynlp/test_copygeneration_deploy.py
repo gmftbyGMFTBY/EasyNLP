@@ -19,8 +19,8 @@ def load_base_data(dataset):
     if dataset in ['wikitext103', 'copygeneration_lawmt']:
         nlp = spacy.load('en_core_web_sm')
         # data_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_wikitext103/backup_v4_data'
-        data_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_wikitext103'
-        # data_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_wikitext103/backup_v2_data'
+        # data_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_wikitext103'
+        data_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_wikitext103/backup_v2_data'
         
         # data_path = f'/apdcephfs/share_916081/johntianlan/copygeneration_lawmt/'
         num = 8

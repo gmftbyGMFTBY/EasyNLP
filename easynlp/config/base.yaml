@@ -522,6 +522,7 @@ models:
         # model_name: FastDensePhraseV27Encoder
         model_name: Copyisallyouneed
         # model_name: FastDensePhraseV28Encoder
+        # model_name: FastDensePhraseV29Encoder
         # model_name: DensePhraseV4Encoder
         # model_name: DensePhraseV5Encoder
         # model_name: DensePhraseV6Encoder
@@ -1161,15 +1162,15 @@ models:
 # ========= Global configuration ========== #
 # huge file are saved in the root dir
 # root_dir: /apdcephfs/share_733425/johntianlan/MyReDial
-# root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
-root_dir: /home/johntianlan/sources/EasyNLP
+root_dir: /apdcephfs/share_916081/johntianlan/MyReDial
+# root_dir: /home/johntianlan/sources/EasyNLP
 # root_dir: /apdcephfs/share_916081/dongyangma/johntianlan/MyReDial
 # root_dir: /apdcephfs/share_733425/johntianlan/MyReDial
 # root_dir: /home/johntianlan/sources/EasyNLP
 # test_interval bigger than 1, denotes that not test or validation during training
 test_interval: 0.1
 fgm: false
-version: 300
+version: 2005
 
 # the number of the gray negative samples (writer dataset)
 gray_cand_num: 5

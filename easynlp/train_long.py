@@ -75,6 +75,7 @@ def main(**args):
             )
             if args['global_rank'] == 0 and current_step % args['save_every'] == 0 and current_step > 0:
                 # test the ppl
+                '''
                 ppls = []
                 for test_batch in tqdm(test_iter):
                     ppl = agent.test_model_ppl_contrastive_search(test_batch)
@@ -82,6 +83,7 @@ def main(**args):
                 ppl = np.mean(ppl)
                 print(f'[!] PPL: {ppl}')
                 sum_writer.add_scalar(f'test/ppl', ppl, current_step)
+                '''
                 # save the model
                 pretrained_model_name = args['pretrained_model'].replace('/', '_')
                 save_path = f'{args["root_dir"]}/ckpt/{args["dataset"]}/{args["model"]}/best_{pretrained_model_name}_{args["version"]}_{current_step}.pt'

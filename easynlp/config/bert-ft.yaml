@@ -16,11 +16,13 @@ tokenizer:
     zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
     # en: /apdcephfs/share_733425/johntianlan/bert-base-uncased
     en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
+    # en: bert-base-uncased
     # en: /apdcephfs/share_916081/johntianlan/electra-large-discriminator
 pretrained_model:
     zh: /apdcephfs/share_916081/johntianlan/bert-base-chinese
     # en: /apdcephfs/share_733425/johntianlan/bert-base-uncased
     en: /apdcephfs/share_916081/johntianlan/bert-base-uncased
+    # en: bert-base-uncased
     # en: /apdcephfs/share_916081/johntianlan/electra-large-discriminator
 
 # train configuration
