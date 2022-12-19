@@ -1,8 +1,8 @@
 temperature: 1.0
 # dynamic searching parameters (left windows position and right windows position)
 # english 0, chinese 2
-left_window_size: 0
-right_window_size: 8
+left_window_size: 2
+right_window_size: 16
 test_max_len: 128
 prefix_len: 32
 doc_max_length: 256

@@ -143,14 +143,20 @@ class Copyisallyouneed(nn.Module):
         pos_end_index = batch['pos_ids_end']
         vl = batch['vl']
 
+        # make the mask_pos
+        mask_pos_matrix = torch.zeros(len(mask_pos), self.vocab_size + len(start_embeddings)).cuda()
+        mask_pos_matrix[:, self.vocab_size:] = -1e4
+        counting = self.vocab_size
+        for i, m in enumerate(mask_pos):
+            mask_pos_matrix[i, counting:counting+m] = 0
+            counting += m 
+
         #### training the query head
         query_reps, token_labels, phrase_labels, counter = [], [], [], 0
-        phrase_mask_pos = []
         for ids_, hn, pos_list, pos_list_end, l in zip(ids, last_hidden_states, pos_index, pos_end_index, vl):
             query_reps.append(hn[:l-1])
             token_labels.append(ids_[1:l])
             pos_list_set = set(pos_list)
-            phrase_mask_pos.append(len(pos_list_set))
             for i in range(l-1):
                 if i in pos_list_set:
                     phrase_labels.append(self.vocab_size + counter)
@@ -208,10 +214,11 @@ class Copyisallyouneed(nn.Module):
         counting = self.vocab_size
         phrase_indexes = phrase_pos_index.to(torch.long).nonzero().squeeze(dim=-1)
         assert len(phrase_indexes) == len(mask_pos)
-        for i, m in zip(phrase_indexes, mask_pos):
-            logits[i, counting+m:] = -1e4
-            logits[i, self.vocab_size:counting] = -1e4
-            counting += m
+        # for i, m in zip(phrase_indexes, mask_pos):
+        #     logits[i, counting+m:] = -1e4
+        #     logits[i, self.vocab_size:counting] = -1e4
+        #     counting += m
+        logits[phrase_indexes] += mask_pos_matrix
         logits[phrase_pos_index, token_labels[phrase_pos_index]] = -1e4
         valid_num = phrase_pos_index.sum().item()
         loss_ = F.log_softmax(logits, dim=-1) * mask
@@ -229,10 +236,11 @@ class Copyisallyouneed(nn.Module):
         counting = self.vocab_size
         phrase_indexes = phrase_pos_index.to(torch.long).nonzero().squeeze(dim=-1)
         assert len(phrase_indexes) == len(mask_pos)
-        for i, m in zip(phrase_indexes, mask_pos):
-            logits[i, counting+m:] = -1e4
-            logits[i, self.vocab_size:counting] = -1e4
-            counting += m
+        logits[phrase_indexes] += mask_pos_matrix
+        # for i, m in zip(phrase_indexes, mask_pos):
+        #     logits[i, counting+m:] = -1e4
+        #     logits[i, self.vocab_size:counting] = -1e4
+        #     counting += m
         logits[phrase_pos_index, token_labels[phrase_pos_index]] = -1e4
         
         mask = torch.zeros_like(logits)
@@ -243,3 +251,33 @@ class Copyisallyouneed(nn.Module):
         acc_4 = logits[phrase_pos_index].max(dim=-1)[1] == end_pos
         acc_4 = acc_4.to(torch.float).mean().item()
         return loss_0, loss_1, loss_2, loss_3, loss_4, acc_0, acc_1, acc_2, acc_3, acc_4
+
+    @torch.no_grad()
+    def fast_rerank(self, ids, candidates, temp=1.0):
+        self.model.eval()
+        # 1. tokenize candidates
+        tokens = self.tokenizer.batch_encode_plus(candidates, add_special_tokens=False)['input_ids']
+        # 2. prepare the ids and mask
+        cids = [torch.LongTensor(t) for t in tokens]
+        cids = pad_sequence(cids, batch_first=True, padding_value=self.pad)
+        mask = generate_mask(cids, pad_token_idx=self.pad)
+        cids, mask = to_cuda(cids, mask)
+        ids = ids.expand(len(cids), -1)
+        seqlen = ids.size(-1)
+        mask = torch.cat([torch.ones_like(ids), mask], dim=-1)
+        ids = torch.cat([ids, cids], dim=-1)
+        # 3. gpt2 encoding
+        hidden_state = self.model(input_ids=ids, attention_mask=mask, output_hidden_states=True)['hidden_states'][-1]    # [B, S, E]
+        hidden_state = self.h_proj(hidden_state)
+        # 4. calculating the confidence 
+        shift_label = ids[:, seqlen:]
+        shift_hidden = hidden_state[:, seqlen-1:-1, :]
+        shift_logits = torch.matmul(shift_hidden, self.token_embeddings.t())    # [B, S, V]
+        confidence = torch.gather(shift_logits, 2, shift_label.unsqueeze(-1)).squeeze(-1)    # [B, S]
+        vl = mask.sum(dim=-1) - seqlen
+        confidence = torch.stack([c[:l].mean() for c, l in zip(confidence, vl)])    # [B]
+        # confidence = torch.stack([c[:l].min() for c, l in zip(confidence, vl)])    # [B]
+        return F.softmax(confidence/temp, dim=-1)
+
+
+

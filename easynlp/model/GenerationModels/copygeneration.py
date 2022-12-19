@@ -104,9 +104,9 @@ class CopyGenerationEncoder(nn.Module):
         # self.retriever = FastDensePhraseV22Encoder(**retriever_args) 
         # self.retriever = FastDensePhraseV25Encoder(**retriever_args) 
         
-        self.retriever = FastDensePhraseV29Encoder(**retriever_args) 
+        # self.retriever = FastDensePhraseV29Encoder(**retriever_args) 
         # self.retriever = FastDensePhraseV27Encoder(**retriever_args) 
-        # self.retriever = Copyisallyouneed(**retriever_args)
+        self.retriever = Copyisallyouneed(**retriever_args)
         self.test_max_len = self.args['test_max_len']
 
         if self.args['lang'] == 'en':
@@ -613,7 +613,7 @@ class CopyGenerationEncoder(nn.Module):
             candidate_tokens = [item[0] for item in candidates]
             candidate_is_phrase_label = [0 if item[-1] == '' else 1 for item in candidates]
             
-            debug_info = 1
+            debug_info = 0
             if debug_info == 1:
                 # rerank pipeline
                 # alpha, beta = self.args['coarse_score_alpha'], 1 - self.args['coarse_score_alpha']
@@ -2828,13 +2828,21 @@ class CopyGenerationEncoder(nn.Module):
             if idx == 0:
                 first_num = 0
             for i in range(1, l-1-self.args['left_window_size']):
-                if self.retriever.bert_tokenizer.decode(doc_id[i]) in self.punc_set:
+                # if self.retriever.bert_tokenizer.decode(doc_id[i]) in self.punc_set:
+                #     continue
+
+                # 不输出 <unk> 相关的内容
+                if self.retriever.bert_tokenizer.decode(doc_id[i]) in ['<', '>', 'unk']:
                     continue
+
                 for j in range(
                     min(i+self.args['left_window_size'], l-1), 
                     min(i+self.args['right_window_size'], l-1)
                 ):
                     sss = self.retriever.bert_tokenizer.decode(doc_id[j])
+                    # 不输出 <unk> 相关的内容
+                    if sss in ['<', '>', 'unk']:
+                        break
                     
                     if sss.startswith('##'):
                         # remove the last and append the new
@@ -2844,8 +2852,7 @@ class CopyGenerationEncoder(nn.Module):
                     s_pos.append(i)
                     e_pos.append(j)
                     sss = sss.replace('##', '')
-                    if sss in self.punc_set:
-                        break
+                    
                 last_index = min(i+self.args['right_window_size'], l-1)
                 sss = self.retriever.bert_tokenizer.decode(doc_id[last_index])
                 if sss.startswith('##'):

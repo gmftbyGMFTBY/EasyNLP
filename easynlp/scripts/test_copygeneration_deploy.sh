@@ -7,4 +7,4 @@ CUDA_VISIBLE_DEVICES=$cuda python test_copygeneration_deploy.py \
     --model copygeneration \
     --recall_topk 20 \
     --partial 1.0 \
-    --port 23324
+    --port 23325
