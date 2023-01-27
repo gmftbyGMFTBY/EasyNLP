@@ -130,7 +130,8 @@ bak/
 ckpt/
 log/
 rest/
-data/
+# data/
+data/arxiv_data
 benchmarks/*.md
 *pretrained
 indexdir/
