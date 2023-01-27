@@ -25,10 +25,12 @@ def main_target_dialog(**args):
     config = load_config(args)
     args.update(config)
 
+
     random.seed(args['seed'])
     torch.manual_seed(args['seed'])
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(args['seed'])
+
 
     # load dataset
     # with open(f'{args["root_dir"]}/data/{args["dataset"]}/test.txt') as f:
@@ -77,12 +79,13 @@ def main_target_dialog(**args):
     agent.add_cross_encoder(ce_agent)
 
     # f = open(f'{args["root_dir"]}/rest/{args["dataset"]}/{args["model"]}/test_target_dialog_hard_{args["context_candidate_alpha"]}_{args["context_candidate_memory_alpha"]}_{args["candidate_memory_alpha"]}_{args["past_alpha"]}.txt', 'w')
-    f = open(f'{args["root_dir"]}/rest/{args["dataset"]}/{args["model"]}/test_target_dialog_easy_ratio_1.0.txt', 'w')
+    f = open(f'{args["root_dir"]}/rest/{args["dataset"]}/{args["model"]}/test_target_dialog_hard_20w.txt', 'w')
     k2m = torch.load(f'{args["root_dir"]}/data/{args["dataset"]}/k2m.pt')
     success_num = 0
     valid_num = 0
     turn_counters = []
     pbar = tqdm(test_iter)
+    idx = 0
     for ctx, topic in pbar:
         # random select the topic and memory
         # topic, memory = select_topic_and_memory(k2m)
@@ -103,7 +106,7 @@ def main_target_dialog(**args):
         if len(memory) > agent.args['max_memory_size']:
             memory = random.sample(memory, agent.args['max_memory_size'])
 
-        agent.init(memory, topic, context_list)
+        agent.init(memory, topic, context_list, load_searcher=idx==0)
         dialog, dialog_history = [], deepcopy(context_list)
         turn_counter = 0
         is_succ = False
@@ -147,6 +150,7 @@ def main_target_dialog(**args):
         f.flush()
 
         pbar.set_description(f'[!] success rate: {round(success_num/valid_num, 2)}; average turns: {round(np.mean(turn_counters), 2)}')
+        idx += 1
     f.close()
 
 if __name__ == "__main__":

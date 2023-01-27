@@ -70,6 +70,7 @@ def main():
     successes, success_turns = [], []
 
     with open(args.input) as f:
+        counter = 0
         for line in f:
             data = json.loads(line.strip())
             utters = data["conversation_plan"].split('[SEP]')
@@ -85,6 +86,10 @@ def main():
 
             result_str = "SUCCESS" if is_success else "FAILED"
             successes.append(1 if result_str == "SUCCESS" else 0)
+
+            if counter > 20000:
+                break
+            counter += 1
 
     print("-----------------")
     print("SUCCESS RATE: {} ({} / {})".format(sum(successes) / len(successes) if successes else 0., sum(successes), len(successes)))

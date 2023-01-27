@@ -1,12 +1,12 @@
-temp: 0.05
+temp: 1.0
 # five for restoration-200k is enough
 # test 100 full_turn_length for ubuntu corpus
-full_turn_length: 100 
-test_interval: 0.2
+full_turn_length: 5
+test_interval: 0.05
 multi_ctx: 1
 min_conv_length: 3
 data_filter_size: 650000
-valid_during_training: false
+valid_during_training: true
 mv_num: 1
 is_step_for_training: false
 

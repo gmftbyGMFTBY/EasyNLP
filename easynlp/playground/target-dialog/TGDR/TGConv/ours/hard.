@@ -1,0 +1,204 @@
+[Context] well hi there ! anything interesting going on ?
+[Topic] maltese
+[Distance 0.44] chatbot: well , i've a pet husky that i love to play with . you ?
+[Distance -1] human: It's a jack russell terrier!
+[Distance 0.82] chatbot: mine seem to be poodle maltese mixes of some sort .
+
+[Context] hi , i am jenny , i like collecting stuff .
+[Topic] marrying
+[Distance 0.56] chatbot: hi there . i am carl and i take pictures for fun .
+[Distance -1] human: I sometimes collect stamps. Do you?
+[Distance 0.47] chatbot: it is more of a hobby than anything . too busy planning my wedding to do it professionally .
+[Distance -1] human: are you wanting to get married ?
+[Distance 0.73] chatbot: thanks ! i am so short that i never thought i'll be marrying .
+
+[Context] hello how are you doing ?
+[Topic] lance
+[Distance 0.55] chatbot: i am pleasantly well today
+[Distance -1] human: hello how are you this fine day ?
+[Distance 0.56] chatbot: how are you this morning
+[Distance -1] human: good just watching an old mob game watching my fave barolo colon
+[Distance 0.56] chatbot: my name is barry and i am eating my plate of mac and cheese
+[Distance -1] human: hi i'm martha i'm currently dieting
+[Distance 0.52] chatbot: hi . i am very healthy
+[Distance -1] human: hi am jackie and married to my awesome husband james
+[Distance 0.54] chatbot: hi there i am a mother of 3 wonderful children and i am a elementary teacher
+[Distance -1] human: I just accepted a job at an elementary school in my hometown
+[Distance 0.55] chatbot: hello how are you doing on this wonderful morning ?
+[Distance -1] human: good here listening to my favorite music old school hip hop and you ?
+[Distance 0.49] chatbot: nothing , much just reading this new book i just purchased
+[Distance -1] human: i've not read a book in at least a month . what is your favorite book ?
+[Distance 0.42] chatbot: the martian . . its a lovely book
+[Distance -1] human: Is it fiction?
+
+[Context] hello there . how are you today ?
+[Topic] fanatic
+[Distance 0.43] chatbot: good . exhausted from dancing though . tell me about yourself .
+[Distance -1] human: i love dancing . all kinds
+[Distance 0.77] chatbot: nice ! i am a bit of a fitness fanatic myself . my favorite is hiking . what is yours ?
+
+[Context] hi , my name is mary how are you today ?
+[Topic] skirt
+[Distance 0.7] chatbot: just fine today , and yourself ?
+[Distance -1] human: hi there , i'm good . just enjoying some fired chicken and chocolate cake , you ?
+[Distance 0.62] chatbot: just getting ready to go to a dance with some friends .
+[Distance -1] human: oh nice sounds good . i am just relaxing .
+[Distance 0.58] chatbot: cool . can we dance together ? i have no brothers or sisters .
+[Distance -1] human: Yeah . I'm going with Jennie .
+[Distance 0.88] chatbot: maybe we could go dancing ? boots and skirt are required though .
+
+[Context] hi do you like working out ? i run and swim
+[Topic] vacationing
+[Distance 0.61] chatbot: i like to run but i feel like i'm to tall
+[Distance -1] human: i like running do yo u like running ?
+[Distance 0.7] chatbot: i am 6 feet tall exactly
+[Distance -1] human: i think you have to run a lot and eat all your dinner
+[Distance 0.72] chatbot: i am over 6 foot tall , what about you ?
+[Distance -1] human: i am tall blonde and chubby lol
+[Distance 0.69] chatbot: i am six foot so i am tall
+[Distance -1] human: cool , do you listen to music
+[Distance 0.52] chatbot: i like sports and yes do you ?
+[Distance -1] human: i like biking a lot it is fun
+[Distance 0.65] chatbot: i'm not tall at all
+[Distance -1] human: i ride my motorcycle or my horse any chance i get
+[Distance 0.68] chatbot: i'm five foot 7 feet tall
+[Distance -1] human: how much taller you think you are huh ?
+[Distance 0.67] chatbot: i am short and have deep blue eyes
+[Distance -1] human: i'm a whole inch taller than you
+
+[Context] hey there , do you know how to swim ? i do not .
+[Topic] camper
+[Distance 0.57] chatbot: yes i can ! i also like to fish .
+[Distance -1] human: me too ! fishing is the best . what else do you do ?
+[Distance 0.65] chatbot: i love to fish ! my parents have a pond on their farm in kentucky .
+[Distance -1] human: Their fishing industry has year-round access to more than 50 species of premium quality fish and seafood.
+[Distance 0.78] chatbot: that's awesome ! i love to fish , and i love camping too . i just bought a camper .
+
+[Context] hi my name is karen , how are you today
+[Topic] headaches
+[Distance 0.42] chatbot: i am great , do you like to travel ?
+[Distance -1] human: not really . i'm a baker
+[Distance 0.54] chatbot: oh i see , do you get to travel a lot ?
+[Distance -1] human: very rarely , i am happy when we do . i like to paint sports cars
+[Distance 0.54] chatbot: good for you ! i don't travel much , have you been anywhere recently ?
+[Distance -1] human: i've visited paris but that's it .
+[Distance 0.5] chatbot: wow , do you get to travel a lot ?
+[Distance -1] human: no , i just do it for fun . maybe one day .
+[Distance 0.58] chatbot: do you travel often ? i work in real estate law , so i can not .
+[Distance -1] human: i have not traveled out of the country yet .
+[Distance 0.59] chatbot: ah , i see . are you married ?
+[Distance -1] human: yeah i am . do you have kids ?
+[Distance 0.62] chatbot: i've my husband . we married out of high school . do you have a travel companion ?
+[Distance -1] human: no , but would love to . i volunteer at a local bunny rescue .
+[Distance 0.46] chatbot: wow that is great . i wish i could travel with my dog . you have dogs ?
+[Distance -1] human: i don't . i wish i did .
+
+[Context] whats your favorite holiday , christmas is mine
+[Topic] springfield
+[Distance 0.49] chatbot: Delroy Lindo has starred in some great movies like This Christmas. Which one is your favorite?
+[Distance -1] human: Forrest Gump and The Shawshank Redemption
+[Distance 0.58] chatbot: Love this film . Love those guys from * The State * generally .
+[Distance -1] human: David Lynch directed movies like Eraserhead, Blue Velvet and Lost Highway. Many of which are in the horror genre. Do you enjoy horror movies?'
+[Distance 0.54] chatbot: I 'm a big Tarantino fan . Kill Bill is the the one Tarantino movie i 'm not sure about . Is Momento Christopher Nolan ? I did n't know .
+[Distance -1] human: I feel only having seen it you can spot the `` spoilers '' . Anyone who has n't seen the movie would n't be able to put it together .
+[Distance 0.45] chatbot: I'd like to keep looking. What about movies directed by George Sidney?
+[Distance -1] human: Sure, Brad Pitt starred in True Romance and Troy which is an epic film. Fight Club is another famous movie of his.'
+[Distance 0.54] chatbot: Quentin Tarantino have directed Pulp Fiction, Kill Bill and more.'
+[Distance -1] human: Yes, weren't Ryan Gosling and Hayden Panettiere great in that movie?
+[Distance 0.53] chatbot: I think I heard of The Bounty Hunter. It starred Jeff Garlin, and Siobhan Fallon Hogan. Do you know of any other movies starring either of them?'
+[Distance -1] human: Yes, it is a horror movie. Do you normally watch horror movies?'
+[Distance 0.55] chatbot: not often , just some holidays . do you live near your family ?
+[Distance -1] human: sadly , i do not . i do not have the time .
+[Distance 0.66] chatbot: sorry to hear that . do you have kids ?
+[Distance -1] human: No , we have five persons .
+
+[Context] hi . i am amanda . what is your name ?
+[Topic] ms
+[Distance 0.63] chatbot: ma'am , short for madam .
+[Distance -1] human: hi there . i am a translator by trade .
+[Distance 0.7] chatbot: m ms also . do you have any siblings . six older sisters here , three of them are married .
+
+[Context] hi there , i'm sarah , nice to meet you
+[Topic] cardio
+[Distance 0.35] chatbot: Hi there, do you like yoga? I love Hatha yoga and Rāja yoga.
+[Distance -1] human: yes i do it gives me the energy to hike everyday
+[Distance 0.78] chatbot: that is good cardio , i do squats and sit ups .
+
+[Context] hi !
+[Topic] saudi
+[Distance 0.41] chatbot: hi ! where are you from ? i live in baltimore
+[Distance -1] human: i am from tennessee . where are you from ?
+[Distance 0.8] chatbot: los angeles , although i'm originally from saudi arabia . i love the sun !
+
+[Context] hello can you tell me a little about yourself ?
+[Topic] arabia
+[Distance 0.51] chatbot: well , i live in florida . i just started 10 th grade and i love science . you ?
+[Distance -1] human: i'm still in school , i love science , its my favorite
+[Distance 0.49] chatbot: geology is my major . what do you do ?
+[Distance -1] human: i work in a hobby shop where we sell rc cars , how about you
+[Distance 0.48] chatbot: nice ! i teach third grade .
+[Distance -1] human: that's so cool i am in middle school
+[Distance 0.51] chatbot: my mom taught second grade .
+[Distance -1] human: its aright ! my dads a middle school teacher
+[Distance 0.82] chatbot: oh really . my mother taught me . she's from saudi arabia
+
+[Context] hello . how was your day today ?
+[Topic] shiny
+[Distance 0.41] chatbot: not too bad . what kind of hobbies do you have ?
+[Distance -1] human: besides my two jobs , i enjoy the beach . you ?
+[Distance 0.7] chatbot: i love driving my red ferrari .
+[Distance -1] human: Does your car fly ?
+[Distance 0.55] chatbot: i do ! i'm a big rider , motorbikes as well . do you ride bikes ?
+[Distance -1] human: i drive . hbu ?
+[Distance 0.86] chatbot: cool . my motorbike has a blue stripe and red when i race , it is shiny .
+
+[Context] hi ! i was just reminiscing about my time in beauty pageants .
+[Topic] seventh
+[Distance 0.46] chatbot: fun ! when you were a very young girl ?
+[Distance -1] human: i was on jeopardy show 7 years ago .
+[Distance 0.43] chatbot: I had a chance to judge foods in a food festival.
+[Distance -1] human: oh my ! that sounds delicious , i love to cook for people .
+[Distance 0.65] chatbot: i do not eat all or everyone food . are you vegan ?
+[Distance -1] human: i have been a vegan since i was 5 so i started my hate for meat pretty young .
+[Distance 0.75] chatbot: i'm trying to be vegan . it isn't easy though .
+[Distance -1] human: vegetarian is one thing , but vegan is a little harder
+[Distance 0.67] chatbot: i am on a vegan diet for health and weight management reasons.
+[Distance -1] human: healthy is good , better than my gambling
+[Distance 0.61] chatbot: What type of vegan do you consider yourself to be?
+[Distance -1] human: hey i'm vegan too ! i'm very tall and my skin is blue because i'm so healthy .
+[Distance 0.71] chatbot: i became a vegan a year ago . high five !
+[Distance -1] human: i love blue so much i colored my hair . you like blue ?
+[Distance 0.42] chatbot: i really like to eat sushi on a blue plate , my fav color .
+[Distance -1] human: i love the color yellow . you ?
+
+[Context] i'm an animal lover . how do you feel about them ?
+[Topic] clearly
+[Distance 0.4] chatbot: i'd rather spend time with animals than people .
+[Distance -1] human: What is it about red pandas that make you feel that way?
+[Distance 0.46] chatbot: i'm just an eccentric spirit .
+[Distance -1] human: what was wrong with the world ?
+[Distance 0.58] chatbot: You assume that I think that I 'm better than other people .
+[Distance -1] human: i just ponder sometimes . what it would be like .
+[Distance 0.75] chatbot: I wish I was as intelligent as you .
+[Distance -1] human: i don't believe in that .
+[Distance 0.86] chatbot: you are clearly less intelligent than i am .
+
+[Context] hello there ! how are you ?
+[Topic] tats
+[Distance 0.44] chatbot: hi there ! good thanks . you ?
+[Distance -1] human: great , got my weekly candy delivery today ! ! and you
+[Distance 0.5] chatbot: hello . how are you today ? my name is rob !
+[Distance -1] human: hello , my name is tom
+[Distance 0.6] chatbot: hello ! who are you ? eh ?
+[Distance -1] human: i'm umi and i compete on a dance team
+[Distance 0.58] chatbot: hi ! my names tom , whats yours ?
+[Distance -1] human: hi my name is ben and i like to drink cappuccino .
+[Distance 0.55] chatbot: hi names harvey and i'm a football player
+[Distance -1] human: Hello! I love football! What is your favorite team?
+[Distance 0.41] chatbot: for the philadelphia eagles ! do you like teaching ?
+[Distance -1] human: no its not just teaching the kids
+[Distance 0.62] chatbot: i am a teacher too . what subject do you teach ?
+[Distance -1] human: the history of the world part I
+[Distance 0.62] chatbot: teaching is cool . i love history .
+[Distance -1] human: i love ice cream and history
+

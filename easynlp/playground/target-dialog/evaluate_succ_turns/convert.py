@@ -2,10 +2,10 @@ import json
 
 # source_file = open("../TGDR/TGConv/ours/easy.txt", "r")
 # target_file = open("../TGDR/TGConv/ours/easy.jsonl", "w")
-# source_file = open("../TGDR/TGConv/ours/hard.txt", "r")
-# target_file = open("../TGDR/TGConv/ours/hard.jsonl", "w")
-source_file = open("../TGDR/TGCP/ours/result.txt", "r")
-target_file = open("../TGDR/TGCP/ours/result.jsonl", "w")
+source_file = open("../TGDR/TGConv/ours/hard.txt", "r")
+target_file = open("../TGDR/TGConv/ours/hard.jsonl", "w")
+# source_file = open("../TGDR/TGCP/ours/result.txt", "r")
+# target_file = open("../TGDR/TGCP/ours/result.jsonl", "w")
 
 source = source_file.readlines()
 

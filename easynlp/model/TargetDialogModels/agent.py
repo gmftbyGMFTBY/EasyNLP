@@ -178,7 +178,7 @@ class TargetDialogAgent(RetrievalBaseAgent):
 
     # ===== init the memory of the topic ===== # 
     @torch.no_grad()
-    def init(self, memory, topic, context_lists):
+    def init(self, memory, topic, context_lists, load_searcher=True):
         # memorys: the list of the sentences containing the given topics
         self.topic = topic
         self.memory = memory
@@ -194,13 +194,14 @@ class TargetDialogAgent(RetrievalBaseAgent):
         print(f'[!] init the memory and topic over')
 
         # load the ann searcher
-        model_name = self.args['model']
-        pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
-        self.searcher = Searcher(self.args['index_type'], dimension=self.args['dimension'], q_q=False, nprobe=self.args['index_nprobe'])
-        faiss_ckpt_path = f'{self.args["root_dir"]}/data/{self.args["dataset"]}/{model_name}_{pretrained_model_name}_faiss.ckpt'
-        corpus_ckpt_path = f'{self.args["root_dir"]}/data/{self.args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt'
-        self.searcher.load(faiss_ckpt_path, corpus_ckpt_path)
-        print(f'[!] init the ann searcher over')
+        if load_searcher:
+            model_name = self.args['model']
+            pretrained_model_name = self.args['pretrained_model'].replace('/', '_')
+            self.searcher = Searcher(self.args['index_type'], dimension=self.args['dimension'], q_q=False, nprobe=self.args['index_nprobe'])
+            faiss_ckpt_path = f'{self.args["root_dir"]}/data/{self.args["dataset"]}/{model_name}_{pretrained_model_name}_faiss.ckpt'
+            corpus_ckpt_path = f'{self.args["root_dir"]}/data/{self.args["dataset"]}/{model_name}_{pretrained_model_name}_corpus.ckpt'
+            self.searcher.load(faiss_ckpt_path, corpus_ckpt_path)
+            print(f'[!] init the ann searcher over')
 
         # init the cache
         self.cache = []
@@ -232,14 +233,14 @@ class TargetDialogAgent(RetrievalBaseAgent):
     @torch.no_grad()
     def work(self, context_list, context_candidate_alpha=0, context_candidate_memory_alpha=0, candidate_memory_alpha=0, past_alpha=0):
         # 0. get the candidate embeddings of utterances in context_list to avoid the repetition 
-        if len(context_list) > 1:
-            ids = self.vocab.batch_encode_plus(context_list[:-1], add_special_tokens=False)['input_ids']
-            ids = [torch.LongTensor([self.cls] + i[:self.args['max_len']-2] + [self.sep]) for i in ids]
-            ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
-            ids_mask = generate_mask(ids)
-            ids, ids_mask = to_cuda(ids, ids_mask)
-            past_rep = self.model.get_cand(ids, ids_mask)    # [S, E]
-            # past_rep = self.model.get_ctx_embedding(ids, ids_mask)    # [S, E]
+        # if len(context_list) > 1:
+        #     ids = self.vocab.batch_encode_plus(context_list[:-1], add_special_tokens=False)['input_ids']
+        #     ids = [torch.LongTensor([self.cls] + i[:self.args['max_len']-2] + [self.sep]) for i in ids]
+        #     ids = pad_sequence(ids, batch_first=True, padding_value=self.pad)
+        #     ids_mask = generate_mask(ids)
+        #     ids, ids_mask = to_cuda(ids, ids_mask)
+        #     past_rep = self.model.get_cand(ids, ids_mask)    # [S, E]
+        #     # past_rep = self.model.get_ctx_embedding(ids, ids_mask)    # [S, E]
 
         # 1. encode
         string = ' [SEP] '.join(context_list)
@@ -289,10 +290,10 @@ class TargetDialogAgent(RetrievalBaseAgent):
         md = context_candidate_alpha * context_candidate_score +\
                 context_candidate_memory_alpha * context_candidate_memory_score +\
                 candidate_memory_alpha * candidate_memory_score
-        if len(context_list) > 1:
-            past_candidate_score = torch.matmul(cand_rep, past_rep.t()).max(dim=-1)[0]    # [B]
-            # md -= 0.25 * past_candidate_score
-            md -= past_alpha * past_candidate_score
+        # if len(context_list) > 1:
+        #     past_candidate_score = torch.matmul(cand_rep, past_rep.t()).max(dim=-1)[0]    # [B]
+        #     # md -= 0.25 * past_candidate_score
+        #     md -= past_alpha * past_candidate_score
 
         dis, best = md.max(dim=-1)
         dis, best = dis.item(), best.item()    # distance range from -1 to 1

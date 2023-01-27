@@ -89,6 +89,7 @@ def main():
     successes, success_turns = [], []
 
     with open(args.input) as f:
+        counter = 0
         for line in f:
             data = json.loads(line.strip())
             utters = data["conversation_plan"].split('[SEP]')
@@ -105,6 +106,9 @@ def main():
             result_str = "SUCCESS" if is_success else "FAILED"
             successes.append(1 if result_str == "SUCCESS" else 0)
             # print("RESULT: {} TURNS: {}".format(result_str, success_turn))
+            if counter > 20:
+                break
+            counter += 1
 
     # all results
     print("-----------------")

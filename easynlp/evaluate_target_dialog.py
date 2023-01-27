@@ -86,10 +86,10 @@ agent.load_model(save_path)
 
 results = {'TGConv': {}, 'TGCP': {}}
 # for task in ['TGConv', 'TGCP']:
-for task in ['TGConv']:
+for task in ['TGCP']:
     if task == 'TGConv':
-        for baseline in ['dkrn', 'kernel', 'matrix', 'neural', 'retrieval', 'retrieval_stgy', 'topkg']:
-            # for mode in ['hard', 'easy']:
+        # for baseline in ['dkrn', 'kernel', 'matrix', 'neural', 'retrieval', 'retrieval_stgy', 'topkg']:
+        for baseline in ['dkrn']:
             for mode in ['hard']:
                 path = f'playground/target-dialog/TGDR/{task}/{baseline}/{mode}.txt'
                 try:
@@ -103,7 +103,7 @@ for task in ['TGConv']:
                 results[task][baseline][mode] = result
     else:
         # for baseline in ['ours', 'dkrn', 'kernel', 'matrix', 'neural', 'retrieval', 'retrieval_stgy', 'topkg']:
-        for baseline in ['topkg']:
+        for baseline in ['dkrn']:
             path = f'playground/target-dialog/TGDR/{task}/{baseline}/result.txt'
             try:
                 result = main(path)
